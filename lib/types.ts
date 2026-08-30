@@ -1,0 +1,160 @@
+/* ---------------------------------------------------------------------------
+   The typed surface between the UI and its data.
+
+   Every panel reads these shapes and nothing else. Swapping lib/mock/* for a
+   real API means satisfying this file — no component has to change.
+--------------------------------------------------------------------------- */
+
+/** The four venues the ledger filters by. */
+export type MarketType = "spot" | "perps" | "prediction" | "defi";
+
+/** The three primary ledger tabs. */
+export type LedgerTab = "positions" | "orders" | "history";
+
+/** Chart intervals offered above the chart. */
+export type Interval = "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";
+
+export interface Asset {
+  /** Ticker, and the key everything else joins on. */
+  symbol: string;
+  name: string;
+  price: number;
+  change24hPct: number;
+  high24h: number;
+  low24h: number;
+  /** Quote-currency volume over 24h. */
+  volume24h: number;
+  openInterest: number;
+  /** Percent per 8h. Negative means shorts pay longs. */
+  fundingPct: number;
+  markPrice: number;
+  /** Decimal places for price and for size, so columns never jitter. */
+  pricePrecision: number;
+  qtyPrecision: number;
+  /** Fractional step used by the mock random walk. */
+  volatility: number;
+}
+
+export type PositionSide = "long" | "short";
+
+export interface Position {
+  id: string;
+  market: MarketType;
+  symbol: string;
+  /** How the venue names it: "SOL-PERP", "SOL/USDC", a prediction question. */
+  label: string;
+  side: PositionSide;
+  size: number;
+  entryPrice: number;
+  markPrice: number;
+  /** Null on venues that cannot liquidate you. */
+  liquidationPrice: number | null;
+  margin: number;
+  pnl: number;
+  pnlPct: number;
+}
+
+export type OrderSide = "buy" | "sell";
+export type OrderKind = "limit" | "market" | "stop" | "take profit" | "trigger";
+export type OrderStatus = "open" | "partial" | "queued" | "resting";
+
+export interface Order {
+  id: string;
+  market: MarketType;
+  symbol: string;
+  label: string;
+  placedAt: string;
+  kind: OrderKind;
+  side: OrderSide;
+  price: number;
+  size: number;
+  /** Fraction filled, 0–1. */
+  filled: number;
+  status: OrderStatus;
+}
+
+export interface Trade {
+  id: string;
+  market: MarketType;
+  symbol: string;
+  label: string;
+  filledAt: string;
+  side: OrderSide;
+  price: number;
+  size: number;
+  fee: number;
+  total: number;
+  txHash: string;
+}
+
+export type SignalSource =
+  | "momentum"
+  | "funding"
+  | "flow"
+  | "liquidity"
+  | "volatility"
+  | "onchain";
+
+export interface Signal {
+  id: string;
+  source: SignalSource;
+  createdAt: string;
+  symbol: string;
+  /** One line, observational. Never a promise. */
+  thesis: string;
+  /** 0–1. */
+  confidence: number;
+  /** The longer reasoning behind "View setup". */
+  setup: string;
+}
+
+export type RuleStatus = "armed" | "paused" | "triggered";
+
+export interface Rule {
+  id: string;
+  name: string;
+  /** Plain language, not a query language. */
+  condition: string;
+  status: RuleStatus;
+  enabled: boolean;
+  lastRunAt: string | null;
+  symbol: string;
+}
+
+export type ActivityKind =
+  | "fill"
+  | "order"
+  | "cancel"
+  | "agent"
+  | "rule"
+  | "deposit"
+  | "withdrawal"
+  | "liquidation";
+
+export interface ActivityItem {
+  id: string;
+  kind: ActivityKind;
+  text: string;
+  at: string;
+  /** True when the agent caused it — these rows get the lime rail. */
+  agent: boolean;
+}
+
+/** A tool the agent ran, collapsed by default and expanding to its result. */
+export interface ToolCall {
+  id: string;
+  label: string;
+  columns: string[];
+  rows: string[][];
+  note?: string;
+}
+
+export type ChatRole = "agent" | "user";
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  text: string;
+  at: string;
+  toolCall?: ToolCall;
+}

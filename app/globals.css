@@ -1,26 +1,398 @@
 @import "tailwindcss";
 
+/* ===========================================================================
+   Elyra design tokens.
+
+   Every value below is transcribed from docs/ELYRA_BRAND.md. Raw palette and
+   semantic tokens keep the brand's own names so they stay greppable against
+   the doc; the @theme blocks alias them into Tailwind so no component ever
+   needs to write a hex.
+   =========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  /* 1.1 Raw palette */
+  --elyra-green: #2e5129;
+  --deep-forest: #1b3118;
+  --moss: #45703d;
+  --sage: #7a9e70;
+  --mist-sage: #c3d6bc;
+  --elyra-lime: #e4eb9d;
+  --cream-lime: #f2f5d3;
+  --citron: #d2dc76;
+  --olive: #a8b44e;
+  --khaki: #7c8535;
+  --ivory: #f7f8ea;
+  --stone: #b8baa8;
+  --slate: #5c5f52;
+  --ink: #15170f;
+  --clay: #c4633a;
+
+  /* 1.3 Surfaces */
+  --surface-base: #15170f;
+  --surface-panel: #1a1d14;
+  --surface-raised: #212518;
+  --surface-hover: #272b1d;
+  --surface-active: #2e5129;
+
+  /* 1.3 Borders */
+  --border-subtle: #2a2e20;
+  --border-strong: #3a3f2c;
+  --border-accent: #7c8535;
+
+  /* 1.3 Text */
+  --text-primary: #f7f8ea;
+  --text-secondary: #b8baa8;
+  --text-muted: #8a8d7b;
+  --text-on-accent: #15170f;
+
+  /* 1.3 Interactive */
+  --accent: #d2dc76;
+  --accent-hover: #e4eb9d;
+  --accent-quiet: #7c8535;
+  --focus-ring: #e4eb9d;
+
+  /* 1.3 Market semantics */
+  --positive: #7a9e70;
+  --positive-bg: rgba(122, 158, 112, 0.14);
+  --negative: #c4633a;
+  --negative-bg: rgba(196, 99, 58, 0.14);
+  --neutral-flat: #b8baa8;
+
+  /* 1.3 Agent layer */
+  --agent-accent: #e4eb9d;
+  --agent-rail: rgba(228, 235, 157, 0.6);
+  --agent-glow: 0 0 0 1px rgba(228, 235, 157, 0.18);
+
+  /* 1.4 Gradients — large empty surfaces only, never behind text */
+  --grad-lime: linear-gradient(180deg, #a8b44e 0%, #7a9e70 100%);
+  --grad-forest: linear-gradient(180deg, #2e5129 0%, #15170f 100%);
+  --grad-neutral: linear-gradient(180deg, #0c1810 0%, #45805c 100%);
+  --grad-clay: linear-gradient(180deg, #2a1008 0%, #e0a24b 100%);
+
+  /* 3. Space */
+  --gap-shell: 12px;
+  --pad-panel: 16px;
+  --pad-panel-sm: 12px;
+  --row-h: 36px;
+  --row-h-sm: 32px;
+  --control-h: 34px;
+
+  /* 4. Motion */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Radii + the one permitted shadow. Declared in @theme so Tailwind emits the
+   custom properties and generates the matching rounded / shadow utilities. */
+@theme {
+  /* Three breakpoints, matching the three layout collapses. */
+  --breakpoint-compact: 640px;
+  --breakpoint-mid: 900px;
+  --breakpoint-full: 1280px;
+
+  --radius-panel: 14px;
+  --radius-card: 10px;
+  --radius-control: 8px;
+  --radius-chip: 6px;
+  --radius-pill: 999px;
+
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* Colors, fonts and easing alias the semantic tokens above. `inline` keeps the
+   :root declarations as the single source of truth. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface-base: var(--surface-base);
+  --color-surface-panel: var(--surface-panel);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-border-accent: var(--border-accent);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-on-accent: var(--text-on-accent);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-quiet: var(--accent-quiet);
+  --color-focus-ring: var(--focus-ring);
+
+  --color-positive: var(--positive);
+  --color-positive-bg: var(--positive-bg);
+  --color-negative: var(--negative);
+  --color-negative-bg: var(--negative-bg);
+  --color-neutral-flat: var(--neutral-flat);
+
+  --color-agent-accent: var(--agent-accent);
+  --color-agent-rail: var(--agent-rail);
+
+  --font-display: var(--font-fustat), ui-sans-serif, system-ui, sans-serif;
+  /* Figures first: it only claims digits and numeric punctuation, so General
+     Sans still draws every letter. See app/layout.tsx for why. */
+  --font-sans: var(--font-figures), var(--font-general-sans), ui-sans-serif,
+    system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Menlo", monospace;
+
+  --ease-brand: var(--ease);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ===========================================================================
+   2.1 Type scale. Fustat for display / headings / large numerics,
+   General Sans for everything else. Nothing below 14px uses Fustat.
+   =========================================================================== */
+
+@utility type-display {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+@utility type-price {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility type-h1 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@utility type-h2 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@utility type-panel-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+@utility type-body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+@utility type-body-sm {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+@utility type-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+@utility type-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@utility type-data {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility type-data-sm {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility type-mono-addr {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 1.3 Agent layer — the signature rule, as a utility so it is applied
+   identically everywhere the machine produced something. */
+@utility agent-rail {
+  border-left: 2px solid var(--agent-rail);
+}
+
+/* ===========================================================================
+   Base
+   =========================================================================== */
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  /* One fixed-height screen: the page itself never scrolls. */
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 2.2 Every number that can change is tabular. */
+table,
+input,
+button,
+th,
+td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keyboard focus is always visible, 2px, --focus-ring. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-chip);
+}
+
+::selection {
+  background-color: var(--surface-active);
+  color: var(--text-primary);
+}
+
+/* Panels scroll internally; keep the scrollbars quiet and on-brand. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-quiet);
+}
+
+/* ===========================================================================
+   4. Motion — the tick flash is the only animated color in the data layer.
+   =========================================================================== */
+
+@keyframes elyra-flash-positive {
+  from {
+    background-color: var(--positive-bg);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes elyra-flash-negative {
+  from {
+    background-color: var(--negative-bg);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.flash-up {
+  animation: elyra-flash-positive 400ms var(--ease) forwards;
+}
+
+.flash-down {
+  animation: elyra-flash-negative 400ms var(--ease) forwards;
+}
+
+@keyframes elyra-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.stream-caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background-color: var(--accent);
+  animation: elyra-caret 900ms steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Flashes become a static color change; the class is removed on a timer
+     either way, so the cell still returns to rest. */
+  .flash-up {
+    animation: none;
+    background-color: var(--positive-bg);
+  }
+
+  .flash-down {
+    animation: none;
+    background-color: var(--negative-bg);
+  }
+
+  .stream-caret::after {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

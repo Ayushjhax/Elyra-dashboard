@@ -13,6 +13,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
+import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import {
   Tooltip,
   TooltipContent,
@@ -36,14 +37,92 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/referrals", label: "Referrals", icon: Gift },
 ];
 
-/** Display-only wallet identity. No connection, no signing, no balances fetched. */
-const WALLET = {
-  address: "7xKXtg2CW3fRqM4sVn8eLdPzUyHb9vQmZ4rBnT1kAeJp",
-  usdc: 12_480.62,
-};
-
 function truncateAddress(address: string) {
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
+}
+
+/**
+ * Identity, from the Privy session.
+ *
+ * Read-only: the address is shown and used to read Hyperliquid, never to
+ * sign anything. When Privy is not configured the rail simply says so — the
+ * dashboard runs on mock data and does not need a session.
+ */
+function Identity() {
+  const auth = useElyraAuth();
+
+  if (!auth.available) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col items-center gap-1 rounded-card border border-border-subtle",
+          "bg-surface-raised px-2.5 py-2 mid:items-start",
+        )}
+      >
+        <span className="type-label text-text-muted">No auth configured</span>
+      </div>
+    );
+  }
+
+  if (!auth.ready) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col items-center gap-1 rounded-card border border-border-subtle",
+          "bg-surface-raised px-2.5 py-2 mid:items-start",
+        )}
+      >
+        <span className="type-label text-text-muted">…</span>
+      </div>
+    );
+  }
+
+  if (!auth.authenticated) {
+    return (
+      <button
+        type="button"
+        onClick={auth.login}
+        className={cn(
+          "flex w-full flex-col items-center gap-1 rounded-card border border-border-strong",
+          "bg-surface-raised px-2.5 py-2 mid:items-start",
+          "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
+        )}
+      >
+        <span className="type-label text-text-primary">Sign in</span>
+      </button>
+    );
+  }
+
+  const address = auth.walletAddress;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => void auth.logout()}
+          aria-label={address === null ? "Sign out" : `Wallet ${address}`}
+          className={cn(
+            "flex w-full flex-col items-center gap-1 rounded-card border border-border-subtle",
+            "bg-surface-raised px-2.5 py-2 mid:items-start",
+            "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
+          )}
+        >
+          <span className="type-mono-addr text-text-secondary">
+            {address === null ? "Signed in" : truncateAddress(address)}
+          </span>
+          <span className="type-label hidden text-text-muted mid:inline">
+            Sign out
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        <span className="type-mono-addr block break-all">
+          {address ?? "No wallet on this account"}
+        </span>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 /**
@@ -171,32 +250,7 @@ export function NavRail() {
       </div>
 
       <div className="shrink-0 border-t border-border-subtle p-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              tabIndex={0}
-              aria-label={`Wallet ${WALLET.address}`}
-              className={cn(
-                "flex flex-col items-center gap-1 rounded-card border border-border-subtle",
-                "bg-surface-raised px-2.5 py-2 mid:items-start",
-              )}
-            >
-              <span className="type-mono-addr text-text-secondary">
-                {truncateAddress(WALLET.address)}
-              </span>
-              <span className="type-data-sm hidden text-text-primary mid:inline">
-                {WALLET.usdc.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                <span className="text-text-muted">USDC</span>
-              </span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <span className="type-mono-addr block break-all">{WALLET.address}</span>
-          </TooltipContent>
-        </Tooltip>
+        <Identity />
       </div>
     </nav>
   );

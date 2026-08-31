@@ -4,6 +4,7 @@ import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { route, type RoutedResult } from "@/lib/agent/providers/router";
 import {
   DEFAULT_MAX_TOKENS,
+  ProviderError,
   type AgentMessage,
   type ToolCall,
 } from "@/lib/agent/providers/types";
@@ -273,7 +274,15 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       if (iterations >= MAX_ITERATIONS) ranLong = true;
     }
   } catch (error) {
-    failure = error instanceof Error ? error.message : "Agent run failed";
+    /* Record the failure *kind*, not just the message. Reading agent_runs
+       later, "bad_request" and "timeout" call for completely different
+       responses, and the message alone does not distinguish them. */
+    failure =
+      error instanceof ProviderError
+        ? `${error.kind}: ${error.message}`
+        : error instanceof Error
+          ? error.message
+          : "Agent run failed";
   }
 
   const latencyMs = Date.now() - startedAt;

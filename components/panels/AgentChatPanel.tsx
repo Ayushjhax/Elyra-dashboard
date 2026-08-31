@@ -9,9 +9,10 @@ import {
   useState,
 } from "react";
 import { ChevronRight, SendHorizontal, Wrench } from "lucide-react";
+import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
-import { mockReply, suggestionChips } from "@/lib/mock/chat";
+import { suggestionChips } from "@/lib/mock/chat";
 import { formatRelativeTime } from "@/lib/format";
 import {
   nextMessageId,
@@ -178,8 +179,10 @@ export function AgentChatPanel() {
   const patchMessage = useElyraStore((state) => state.patchMessage);
   const symbol = useElyraStore((state) => state.selectedSymbol);
 
+  const auth = useElyraAuth();
   const composerId = useId();
   const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const streamTimer = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -209,10 +212,44 @@ export function AgentChatPanel() {
     };
   }, []);
 
+  /* Paints `text` into an existing message, typewriter style. The route
+     returns one payload rather than a stream — the panel only ever simulated
+     streaming, so there is nothing to preserve on the wire — but the caret
+     and the reveal are how this panel has always read, so they stay. */
+  const reveal = useCallback(
+    (id: string, text: string) => {
+      if (prefersReducedMotion()) {
+        patchMessage(id, { text });
+        setStreamingId(null);
+        return;
+      }
+
+      setStreamingId(id);
+      let cursor = 0;
+      streamTimer.current = window.setInterval(() => {
+        cursor += 2;
+        patchMessage(id, { text: text.slice(0, cursor) });
+        if (cursor >= text.length) {
+          if (streamTimer.current !== null) {
+            window.clearInterval(streamTimer.current);
+            streamTimer.current = null;
+          }
+          setStreamingId(null);
+        }
+      }, 16);
+    },
+    [patchMessage],
+  );
+
   const send = useCallback(
-    (raw: string) => {
+    async (raw: string) => {
       const text = raw.trim();
-      if (!text || streamTimer.current !== null) return;
+      if (!text || pending) return;
+
+      if (!auth.authenticated) {
+        auth.login();
+        return;
+      }
 
       appendMessage({
         id: nextMessageId("user"),
@@ -222,37 +259,46 @@ export function AgentChatPanel() {
       });
       setDraft("");
 
-      const reply = mockReply(text, symbol);
       const agentId = nextMessageId("agent");
-      appendMessage({
-        id: agentId,
-        role: "agent",
-        text: "",
-        at: nowIso(),
-        toolCall: reply.toolCall,
-      });
+      appendMessage({ id: agentId, role: "agent", text: "", at: nowIso() });
+      setPending(true);
 
-      /* Reduced motion turns streaming into an instant paint. */
-      if (prefersReducedMotion()) {
-        patchMessage(agentId, { text: reply.text });
-        return;
-      }
+      try {
+        const token = await auth.getAccessToken();
+        const response = await fetch("/api/agent/chat", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            /* Sent explicitly rather than relying on Privy's cookie, so this
+               works regardless of how cookies are configured for the app. */
+            ...(token ? { authorization: `Bearer ${token}` } : {}),
+          },
+          /* No user identifier here. The route derives it from the token and
+             ignores anything the body claims. */
+          body: JSON.stringify({ message: text }),
+        });
 
-      setStreamingId(agentId);
-      let cursor = 0;
-      streamTimer.current = window.setInterval(() => {
-        cursor += 2;
-        patchMessage(agentId, { text: reply.text.slice(0, cursor) });
-        if (cursor >= reply.text.length) {
-          if (streamTimer.current !== null) {
-            window.clearInterval(streamTimer.current);
-            streamTimer.current = null;
-          }
-          setStreamingId(null);
+        const payload = (await response.json().catch(() => null)) as
+          | { reply?: string; error?: string }
+          | null;
+
+        if (!response.ok) {
+          reveal(
+            agentId,
+            payload?.error ??
+              "The agent could not complete that request.",
+          );
+          return;
         }
-      }, 16);
+
+        reveal(agentId, payload?.reply ?? "No reply came back.");
+      } catch {
+        reveal(agentId, "Could not reach the agent. Check your connection.");
+      } finally {
+        setPending(false);
+      }
     },
-    [appendMessage, patchMessage, setDraft, symbol],
+    [appendMessage, auth, pending, reveal, setDraft],
   );
 
   const chips = suggestionChips(symbol);
@@ -285,7 +331,12 @@ export function AgentChatPanel() {
             <button
               key={chip}
               type="button"
-              onClick={() => send(chip)}
+              /* Prefill, not send: the operator gets to edit the question
+                 before spending a run on it. */
+              onClick={() => {
+                setDraft(chip);
+                inputRef.current?.focus();
+              }}
               className={cn(
                 "type-label rounded-pill border border-border-subtle bg-surface-raised px-2 py-1",
                 "text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand",
@@ -300,7 +351,7 @@ export function AgentChatPanel() {
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            send(draft);
+            void send(draft);
           }}
           className={cn(
             "flex items-end gap-1.5 rounded-control border border-border-strong bg-surface-raised p-1.5",
@@ -319,10 +370,16 @@ export function AgentChatPanel() {
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                send(draft);
+                void send(draft);
               }
             }}
-            placeholder="Ask Elyra…"
+            placeholder={
+              auth.available && !auth.authenticated
+                ? "Sign in to ask Elyra…"
+                : pending
+                  ? "Elyra is working…"
+                  : "Ask Elyra…"
+            }
             className={cn(
               "type-body-sm min-h-6 flex-1 resize-none bg-transparent px-1.5 py-1",
               "text-text-primary placeholder:text-text-muted focus:outline-none",
@@ -331,11 +388,11 @@ export function AgentChatPanel() {
           <button
             type="submit"
             aria-label="Send message"
-            disabled={draft.trim().length === 0}
+            disabled={draft.trim().length === 0 || pending}
             className={cn(
               "inline-flex size-7 shrink-0 items-center justify-center rounded-chip",
               "transition-colors duration-[var(--dur-fast)] ease-brand",
-              draft.trim().length === 0
+              draft.trim().length === 0 || pending
                 ? "text-text-muted"
                 : "bg-accent text-text-on-accent hover:bg-accent-hover",
             )}

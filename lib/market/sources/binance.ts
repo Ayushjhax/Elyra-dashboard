@@ -43,7 +43,16 @@ const INTERVALS: Record<Interval, string> = {
 };
 
 /** Periods accepted by the open-interest history endpoint. */
-const OI_PERIODS = ["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"] as const;
+type OiPeriod =
+  | "5m"
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "4h"
+  | "6h"
+  | "12h"
+  | "1d";
 
 interface Ticker24h {
   symbol: string;
@@ -265,7 +274,7 @@ function runLength(rates: number[], predicate: (rate: number) => boolean): numbe
 }
 
 /** The coarsest period that still gives a useful number of points. */
-function oiPeriod(lookbackHours: number): (typeof OI_PERIODS)[number] {
+function oiPeriod(lookbackHours: number): OiPeriod {
   if (lookbackHours <= 4) return "5m";
   if (lookbackHours <= 12) return "15m";
   if (lookbackHours <= 24) return "1h";
@@ -274,8 +283,8 @@ function oiPeriod(lookbackHours: number): (typeof OI_PERIODS)[number] {
   return "1d";
 }
 
-function periodMs(period: (typeof OI_PERIODS)[number]): number {
-  const map: Record<(typeof OI_PERIODS)[number], number> = {
+function periodMs(period: OiPeriod): number {
+  const map: Record<OiPeriod, number> = {
     "5m": INTERVAL_MS["5m"],
     "15m": INTERVAL_MS["15m"],
     "30m": 1_800_000,

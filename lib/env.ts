@@ -44,22 +44,20 @@ const REQUIRED = [
  * checked at its own call site with a message naming what it disables — the
  * Telegram surface is optional, and so is Gemini fallback.
  */
-const OPTIONAL = [
-  "ANTHROPIC_MODEL",
-  "GEMINI_API_KEY",
-  "GEMINI_MODEL",
-  "PRIVY_VERIFICATION_KEY",
-  "TELEGRAM_BOT_TOKEN",
-  "TELEGRAM_BOT_USERNAME",
-  "TELEGRAM_WEBHOOK_SECRET",
-  "UPSTASH_REDIS_REST_URL",
-  "UPSTASH_REDIS_REST_TOKEN",
-  "AGENT_MAX_RUNS_PER_DAY",
-  "APP_URL",
-] as const;
+type OptionalKey =
+  | "ANTHROPIC_MODEL"
+  | "GEMINI_API_KEY"
+  | "GEMINI_MODEL"
+  | "PRIVY_VERIFICATION_KEY"
+  | "TELEGRAM_BOT_TOKEN"
+  | "TELEGRAM_BOT_USERNAME"
+  | "TELEGRAM_WEBHOOK_SECRET"
+  | "UPSTASH_REDIS_REST_URL"
+  | "UPSTASH_REDIS_REST_TOKEN"
+  | "AGENT_MAX_RUNS_PER_DAY"
+  | "APP_URL";
 
 type RequiredKey = (typeof REQUIRED)[number];
-type OptionalKey = (typeof OPTIONAL)[number];
 
 function read(key: string): string | undefined {
   const value = process.env[key];

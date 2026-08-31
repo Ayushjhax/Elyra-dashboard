@@ -102,11 +102,37 @@ export interface MarketCacheRow {
   expires_at: string;
 }
 
-/** Row shape, an insert shape with defaults optional, and an update shape. */
-type Table<Row, OptionalOnInsert extends keyof Row> = {
-  Row: Row;
-  Insert: Omit<Row, OptionalOnInsert> & Partial<Pick<Row, OptionalOnInsert>>;
-  Update: Partial<Row>;
+/**
+ * An interface re-expressed as an anonymous object type.
+ *
+ * postgrest-js constrains every table to `Record<string, unknown>`, and
+ * TypeScript only gives *type aliases* an implicit index signature — an
+ * `interface` never satisfies that constraint, which silently collapses the
+ * whole schema to `any` and then to `never` at every call site. Mapping the
+ * interface here keeps the readable named types above and still satisfies it.
+ */
+type Columns<T> = { [K in keyof T]: T[K] };
+
+/** Columns that accept null, and so may always be omitted from an insert. */
+type NullableKeys<T> = {
+  [K in keyof T]-?: null extends T[K] ? K : never;
+}[keyof T];
+
+/**
+ * Row shape, an insert shape, and an update shape.
+ *
+ * `HasDefault` names the columns the database fills in — primary keys and
+ * `created_at`. Nullable columns are derived rather than listed: omitting one
+ * on insert is always legal, and spelling them out twice would let the two
+ * lists drift.
+ */
+type Table<Row, HasDefault extends keyof Row> = {
+  Row: Columns<Row>;
+  Insert: Columns<
+    Omit<Row, HasDefault | NullableKeys<Row>> &
+      Partial<Pick<Row, HasDefault | NullableKeys<Row>>>
+  >;
+  Update: Partial<Columns<Row>>;
   Relationships: [];
 };
 

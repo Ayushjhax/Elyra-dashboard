@@ -97,11 +97,29 @@ export function assertServerEnv(): void {
   const missing = REQUIRED.filter((key) => read(key) === undefined);
   if (missing.length > 0) throw new EnvError([...missing]);
 
-  /* The encryption key is the one required variable whose *shape* matters:
-     a short or malformed key fails at first use, deep inside a decrypt, long
-     after the mistake was made. Check it where it can still be read as a
-     configuration error. */
+  /* Two required variables have a *shape* that matters. Both fail far from
+     the mistake if left unchecked — the encryption key deep inside a decrypt,
+     the Privy app id inside a client render that takes down every prerendered
+     page with it. Check them where they still read as configuration errors. */
   assertEncryptionKey();
+  assertPrivyAppId();
+}
+
+/**
+ * A Privy app id is exactly 25 characters, and the provider throws on
+ * anything else — during a static prerender that failure surfaces as a
+ * build error on an unrelated page, with nothing pointing back to the env.
+ */
+export const PRIVY_APP_ID_LENGTH = 25;
+
+export function assertPrivyAppId(): void {
+  const appId = required("NEXT_PUBLIC_PRIVY_APP_ID");
+  if (appId.length !== PRIVY_APP_ID_LENGTH) {
+    throw new EnvError([
+      `NEXT_PUBLIC_PRIVY_APP_ID (must be exactly ${PRIVY_APP_ID_LENGTH} ` +
+        `characters, got ${appId.length}; copy it from the Privy dashboard)`,
+    ]);
+  }
 }
 
 /**

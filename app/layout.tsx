@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { PrivyClientProvider } from "@/components/providers/PrivyClientProvider";
 import { THEME_COLOR_INK } from "@/lib/brand";
 import "./globals.css";
 
@@ -69,7 +70,9 @@ export default function RootLayout({
       className={`dark ${fustat.variable} ${generalSans.variable} ${figures.variable}`}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body>
+        <PrivyClientProvider>{children}</PrivyClientProvider>
+      </body>
     </html>
   );
 }

@@ -2,8 +2,13 @@
 
 import { createContext, useContext, useMemo } from "react";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { PRIVY_MODAL_ACCENT, PRIVY_MODAL_THEME } from "@/lib/brand";
 import { PRIVY_APP_ID_LENGTH, publicEnv } from "@/lib/env";
+
+/* Built once at module scope: rebuilding it per render would hand
+   PrivyProvider a new config object every time and remount the connectors. */
+const solanaConnectors = toSolanaWalletConnectors();
 
 /* ---------------------------------------------------------------------------
    Authentication, as the rest of the app sees it.
@@ -22,7 +27,10 @@ export interface ElyraAuth {
   /** Privy has finished restoring any existing session. */
   ready: boolean;
   authenticated: boolean;
+  /** EVM, for the Hyperliquid read. */
   walletAddress: string | null;
+  /** Solana — this app's native chain, and what the rail displays. */
+  solanaAddress: string | null;
   login: () => void;
   logout: () => Promise<void>;
   /** The access token to send as a bearer, or null when signed out. */
@@ -36,6 +44,7 @@ const UNAVAILABLE: ElyraAuth = {
   ready: true,
   authenticated: false,
   walletAddress: null,
+  solanaAddress: null,
   login: () => {},
   logout: async () => {},
   getAccessToken: async () => null,
@@ -51,18 +60,30 @@ export function useElyraAuth(): ElyraAuth {
 function PrivyBridge({ children }: { children: React.ReactNode }) {
   const privy = usePrivy();
 
-  const value = useMemo<ElyraAuth>(
-    () => ({
+  const value = useMemo<ElyraAuth>(() => {
+    /* `user.wallet` is whichever wallet Privy considers primary, which on a
+       Solana-first account is a Solana one. Pick each chain explicitly from
+       linkedAccounts instead — the EVM address in particular is not
+       interchangeable, since it is what Hyperliquid is keyed by. */
+    const wallets = (privy.user?.linkedAccounts ?? []).filter(
+      (account): account is typeof account & { address: string; chainType: string } =>
+        account.type === "wallet" && "address" in account,
+    );
+
+    const addressFor = (chain: string) =>
+      wallets.find((wallet) => wallet.chainType === chain)?.address ?? null;
+
+    return {
       available: true,
       ready: privy.ready,
       authenticated: privy.authenticated,
-      walletAddress: privy.user?.wallet?.address ?? null,
+      walletAddress: addressFor("ethereum"),
+      solanaAddress: addressFor("solana"),
       login: () => privy.login(),
       logout: () => privy.logout(),
       getAccessToken: () => privy.getAccessToken(),
-    }),
-    [privy],
-  );
+    };
+  }, [privy]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -101,12 +122,24 @@ export function PrivyClientProvider({
           theme: PRIVY_MODAL_THEME,
           accentColor: PRIVY_MODAL_ACCENT,
         },
-        /* An embedded wallet gives every user an EVM address without asking
-           them to bring one. That address is what the Hyperliquid portfolio
-           source keys on, and it is read-only here — this pass signs nothing
-           and sends no transaction. */
+        /* Solana wallets in the modal. Elyra is a Solana terminal, so this is
+           the chain users arrive with — Phantom, Solflare and the rest. */
+        externalWallets: { solana: { connectors: solanaConnectors } },
+
+        /* Embedded wallets on both chains, so a user who signs in with email
+           still has an address.
+
+           Both, not one: Solana is this app's native chain and what the UI
+           shows, but Hyperliquid's portfolio endpoint is keyed by an EVM
+           address and there is no Solana equivalent. A Solana-only account
+           simply has no Hyperliquid to read, which the portfolio layer
+           reports rather than guesses at.
+
+           Read-only either way — this pass signs nothing and sends no
+           transaction. */
         embeddedWallets: {
           ethereum: { createOnLogin: "users-without-wallets" },
+          solana: { createOnLogin: "users-without-wallets" },
         },
       }}
     >

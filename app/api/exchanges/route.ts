@@ -30,8 +30,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     connections: await listConnections(user.userId),
-    /* The session wallet is already a readable Hyperliquid account, so the
-       UI can say so rather than asking the user to connect one. */
+    /* The EVM address, which is already a readable Hyperliquid account — so
+       the UI can say so rather than asking the user to connect one. Null on a
+       Solana-only account, and the panel then says nothing about Hyperliquid
+       rather than showing a Solana address it cannot read. */
     sessionWallet: user.walletAddress,
     supported: SUPPORTED,
   });

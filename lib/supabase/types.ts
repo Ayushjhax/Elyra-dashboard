@@ -14,7 +14,10 @@ export type ExchangeId = "binance" | "okx" | "hyperliquid";
 export interface Profile {
   id: string;
   privy_did: string;
+  /** EVM. Hyperliquid's portfolio endpoint is keyed by one of these. */
   wallet_address: string | null;
+  /** This app's native chain, and what the UI shows. */
+  solana_address: string | null;
   display_name: string | null;
   created_at: string;
 }

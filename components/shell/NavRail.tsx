@@ -93,7 +93,10 @@ function Identity() {
     );
   }
 
-  const address = auth.walletAddress;
+  /* Solana first: it is this app's chain, and on most accounts the EVM
+     address is an embedded wallet the user never chose and would not
+     recognise. The EVM one is still there for Hyperliquid. */
+  const address = auth.solanaAddress ?? auth.walletAddress;
 
   return (
     <Tooltip>

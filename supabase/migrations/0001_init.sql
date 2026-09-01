@@ -30,10 +30,15 @@ create extension if not exists pgcrypto;
 -- Keyed by a generated uuid rather than `auth.users(id)`: the spec assumed
 -- Supabase Auth, and Privy issues its own DID (`did:privy:...`) instead. The
 -- DID is the join key from a verified access token to a row here.
+-- Two address columns, because they are used for different things and a user
+-- may have either or both. `wallet_address` is the EVM address, and exists
+-- specifically because Hyperliquid's portfolio endpoint is keyed by one.
+-- `solana_address` is this app's native chain and what the UI displays.
 create table if not exists public.profiles (
   id             uuid primary key default gen_random_uuid(),
   privy_did      text not null unique,
   wallet_address text,
+  solana_address text,
   display_name   text,
   created_at     timestamptz not null default now()
 );

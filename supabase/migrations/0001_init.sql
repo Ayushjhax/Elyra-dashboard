@@ -43,6 +43,14 @@ create table if not exists public.profiles (
   created_at     timestamptz not null default now()
 );
 
+-- `create table if not exists` does nothing to a table that already exists,
+-- so a column added to this file after someone has already run it would never
+-- reach their database. These make the file idempotent in the way that
+-- actually matters: safe to re-run, and re-running repairs an older schema.
+alter table public.profiles add column if not exists solana_address text;
+alter table public.profiles add column if not exists wallet_address text;
+alter table public.profiles add column if not exists display_name   text;
+
 -- Read-only exchange credentials.
 --
 -- The three `*_enc` columns hold AES-256-GCM ciphertext produced by

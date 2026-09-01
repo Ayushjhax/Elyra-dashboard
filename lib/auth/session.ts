@@ -3,6 +3,7 @@ import "server-only";
 import type { LinkedAccount } from "@privy-io/node";
 import { PRIVY_TIMEOUT_MS, privyClient } from "@/lib/auth/privy";
 import { serviceClient } from "@/lib/supabase/server";
+import type { Profile } from "@/lib/supabase/types";
 
 /**
  * A caller whose identity has been verified.
@@ -106,90 +107,162 @@ async function fetchAddresses(privyDid: string): Promise<Addresses> {
 
 /** Postgres unique-violation. Two first requests for one new user race here. */
 const UNIQUE_VIOLATION = "23505";
+/** Postgres undefined-column. */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * Whether this database has `profiles.solana_address` yet.
+ *
+ * `create table if not exists` does nothing to a table that already exists,
+ * so a database created from an earlier revision of 0001_init.sql is missing
+ * the column, and every query naming it fails with 42703 — which took down
+ * sign-in, chat, and both connect flows at once.
+ *
+ * Rather than let a schema that is one column behind break everything, the
+ * column is probed once and the query adapts. Detected as absent, the Solana
+ * address simply is not persisted, and the log says what to run.
+ *
+ * Delete this and the `columns()` indirection once every database has the
+ * column; it exists for the window where some do not.
+ */
+let hasSolanaColumn: boolean | null = null;
+
+function columns(): string {
+  return hasSolanaColumn === false
+    ? "id, wallet_address"
+    : "id, wallet_address, solana_address";
+}
+
+function noteMissingColumn(): void {
+  if (hasSolanaColumn === false) return;
+  hasSolanaColumn = false;
+  console.warn(
+    "\n[elyra] profiles.solana_address is missing — Solana addresses will not " +
+      "be stored. Run:\n" +
+      "  alter table public.profiles add column if not exists solana_address text;\n",
+  );
+}
+
+/** A profiles row, tolerating a database that predates `solana_address`. */
+type ProfileRow = {
+  id: string;
+  wallet_address: string | null;
+  solana_address?: string | null;
+};
+
+async function selectProfile(
+  db: ReturnType<typeof serviceClient>,
+  privyDid: string,
+): Promise<ProfileRow | null> {
+  const first = await db
+    .from("profiles")
+    .select(columns())
+    .eq("privy_did", privyDid)
+    .maybeSingle();
+
+  if (!first.error) {
+    if (hasSolanaColumn === null) hasSolanaColumn = true;
+    return first.data as ProfileRow | null;
+  }
+
+  if (first.error.code !== UNDEFINED_COLUMN) throw first.error;
+
+  noteMissingColumn();
+  const retry = await db
+    .from("profiles")
+    .select(columns())
+    .eq("privy_did", privyDid)
+    .maybeSingle();
+
+  if (retry.error) throw retry.error;
+  return retry.data as ProfileRow | null;
+}
 
 /** The `profiles` row for a verified DID, creating it on first sign-in. */
 async function resolveProfile(privyDid: string): Promise<SessionUser> {
   const db = serviceClient();
 
-  const existing = await db
-    .from("profiles")
-    .select("id, wallet_address, solana_address")
-    .eq("privy_did", privyDid)
-    .maybeSingle();
+  const existing = await selectProfile(db, privyDid);
 
-  if (existing.error) throw existing.error;
+  if (existing !== null) {
+    const currentEvm = existing.wallet_address;
+    const currentSolana = existing.solana_address ?? null;
 
-  if (existing.data) {
     /* Backfill an address we could not reach Privy for at creation time, or
        one linked after the profile was made — a user who signs up with email
        and connects a wallet later lands here. */
-    if (
-      existing.data.wallet_address === null ||
-      existing.data.solana_address === null
-    ) {
+    if (currentEvm === null || (hasSolanaColumn !== false && currentSolana === null)) {
       const found = await fetchAddresses(privyDid);
-      const evm = existing.data.wallet_address ?? found.evm;
-      const solana = existing.data.solana_address ?? found.solana;
+      const evm = currentEvm ?? found.evm;
+      const solana = currentSolana ?? found.solana;
 
-      if (evm !== existing.data.wallet_address || solana !== existing.data.solana_address) {
-        await db
-          .from("profiles")
-          .update({ wallet_address: evm, solana_address: solana })
-          .eq("id", existing.data.id);
+      if (evm !== currentEvm || solana !== currentSolana) {
+        const patch: Partial<Profile> = { wallet_address: evm };
+        if (hasSolanaColumn !== false) patch.solana_address = solana;
+        await db.from("profiles").update(patch).eq("id", existing.id);
       }
 
       return {
-        userId: existing.data.id,
+        userId: existing.id,
         privyDid,
         walletAddress: evm,
-        solanaAddress: solana,
+        solanaAddress: hasSolanaColumn === false ? found.solana : solana,
       };
     }
 
     return {
-      userId: existing.data.id,
+      userId: existing.id,
       privyDid,
-      walletAddress: existing.data.wallet_address,
-      solanaAddress: existing.data.solana_address,
+      walletAddress: currentEvm,
+      solanaAddress: currentSolana,
     };
   }
 
   const found = await fetchAddresses(privyDid);
+
+  const insert: Partial<Profile> & { privy_did: string } = {
+    privy_did: privyDid,
+    wallet_address: found.evm,
+  };
+  if (hasSolanaColumn !== false) insert.solana_address = found.solana;
+
   const created = await db
     .from("profiles")
-    .insert({
-      privy_did: privyDid,
-      wallet_address: found.evm,
-      solana_address: found.solana,
-    })
-    .select("id, wallet_address, solana_address")
+    .insert(insert)
+    .select(columns())
     .single();
 
   if (created.error) {
+    /* The column probe can only run on a select, so an insert naming
+       solana_address against an older schema fails here first. Mark it
+       absent and retry without it. */
+    if (created.error.code === UNDEFINED_COLUMN) {
+      noteMissingColumn();
+      return resolveProfile(privyDid);
+    }
+
     /* Lost the race against a concurrent first request. The other one won and
        the row now exists, so read it rather than failing the sign-in. */
     if (created.error.code === UNIQUE_VIOLATION) {
-      const raced = await db
-        .from("profiles")
-        .select("id, wallet_address, solana_address")
-        .eq("privy_did", privyDid)
-        .single();
-      if (raced.error) throw raced.error;
+      const raced = await selectProfile(db, privyDid);
+      if (raced === null) throw created.error;
       return {
-        userId: raced.data.id,
+        userId: raced.id,
         privyDid,
-        walletAddress: raced.data.wallet_address,
-        solanaAddress: raced.data.solana_address,
+        walletAddress: raced.wallet_address,
+        solanaAddress: raced.solana_address ?? found.solana,
       };
     }
+
     throw created.error;
   }
 
+  const row = created.data as unknown as ProfileRow;
   return {
-    userId: created.data.id,
+    userId: row.id,
     privyDid,
-    walletAddress: created.data.wallet_address,
-    solanaAddress: created.data.solana_address,
+    walletAddress: row.wallet_address,
+    solanaAddress: row.solana_address ?? found.solana,
   };
 }
 

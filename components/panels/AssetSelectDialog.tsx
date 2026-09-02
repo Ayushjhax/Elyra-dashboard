@@ -12,7 +12,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAssetSearch } from "@/lib/market/useAssetSearch";
 import type { PythAsset, PythAssetType } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
@@ -86,7 +85,7 @@ export function AssetSelectDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2 px-4 pb-2">
+        <div className="flex shrink-0 flex-col gap-2 px-4 pb-2">
           <div className="relative">
             <Search
               size={14}
@@ -133,7 +132,13 @@ export function AssetSelectDialog({
           </div>
         </div>
 
-        <ScrollArea className="min-h-0 flex-1">
+        {/* A plain overflow container rather than the Radix ScrollArea: its
+            viewport is sized with height:100%, which needs a definite height
+            on the root to resolve. With eight seeded tokens the list never
+            overflowed and the difference never showed; against a catalogue of
+            1,749 it does, and the results below the fold became unreachable.
+            This is the same pattern PanelBody scrolls with. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           {status === "error" ? (
             <EmptyState
               icon={SearchX}
@@ -208,7 +213,7 @@ export function AssetSelectDialog({
               })}
             </ul>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -30,6 +30,18 @@ const MAX_ITERATIONS = 6;
 const WALL_CLOCK_MS = 45_000;
 /** Enough recent turns for continuity without resending an entire history. */
 const HISTORY_LIMIT = 20;
+/**
+ * Past this, a past turn's prices are old enough to mislead.
+ *
+ * Older assistant replies are dropped rather than annotated. Annotating them
+ * worked — the model stopped quoting stale prices — but it also taught it the
+ * marker, and replies started opening with "[sent just now]" and
+ * "[fetched just now]". Anything written into an assistant turn is a pattern
+ * the model will reproduce, so the fix is to remove the stale figures, not to
+ * label them. The user messages around them stay, which is what carries the
+ * conversation's intent.
+ */
+const STALE_AFTER_MS = 30 * 60_000;
 
 export interface RunAgentInput {
   userId: string;
@@ -72,7 +84,7 @@ async function loadHistory(
      access control and this client bypasses RLS. */
   const { data, error } = await serviceClient()
     .from("messages")
-    .select("role, content, tool_calls")
+    .select("role, content, tool_calls, created_at")
     .eq("conversation_id", conversationId)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
@@ -91,12 +103,18 @@ async function loadHistory(
          without their results would leave dangling calls the provider
          rejects, and the text of that turn already carries its conclusions. */
       const content = row.content ?? "";
-      if (content.length > 0) messages.push({ role: "assistant", content });
+      if (content.length === 0) continue;
+
+      const age = row.created_at ? Date.now() - Date.parse(row.created_at) : 0;
+      if (Number.isFinite(age) && age > STALE_AFTER_MS) continue;
+
+      messages.push({ role: "assistant", content });
     }
   }
 
   return messages;
 }
+
 
 async function persistMessage(row: {
   conversationId: string;

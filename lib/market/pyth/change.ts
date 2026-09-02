@@ -1,6 +1,7 @@
 import "server-only";
 
 import { TTL, cached } from "@/lib/market/cache";
+import { changeFor, yahooSymbol } from "@/lib/market/pyth/yahoo";
 import * as router from "@/lib/market/router";
 import type { PythAsset } from "@/lib/market/pyth/types";
 
@@ -18,15 +19,51 @@ import type { PythAsset } from "@/lib/market/pyth/types";
    was within 0.05% on both SOL and BTC. The change is a percentage over a
    window, so a difference that small does not move it meaningfully.
 
-   Everything Pyth carries that those exchanges do not list — equities,
-   metals, FX, commodities — gets null, and the UI shows a dash. That is the
-   "24h change if available" case, and it is reported honestly rather than
-   computed from a price this app has not actually observed for 24 hours.
+   Everything else — equities, metals, FX, commodities — comes from Yahoo's
+   chart endpoint, against the previous close, which is what "change" means
+   for an instrument whose market closes overnight.
+
+   Anything neither source covers stays null and shows a dash. That is the
+   "24h change if available" case, reported honestly rather than computed from
+   a price this app has not actually observed for 24 hours.
 --------------------------------------------------------------------------- */
 
-/** Only crypto is listed on the exchange sources; asking for the rest wastes a call. */
-function eligible(asset: PythAsset): boolean {
+/** Crypto goes to the exchanges, which publish a true rolling 24h window. */
+function isCrypto(asset: PythAsset): boolean {
   return asset.assetType === "crypto";
+}
+
+/** Longer than the price TTL: a previous close does not move intraday. */
+const NON_CRYPTO_TTL_SECONDS = 300;
+
+/** Yahoo takes one symbol per request, so these run concurrently and cache. */
+async function nonCryptoChanges(assets: PythAsset[]): Promise<Map<number, number>> {
+  const targets: Array<{ id: number; yahoo: string }> = [];
+  for (const asset of assets) {
+    const yahoo = yahooSymbol(asset);
+    if (yahoo) targets.push({ id: asset.id, yahoo });
+  }
+  if (targets.length === 0) return new Map();
+
+  const settled = await Promise.allSettled(
+    targets.map(async (target) => {
+      const result = await cached(
+        `change:yahoo:${target.yahoo}`,
+        NON_CRYPTO_TTL_SECONDS,
+        () => changeFor(target.yahoo),
+      );
+      return { id: target.id, change: result.value };
+    }),
+  );
+
+  const byId = new Map<number, number>();
+  for (const outcome of settled) {
+    if (outcome.status !== "fulfilled") continue;
+    /* One symbol Yahoo does not know must not cost the others theirs. */
+    if (outcome.value.change === null) continue;
+    byId.set(outcome.value.id, outcome.value.change);
+  }
+  return byId;
 }
 
 /**
@@ -36,27 +73,39 @@ function eligible(asset: PythAsset): boolean {
 export async function changesForAssets(
   assets: PythAsset[],
 ): Promise<Map<number, number>> {
-  const wanted = assets.filter(eligible);
-  if (wanted.length === 0) return new Map();
+  const crypto = assets.filter(isCrypto);
+  const rest = assets.filter((asset) => !isCrypto(asset));
 
-  const symbols = [...new Set(wanted.map((a) => a.symbol))].sort();
-  const key = `change24h:${symbols.join(",")}`;
+  const cryptoChanges = (async () => {
+    if (crypto.length === 0) return new Map<number, number>();
+    const symbols = [...new Set(crypto.map((asset) => asset.symbol))].sort();
 
-  try {
-    const result = await cached(key, TTL.price, () => router.snapshots(symbols));
+    try {
+      const result = await cached(`change24h:${symbols.join(",")}`, TTL.price, () =>
+        router.snapshots(symbols),
+      );
+      const bySymbol = new Map<string, number>();
+      for (const row of result.value) bySymbol.set(row.symbol, row.change24hPct);
 
-    const bySymbol = new Map<string, number>();
-    for (const row of result.value) bySymbol.set(row.symbol, row.change24hPct);
-
-    const byId = new Map<number, number>();
-    for (const asset of wanted) {
-      const change = bySymbol.get(asset.symbol);
-      if (change !== undefined) byId.set(asset.id, change);
+      const byId = new Map<number, number>();
+      for (const asset of crypto) {
+        const change = bySymbol.get(asset.symbol);
+        if (change !== undefined) byId.set(asset.id, change);
+      }
+      return byId;
+    } catch {
+      /* Every exchange refused. Prices still render; the change column shows
+         a dash, which is accurate — this app does not know the figure. */
+      return new Map<number, number>();
     }
-    return byId;
-  } catch {
-    /* Every exchange refused. Prices still render; the change column shows a
-       dash, which is accurate — this app does not know the figure. */
-    return new Map();
-  }
+  })();
+
+  /* The two sources are independent: one being down must not blank the other
+     half of the watchlist. */
+  const [fromExchanges, fromYahoo] = await Promise.all([
+    cryptoChanges,
+    nonCryptoChanges(rest).catch(() => new Map<number, number>()),
+  ]);
+
+  return new Map([...fromExchanges, ...fromYahoo]);
 }

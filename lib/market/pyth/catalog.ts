@@ -8,6 +8,7 @@ import {
   type PythAssetType,
   type RawSymbol,
 } from "@/lib/market/pyth/types";
+import { logoFor } from "@/lib/market/pyth/logos";
 import { tradingViewSymbol } from "@/lib/market/pyth/tradingview";
 
 /* ---------------------------------------------------------------------------
@@ -36,7 +37,7 @@ const CATALOGUE_TTL_SECONDS = 6 * 60 * 60;
  * up to six hours of serving assets built by code that no longer exists.
  * The version is part of the cache key so a deploy takes effect immediately.
  */
-const NORMALISER_VERSION = 3;
+const NORMALISER_VERSION = 4;
 
 export function pythBaseUrl(): string {
   return (optional("PYTH_API_URL") ?? DEFAULT_BASE_URL).replace(/\/$/, "");
@@ -133,20 +134,6 @@ function parseName(description: string | null, fallback: string): string {
     .join(" ");
 }
 
-/**
- * CoinMarketCap's static artwork, keyed by the `cmc_id` Pyth already carries.
- *
- * This is the only logo source wired up: it covers crypto, which is most of
- * what this terminal shows, and it needs no extra credential. Equities,
- * metals and FX have no `cmc_id`, get null here, and render the lettered
- * fallback chip — see CoinMark.
- */
-function logoFor(cmcId: number | null): string | null {
-  /* 0 appears in the catalogue for feeds with no CMC listing. */
-  if (cmcId === null || cmcId <= 0) return null;
-  return `https://s2.coinmarketcap.com/static/img/coins/64x64/${cmcId}.png`;
-}
-
 /** A feed worth showing: live, priced, and not superseded. */
 function usable(raw: RawSymbol): boolean {
   if (raw.state !== "stable") return false;
@@ -200,7 +187,13 @@ function normalise(raw: RawSymbol): PythAsset | null {
     assetType,
     quoteCurrency,
     exponent: raw.exponent as number,
-    logo: logoFor(raw.cmc_id),
+    logo: logoFor({
+      symbol,
+      base: parsed.base,
+      assetType,
+      cmcId: raw.cmc_id,
+      region: pythSymbol.split(".").length >= 3 ? pythSymbol.split(".")[1] : null,
+    }),
     tradingViewSymbol: tradingViewSymbol({
       symbol,
       base: parsed.base,

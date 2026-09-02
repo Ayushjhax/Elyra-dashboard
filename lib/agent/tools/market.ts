@@ -4,6 +4,8 @@ import { integer, oneOf, symbol, symbols } from "@/lib/agent/tools/args";
 import type { RegisteredTool } from "@/lib/agent/tools/registry";
 import { TTL, cached } from "@/lib/market/cache";
 import { summarise } from "@/lib/market/indicators";
+import { assetsBySymbols, pythConfigured } from "@/lib/market/pyth/catalog";
+import { pricesForSymbols } from "@/lib/market/pyth/client";
 import * as router from "@/lib/market/router";
 import { INTERVAL_MS } from "@/lib/market/types";
 import type { Interval } from "@/lib/types";
@@ -30,16 +32,19 @@ export const getMarketSnapshot: RegisteredTool = {
   def: {
     name: "get_market_snapshot",
     description:
-      "Current price, 24h change, 24h high/low, 24h quote volume and perp " +
-      "mark price for one or more symbols. Batches into a single upstream " +
-      "request, so ask for every symbol you need at once rather than calling " +
-      "this repeatedly.",
+      "Current price for one or more assets, from Pyth Network, plus 24h " +
+      "change, 24h high/low, 24h quote volume and perp mark price from the " +
+      "exchange sources where they list the asset. Covers crypto, equities, " +
+      "metals, commodities, FX and indices — not only crypto. Batches into a " +
+      "single upstream request, so ask for every symbol you need at once " +
+      "rather than calling this repeatedly.",
     parameters: {
       type: "object",
       properties: {
         symbols: {
           type: "array",
-          description: 'Bare tickers, e.g. ["SOL","BTC"]. Not "SOL-PERP".',
+          description:
+            'Bare tickers, e.g. ["SOL","BTC","XAU","TSLA"]. Not "SOL-PERP".',
           items: { type: "string" },
         },
       },
@@ -47,20 +52,80 @@ export const getMarketSnapshot: RegisteredTool = {
     },
   },
 
+  /**
+   * Price comes from Pyth; the 24h window comes from the exchanges.
+   *
+   * Pyth is the price of record here for the same reason it is in the UI —
+   * it covers roughly 1,700 assets rather than the exchanges' crypto lists,
+   * and the dashboard quotes it, so an agent citing a different number would
+   * contradict the screen the operator is reading. Its price endpoint has no
+   * 24h window, which the exchange snapshot supplies for the crypto it lists.
+   */
   async execute(args) {
     const wanted = symbols(args, "symbols");
-    const key = `snapshot:${wanted.join(",")}`;
 
-    const result = await cached(key, TTL.price, () => router.snapshots(wanted));
-    const found = new Set(result.value.map((row) => row.symbol));
+    const exchange = cached(`snapshot:${wanted.join(",")}`, TTL.price, () =>
+      router.snapshots(wanted),
+    ).catch(() => null);
+
+    const pyth = pythConfigured()
+      ? pricesForSymbols(wanted).catch(() => [])
+      : Promise.resolve([]);
+
+    const [exchangeResult, pythPrices, assets] = await Promise.all([
+      exchange,
+      pyth,
+      pythConfigured() ? assetsBySymbols(wanted).catch(() => []) : Promise.resolve([]),
+    ]);
+
+    const byName = new Map(assets.map((asset) => [asset.symbol, asset]));
+    const pythBySymbol = new Map(pythPrices.map((row) => [row.symbol, row]));
+    const exchangeBySymbol = new Map(
+      (exchangeResult?.value ?? []).map((row) => [row.symbol, row]),
+    );
+
+    const rows = [];
+    for (const symbolName of wanted) {
+      const key = symbolName.toUpperCase();
+      const fromPyth = pythBySymbol.get(key);
+      const fromExchange = exchangeBySymbol.get(key);
+      if (!fromPyth && !fromExchange) continue;
+
+      rows.push({
+        symbol: key,
+        name: byName.get(key)?.name ?? null,
+        assetType: byName.get(key)?.assetType ?? null,
+        /* Pyth wins where it has the asset. */
+        price: fromPyth?.price ?? fromExchange?.price ?? null,
+        priceSource: fromPyth ? "pyth" : (fromExchange?.source ?? null),
+        confidence: fromPyth?.confidence ?? null,
+        publisherCount: fromPyth?.publisherCount ?? null,
+        marketSession: fromPyth?.marketSession ?? null,
+        /* The 24h window, which Pyth does not publish. Null means no source
+           listed this asset — say so rather than inferring a move. */
+        change24hPct: fromExchange?.change24hPct ?? null,
+        high24h: fromExchange?.high24h ?? null,
+        low24h: fromExchange?.low24h ?? null,
+        volume24h: fromExchange?.volume24h ?? null,
+        markPrice: fromExchange?.markPrice ?? null,
+        statsSource: fromExchange?.source ?? null,
+      });
+    }
+
+    const found = new Set(rows.map((row) => row.symbol));
 
     return {
-      fetchedAt: result.fetchedAt,
-      servedFromCache: result.hit,
-      symbols: result.value,
+      fetchedAt: exchangeResult?.fetchedAt ?? new Date().toISOString(),
+      servedFromCache: exchangeResult?.hit ?? false,
+      symbols: rows,
       /* Named explicitly so the agent reports the gap rather than silently
          answering about the symbols that happened to work. */
-      unavailable: wanted.filter((entry) => !found.has(entry)),
+      unavailable: wanted.filter((entry) => !found.has(entry.toUpperCase())),
+      /* Stated so the agent can attribute the figure it cites. */
+      note:
+        "price is from Pyth Network where priceSource says so; the 24h " +
+        "fields come from the exchange named in statsSource and are null " +
+        "when no exchange lists the asset.",
     };
   },
 };

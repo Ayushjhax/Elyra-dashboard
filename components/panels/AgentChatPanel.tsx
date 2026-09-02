@@ -14,6 +14,7 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { suggestionChips } from "@/lib/mock/chat";
 import { formatRelativeTime } from "@/lib/format";
+import { useAssets } from "@/lib/market/usePrices";
 import {
   nextMessageId,
   nowIso,
@@ -177,7 +178,9 @@ export function AgentChatPanel() {
   const focusNonce = useElyraStore((state) => state.composerFocusNonce);
   const appendMessage = useElyraStore((state) => state.appendMessage);
   const patchMessage = useElyraStore((state) => state.patchMessage);
-  const symbol = useElyraStore((state) => state.selectedSymbol);
+  const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
+  const { byId } = useAssets([selectedAssetId]);
+  const symbol = byId.get(selectedAssetId)?.symbol ?? "";
 
   const auth = useElyraAuth();
   const composerId = useId();

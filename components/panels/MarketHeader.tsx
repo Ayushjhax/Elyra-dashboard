@@ -7,19 +7,43 @@ import { DeltaText } from "@/components/ui/DeltaText";
 import { Panel } from "@/components/ui/Panel";
 import { Separator } from "@/components/ui/separator";
 import { StatPill } from "@/components/ui/StatPill";
-import { formatCompactUsd, formatPct, formatPrice } from "@/lib/format";
-import { useElyraStore, useLiveAsset } from "@/lib/store";
+import { formatPrice } from "@/lib/format";
+import { priceDecimals } from "@/lib/market/precision";
+import { useAssets, usePrice } from "@/lib/market/usePrices";
+import { useElyraStore } from "@/lib/store";
 import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
 
+/** Skeleton width for a value that has not arrived yet. */
+function Pending({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn("inline-block h-3 rounded-chip bg-surface-raised", className)}
+    />
+  );
+}
+
 export function MarketHeader() {
-  const symbol = useElyraStore((state) => state.selectedSymbol);
-  const asset = useLiveAsset(symbol);
-  const live = useElyraStore((state) => state.prices[symbol]);
-  const favorite = useElyraStore((state) => state.favorites.includes(symbol));
+  const assetId = useElyraStore((state) => state.selectedAssetId);
+  const favorite = useElyraStore((state) => state.favorites.includes(assetId));
   const toggleFavorite = useElyraStore((state) => state.toggleFavorite);
   const setRightDrawerOpen = useElyraStore((state) => state.setRightDrawerOpen);
-  const flash = useFlash(live?.seq ?? 0, live?.direction ?? "flat");
+
+  const ids = [assetId];
+  const { byId } = useAssets(ids);
+  const asset = byId.get(assetId);
+
+  const { row, status, error, direction, seq } = usePrice(assetId);
+  const flash = useFlash(seq, direction);
+
+  const symbol = asset?.symbol ?? "—";
+  const decimals = priceDecimals(row?.price);
+
+  /* A price that failed to refresh is still shown, because the last observed
+     price is real and useful — but it is labelled, so nobody reads a stale
+     number as a live one. */
+  const stale = status === "error" && row !== undefined;
 
   return (
     <Panel label={`${symbol} market summary`} className="shrink-0">
@@ -32,7 +56,7 @@ export function MarketHeader() {
             aria-label={
               favorite ? `Remove ${symbol} from favourites` : `Add ${symbol} to favourites`
             }
-            onClick={() => toggleFavorite(symbol)}
+            onClick={() => toggleFavorite(assetId)}
             className={cn(
               "inline-flex size-6 shrink-0 items-center justify-center rounded-chip",
               "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
@@ -47,9 +71,13 @@ export function MarketHeader() {
             />
           </button>
 
-          <CoinMark symbol={symbol} />
-          <h1 className="type-h1 truncate text-text-primary">{asset.name}</h1>
-          <span className="type-label shrink-0 text-text-muted">{symbol}/USDC</span>
+          <CoinMark symbol={symbol} logo={asset?.logo ?? null} />
+          <h1 className="type-h1 truncate text-text-primary">
+            {asset?.name ?? <Pending className="w-28 align-middle" />}
+          </h1>
+          <span className="type-label shrink-0 text-text-muted">
+            {asset ? `${asset.symbol}/${asset.quoteCurrency}` : ""}
+          </span>
 
           <div className="ml-auto shrink-0 full:hidden">
             <Button
@@ -66,46 +94,69 @@ export function MarketHeader() {
 
         <div className="flex min-w-0 items-center gap-4">
           <div className="flex shrink-0 items-baseline gap-2">
-            <span className={cn("type-price rounded-chip px-1 text-text-primary", flash)}>
-              ${formatPrice(asset.price, asset.pricePrecision)}
-            </span>
-            <DeltaText value={asset.change24hPct} className="type-data" />
+            {row ? (
+              <span
+                className={cn("type-price rounded-chip px-1 text-text-primary", flash)}
+                aria-live="polite"
+              >
+                ${formatPrice(row.price, decimals)}
+              </span>
+            ) : status === "error" ? (
+              <span className="type-price px-1 text-text-muted">—</span>
+            ) : (
+              <Pending className="h-6 w-32" />
+            )}
+
+            {row?.change24hPct !== null && row?.change24hPct !== undefined ? (
+              <DeltaText value={row.change24hPct} className="type-data" />
+            ) : null}
           </div>
 
           <div className="min-w-0 flex-1 overflow-x-auto">
             <div className="flex w-max items-stretch">
               <StatPill
-                label="24h High"
-                value={formatPrice(asset.high24h, asset.pricePrecision)}
+                label="Confidence"
+                value={row ? `±${formatPrice(row.confidence, decimals)}` : "—"}
                 className="pl-0"
               />
               <Separator orientation="vertical" />
               <StatPill
-                label="24h Low"
-                value={formatPrice(asset.low24h, asset.pricePrecision)}
-              />
-              <Separator orientation="vertical" />
-              <StatPill label="24h Volume" value={formatCompactUsd(asset.volume24h)} />
-              <Separator orientation="vertical" />
-              <StatPill
-                label="Open Interest"
-                value={formatCompactUsd(asset.openInterest)}
+                label="EMA"
+                value={row ? formatPrice(row.emaPrice, decimals) : "—"}
               />
               <Separator orientation="vertical" />
               <StatPill
-                label="Funding"
-                value={formatPct(asset.fundingPct, { decimals: 4 })}
-                tone={asset.fundingPct > 0 ? "positive" : asset.fundingPct < 0 ? "negative" : "muted"}
+                label="Publishers"
+                value={row ? String(row.publisherCount) : "—"}
               />
               <Separator orientation="vertical" />
               <StatPill
-                label="Mark"
-                value={formatPrice(asset.markPrice, asset.pricePrecision)}
+                label="Session"
+                value={row?.marketSession ?? "—"}
+                tone={
+                  row?.marketSession && row.marketSession !== "regular"
+                    ? "muted"
+                    : undefined
+                }
+              />
+              <Separator orientation="vertical" />
+              <StatPill
+                label="Source"
+                value={stale ? "Pyth · stale" : "Pyth"}
+                tone={stale ? "negative" : "muted"}
                 className="pr-0"
               />
             </div>
           </div>
         </div>
+
+        {status === "error" && (
+          <p role="status" className="type-label text-negative">
+            {row
+              ? `Showing the last price Pyth returned. ${error ?? ""}`.trim()
+              : (error ?? "Pyth prices are unavailable.")}
+          </p>
+        )}
       </div>
     </Panel>
   );

@@ -1,26 +1,40 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Circular coin mark, 20px by default.
+ * Circular asset mark.
  *
- * Marks are served from /public/coins/<SYMBOL>.svg. Only symbols listed in
- * LOCAL_MARKS are requested, so a missing file can never produce a 404 — every
- * other symbol renders the brand's lettered fallback chip. Drop an SVG into
- * public/coins and add its ticker here to switch a coin over.
+ * The logo URL comes from the asset record, which derives it from the
+ * CoinMarketCap id Pyth publishes alongside each feed — no local artwork and
+ * no per-symbol table, so an asset added to Pyth tomorrow gets its logo for
+ * free.
+ *
+ * Most of what Pyth carries has no logo at all: equities, metals, FX and
+ * commodities have no CMC listing. Those pass `logo={null}` and render the
+ * lettered chip, which is the same fallback used when a URL 404s — CMC
+ * answers an unknown id with a 403, so a broken image is a normal outcome
+ * rather than an error worth surfacing.
+ *
+ * A plain `<img>` rather than `next/image`: these are 64px PNGs from a CDN
+ * that already serves them at the right size, and routing thousands of
+ * possible logos through the image optimiser would cost far more than it
+ * saves.
  */
-const LOCAL_MARKS = new Set<string>([]);
-
 export function CoinMark({
   symbol,
+  logo = null,
   size = 20,
   className,
 }: {
   symbol: string;
+  logo?: string | null;
   size?: number;
   className?: string;
 }) {
-  const hasMark = LOCAL_MARKS.has(symbol);
+  const [failed, setFailed] = useState(false);
+  const showImage = logo !== null && !failed;
 
   return (
     <span
@@ -32,12 +46,19 @@ export function CoinMark({
         className,
       )}
     >
-      {hasMark ? (
-        <Image
-          src={`/coins/${symbol}.svg`}
+      {showImage ? (
+        /* eslint-disable-next-line @next/next/no-img-element -- these are 64px
+           PNGs the CDN already serves at the right size, and the set spans
+           every asset Pyth carries. Routing them through the image optimiser
+           would add cost and latency to fetch the same bytes back. */
+        <img
+          src={logo}
           alt=""
           width={size}
           height={size}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
           className="size-full object-contain"
         />
       ) : (

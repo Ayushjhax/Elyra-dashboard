@@ -3,15 +3,13 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
-  ASSETS,
-  ASSETS_BY_SYMBOL,
-  DEFAULT_FAVORITES,
-  DEFAULT_WATCHLIST,
-} from "@/lib/mock/assets";
+  DEFAULT_ASSET_ID,
+  DEFAULT_FAVORITE_IDS,
+  DEFAULT_WATCHLIST_IDS,
+} from "@/lib/market/defaults";
 import { CHAT_SEED } from "@/lib/mock/chat";
 import { MOCK_NOW } from "@/lib/format";
 import type {
-  Asset,
   ChatMessage,
   Interval,
   LedgerTab,
@@ -21,45 +19,11 @@ import type {
 /** The panels the stacked layout reaches through its bottom bar. */
 export type MobilePanel = "activity" | "watchlist" | "signals" | "chat" | null;
 
-/** Everything about a price that the feed moves. */
-export interface LivePrice {
-  price: number;
-  change24hPct: number;
-  high24h: number;
-  low24h: number;
-  markPrice: number;
-  /** Direction of the last tick — drives the 400ms flash. */
-  direction: "up" | "down" | "flat";
-  /** Increments every tick so a repeated direction still re-triggers the flash. */
-  seq: number;
-}
-
-function seedPrices(): Record<string, LivePrice> {
-  return Object.fromEntries(
-    ASSETS.map((asset) => [
-      asset.symbol,
-      {
-        price: asset.price,
-        change24hPct: asset.change24hPct,
-        high24h: asset.high24h,
-        low24h: asset.low24h,
-        markPrice: asset.markPrice,
-        direction: "flat" as const,
-        seq: 0,
-      },
-    ]),
-  );
-}
-
-/** Price 24h ago, held fixed so the delta stays coherent as price walks. */
-const BASE_24H: Record<string, number> = Object.fromEntries(
-  ASSETS.map((asset) => [asset.symbol, asset.price / (1 + asset.change24hPct / 100)]),
-);
-
 interface ElyraState {
   /* ---- the spine ---- */
-  selectedSymbol: string;
-  setSelectedSymbol: (symbol: string) => void;
+  /** Pyth feed id of the selected market. */
+  selectedAssetId: number;
+  setSelectedAssetId: (id: number) => void;
 
   /* ---- ledger controls (persisted) ---- */
   marketType: MarketType;
@@ -71,16 +35,12 @@ interface ElyraState {
   interval: Interval;
   setInterval: (interval: Interval) => void;
 
-  /* ---- watchlist ---- */
-  watchlist: string[];
-  addToWatchlist: (symbol: string) => void;
-  removeFromWatchlist: (symbol: string) => void;
-  favorites: string[];
-  toggleFavorite: (symbol: string) => void;
-
-  /* ---- live prices ---- */
-  prices: Record<string, LivePrice>;
-  tick: () => void;
+  /* ---- watchlist (Pyth feed ids) ---- */
+  watchlist: number[];
+  addToWatchlist: (id: number) => void;
+  removeFromWatchlist: (id: number) => void;
+  favorites: number[];
+  toggleFavorite: (id: number) => void;
 
   /* ---- automation ---- */
   disabledRules: string[];
@@ -113,8 +73,8 @@ interface ElyraState {
 export const useElyraStore = create<ElyraState>()(
   persist(
     (set) => ({
-      selectedSymbol: "SOL",
-      setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),
+      selectedAssetId: DEFAULT_ASSET_ID,
+      setSelectedAssetId: (id) => set({ selectedAssetId: id }),
 
       marketType: "perps",
       setMarketType: (market) => set({ marketType: market }),
@@ -124,52 +84,24 @@ export const useElyraStore = create<ElyraState>()(
       interval: "1H",
       setInterval: (interval) => set({ interval }),
 
-      watchlist: DEFAULT_WATCHLIST,
-      addToWatchlist: (symbol) =>
+      watchlist: DEFAULT_WATCHLIST_IDS,
+      addToWatchlist: (id) =>
         set((state) =>
-          state.watchlist.includes(symbol)
+          state.watchlist.includes(id)
             ? state
-            : { watchlist: [...state.watchlist, symbol] },
+            : { watchlist: [...state.watchlist, id] },
         ),
-      removeFromWatchlist: (symbol) =>
+      removeFromWatchlist: (id) =>
         set((state) => ({
-          watchlist: state.watchlist.filter((entry) => entry !== symbol),
+          watchlist: state.watchlist.filter((entry) => entry !== id),
         })),
-      favorites: DEFAULT_FAVORITES,
-      toggleFavorite: (symbol) =>
+      favorites: DEFAULT_FAVORITE_IDS,
+      toggleFavorite: (id) =>
         set((state) => ({
-          favorites: state.favorites.includes(symbol)
-            ? state.favorites.filter((entry) => entry !== symbol)
-            : [...state.favorites, symbol],
+          favorites: state.favorites.includes(id)
+            ? state.favorites.filter((entry) => entry !== id)
+            : [...state.favorites, id],
         })),
-
-      prices: seedPrices(),
-      tick: () =>
-        set((state) => {
-          const next: Record<string, LivePrice> = {};
-          for (const symbol of Object.keys(state.prices)) {
-            const current = state.prices[symbol];
-            const asset = ASSETS_BY_SYMBOL[symbol];
-            if (!asset) {
-              next[symbol] = current;
-              continue;
-            }
-            const drift = (Math.random() * 2 - 1) * asset.volatility;
-            const price = current.price * (1 + drift);
-            const base = BASE_24H[symbol] ?? current.price;
-            next[symbol] = {
-              price,
-              change24hPct: (price / base - 1) * 100,
-              high24h: Math.max(current.high24h, price),
-              low24h: Math.min(current.low24h, price),
-              markPrice: price * (1 + asset.volatility * 0.08),
-              direction:
-                price > current.price ? "up" : price < current.price ? "down" : "flat",
-              seq: current.seq + 1,
-            };
-          }
-          return { prices: next };
-        }),
 
       disabledRules: [],
       toggleRule: (id) =>
@@ -217,10 +149,16 @@ export const useElyraStore = create<ElyraState>()(
     {
       name: "elyra-terminal",
       storage: createJSONStorage(() => localStorage),
-      /* Only these two persist. Everything else is session state. */
+      /* The watchlist and the selection are the user's, so they persist.
+         Prices deliberately do not: a price restored from localStorage is a
+         stale number wearing a live one's clothes. They come from Pyth on
+         every load. */
       partialize: (state) => ({
         marketType: state.marketType,
         ledgerTab: state.ledgerTab,
+        watchlist: state.watchlist,
+        favorites: state.favorites,
+        selectedAssetId: state.selectedAssetId,
       }),
       /* Rehydrate after mount so the server and the first client render agree. */
       skipHydration: true,
@@ -229,51 +167,8 @@ export const useElyraStore = create<ElyraState>()(
 );
 
 /* ---------------------------------------------------------------------------
-   The single price feed. One interval for the whole app, reference counted so
-   remounting a panel never starts a second one.
---------------------------------------------------------------------------- */
-
-const TICK_MS = 3_000;
-let feedTimer: ReturnType<typeof setInterval> | null = null;
-let feedSubscribers = 0;
-
-export function startPriceFeed(): () => void {
-  if (typeof window === "undefined") return () => {};
-  feedSubscribers += 1;
-  if (!feedTimer) {
-    feedTimer = setInterval(() => useElyraStore.getState().tick(), TICK_MS);
-  }
-  return () => {
-    feedSubscribers -= 1;
-    if (feedSubscribers <= 0 && feedTimer) {
-      clearInterval(feedTimer);
-      feedTimer = null;
-      feedSubscribers = 0;
-    }
-  };
-}
-
-/* ---------------------------------------------------------------------------
    Selectors
 --------------------------------------------------------------------------- */
-
-/** Static asset facts merged with whatever the feed has done to the price. */
-export function useLiveAsset(symbol: string): Asset {
-  const live = useElyraStore((state) => state.prices[symbol]);
-  const asset = ASSETS_BY_SYMBOL[symbol];
-  if (!asset) {
-    throw new Error(`Unknown asset: ${symbol}`);
-  }
-  if (!live) return asset;
-  return {
-    ...asset,
-    price: live.price,
-    change24hPct: live.change24hPct,
-    high24h: live.high24h,
-    low24h: live.low24h,
-    markPrice: live.markPrice,
-  };
-}
 
 /** Stable id for a chat message created at runtime. */
 let messageCounter = 0;

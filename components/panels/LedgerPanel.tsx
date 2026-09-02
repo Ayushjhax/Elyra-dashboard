@@ -16,7 +16,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ValueTone } from "@/components/ui/DeltaText";
-import { ASSETS_BY_SYMBOL } from "@/lib/mock/assets";
 import { LEDGER_EMPTY } from "@/lib/mock/emptyStates";
 import { HISTORY } from "@/lib/mock/history";
 import { ORDERS } from "@/lib/mock/orders";
@@ -29,6 +28,8 @@ import {
   formatUsd,
   truncateMiddle,
 } from "@/lib/format";
+import { priceDecimals } from "@/lib/market/precision";
+import { useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
 import { useElyraStore } from "@/lib/store";
 import type { LedgerTab, MarketType, Order, Position, Trade } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -57,14 +58,18 @@ function SideCell({ side }: { side: "long" | "short" | "buy" | "sell" }) {
   );
 }
 
-function precisionFor(symbol: string, market?: MarketType) {
-  const asset = ASSETS_BY_SYMBOL[symbol];
+/**
+ * Display precision for a ledger row.
+ *
+ * Derived from the price rather than stored per asset: with Pyth's catalogue
+ * behind the terminal there is no fixed set of instruments to carry a
+ * precision for, and the magnitude of the number is what actually decides how
+ * many decimals read well.
+ */
+function precisionFor(value: number | null | undefined, market?: MarketType) {
   /* Prediction markets trade whole shares priced in cents on the dollar. */
   if (market === "prediction") return { price: 2, qty: 0 };
-  return {
-    price: asset?.pricePrecision ?? 2,
-    qty: asset?.qtyPrecision ?? 2,
-  };
+  return { price: priceDecimals(value), qty: 2 };
 }
 
 export function LedgerPanel() {
@@ -72,8 +77,22 @@ export function LedgerPanel() {
   const setLedgerTab = useElyraStore((state) => state.setLedgerTab);
   const marketType = useElyraStore((state) => state.marketType);
   const setMarketType = useElyraStore((state) => state.setMarketType);
-  const selectedSymbol = useElyraStore((state) => state.selectedSymbol);
-  const prices = useElyraStore((state) => state.prices);
+  const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
+  const { byId } = useAssets([selectedAssetId]);
+  const selectedSymbol = byId.get(selectedAssetId)?.symbol ?? "";
+
+  /* Seeded rows name their market by ticker, so they are resolved to feed ids
+     and marked against the live Pyth price rather than a stored one. */
+  const ledgerSymbols = useMemo(
+    () => [...new Set(POSITIONS.map((position) => position.symbol))],
+    [],
+  );
+  const ledgerAssets = useAssetsBySymbols(ledgerSymbols);
+  const ledgerIds = useMemo(
+    () => [...ledgerAssets.values()].map((asset) => asset.id),
+    [ledgerAssets],
+  );
+  const feed = usePrices(ledgerIds);
   const [stub, setStub] = useState<Stub>(null);
 
   /* The selected symbol is the spine, so its rows come first in every tab. */
@@ -93,7 +112,10 @@ export function LedgerPanel() {
       (position) => position.market === marketType,
     ).map((position) => {
       if (position.market === "prediction") return position;
-      const live = prices[position.symbol];
+      const asset = ledgerAssets.get(position.symbol.toUpperCase());
+      const live = asset ? feed.rows.get(asset.id) : undefined;
+      /* No Pyth feed for this ticker: the row keeps its seeded mark rather
+         than showing a price this app cannot source. */
       if (!live) return position;
       const markPrice = live.price;
       const direction = position.side === "long" ? 1 : -1;
@@ -106,7 +128,7 @@ export function LedgerPanel() {
       };
     });
     return selectedFirst(marked);
-  }, [marketType, prices, selectedFirst]);
+  }, [marketType, ledgerAssets, feed, selectedFirst]);
 
   const orders = useMemo(
     () => selectedFirst(ORDERS.filter((order) => order.market === marketType)),
@@ -147,21 +169,21 @@ export function LedgerPanel() {
       header: "Size",
       align: "right",
       width: "88px",
-      render: (row) => formatQty(row.size, precisionFor(row.symbol, row.market).qty),
+      render: (row) => formatQty(row.size, precisionFor(row.size, row.market).qty),
     },
     {
       key: "entry",
       header: "Entry",
       align: "right",
       width: "88px",
-      render: (row) => formatPrice(row.entryPrice, precisionFor(row.symbol, row.market).price),
+      render: (row) => formatPrice(row.entryPrice, precisionFor(row.entryPrice, row.market).price),
     },
     {
       key: "mark",
       header: "Mark",
       align: "right",
       width: "88px",
-      render: (row) => formatPrice(row.markPrice, precisionFor(row.symbol, row.market).price),
+      render: (row) => formatPrice(row.markPrice, precisionFor(row.markPrice, row.market).price),
     },
     {
       key: "liq",
@@ -172,7 +194,7 @@ export function LedgerPanel() {
         row.liquidationPrice === null ? (
           <span className="text-text-muted">—</span>
         ) : (
-          formatPrice(row.liquidationPrice, precisionFor(row.symbol, row.market).price)
+          formatPrice(row.liquidationPrice, precisionFor(row.liquidationPrice, row.market).price)
         ),
     },
     {
@@ -208,7 +230,7 @@ export function LedgerPanel() {
           onClick={() =>
             setStub({
               title: `Close ${row.label}`,
-              body: `This would close ${formatQty(row.size, precisionFor(row.symbol, row.market).qty)} ${row.symbol} ${row.side} at mark, realising ${formatUsd(row.pnl, { sign: true })}. Order routing is not wired up in this build, so nothing is sent.`,
+              body: `This would close ${formatQty(row.size, precisionFor(row.size, row.market).qty)} ${row.symbol} ${row.side} at mark, realising ${formatUsd(row.pnl, { sign: true })}. Order routing is not wired up in this build, so nothing is sent.`,
               confirmLabel: "Close position",
             })
           }
@@ -254,14 +276,14 @@ export function LedgerPanel() {
       header: "Price",
       align: "right",
       width: "88px",
-      render: (row) => formatPrice(row.price, precisionFor(row.symbol, row.market).price),
+      render: (row) => formatPrice(row.price, precisionFor(row.price, row.market).price),
     },
     {
       key: "size",
       header: "Size",
       align: "right",
       width: "88px",
-      render: (row) => formatQty(row.size, precisionFor(row.symbol, row.market).qty),
+      render: (row) => formatQty(row.size, precisionFor(row.size, row.market).qty),
     },
     {
       key: "filled",
@@ -296,7 +318,7 @@ export function LedgerPanel() {
           onClick={() =>
             setStub({
               title: `Cancel ${row.kind} order`,
-              body: `This would cancel the ${row.side} of ${formatQty(row.size, precisionFor(row.symbol, row.market).qty)} ${row.symbol} at ${formatPrice(row.price, precisionFor(row.symbol, row.market).price)}. Order routing is not wired up in this build, so the order stays where it is.`,
+              body: `This would cancel the ${row.side} of ${formatQty(row.size, precisionFor(row.size, row.market).qty)} ${row.symbol} at ${formatPrice(row.price, precisionFor(row.price, row.market).price)}. Order routing is not wired up in this build, so the order stays where it is.`,
               confirmLabel: "Cancel order",
             })
           }
@@ -334,14 +356,14 @@ export function LedgerPanel() {
       header: "Price",
       align: "right",
       width: "88px",
-      render: (row) => formatPrice(row.price, precisionFor(row.symbol, row.market).price),
+      render: (row) => formatPrice(row.price, precisionFor(row.price, row.market).price),
     },
     {
       key: "size",
       header: "Size",
       align: "right",
       width: "88px",
-      render: (row) => formatQty(row.size, precisionFor(row.symbol, row.market).qty),
+      render: (row) => formatQty(row.size, precisionFor(row.size, row.market).qty),
     },
     {
       key: "fee",

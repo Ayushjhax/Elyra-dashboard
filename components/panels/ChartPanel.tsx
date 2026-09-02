@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { CandlestickChart } from "lucide-react";
+import { CandlestickChart, ChevronDown } from "lucide-react";
+import { AssetSelectDialog } from "@/components/panels/AssetSelectDialog";
+import { CoinMark } from "@/components/ui/CoinMark";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
-import { TRADINGVIEW_SYMBOLS } from "@/lib/mock/assets";
+import { useAssets } from "@/lib/market/usePrices";
 import { useElyraStore } from "@/lib/store";
 import type { Interval } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -73,16 +75,51 @@ function token(name: string): string {
 
 type Status = "loading" | "ready" | "error";
 
-function IntervalRow() {
+/**
+ * The asset selector and the interval row share a bar.
+ *
+ * The selector opens the same picker the watchlist uses, so the two surfaces
+ * offer exactly the same universe and cannot drift apart.
+ */
+function ChartControls({
+  symbol,
+  name,
+  logo,
+}: {
+  symbol: string;
+  name: string;
+  logo: string | null;
+}) {
   const interval = useElyraStore((state) => state.interval);
   const setInterval = useElyraStore((state) => state.setInterval);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
-    <div
-      role="group"
-      aria-label="Chart interval"
-      className="flex shrink-0 items-center gap-1 border-b border-border-subtle px-3 py-1.5"
-    >
+    <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-3 py-1.5">
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        aria-haspopup="dialog"
+        aria-label={`Change market, currently ${name}`}
+        className={cn(
+          "flex h-6 shrink-0 items-center gap-1.5 rounded-control px-1.5",
+          "transition-colors duration-[var(--dur-fast)] ease-brand",
+          "hover:bg-surface-hover",
+        )}
+      >
+        <CoinMark symbol={symbol} logo={logo} size={16} />
+        <span className="type-data text-text-primary">{symbol}</span>
+        <span className="type-label hidden max-w-28 truncate text-text-muted mid:inline">
+          {name}
+        </span>
+        <ChevronDown size={12} strokeWidth={1.5} aria-hidden className="text-text-muted" />
+      </button>
+
+      <div
+        role="group"
+        aria-label="Chart interval"
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+      >
       {INTERVALS.map((value) => {
         const active = value === interval;
         return (
@@ -103,20 +140,29 @@ function IntervalRow() {
           </button>
         );
       })}
+      </div>
+
+      <AssetSelectDialog open={pickerOpen} onOpenChange={setPickerOpen} />
     </div>
   );
 }
 
 export function ChartPanel() {
-  const symbol = useElyraStore((state) => state.selectedSymbol);
+  const assetId = useElyraStore((state) => state.selectedAssetId);
   const interval = useElyraStore((state) => state.interval);
+  const { byId, loading: assetLoading } = useAssets([assetId]);
+  const asset = byId.get(assetId);
+  const symbol = asset?.symbol ?? "—";
   const [status, setStatus] = useState<Status>("loading");
   const hostRef = useRef<HTMLDivElement>(null);
   const rawId = useId();
   const containerId = `tv-${rawId.replace(/[^a-zA-Z0-9]/g, "")}`;
 
-  const tvSymbol = TRADINGVIEW_SYMBOLS[symbol];
-  const mount = `${symbol}-${interval}`;
+  /* Derived server-side from the asset's class — see lib/market/pyth/tradingview.ts.
+     Null means Pyth carries the asset but TradingView has no dependable symbol
+     for it, which is a supported outcome rather than a failure. */
+  const tvSymbol = asset?.tradingViewSymbol ?? null;
+  const mount = `${assetId}-${interval}`;
 
   /* Reset to the skeleton during render when the chart is about to be rebuilt,
      so the effect only ever reports the outcome. */
@@ -126,8 +172,10 @@ export function ChartPanel() {
     setStatus("loading");
   }
 
-  /* A symbol with no TradingView mapping can never load. */
-  const shownStatus: Status = tvSymbol ? status : "error";
+  /* Nothing can mount until the asset resolves, and an asset with no
+     TradingView symbol never will. */
+  const shownStatus: Status =
+    assetLoading || !asset ? "loading" : tvSymbol ? status : "error";
 
   useEffect(() => {
     const host = hostRef.current;
@@ -228,7 +276,11 @@ export function ChartPanel() {
 
   return (
     <Panel label={`${symbol} price chart`} className="min-h-0 flex-[1.15_1_0]">
-      <IntervalRow />
+      <ChartControls
+        symbol={symbol}
+        name={asset?.name ?? "Loading"}
+        logo={asset?.logo ?? null}
+      />
 
       <div className="relative min-h-0 flex-1">
         {/* tabindex -1 so the embed never becomes a keyboard trap. */}
@@ -260,8 +312,12 @@ export function ChartPanel() {
           <div className="absolute inset-0">
             <EmptyState
               icon={CandlestickChart}
-              title="Chart unavailable"
-              body={`The ${symbol} chart did not load. Check the connection and reselect the market, or switch interval to retry.`}
+              title={tvSymbol ? "Chart unavailable" : "No chart for this asset"}
+              body={
+                tvSymbol
+                  ? `The ${symbol} chart did not load. Check the connection and reselect the market, or switch interval to retry.`
+                  : `Pyth prices ${symbol}, but TradingView has no matching market, so there is no chart to show. The live price above is unaffected.`
+              }
             />
           </div>
         )}

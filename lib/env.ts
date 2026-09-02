@@ -46,6 +46,8 @@ const REQUIRED = [
  */
 type OptionalKey =
   | "ANTHROPIC_MODEL"
+  | "PYTH_API_KEY"
+  | "PYTH_API_URL"
   | "GEMINI_API_KEY"
   | "GEMINI_MODEL"
   | "PRIVY_VERIFICATION_KEY"

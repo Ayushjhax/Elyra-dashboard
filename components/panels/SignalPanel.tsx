@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { signalPrompt } from "@/lib/mock/chat";
 import { SIGNALS } from "@/lib/mock/signals";
 import { formatRelativeTime } from "@/lib/format";
+import { useAssetsBySymbols } from "@/lib/market/usePrices";
 import { useElyraStore } from "@/lib/store";
 import type { Signal } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,8 @@ function SignalCard({
   signal: Signal;
   onViewSetup: (signal: Signal) => void;
 }) {
-  const setSelectedSymbol = useElyraStore((state) => state.setSelectedSymbol);
+  const setSelectedAssetId = useElyraStore((state) => state.setSelectedAssetId);
+  const bySymbol = useAssetsBySymbols([signal.symbol]);
   const askElyra = useElyraStore((state) => state.askElyra);
   const setRightDrawerOpen = useElyraStore((state) => state.setRightDrawerOpen);
 
@@ -72,7 +74,10 @@ function SignalCard({
 
         <button
           type="button"
-          onClick={() => setSelectedSymbol(signal.symbol)}
+          onClick={() => {
+              const asset = bySymbol.get(signal.symbol.toUpperCase());
+              if (asset) setSelectedAssetId(asset.id);
+            }}
           className={cn(
             "flex w-fit items-center gap-1.5 rounded-chip py-0.5 pr-1.5",
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-raised",
@@ -92,7 +97,10 @@ function SignalCard({
             size="xs"
             variant="ghost"
             onClick={() => {
-              setSelectedSymbol(signal.symbol);
+              {
+              const asset = bySymbol.get(signal.symbol.toUpperCase());
+              if (asset) setSelectedAssetId(asset.id);
+            };
               askElyra(signalPrompt(signal.symbol, signal.thesis));
               setRightDrawerOpen(true);
             }}

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { ActivityPanel } from "@/components/panels/ActivityPanel";
 import { AgentChatPanel } from "@/components/panels/AgentChatPanel";
+import { AssistPanel } from "@/components/panels/AssistPanel";
 import { AutomationPanel } from "@/components/panels/AutomationPanel";
 import { SignalPanel } from "@/components/panels/SignalPanel";
 import { WatchlistPanel } from "@/components/panels/WatchlistPanel";
@@ -71,9 +72,10 @@ export function RightDrawer() {
           </DialogDescription>
         </DialogHeader>
         <SurfaceBar label="Signals and chat" onClose={() => setOpen(false)} />
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1.4fr)] gap-[var(--gap-shell)]">
-          <SignalPanel />
-          <AgentChatPanel />
+        {/* The drawer is narrower than the column it stands in for, so the
+            stacked form would be tighter still. Same tabs, same reasoning. */}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <AssistPanel />
         </div>
       </DialogContent>
     </Dialog>

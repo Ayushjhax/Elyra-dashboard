@@ -95,6 +95,17 @@ export type SignalSource =
   | "volatility"
   | "onchain";
 
+/** A signal is live until it expires, then it stays on the list as a record. */
+export type SignalStatus = "active" | "expired";
+
+/** One row of the supporting-metrics table under a signal. */
+export interface SignalMetric {
+  label: string;
+  value: string;
+  /** Colours the value. Omit where the number is neutral. */
+  tone?: "positive" | "negative";
+}
+
 export interface Signal {
   id: string;
   source: SignalSource;
@@ -106,6 +117,23 @@ export interface Signal {
   confidence: number;
   /** The longer reasoning behind "View setup". */
   setup: string;
+
+  status: SignalStatus;
+  /** Which way the setup leans. Not an instruction. */
+  side: PositionSide;
+  /** The level the setup is measured from. */
+  entry: number;
+  target: number;
+  stop: number;
+  /** When the setup stops being current. */
+  expiresAt: string;
+  /** Plain-language market state: "ranging", "trending up". */
+  regime: string;
+  /** How the same pattern has resolved historically, and over how many fires. */
+  winRatePct: number;
+  backtestFires: number;
+  /** The numbers behind the thesis, shown under a disclosure. */
+  metrics: SignalMetric[];
 }
 
 export type RuleStatus = "armed" | "paused" | "triggered";

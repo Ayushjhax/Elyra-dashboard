@@ -1,7 +1,6 @@
 import { ActivityPanel } from "@/components/panels/ActivityPanel";
-import { AgentChatPanel } from "@/components/panels/AgentChatPanel";
+import { AssistPanel } from "@/components/panels/AssistPanel";
 import { AutomationPanel } from "@/components/panels/AutomationPanel";
-import { SignalPanel } from "@/components/panels/SignalPanel";
 import { WatchlistPanel } from "@/components/panels/WatchlistPanel";
 import {
   LeftSheet,
@@ -50,10 +49,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
 
-        {/* Column 4 — Signal Suggestion / Agentic Chat, split 1fr / 1.4fr */}
-        <div className="hidden min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_minmax(0,1.4fr)] gap-[var(--gap-shell)] full:grid">
-          <SignalPanel />
-          <AgentChatPanel />
+        {/* Column 4 — chat and signals, one at a time behind a tab */}
+        <div className="hidden min-h-0 min-w-0 full:flex full:flex-col">
+          <AssistPanel />
         </div>
 
         <MobileTabBar />

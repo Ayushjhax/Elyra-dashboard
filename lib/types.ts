@@ -14,6 +14,20 @@ export type LedgerTab = "positions" | "orders" | "history";
 /** Chart intervals offered above the chart. */
 export type Interval = "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";
 
+/**
+ * The panels the operator can compose their own column out of.
+ *
+ * The key is what is stored and dragged; everything a key means — its label,
+ * icon, group and what it renders — lives in components/shell/panelRegistry.tsx.
+ * The store holds keys and not components so a saved layout is plain JSON.
+ */
+export type PanelKey =
+  | "activity"
+  | "watchlist"
+  | "automation"
+  | "signals"
+  | "chat";
+
 export interface Asset {
   /** Ticker, and the key everything else joins on. */
   symbol: string;

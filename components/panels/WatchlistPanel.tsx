@@ -48,7 +48,9 @@ function WatchRow({
         className={cn(
           "flex h-[var(--row-h)] w-full items-center gap-2 border-b border-border-subtle px-3 text-left",
           "transition-colors duration-[var(--dur-fast)] ease-brand",
-          selected ? "bg-surface-active text-text-primary" : "hover:bg-surface-hover",
+          selected
+            ? "fill-active bg-surface-active text-text-primary"
+            : "hover:bg-surface-hover",
         )}
       >
         <CoinMark symbol={asset.symbol} logo={asset.logo} />
@@ -151,6 +153,7 @@ export function WatchlistPanel() {
         {watchlist.length === 0 ? (
           <EmptyState
             icon={Search}
+            mark="forest"
             title="Nothing on the watchlist"
             body="Add an asset to follow its live Pyth price here."
           />

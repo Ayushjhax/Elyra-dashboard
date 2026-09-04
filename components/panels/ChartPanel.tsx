@@ -6,6 +6,7 @@ import { AssetSelectDialog } from "@/components/panels/AssetSelectDialog";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
+import { CHART_GROW } from "@/lib/layout";
 import { useAssets } from "@/lib/market/usePrices";
 import { useElyraStore } from "@/lib/store";
 import type { Interval } from "@/lib/types";
@@ -132,7 +133,7 @@ function ChartControls({
               "type-data-sm h-6 rounded-pill px-2.5",
               "transition-colors duration-[var(--dur-fast)] ease-brand",
               active
-                ? "bg-accent text-text-on-accent"
+                ? "fill-accent bg-accent text-text-on-accent shadow-lift-accent"
                 : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
             )}
           >
@@ -150,6 +151,7 @@ function ChartControls({
 export function ChartPanel() {
   const assetId = useElyraStore((state) => state.selectedAssetId);
   const interval = useElyraStore((state) => state.interval);
+  const chartGrow = useElyraStore((state) => state.rowGrow.chart ?? CHART_GROW);
   const { byId, loading: assetLoading } = useAssets([assetId]);
   const asset = byId.get(assetId);
   const symbol = asset?.symbol ?? "—";
@@ -275,7 +277,13 @@ export function ChartPanel() {
   }, [tvSymbol, interval, symbol, containerId]);
 
   return (
-    <Panel label={`${symbol} price chart`} className="min-h-0 flex-[1.15_1_0]">
+    <Panel
+      label={`${symbol} price chart`}
+      className="min-h-0"
+      /* The chart's share of the middle column. CHART_GROW is the default and
+         the handle under the panel writes over it — see MainSplit. */
+      style={{ flexGrow: chartGrow, flexBasis: 0 }}
+    >
       <ChartControls
         symbol={symbol}
         name={asset?.name ?? "Loading"}
@@ -312,6 +320,7 @@ export function ChartPanel() {
           <div className="absolute inset-0">
             <EmptyState
               icon={CandlestickChart}
+              mark="forest"
               title={tvSymbol ? "Chart unavailable" : "No chart for this asset"}
               body={
                 tvSymbol

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BellOff, ChevronDown, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { CoinMark } from "@/components/ui/CoinMark";
+import { AmbientGlow } from "@/components/ui/Glow";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { formatRelativeTime } from "@/lib/format";
 import { priceDecimals } from "@/lib/market/precision";
@@ -98,12 +99,24 @@ export function SignalCard({
     <li>
       <article
         className={cn(
-          "flex flex-col gap-2.5 border-b border-border-subtle px-3 py-3",
+          "relative isolate flex flex-col gap-2.5 border-b border-border-subtle px-3 py-3",
           /* Expired cards stay on the list as a record, recessed rather than
              hidden — the reasoning is still worth reading after the fact. */
           expired ? "opacity-65" : "agent-rail pl-2.5",
         )}
       >
+        {/* A live signal is lit from its own rail — the rail, not the card. A
+            field behind the whole card was both lime-heavy against 1.2 and, at
+            any strength you could see, under the contrast floor beneath the
+            eyebrows. This is 24px wide and sits entirely in the gutter left of
+            the text, so it lights the surface without ever crossing a glyph.
+            An expired signal has gone out. */}
+        {!expired && (
+          <AmbientGlow
+            tone="agent"
+            className="-left-6 bottom-2 top-2 w-6"
+          />
+        )}
         <div className="flex items-center gap-2">
           <span
             className={cn(

@@ -9,15 +9,20 @@ import {
 } from "@/lib/market/defaults";
 import { CHAT_SEED } from "@/lib/mock/chat";
 import { MOCK_NOW } from "@/lib/format";
+import { clampColumn, type ColumnWidths, type ShellColumnId } from "@/lib/layout";
 import type {
   ChatMessage,
   Interval,
   LedgerTab,
   MarketType,
+  PanelKey,
 } from "@/lib/types";
 
 /** The panels the stacked layout reaches through its bottom bar. */
 export type MobilePanel = "activity" | "watchlist" | "signals" | "chat" | null;
+
+/** What column two holds before the operator has moved anything. */
+export const DEFAULT_STACK: PanelKey[] = ["activity", "watchlist", "automation"];
 
 interface ElyraState {
   /* ---- the spine ---- */
@@ -55,6 +60,50 @@ interface ElyraState {
   askElyra: (prompt: string) => void;
   appendMessage: (message: ChatMessage) => void;
   patchMessage: (id: string, patch: Partial<ChatMessage>) => void;
+
+  /* ---- workspace layout ---- */
+  /** Column two, top to bottom. The operator composes this one. */
+  stack: PanelKey[];
+  /** Whether the component palette column is showing. */
+  paletteOpen: boolean;
+  setPaletteOpen: (open: boolean) => void;
+  /** The panel currently under the pointer in a drag, or null. Drop targets
+      only exist while this is set, so nothing shifts during normal use. */
+  draggingPanel: PanelKey | null;
+  setDraggingPanel: (key: PanelKey | null) => void;
+  /** Put a panel at a position in the stack, adding it if it is not there yet.
+      One action covers both the drag from the palette and a reorder. */
+  placePanel: (key: PanelKey, index?: number) => void;
+  removePanel: (key: PanelKey) => void;
+  /** Keyboard equivalent of dragging a panel one place up or down. */
+  nudgePanel: (key: PanelKey, delta: -1 | 1) => void;
+  resetStack: () => void;
+
+  /* ---- adjustable columns and rows ---- */
+  /** Whether the composed panel column is showing at all. */
+  stackOpen: boolean;
+  setStackOpen: (open: boolean) => void;
+  /** Whether the assistant column is showing at all. */
+  assistOpen: boolean;
+  setAssistOpen: (open: boolean) => void;
+  /**
+   * What the operator dragged each column to. A column with no entry sits at
+   * its initial width; every entry is held inside `COLUMN_BOUNDS`, and the
+   * fitter in `lib/layout.ts` may still show it narrower when the chart's
+   * floor demands it.
+   */
+  columnWidths: ColumnWidths;
+  setColumnWidth: (id: ShellColumnId, px: number) => void;
+  resetColumnWidth: (id: ShellColumnId) => void;
+  /**
+   * Flex weight per resizable row, keyed by row id — panel keys in column two,
+   * `chart` and `ledger` in the middle one. Weights rather than pixels, so a
+   * split the operator set survives the window being resized.
+   */
+  rowGrow: Record<string, number>;
+  setRowGrow: (a: string, aGrow: number, b: string, bGrow: number) => void;
+  /** Every arrangement back to its default: order, widths, splits and columns. */
+  resetLayout: () => void;
 
   /* ---- responsive surfaces ---- */
   rightDrawerOpen: boolean;
@@ -130,6 +179,69 @@ export const useElyraStore = create<ElyraState>()(
           ),
         })),
 
+      stack: DEFAULT_STACK,
+      paletteOpen: false,
+      setPaletteOpen: (open) =>
+        /* Leaving edit mode cannot leave a half-finished drag behind. */
+        set(open ? { paletteOpen: true } : { paletteOpen: false, draggingPanel: null }),
+      draggingPanel: null,
+      setDraggingPanel: (key) => set({ draggingPanel: key }),
+      placePanel: (key, index) =>
+        set((state) => {
+          const from = state.stack.indexOf(key);
+          const next = state.stack.filter((entry) => entry !== key);
+          /* The caller's index counts slots in the list as it was drawn. Once
+             the dragged panel is lifted out, every slot below where it sat
+             moves up one. */
+          let at = index ?? next.length;
+          if (from !== -1 && from < at) at -= 1;
+          next.splice(Math.max(0, Math.min(at, next.length)), 0, key);
+          return { stack: next };
+        }),
+      removePanel: (key) =>
+        set((state) => ({ stack: state.stack.filter((entry) => entry !== key) })),
+      nudgePanel: (key, delta) =>
+        set((state) => {
+          const from = state.stack.indexOf(key);
+          const to = from + delta;
+          if (from === -1 || to < 0 || to >= state.stack.length) return state;
+          const next = [...state.stack];
+          [next[from], next[to]] = [next[to], next[from]];
+          return { stack: next };
+        }),
+      resetStack: () => set({ stack: DEFAULT_STACK }),
+
+      stackOpen: true,
+      setStackOpen: (open) => set({ stackOpen: open }),
+      assistOpen: true,
+      setAssistOpen: (open) => set({ assistOpen: open }),
+
+      columnWidths: {},
+      setColumnWidth: (id, px) =>
+        set((state) => ({
+          columnWidths: { ...state.columnWidths, [id]: clampColumn(id, px) },
+        })),
+      resetColumnWidth: (id) =>
+        set((state) => {
+          const next = { ...state.columnWidths };
+          delete next[id];
+          return { columnWidths: next };
+        }),
+
+      rowGrow: {},
+      setRowGrow: (a, aGrow, b, bGrow) =>
+        set((state) => ({ rowGrow: { ...state.rowGrow, [a]: aGrow, [b]: bGrow } })),
+
+      resetLayout: () =>
+        set({
+          stack: DEFAULT_STACK,
+          stackOpen: true,
+          assistOpen: true,
+          columnWidths: {},
+          rowGrow: {},
+          draggingPanel: null,
+        }),
+
       rightDrawerOpen: false,
       setRightDrawerOpen: (open) => set({ rightDrawerOpen: open }),
       leftSheetOpen: false,
@@ -159,6 +271,17 @@ export const useElyraStore = create<ElyraState>()(
         watchlist: state.watchlist,
         favorites: state.favorites,
         selectedAssetId: state.selectedAssetId,
+        /* The composed column is the operator's own arrangement, so it comes
+           back on the next visit. paletteOpen does not: edit mode is a thing
+           you are doing now, not a preference. */
+        stack: state.stack,
+        /* Same reasoning for the rest of the arrangement: which columns are
+           open, how wide they were dragged, and how the rows inside them were
+           split are all decisions about this workspace, not about this visit. */
+        stackOpen: state.stackOpen,
+        assistOpen: state.assistOpen,
+        columnWidths: state.columnWidths,
+        rowGrow: state.rowGrow,
       }),
       /* Rehydrate after mount so the server and the first client render agree. */
       skipHydration: true,

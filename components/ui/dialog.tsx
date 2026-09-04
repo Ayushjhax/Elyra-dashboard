@@ -8,6 +8,12 @@ import { cn } from "@/lib/utils";
  * shadcn/ui Dialog, restyled: --surface-panel, --radius-panel, 1px
  * --border-strong, and the one permitted shadow. Also does duty as the
  * responsive drawer and sheet, via the `side` prop on DialogContent.
+ *
+ * `surface` picks what the content sits on. A real dialog takes `glass` — the
+ * luminance layer's frosted plane, since it floats over the grid rather than
+ * being part of it. `bare` is for the drawers and sheets that mount whole
+ * Panels inside themselves and would otherwise draw a second border around a
+ * surface that already has one.
  */
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -22,7 +28,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-surface-base/70 backdrop-blur-[1px]",
+        "fixed inset-0 z-50 bg-surface-base/70 backdrop-blur-[2px]",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         className,
       )}
@@ -32,6 +38,7 @@ function DialogOverlay({
 }
 
 type DialogSide = "center" | "right" | "left" | "bottom";
+type DialogSurface = "glass" | "panel" | "bare";
 
 const SIDE_CLASSES: Record<DialogSide, string> = {
   center:
@@ -43,14 +50,22 @@ const SIDE_CLASSES: Record<DialogSide, string> = {
     "left-3 right-3 bottom-3 max-h-[min(70dvh,560px)] rounded-panel border",
 };
 
+const SURFACE_CLASSES: Record<DialogSurface, string> = {
+  glass: "glass shadow-pop",
+  panel: "border-border-strong bg-surface-panel shadow-pop",
+  bare: "border-0 bg-transparent p-0 shadow-none",
+};
+
 function DialogContent({
   className,
   children,
   side = "center",
+  surface = "glass",
   showClose = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   side?: DialogSide;
+  surface?: DialogSurface;
   showClose?: boolean;
 }) {
   return (
@@ -60,9 +75,9 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed z-50 flex min-h-0 flex-col overflow-hidden",
-          "border-border-strong bg-surface-panel shadow-pop",
           "focus:outline-none",
           SIDE_CLASSES[side],
+          SURFACE_CLASSES[surface],
           className,
         )}
         {...props}

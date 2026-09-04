@@ -32,7 +32,7 @@ function ConfidenceBar({ value }: { value: number }) {
         className="h-1 min-w-0 flex-1 overflow-hidden rounded-pill bg-surface-hover"
       >
         <div
-          className="h-full rounded-pill bg-agent-accent"
+          className="fill-agent h-full rounded-pill bg-agent-accent shadow-lift-agent"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -50,7 +50,7 @@ export function SignalPanel() {
   const [openSignal, setOpenSignal] = useState<Signal | null>(null);
 
   return (
-    <Panel label="Signal suggestion">
+    <Panel label="Signal suggestion" glow="agent">
       <PanelHeader>
         <Eyebrow>Signals</Eyebrow>
         <span className="type-label text-text-muted">

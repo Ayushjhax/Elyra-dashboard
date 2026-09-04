@@ -11,6 +11,7 @@ import {
 import { ChevronRight, SendHorizontal, Wrench } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Eyebrow } from "@/components/ui/Eyebrow";
+import { IridescentOrb } from "@/components/ui/IridescentOrb";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { suggestionChips } from "@/lib/mock/chat";
 import { formatRelativeTime } from "@/lib/format";
@@ -127,12 +128,35 @@ function ToolCallBlock({ call }: { call: ToolCall }) {
   );
 }
 
+/**
+ * What the agent shows while it is working.
+ *
+ * It replaces the reply's own text, in the bubble the reply will land in, so
+ * nothing moves when the first characters arrive — the orb goes and the text
+ * takes the line it was already holding.
+ *
+ * The orb is decorative; this line is what actually reports the state, and it
+ * is what a screen reader gets. `aria-live="polite"` because a status the
+ * operator did not ask for should wait for a gap rather than interrupt.
+ */
+function ThinkingRow() {
+  return (
+    <span className="flex items-center gap-2" aria-live="polite">
+      <IridescentOrb className="size-9 shrink-0" />
+      <span className="type-body-sm text-text-secondary">Elyra is working…</span>
+    </span>
+  );
+}
+
 function MessageBubble({
   message,
   streaming,
+  thinking,
 }: {
   message: ChatMessage;
   streaming: boolean;
+  /** The request is in flight and this bubble is where the reply will land. */
+  thinking: boolean;
 }) {
   const isAgent = message.role === "agent";
 
@@ -142,7 +166,7 @@ function MessageBubble({
         className={cn(
           "flex flex-col gap-2 rounded-card px-2.5 py-2",
           isAgent
-            ? "agent-rail w-[94%] rounded-l-none bg-surface-raised"
+            ? "agent-rail w-[94%] rounded-l-none bg-surface-raised shadow-lift-agent"
             : "max-w-[80%] bg-surface-hover",
         )}
       >
@@ -154,18 +178,22 @@ function MessageBubble({
             streaming && "stream-caret",
           )}
         >
-          {message.text}
+          {thinking ? <ThinkingRow /> : message.text}
         </p>
 
-        <time
-          dateTime={message.at}
-          className={cn(
-            "type-label text-text-muted",
-            isAgent ? "text-left" : "text-right",
-          )}
-        >
-          {formatRelativeTime(message.at)}
-        </time>
+        {/* No timestamp while the agent is still working: there is nothing to
+            put a time on yet, and the row would jump when it arrived. */}
+        {!thinking && (
+          <time
+            dateTime={message.at}
+            className={cn(
+              "type-label text-text-muted",
+              isAgent ? "text-left" : "text-right",
+            )}
+          >
+            {formatRelativeTime(message.at)}
+          </time>
+        )}
       </div>
     </li>
   );
@@ -307,7 +335,7 @@ export function AgentChatPanel() {
   const chips = suggestionChips(symbol);
 
   return (
-    <Panel label="Agentic chat">
+    <Panel label="Agentic chat" glow="agent">
       <PanelHeader>
         <Eyebrow>Agentic chat</Eyebrow>
         <span className="type-label text-text-muted">{symbol}</span>
@@ -318,11 +346,20 @@ export function AgentChatPanel() {
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3"
       >
         <ul className="flex list-none flex-col gap-3">
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <MessageBubble
               key={message.id}
               message={message}
               streaming={message.id === streamingId}
+              /* `send` appends the agent's bubble empty and fills it when the
+                 reply lands, so the one still empty at the end of the list is
+                 the one being waited on. */
+              thinking={
+                pending &&
+                index === messages.length - 1 &&
+                message.role === "agent" &&
+                message.text.length === 0
+              }
             />
           ))}
         </ul>
@@ -397,7 +434,7 @@ export function AgentChatPanel() {
               "transition-colors duration-[var(--dur-fast)] ease-brand",
               draft.trim().length === 0 || pending
                 ? "text-text-muted"
-                : "bg-accent text-text-on-accent hover:bg-accent-hover",
+                : "fill-accent bg-accent text-text-on-accent hover:fill-accent-bright hover:bg-accent-hover",
             )}
           >
             <SendHorizontal size={14} strokeWidth={1.5} aria-hidden />

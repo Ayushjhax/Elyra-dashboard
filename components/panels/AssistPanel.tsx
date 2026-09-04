@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AgentChatPanel } from "@/components/panels/AgentChatPanel";
 import { SignalPanel } from "@/components/panels/SignalPanel";
+import { AmbientGlow } from "@/components/ui/Glow";
 import { SIGNALS } from "@/lib/mock/signals";
 import { cn } from "@/lib/utils";
 
@@ -41,10 +42,16 @@ export function AssistPanel() {
         role="tablist"
         aria-label="Assistant surface"
         className={cn(
-          "flex shrink-0 items-center gap-1 rounded-panel border border-border-subtle",
-          "bg-surface-panel p-1",
+          "relative isolate flex shrink-0 items-center gap-1 overflow-hidden rounded-panel",
+          "rim border border-border-subtle bg-surface-panel p-1",
         )}
       >
+        <AmbientGlow
+          tone="agent"
+          breathe
+          className="-top-[120%] left-1/2 h-[300%] w-[70%] -translate-x-1/2"
+        />
+
         {tabs.map((tab) => {
           const active = tab.value === surface;
           return (
@@ -59,7 +66,7 @@ export function AssistPanel() {
                 "type-label inline-flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-control px-3",
                 "transition-colors duration-[var(--dur-fast)] ease-brand",
                 active
-                  ? "bg-surface-active text-text-primary"
+                  ? "fill-active bg-surface-active text-text-primary"
                   : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
               )}
             >
@@ -69,7 +76,7 @@ export function AssistPanel() {
                   className={cn(
                     "type-data-sm rounded-pill px-1.5",
                     active
-                      ? "bg-accent text-text-on-accent"
+                      ? "fill-accent bg-accent text-text-on-accent shadow-lift-accent"
                       : "bg-surface-raised text-text-muted",
                   )}
                 >

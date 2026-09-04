@@ -9,9 +9,11 @@
 
 /**
  * `themeColor` paints browser chrome *outside* the document, so it cannot read
- * a CSS custom property. Identical to --surface-base (Ink, #15170f).
+ * a CSS custom property. Identical to --surface-base, which is now true black
+ * rather than the palette's Ink; see the comment on that token in
+ * app/globals.css for why.
  */
-export const THEME_COLOR_INK = "#15170f";
+export const THEME_COLOR_INK = "#000000";
 
 /**
  * Privy's login modal.
@@ -21,7 +23,7 @@ export const THEME_COLOR_INK = "#15170f";
  * `var(--accent)`. Left unset, the modal renders in Privy's default light
  * theme, which is a white sheet over Ink. These two keep it in the brand.
  *
- * `theme` is --surface-base (Ink). `accent` is --accent (#d2dc76), the same
+ * `theme` is --surface-base. `accent` is --accent (#d2dc76), the same
  * lime the send button and active borders use.
  */
 export const PRIVY_MODAL_THEME = THEME_COLOR_INK;

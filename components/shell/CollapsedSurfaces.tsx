@@ -20,10 +20,10 @@ import {
 import { ActivityPanel } from "@/components/panels/ActivityPanel";
 import { AgentChatPanel } from "@/components/panels/AgentChatPanel";
 import { AssistPanel } from "@/components/panels/AssistPanel";
-import { AutomationPanel } from "@/components/panels/AutomationPanel";
 import { SignalPanel } from "@/components/panels/SignalPanel";
 import { WatchlistPanel } from "@/components/panels/WatchlistPanel";
-import { NavList } from "@/components/shell/NavRail";
+import { ALL_NAV_ITEMS, NavList } from "@/components/shell/NavRail";
+import { PanelStack } from "@/components/shell/PanelStack";
 import { useElyraStore, type MobilePanel } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -61,9 +61,9 @@ export function RightDrawer() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
         side="right"
+        surface="bare"
         showClose={false}
         aria-describedby="right-drawer-help"
-        className="border-0 bg-transparent p-0 shadow-none"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Signals and chat</DialogTitle>
@@ -90,9 +90,9 @@ export function LeftSheet() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
         side="left"
+        surface="bare"
         showClose={false}
         aria-describedby="left-sheet-help"
-        className="border-0 bg-transparent p-0 shadow-none"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Activity, watchlist and automation</DialogTitle>
@@ -101,11 +101,9 @@ export function LeftSheet() {
           </DialogDescription>
         </DialogHeader>
         <SurfaceBar label="Column two" onClose={() => setOpen(false)} />
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)] gap-[var(--gap-shell)]">
-          <ActivityPanel />
-          <WatchlistPanel />
-          <AutomationPanel />
-        </div>
+        {/* The same composed stack the wide layout shows, so a panel added in
+            the palette is there when the window narrows. */}
+        <PanelStack className="flex min-h-0 flex-1" />
       </DialogContent>
     </Dialog>
   );
@@ -125,7 +123,7 @@ export function NavSheet() {
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          <NavList showLabels onNavigate={() => setOpen(false)} />
+          <NavList items={ALL_NAV_ITEMS} showLabels onNavigate={() => setOpen(false)} />
         </div>
       </DialogContent>
     </Dialog>
@@ -178,9 +176,10 @@ export function MobilePanelSheet() {
     <Dialog open={panel !== null} onOpenChange={(open) => !open && setPanel(null)}>
       <DialogContent
         side="bottom"
+        surface="bare"
         showClose={false}
         aria-describedby="mobile-panel-help"
-        className="h-[70dvh] border-0 bg-transparent p-0 shadow-none"
+        className="h-[70dvh]"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{active?.title ?? "Panel"}</DialogTitle>
@@ -208,8 +207,8 @@ export function MobileTabBar() {
     <nav
       aria-label="Panels"
       className={cn(
-        "flex items-stretch justify-between gap-1 compact:hidden",
-        "rounded-panel border border-border-subtle bg-surface-panel p-1",
+        "relative flex items-stretch justify-between gap-1 compact:hidden",
+        "rim rounded-panel border border-border-subtle bg-surface-panel p-1",
       )}
     >
       <button
@@ -239,7 +238,7 @@ export function MobileTabBar() {
               "flex flex-1 flex-col items-center justify-center gap-0.5 rounded-control py-1.5",
               "transition-colors duration-[var(--dur-fast)] ease-brand",
               active
-                ? "bg-surface-active text-text-primary"
+                ? "fill-active bg-surface-active text-text-primary"
                 : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
             )}
           >

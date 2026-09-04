@@ -1,7 +1,8 @@
-import { ActivityPanel } from "@/components/panels/ActivityPanel";
+"use client";
+
+import { useEffect, useState } from "react";
 import { AssistPanel } from "@/components/panels/AssistPanel";
-import { AutomationPanel } from "@/components/panels/AutomationPanel";
-import { WatchlistPanel } from "@/components/panels/WatchlistPanel";
+import { ComponentPalette } from "@/components/shell/ComponentPalette";
 import {
   LeftSheet,
   MobilePanelSheet,
@@ -10,49 +11,144 @@ import {
   RightDrawer,
 } from "@/components/shell/CollapsedSurfaces";
 import { NavRail } from "@/components/shell/NavRail";
+import { PanelStack } from "@/components/shell/PanelStack";
+import { ColumnResizer } from "@/components/shell/Resizer";
 import { TerminalRuntime } from "@/components/shell/TerminalRuntime";
+import { ShellAtmosphere } from "@/components/ui/Glow";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { shellLayout, type ShellColumnId } from "@/lib/layout";
+import { useElyraStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 /**
  * The terminal shell: one fixed-height screen, 12px gap, 12px outer padding on
  * --surface-base. Nothing here scrolls — every panel handles its own overflow.
  *
- *   ≥1280   216px | 288px | 1fr | 352px
- *   ≥900    216px | 288px | 1fr           right column → drawer
- *   ≥640     56px | 1fr                   column 2 → sheet, nav → icon rail
- *   <640     1fr + bottom tab bar         header, chart, ledger stacked
+ * The grid paints no background of its own. --surface-base comes from body, so
+ * ShellAtmosphere can sit on a negative layer between the two and light the gaps
+ * between panels without a stacking context standing in the way.
+ *
+ *   ≥1280   nav | palette | panels | chart | assistant
+ *   ≥900    nav | palette | panels | chart          assistant → drawer
+ *   ≥640     56 | chart                             panels → sheet, nav → icons
+ *   <640    chart + bottom tab bar                  header, chart, ledger stacked
+ *
+ * Every one of those side columns is the operator's to size and to close. The
+ * widths are not written here: `shellLayout` turns the stored widths and the
+ * measured viewport into one `grid-template-columns` per breakpoint, published
+ * as custom properties that `.shell-grid` in globals.css picks between. The
+ * media queries stay the single authority on which columns are on screen, so
+ * the tracks and the items can never disagree.
+ *
+ * The rule the fitter enforces is that the chart is never the column that
+ * pays. Opening the palette, or dragging a neighbour wider, takes width from
+ * the other side columns in a fixed order and stops at MAIN_MIN — the chart is
+ * always open, whatever else is.
+ *
+ * `children` is the middle column — market header, chart, ledger — and arrives
+ * already rendered from the page, so making this a client component does not
+ * pull those into the client bundle on its account.
  */
+
+/**
+ * One resizable column of the grid.
+ *
+ * The wrapper is the grid item, so the panel inside keeps its own
+ * `overflow-hidden` and the handle can hang outside it into the gap.
+ */
+function ShellColumn({
+  id,
+  side = "end",
+  className,
+  children,
+}: {
+  id: ShellColumnId;
+  side?: "start" | "end";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      data-shell-column={id}
+      className={cn("relative min-h-0 min-w-0 flex-col", className)}
+    >
+      {children}
+      <ColumnResizer id={id} side={side} />
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const paletteOpen = useElyraStore((state) => state.paletteOpen);
+  const stackOpen = useElyraStore((state) => state.stackOpen);
+  const assistOpen = useElyraStore((state) => state.assistOpen);
+  const columnWidths = useElyraStore((state) => state.columnWidths);
+
+  /* Null until the first measurement — on the server and for the first paint,
+     where the stored widths stand on their own and nothing has to be fitted.
+     window.innerWidth rather than an observed element, because that is exactly
+     what the media queries below are answering to. */
+  const [viewport, setViewport] = useState<number | null>(null);
+
+  useEffect(() => {
+    const measure = () => setViewport(window.innerWidth);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  const layout = shellLayout({
+    viewport,
+    widths: columnWidths,
+    paletteOpen,
+    stackOpen,
+    assistOpen,
+  });
+
   return (
     <TooltipProvider delayDuration={300}>
       <div
-        className={[
-          "grid h-dvh w-full overflow-hidden bg-surface-base p-3",
-          "gap-[var(--gap-shell)]",
-          "grid-cols-1 grid-rows-[minmax(0,1fr)_auto]",
-          "compact:grid-cols-[56px_minmax(0,1fr)] compact:grid-rows-[minmax(0,1fr)]",
-          "mid:grid-cols-[216px_288px_minmax(0,1fr)]",
-          "full:grid-cols-[216px_288px_minmax(0,1fr)_352px]",
-        ].join(" ")}
+        className="shell-grid grid h-dvh w-full gap-[var(--gap-shell)] overflow-hidden p-3"
+        style={
+          {
+            "--cols-compact": layout.compact,
+            "--cols-mid": layout.mid,
+            "--cols-full": layout.full,
+          } as React.CSSProperties
+        }
       >
-        <NavRail />
+        <ShellAtmosphere />
 
-        {/* Column 2 — Activity / Watchlist / Automation, split 1fr / 1.2fr / 0.8fr */}
-        <div className="hidden min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)] gap-[var(--gap-shell)] mid:grid">
-          <ActivityPanel />
-          <WatchlistPanel />
-          <AutomationPanel />
-        </div>
+        <ShellColumn id="rail" className="hidden compact:flex">
+          <NavRail icons={layout.railIcons} />
+        </ShellColumn>
 
-        {/* Column 3 — market header, chart, ledger */}
+        {paletteOpen && (
+          <ShellColumn id="palette" className="hidden mid:flex">
+            <ComponentPalette />
+          </ShellColumn>
+        )}
+
+        {/* Column 2 — whatever the operator has composed. */}
+        {stackOpen && (
+          <ShellColumn id="stack" className="hidden mid:flex">
+            <PanelStack className="flex min-h-0 flex-1" />
+          </ShellColumn>
+        )}
+
+        {/* Column 3 — market header, chart, ledger. The one column with no
+            handle of its own: it is what every other handle moves against. */}
         <main className="flex min-h-0 min-w-0 flex-col gap-[var(--gap-shell)]">
           {children}
         </main>
 
-        {/* Column 4 — chat and signals, one at a time behind a tab */}
-        <div className="hidden min-h-0 min-w-0 full:flex full:flex-col">
-          <AssistPanel />
-        </div>
+        {/* Column 4 — chat and signals, one at a time behind a tab. Its handle
+            is on its left edge, being the one column right of the chart. */}
+        {assistOpen && (
+          <ShellColumn id="assist" side="start" className="hidden full:flex">
+            <AssistPanel />
+          </ShellColumn>
+        )}
 
         <MobileTabBar />
 

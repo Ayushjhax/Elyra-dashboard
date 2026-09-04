@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ValueTone } from "@/components/ui/DeltaText";
+import { LEDGER_GROW } from "@/lib/layout";
 import { LEDGER_EMPTY } from "@/lib/mock/emptyStates";
 import { HISTORY } from "@/lib/mock/history";
 import { ORDERS } from "@/lib/mock/orders";
@@ -77,6 +78,7 @@ export function LedgerPanel() {
   const setLedgerTab = useElyraStore((state) => state.setLedgerTab);
   const marketType = useElyraStore((state) => state.marketType);
   const setMarketType = useElyraStore((state) => state.setMarketType);
+  const ledgerGrow = useElyraStore((state) => state.rowGrow.ledger ?? LEDGER_GROW);
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
   const { byId } = useAssets([selectedAssetId]);
   const selectedSymbol = byId.get(selectedAssetId)?.symbol ?? "";
@@ -432,7 +434,12 @@ export function LedgerPanel() {
   })();
 
   return (
-    <Panel label="Ledger" className="min-h-0 flex-1">
+    <Panel
+      label="Ledger"
+      className="min-h-0"
+      /* The ledger's share of the middle column — see MainSplit. */
+      style={{ flexGrow: ledgerGrow, flexBasis: 0 }}
+    >
       {/* Row 1 — primary tabs, underlined in --accent. */}
       <Tabs
         value={ledgerTab}
@@ -467,7 +474,7 @@ export function LedgerPanel() {
                 "type-data-sm h-6 rounded-pill px-2.5",
                 "transition-colors duration-[var(--dur-fast)] ease-brand",
                 active
-                  ? "bg-surface-active text-text-primary"
+                  ? "fill-active bg-surface-active text-text-primary"
                   : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
               )}
             >
@@ -481,7 +488,9 @@ export function LedgerPanel() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {body ?? <EmptyState icon={Inbox} title={empty.title} body={empty.body} />}
+        {body ?? (
+          <EmptyState icon={Inbox} mark="forest" title={empty.title} body={empty.body} />
+        )}
       </div>
 
       <Dialog open={stub !== null} onOpenChange={(open) => !open && setStub(null)}>

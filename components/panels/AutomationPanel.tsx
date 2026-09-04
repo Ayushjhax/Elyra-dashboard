@@ -152,7 +152,7 @@ export function AutomationPanel() {
   const [open, setOpen] = useState(false);
 
   return (
-    <Panel label="Automation">
+    <Panel label="Automation" glow="agent">
       <PanelHeader>
         <Eyebrow>Automation</Eyebrow>
         <Button

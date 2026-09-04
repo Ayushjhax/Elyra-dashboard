@@ -536,6 +536,56 @@
 .shell-grid {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
+  /* Collapsing the rail, or opening a column, glides instead of snapping.
+     Interpolation only works between track lists of the same length, so a
+     column being added or removed still cuts — which is right: that is a
+     different layout, not the same one at a different width. */
+  transition: grid-template-columns var(--dur-slow) var(--ease);
+}
+
+/* Nothing may lag the pointer. A drag sets this for its duration. */
+.shell-grid[data-resizing="true"] {
+  transition: none;
+}
+
+/* A label in the nav rail.
+
+   It collapses to nothing rather than being swapped out, so the rail glides
+   between its two widths and the text goes with it. Still in the accessibility
+   tree at zero width, because the icon beside it carries no text of its own —
+   which is what the `sr-only` swap this replaces was for.
+
+   The negative margin cancels the flex gap the icon leaves behind, so a
+   collapsed label takes no space at all and the icon lands centred in the
+   56px rail without anything having to switch to `justify-center`. */
+.rail-label {
+  display: inline-block;
+  max-width: 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 1;
+  transition:
+    max-width var(--dur-slow) var(--ease),
+    opacity var(--dur-fast) var(--ease),
+    margin-inline-start var(--dur-slow) var(--ease);
+}
+
+.rail-collapsed .rail-label,
+[data-icons="true"] .rail-label {
+  max-width: 0;
+  opacity: 0;
+  /* The rail's own gap-2.5. */
+  margin-inline-start: -0.625rem;
+}
+
+/* Below 900px the rail is the icon rail whatever the operator set. */
+@media (width < 900px) {
+  .rail-label {
+    max-width: 0;
+    opacity: 0;
+    margin-inline-start: -0.625rem;
+  }
 }
 
 @media (width >= 640px) {

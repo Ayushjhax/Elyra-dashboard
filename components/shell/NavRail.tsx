@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import {
   Blocks,
   Bot,
+  ChevronLeft,
+  ChevronRight,
   LogIn,
   Coins,
   Gift,
@@ -206,8 +208,6 @@ export function NavList({
               active
                 ? "fill-active bg-surface-active text-text-primary"
                 : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
-              !showLabels &&
-                "justify-center mid:justify-start group-data-[icons=true]/rail:justify-center",
             )}
           >
             {/* The active route is the one lit item in the rail: 1.7's forest
@@ -223,15 +223,12 @@ export function NavList({
               )}
             />
             <Icon size={18} strokeWidth={1.5} className="shrink-0" />
-            {/* sr-only rather than hidden: below 900px the label is not drawn,
-                but it must still name the link for assistive tech. */}
+            {/* `rail-label` rather than a swap: it collapses to zero width
+                with the rail instead of disappearing at a breakpoint, which is
+                what lets the whole rail glide. It stays in the accessibility
+                tree at zero width, because the icon has no text of its own. */}
             <span
-              className={cn(
-                "type-label truncate",
-                showLabels
-                  ? "inline"
-                  : "sr-only mid:not-sr-only group-data-[icons=true]/rail:sr-only",
-              )}
+              className={cn("type-label", showLabels ? "inline" : "rail-label")}
             >
               {label}
             </span>
@@ -287,7 +284,6 @@ function PaletteToggle() {
       className={cn(
         "relative flex h-[var(--control-h)] w-full items-center gap-2.5 rounded-control pl-3 pr-2",
         "transition-colors duration-[var(--dur-fast)] ease-brand",
-        "justify-center mid:justify-start group-data-[icons=true]/rail:justify-center",
         open
           ? "text-accent"
           : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
@@ -303,9 +299,7 @@ function PaletteToggle() {
         )}
       />
       <Blocks size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
-      <span className="type-label hidden truncate mid:inline group-data-[icons=true]/rail:hidden">
-        Components
-      </span>
+      <span className="type-label rail-label">Components</span>
     </button>
   );
 
@@ -318,6 +312,55 @@ function PaletteToggle() {
         </TooltipContent>
       </Tooltip>
     </div>
+  );
+}
+
+/**
+ * Collapse the rail to its icons, and bring it back.
+ *
+ * It writes a flag rather than a width, so the width the operator dragged the
+ * rail to is still theirs when they expand it — see `railCollapsed` in
+ * `lib/layout.ts`. Everything else follows from the width the fitter then
+ * returns: the labels glide shut, and the rail's own resize handle stands down
+ * while it is pinned.
+ *
+ * `ml-auto` only while there is room for it. In the collapsed rail the flex row
+ * wraps and this lands under the mark, still 28px and still pressable, which is
+ * the whole point — the control that closes the rail has to be the one that
+ * opens it.
+ */
+function RailToggle() {
+  const collapsed = useElyraStore((state) => state.railCollapsed);
+  const setRailCollapsed = useElyraStore((state) => state.setRailCollapsed);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expand the navigation" : "Collapse the navigation"}
+          onClick={() => setRailCollapsed(!collapsed)}
+          className={cn(
+            "inline-flex size-7 shrink-0 items-center justify-center rounded-control",
+            "border border-border-subtle text-text-muted",
+            "transition-colors duration-[var(--dur-fast)] ease-brand",
+            "hover:bg-surface-hover hover:text-text-primary",
+            /* Holds the right edge whenever the row is wide enough for it. */
+            "mid:ml-auto group-data-[icons=true]/rail:mid:ml-0",
+          )}
+        >
+          {collapsed ? (
+            <ChevronRight size={16} strokeWidth={1.5} aria-hidden />
+          ) : (
+            <ChevronLeft size={16} strokeWidth={1.5} aria-hidden />
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        {collapsed ? "Expand the navigation" : "Collapse to icons"}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -410,7 +453,12 @@ export function NavRail({ icons = false }: { icons?: boolean }) {
         "rim rounded-panel border border-border-subtle bg-surface-panel",
       )}
     >
-      <div className="flex shrink-0 items-center justify-center p-4 mid:justify-start group-data-[icons=true]/rail:justify-center">
+      {/* The mark, and the control that collapses the rail behind it. They
+          share a row: at 216px the mark sits left and the chevron holds the
+          right edge, and as the rail narrows the chevron slides in under the
+          mark rather than being dropped — a control that disappears when the
+          rail is collapsed is one you cannot use to uncollapse it. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-1 px-3 py-3">
         {/* Circular. `logo.png` is a square with a lime ground, so at 28px
             square it read as a lime tile rather than as a mark. The image is
             scaled slightly inside the crop so the green disc reaches the edge
@@ -421,7 +469,7 @@ export function NavRail({ icons = false }: { icons?: boolean }) {
           href="/"
           aria-label="Elyra home"
           className={cn(
-            "relative inline-flex size-7 items-center justify-center overflow-hidden",
+            "relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden",
             "rounded-pill border border-border-subtle",
             "transition-shadow duration-[var(--dur-fast)] ease-brand hover:shadow-lift-accent",
           )}
@@ -435,6 +483,8 @@ export function NavRail({ icons = false }: { icons?: boolean }) {
             className="size-full scale-[1.14] object-cover"
           />
         </Link>
+
+        <RailToggle />
       </div>
 
       {/* Home, then the palette, then the rest — the sequence the rail reads

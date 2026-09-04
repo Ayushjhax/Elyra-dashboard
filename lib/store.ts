@@ -95,6 +95,17 @@ interface ElyraState {
   columnWidths: ColumnWidths;
   setColumnWidth: (id: ShellColumnId, px: number) => void;
   resetColumnWidth: (id: ShellColumnId) => void;
+  /** The rail is pinned to its icon width by its own control. */
+  railCollapsed: boolean;
+  setRailCollapsed: (collapsed: boolean) => void;
+  /**
+   * A resize handle is being dragged right now.
+   *
+   * The grid animates between widths so a collapse glides, and that animation
+   * has to be off while a drag is running or the columns lag the pointer.
+   */
+  resizing: boolean;
+  setResizing: (resizing: boolean) => void;
   /**
    * Flex weight per resizable row, keyed by row id — panel keys in column two,
    * `chart` and `ledger` in the middle one. Weights rather than pixels, so a
@@ -227,6 +238,10 @@ export const useElyraStore = create<ElyraState>()(
           delete next[id];
           return { columnWidths: next };
         }),
+      railCollapsed: false,
+      setRailCollapsed: (collapsed) => set({ railCollapsed: collapsed }),
+      resizing: false,
+      setResizing: (resizing) => set({ resizing }),
 
       rowGrow: {},
       setRowGrow: (a, aGrow, b, bGrow) =>
@@ -239,6 +254,7 @@ export const useElyraStore = create<ElyraState>()(
           assistOpen: true,
           columnWidths: {},
           rowGrow: {},
+          railCollapsed: false,
           draggingPanel: null,
         }),
 
@@ -282,6 +298,7 @@ export const useElyraStore = create<ElyraState>()(
         assistOpen: state.assistOpen,
         columnWidths: state.columnWidths,
         rowGrow: state.rowGrow,
+        railCollapsed: state.railCollapsed,
       }),
       /* Rehydrate after mount so the server and the first client render agree. */
       skipHydration: true,

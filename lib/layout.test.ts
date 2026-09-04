@@ -157,6 +157,54 @@ describe("shellLayout", () => {
     expect(tight.railIcons).toBe(true);
   });
 
+  it("pins the rail to its minimum when collapsed, and makes it an icon rail", () => {
+    const layout = shellLayout({
+      viewport: 1440,
+      widths: { rail: 280 },
+      paletteOpen: false,
+      stackOpen: true,
+      assistOpen: true,
+      railCollapsed: true,
+    });
+    expect(layout.railWidth).toBe(COLUMN_BOUNDS.rail.min);
+    expect(layout.railIcons).toBe(true);
+    expect(layout.full.startsWith(`${COLUMN_BOUNDS.rail.min}px `)).toBe(true);
+  });
+
+  it("gives back the dragged width when the rail is expanded again", () => {
+    const args = {
+      viewport: 1440,
+      widths: { rail: 280 },
+      paletteOpen: false,
+      stackOpen: true,
+      assistOpen: true,
+    };
+    /* The same stored width, collapsed and not: collapsing must not spend it. */
+    expect(shellLayout({ ...args, railCollapsed: true }).railWidth).toBe(
+      COLUMN_BOUNDS.rail.min,
+    );
+    expect(shellLayout({ ...args, railCollapsed: false }).railWidth).toBe(280);
+    expect(shellLayout(args).railWidth).toBe(280);
+  });
+
+  it("still keeps the chart above its floor with the rail collapsed", () => {
+    for (const viewport of [900, 1280, 1440]) {
+      const layout = shellLayout({
+        viewport,
+        widths: {},
+        paletteOpen: true,
+        stackOpen: true,
+        assistOpen: true,
+        railCollapsed: true,
+      });
+      const track = viewport >= 1280 ? layout.full : layout.mid;
+      const sides = [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
+      expect(mainWidth(viewport, sides), `${viewport}px`).toBeGreaterThanOrEqual(
+        MAIN_MIN,
+      );
+    }
+  });
+
   it("reports no icon rail before the first measurement", () => {
     const layout = shellLayout({
       viewport: null,

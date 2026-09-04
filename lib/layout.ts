@@ -126,6 +126,15 @@ export interface ShellLayoutInput {
   paletteOpen: boolean;
   stackOpen: boolean;
   assistOpen: boolean;
+  /**
+   * The operator pressed the rail's collapse control.
+   *
+   * A flag rather than a width, so the width they dragged the rail to is still
+   * there when they expand it again. It pins the rail to its minimum, which is
+   * the icon rail — `railIcons` then follows from the width like it does for
+   * every other reason the rail can end up narrow.
+   */
+  railCollapsed?: boolean;
 }
 
 export interface ShellLayout {
@@ -161,8 +170,14 @@ function tracks(fitted: Map<ShellColumnId, number>, order: readonly ShellColumnI
  * that hide the elements — so the tracks can never disagree with the items.
  */
 export function shellLayout(input: ShellLayoutInput): ShellLayout {
-  const { viewport, widths, paletteOpen, stackOpen, assistOpen } = input;
+  const { viewport, paletteOpen, stackOpen, assistOpen, railCollapsed } = input;
   const available = viewport === null ? null : viewport - SHELL_PAD * 2;
+
+  /* Collapsing pins the rail to its minimum for this pass only. The stored
+     width is untouched, so expanding gives back exactly what was there. */
+  const widths: ColumnWidths = railCollapsed
+    ? { ...input.widths, rail: COLUMN_BOUNDS.rail.min }
+    : input.widths;
 
   const midOrder: ShellColumnId[] = ["rail"];
   if (paletteOpen) midOrder.push("palette");

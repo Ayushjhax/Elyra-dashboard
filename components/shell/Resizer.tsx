@@ -88,6 +88,7 @@ export function ColumnResizer({
     (state) => state.columnWidths[id] ?? COLUMN_BOUNDS[id].initial,
   );
   const setColumnWidth = useElyraStore((state) => state.setColumnWidth);
+  const setResizing = useElyraStore((state) => state.setResizing);
   const resetColumnWidth = useElyraStore((state) => state.resetColumnWidth);
   const [dragging, setDragging] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -105,6 +106,7 @@ export function ColumnResizer({
     const startWidth = host.offsetWidth;
     const release = lockCursor("col-resize");
     setDragging(true);
+    setResizing(true);
 
     const onMove = (move: PointerEvent) => {
       setColumnWidth(id, startWidth + (move.clientX - startX) * direction);
@@ -115,6 +117,7 @@ export function ColumnResizer({
       window.removeEventListener("pointercancel", onEnd);
       release();
       setDragging(false);
+      setResizing(false);
     };
 
     window.addEventListener("pointermove", onMove);
@@ -203,6 +206,7 @@ export function RowResizer({
   className?: string;
 }) {
   const setRowGrow = useElyraStore((state) => state.setRowGrow);
+  const setResizing = useElyraStore((state) => state.setResizing);
   const [dragging, setDragging] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -237,6 +241,7 @@ export function RowResizer({
     const grows: [number, number] = [a.grow, b.grow];
     const release = lockCursor("row-resize");
     setDragging(true);
+    setResizing(true);
 
     const onMove = (event2: PointerEvent) => {
       const [first, second] = splitRows(heights, grows, event2.clientY - startY);
@@ -248,6 +253,7 @@ export function RowResizer({
       window.removeEventListener("pointercancel", onEnd);
       release();
       setDragging(false);
+      setResizing(false);
     };
 
     window.addEventListener("pointermove", onMove);

@@ -59,11 +59,14 @@ import { cn } from "@/lib/utils";
 function ShellColumn({
   id,
   side = "end",
+  resizable = true,
   className,
   children,
 }: {
   id: ShellColumnId;
   side?: "start" | "end";
+  /** False for a column pinned to one width, which has nothing to drag. */
+  resizable?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -73,7 +76,7 @@ function ShellColumn({
       className={cn("relative min-h-0 min-w-0 flex-col", className)}
     >
       {children}
-      <ColumnResizer id={id} side={side} />
+      {resizable && <ColumnResizer id={id} side={side} />}
     </div>
   );
 }
@@ -83,6 +86,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const stackOpen = useElyraStore((state) => state.stackOpen);
   const assistOpen = useElyraStore((state) => state.assistOpen);
   const columnWidths = useElyraStore((state) => state.columnWidths);
+  const railCollapsed = useElyraStore((state) => state.railCollapsed);
+  const resizing = useElyraStore((state) => state.resizing);
 
   /* Null until the first measurement — on the server and for the first paint,
      where the stored widths stand on their own and nothing has to be fitted.
@@ -103,11 +108,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     paletteOpen,
     stackOpen,
     assistOpen,
+    railCollapsed,
   });
 
   return (
     <TooltipProvider delayDuration={300}>
       <div
+        data-resizing={resizing ? "true" : undefined}
         className="shell-grid grid h-dvh w-full gap-[var(--gap-shell)] overflow-hidden p-3"
         style={
           {
@@ -119,7 +126,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <ShellAtmosphere />
 
-        <ShellColumn id="rail" className="hidden compact:flex">
+        {/* No handle while it is collapsed: the rail is pinned to its icon
+            width there, so a drag would have nothing to move. The control in
+            the rail is the way back. */}
+        <ShellColumn id="rail" className="hidden compact:flex" resizable={!railCollapsed}>
           <NavRail icons={layout.railIcons} />
         </ShellColumn>
 

@@ -411,10 +411,20 @@ export function NavRail({ icons = false }: { icons?: boolean }) {
       )}
     >
       <div className="flex shrink-0 items-center justify-center p-4 mid:justify-start group-data-[icons=true]/rail:justify-center">
+        {/* Circular. `logo.png` is a square with a lime ground, so at 28px
+            square it read as a lime tile rather than as a mark. The image is
+            scaled slightly inside the crop so the green disc reaches the edge
+            and only a hairline of lime is left — a full lime disc at this size
+            would be the brightest thing in the rail, which 1.2's distribution
+            does not allow for a static mark. */}
         <Link
           href="/"
           aria-label="Elyra home"
-          className="inline-flex items-center rounded-control"
+          className={cn(
+            "relative inline-flex size-7 items-center justify-center overflow-hidden",
+            "rounded-pill border border-border-subtle",
+            "transition-shadow duration-[var(--dur-fast)] ease-brand hover:shadow-lift-accent",
+          )}
         >
           <Image
             src="/logo.png"
@@ -422,7 +432,7 @@ export function NavRail({ icons = false }: { icons?: boolean }) {
             width={28}
             height={28}
             priority
-            className="h-7 w-7 object-contain"
+            className="size-full scale-[1.14] object-cover"
           />
         </Link>
       </div>

@@ -1,3 +1,4 @@
+import { RouteClose } from "@/components/shell/RouteClose";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { GlassPill } from "@/components/ui/GlassPill";
 import { AmbientGlow } from "@/components/ui/Glow";
@@ -27,9 +28,12 @@ export function PlaceholderPage({
     <Panel label={title} className="min-h-0 flex-1">
       <PanelHeader>
         <Eyebrow>{eyebrow}</Eyebrow>
-        <GlassPill tone="neutral" dot>
-          Not built yet
-        </GlassPill>
+        <div className="flex shrink-0 items-center gap-2">
+          <GlassPill tone="neutral" dot>
+            Not built yet
+          </GlassPill>
+          <RouteClose />
+        </div>
       </PanelHeader>
 
       <PanelBody className="relative isolate grid place-items-center p-4">

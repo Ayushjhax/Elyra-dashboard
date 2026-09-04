@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { AssistPanel } from "@/components/panels/AssistPanel";
 import { ComponentPalette } from "@/components/shell/ComponentPalette";
+import { MarketColumn } from "@/components/shell/MarketColumn";
 import {
   LeftSheet,
   MobilePanelSheet,
@@ -28,10 +30,16 @@ import { cn } from "@/lib/utils";
  * ShellAtmosphere can sit on a negative layer between the two and light the gaps
  * between panels without a stacking context standing in the way.
  *
- *   ≥1280   nav | palette | panels | chart | assistant
- *   ≥900    nav | palette | panels | chart          assistant → drawer
- *   ≥640     56 | chart                             panels → sheet, nav → icons
- *   <640    chart + bottom tab bar                  header, chart, ledger stacked
+ *   ≥1280   nav | palette | panels | section | chart | assistant
+ *   ≥900    nav | palette | panels | section | chart      assistant → drawer
+ *   ≥640     56 | chart                        panels → sheet, nav → icons
+ *   <640    chart + bottom tab bar             header, chart, ledger stacked
+ *
+ * The chart is not a route. It is mounted here for the life of the session, and
+ * every route other than Home renders in a column beside it — so navigating to
+ * Portfolio no longer takes the market off screen, and the TradingView widget
+ * is not torn down and rebuilt on every trip out and back. Below 900px there is
+ * no room for both, and the route takes the middle column instead.
  *
  * Every one of those side columns is the operator's to size and to close. The
  * widths are not written here: `shellLayout` turns the stored widths and the
@@ -45,9 +53,7 @@ import { cn } from "@/lib/utils";
  * the other side columns in a fixed order and stops at MAIN_MIN — the chart is
  * always open, whatever else is.
  *
- * `children` is the middle column — market header, chart, ledger — and arrives
- * already rendered from the page, so making this a client component does not
- * pull those into the client bundle on its account.
+ * `children` is the current route's panel, and is empty on Home.
  */
 
 /**
@@ -88,6 +94,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const columnWidths = useElyraStore((state) => state.columnWidths);
   const railCollapsed = useElyraStore((state) => state.railCollapsed);
   const resizing = useElyraStore((state) => state.resizing);
+  const pathname = usePathname();
+  const onRoute = pathname !== "/";
 
   /* Null until the first measurement — on the server and for the first paint,
      where the stored widths stand on their own and nothing has to be fitted.
@@ -102,12 +110,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
+  /* Where the route's panel goes. Beside the chart wherever there is room for
+     both, and in the middle column below 900px, where there is not.
+
+     Resolved in JS rather than by a media query because the panel must be
+     mounted in exactly one place — rendering it twice and hiding one would run
+     its effects and its fetches twice over. Before the first measurement this
+     assumes the wide layout, which is what the server renders and what the
+     first client render therefore has to agree with. */
+  const routeAside = onRoute && (viewport === null || viewport >= 900);
+
   const layout = shellLayout({
     viewport,
     widths: columnWidths,
     paletteOpen,
     stackOpen,
     assistOpen,
+    routeOpen: routeAside,
     railCollapsed,
   });
 
@@ -146,10 +165,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </ShellColumn>
         )}
 
+        {/* The route you are on, beside the chart rather than instead of it.
+            Its own column, resizable like every other, and closed from the X
+            in its header — see RouteClose. */}
+        {routeAside && (
+          <ShellColumn
+            id="route"
+            className="hidden min-h-0 flex-col mid:flex column-enter"
+          >
+            <div className="flex min-h-0 flex-1 flex-col *:min-h-0 *:flex-1">
+              {children}
+            </div>
+          </ShellColumn>
+        )}
+
         {/* Column 3 — market header, chart, ledger. The one column with no
-            handle of its own: it is what every other handle moves against. */}
+            handle of its own: it is what every other handle moves against, and
+            the one thing that is always on screen. */}
         <main className="flex min-h-0 min-w-0 flex-col gap-[var(--gap-shell)]">
-          {children}
+          {routeAside || !onRoute ? <MarketColumn /> : children}
         </main>
 
         {/* Column 4 — chat and signals, one at a time behind a tab. Its handle

@@ -66,28 +66,93 @@ describe("fitColumns", () => {
 });
 
 describe("shellLayout", () => {
-  it("keeps the chart at or above its floor at every wide breakpoint", () => {
+  it("keeps the chart at or above its floor, or has spent every column doing it", () => {
+    /* The floor is not a promise the arithmetic can always keep — five columns
+       and a chart do not fit in 900px at any width. What it can promise is that
+       the chart is the last thing to give: either it is above the floor, or
+       every column beside it is already at its minimum. */
     for (const viewport of [900, 1024, 1180, 1280, 1440, 1600, 1920]) {
       for (const paletteOpen of [false, true]) {
         for (const stackOpen of [false, true]) {
           for (const assistOpen of [false, true]) {
-            const layout = shellLayout({
-              viewport,
-              widths: {},
-              paletteOpen,
-              stackOpen,
-              assistOpen,
-            });
-            const track = viewport >= 1280 ? layout.full : layout.mid;
-            const sides = [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-            expect(
-              mainWidth(viewport, sides),
-              `${viewport}px palette=${paletteOpen} stack=${stackOpen} assist=${assistOpen}`,
-            ).toBeGreaterThanOrEqual(MAIN_MIN);
+            for (const routeOpen of [false, true]) {
+              const layout = shellLayout({
+                viewport,
+                widths: {},
+                paletteOpen,
+                stackOpen,
+                assistOpen,
+                routeOpen,
+              });
+              const track = viewport >= 1280 ? layout.full : layout.mid;
+              const sides = [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
+              const where = `${viewport}px palette=${paletteOpen} stack=${stackOpen} assist=${assistOpen} route=${routeOpen}`;
+
+              const chart = mainWidth(viewport, sides);
+              if (chart >= MAIN_MIN) continue;
+
+              const floor =
+                COLUMN_BOUNDS.rail.min +
+                (paletteOpen ? COLUMN_BOUNDS.palette.min : 0) +
+                (stackOpen ? COLUMN_BOUNDS.stack.min : 0) +
+                (routeOpen ? COLUMN_BOUNDS.route.min : 0) +
+                (assistOpen && viewport >= 1280 ? COLUMN_BOUNDS.assist.min : 0);
+              expect(
+                sides.reduce((a, b) => a + b, 0),
+                `${where} — below the floor, so every column must be at its minimum`,
+              ).toBe(floor);
+              /* And the chart is still on screen, which is the whole point. */
+              expect(chart, where).toBeGreaterThan(0);
+            }
           }
         }
       }
     }
+  });
+
+  it("opens a route beside the chart rather than over it", () => {
+    const home = shellLayout({
+      viewport: 1440,
+      widths: {},
+      paletteOpen: false,
+      stackOpen: true,
+      assistOpen: true,
+    });
+    const onRoute = shellLayout({
+      viewport: 1440,
+      widths: {},
+      paletteOpen: false,
+      stackOpen: true,
+      assistOpen: true,
+      routeOpen: true,
+    });
+    const sidesOf = (track: string) =>
+      [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
+
+    /* One more track than at Home, and the chart is still above its floor. */
+    expect(sidesOf(onRoute.full)).toHaveLength(sidesOf(home.full).length + 1);
+    expect(mainWidth(1440, sidesOf(onRoute.full))).toBeGreaterThanOrEqual(MAIN_MIN);
+    /* Its track sits between the panels and the chart. */
+    expect(onRoute.full).toMatch(/^\d+px \d+px \d+px minmax\(0, 1fr\) \d+px$/);
+  });
+
+  it("squeezes the route column last, being the one just asked for", () => {
+    /* 1600 is wide enough that the squeeze runs out before it reaches the
+       route column; at 1280 there is nothing left over and everything lands on
+       its minimum, which proves nothing about the order. */
+    const layout = shellLayout({
+      viewport: 1600,
+      widths: {},
+      paletteOpen: true,
+      stackOpen: true,
+      assistOpen: true,
+      routeOpen: true,
+    });
+    const sides = [...layout.full.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
+    /* rail, palette, stack, [chart], assist — route is the 4th track. */
+    const route = sides[3];
+    expect(route).toBeGreaterThan(COLUMN_BOUNDS.route.min);
+    expect(sides[0]).toBe(COLUMN_BOUNDS.rail.min);
   });
 
   it("opens the palette out of the other columns, not the chart", () => {

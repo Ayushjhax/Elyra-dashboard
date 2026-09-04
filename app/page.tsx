@@ -1,17 +1,11 @@
-import { AppShell } from "@/components/shell/AppShell";
-import { MainSplit } from "@/components/shell/MainSplit";
-import { MarketHeader } from "@/components/panels/MarketHeader";
-import { ChartPanel } from "@/components/panels/ChartPanel";
-import { LedgerPanel } from "@/components/panels/LedgerPanel";
-
+/**
+ * Home is the chart.
+ *
+ * The market column is mounted by the shell rather than by this route — see
+ * `AppShell` — so that navigating to Portfolio or Assets opens beside it
+ * instead of replacing it. That leaves Home with no panel of its own: it is
+ * the shell with nothing else open.
+ */
 export default function HomePage() {
-  return (
-    <AppShell>
-      <MarketHeader />
-      <ChartPanel />
-      {/* Takes no height of its own — it sits in the gap the two already had. */}
-      <MainSplit />
-      <LedgerPanel />
-    </AppShell>
-  );
+  return null;
 }

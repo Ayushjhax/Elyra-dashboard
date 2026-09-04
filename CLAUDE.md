@@ -43,8 +43,11 @@ are there and nowhere else, so a width is held to the same rule whether it came
 from a drag, a key or a restored workspace. Two rules bind anything new built
 on it.
 
-- The chart is never the column that pays. A new column takes its width from
-  the other side columns, in `SQUEEZE_ORDER`, and stops at `MAIN_MIN`.
+- The chart is never the column that pays, and it is never a route. It is
+  mounted by `AppShell` for the life of the session and every route opens
+  beside it; a new column takes its width from the other side columns, in
+  `SQUEEZE_ORDER`, and stops at `MAIN_MIN`. Nothing may put a page in the
+  middle column above 900px.
 - The media queries in `.shell-grid` decide which columns are on screen, and
   `shellLayout` returns a track string per breakpoint rather than resolving one
   itself. Never resolve the breakpoint in JS to build the grid — the tracks and

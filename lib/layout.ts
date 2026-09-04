@@ -12,8 +12,8 @@
    out of the chart. MAIN_MIN is the floor it stops at.
 --------------------------------------------------------------------------- */
 
-/** The four columns that flank the chart. Everything else is the chart. */
-export type ShellColumnId = "rail" | "palette" | "stack" | "assist";
+/** The columns that flank the chart. Everything else is the chart. */
+export type ShellColumnId = "rail" | "palette" | "stack" | "route" | "assist";
 
 export interface ColumnBounds {
   /** Narrowest the operator — or the fitter — may take it. */
@@ -31,6 +31,10 @@ export const COLUMN_BOUNDS: Record<ShellColumnId, ColumnBounds> = {
   rail: { min: 56, max: 300, initial: 216, label: "navigation" },
   palette: { min: 180, max: 380, initial: 232, label: "components" },
   stack: { min: 220, max: 520, initial: 288, label: "panels" },
+  /* Whatever route you are on other than Home. It opens beside the chart
+     rather than over it — see `routeOpen` — so it is sized like a side column
+     and not like a page. */
+  route: { min: 220, max: 640, initial: 360, label: "section" },
   assist: { min: 280, max: 560, initial: 352, label: "assistant" },
 };
 
@@ -57,10 +61,17 @@ export const RAIL_LABEL_MIN = 132;
  * Which column gives up width first when the row does not fit.
  *
  * The rail leads because it loses the least: at its minimum it is still a
- * complete icon rail with tooltips. The assistant is last because it holds
- * running prose, which reflows worst.
+ * complete icon rail with tooltips. The assistant is late because it holds
+ * running prose, which reflows worst. The route column is last of all: it is
+ * the thing the operator just asked for by name.
  */
-const SQUEEZE_ORDER: readonly ShellColumnId[] = ["rail", "palette", "stack", "assist"];
+const SQUEEZE_ORDER: readonly ShellColumnId[] = [
+  "rail",
+  "palette",
+  "stack",
+  "assist",
+  "route",
+];
 
 /** The chart's track. `minmax(0, 1fr)` so the grid can never overflow. */
 const MAIN_TRACK = "minmax(0, 1fr)";
@@ -127,6 +138,14 @@ export interface ShellLayoutInput {
   stackOpen: boolean;
   assistOpen: boolean;
   /**
+   * The operator is on a route other than Home.
+   *
+   * Those used to replace the middle column, which took the chart off screen.
+   * They now open as a column beside it, exactly like the palette, so the chart
+   * is never the thing a navigation costs you.
+   */
+  routeOpen?: boolean;
+  /**
    * The operator pressed the rail's collapse control.
    *
    * A flag rather than a width, so the width they dragged the rail to is still
@@ -170,7 +189,8 @@ function tracks(fitted: Map<ShellColumnId, number>, order: readonly ShellColumnI
  * that hide the elements — so the tracks can never disagree with the items.
  */
 export function shellLayout(input: ShellLayoutInput): ShellLayout {
-  const { viewport, paletteOpen, stackOpen, assistOpen, railCollapsed } = input;
+  const { viewport, paletteOpen, stackOpen, assistOpen, routeOpen, railCollapsed } =
+    input;
   const available = viewport === null ? null : viewport - SHELL_PAD * 2;
 
   /* Collapsing pins the rail to its minimum for this pass only. The stored
@@ -179,9 +199,12 @@ export function shellLayout(input: ShellLayoutInput): ShellLayout {
     ? { ...input.widths, rail: COLUMN_BOUNDS.rail.min }
     : input.widths;
 
+  /* Left to right, and the route column sits closest to the chart because it
+     is the one you opened last and are reading now. */
   const midOrder: ShellColumnId[] = ["rail"];
   if (paletteOpen) midOrder.push("palette");
   if (stackOpen) midOrder.push("stack");
+  if (routeOpen) midOrder.push("route");
   const fullOrder: ShellColumnId[] = assistOpen ? [...midOrder, "assist"] : midOrder;
 
   const midFit = fitColumns(midOrder, widths, available);

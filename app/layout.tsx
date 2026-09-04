@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { PrivyClientProvider } from "@/components/providers/PrivyClientProvider";
+import { AppShell } from "@/components/shell/AppShell";
 import { THEME_COLOR_INK } from "@/lib/brand";
 import "./globals.css";
 
@@ -71,7 +72,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <PrivyClientProvider>{children}</PrivyClientProvider>
+        {/* The shell is the layout, not the page. Mounting it here is what
+            keeps the chart, the composed column and the assistant alive across
+            a navigation — every route renders into it, beside the chart rather
+            than in place of it. */}
+        <PrivyClientProvider>
+          <AppShell>{children}</AppShell>
+        </PrivyClientProvider>
       </body>
     </html>
   );

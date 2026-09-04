@@ -68,6 +68,29 @@ It collapses three times: below 1280px the right column becomes a drawer,
 below 900px column 2 becomes a sheet and the nav becomes an icon rail, and
 below 640px the layout stacks with a bottom tab bar.
 
+### The chart is not a route
+
+The market column — header, chart, ledger — is mounted by the shell, not by a
+page. `app/layout.tsx` wraps every route in `AppShell`, and `app/page.tsx`
+returns `null`: Home *is* the chart, so it has no panel of its own.
+
+Every other route renders in a column of its own beside the chart, closed by
+the **✕** in its header. Navigating to Portfolio no longer takes the market off
+screen, and the TradingView widget is no longer torn down and rebuilt on every
+trip out and back — it mounts once for the session.
+
+- `components/shell/MarketColumn.tsx` is the middle column, and the only thing
+  that ever occupies it above 900px.
+- The route column is `route` in `COLUMN_BOUNDS`, so it sizes, squeezes and
+  persists exactly like the others. It is last in `SQUEEZE_ORDER`, being the
+  thing the operator just asked for by name.
+- Below 900px there is no room for both, so the route takes the middle column
+  instead. `AppShell` decides that in JS rather than with a media query,
+  because the panel has to be mounted in exactly one place — rendering it twice
+  and hiding one would run its effects and its fetches twice over.
+- Adding a route means adding a page and a `RouteClose` in its panel header.
+  Nothing else in the shell needs to know.
+
 The nav rail reads Home, then **Components**, then Portfolio, Personalized,
 Assets, Agent, Referrals. Home sits above the palette because it is the one
 route that is always the way back; the palette is a tool rather than a
@@ -81,9 +104,12 @@ flex weight from one row to the other — the panels in column two, and the char
 against the ledger — so a split survives the window being resized. Horizontally
 it sets a column width.
 
-The nav rail, the components palette, the panel column and the assistant are
-all sizeable, and the last two can be closed outright from the two switches at
-the foot of the rail. **Reset layout** in the palette puts all of it back.
+The nav rail, the components palette, the panel column, the route column and
+the assistant are all sizeable. The panel column and the assistant can be
+closed outright from the two switches at the foot of the rail, the rail itself
+collapses to icons from the **‹** beside the mark, and a route column closes
+from the **✕** in its header. **Reset layout** in the palette puts all of it
+back.
 
 One rule holds the whole thing together, and `lib/layout.ts` is where it lives.
 

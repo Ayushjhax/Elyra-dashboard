@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { Check, Copy, Link2, Plug } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Button } from "@/components/ui/Button";
+import { RouteClose } from "@/components/shell/RouteClose";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
@@ -386,6 +387,7 @@ export function ConnectionsPanel() {
     <Panel label="Agent" glow="agent" className="min-h-0 flex-1">
       <PanelHeader>
         <Eyebrow>Agent</Eyebrow>
+        <RouteClose />
       </PanelHeader>
 
       <PanelBody className="p-4">

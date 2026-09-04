@@ -548,6 +548,27 @@
   transition: none;
 }
 
+/* A column arriving.
+
+   The grid can animate a width but not a track appearing, so a column that
+   opens has to introduce itself. It comes in from the side it opened on rather
+   than fading in place, which is what makes it read as having been pushed in
+   beside the chart instead of having replaced something. */
+@keyframes elyra-column-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.column-enter {
+  animation: elyra-column-in var(--dur-slow) var(--ease);
+}
+
 /* A label in the nav rail.
 
    It collapses to nothing rather than being swapped out, so the rail glides
@@ -908,6 +929,11 @@ td {
   .orb-counter,
   .orb-wobble,
   .orb-halo {
+    animation: none;
+  }
+
+  /* A column simply is there. Where it came from was never information. */
+  .column-enter {
     animation: none;
   }
 

@@ -266,6 +266,42 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
   };
 }
 
+/* ---------------------------------------------------------------------------
+   Diagnosis
+
+   Token verification fails for two very different reasons: an expired or
+   absent token, which is ordinary and constant, and a broken configuration,
+   which is rare and total. Logging every failure would bury the second in the
+   first, so this reports the FIRST failure of each distinct reason and then
+   stays quiet.
+--------------------------------------------------------------------------- */
+
+const seenFailures = new Set<string>();
+
+function noteVerificationFailure(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+
+  /* Expiry is the normal case and never worth a line. */
+  if (/expired|exp claim|jwt expired/i.test(message)) return;
+
+  const key = message.slice(0, 120);
+  if (seenFailures.has(key)) return;
+  seenFailures.add(key);
+
+  const keyProblem = /key|pem|spki|asn1|decode|unsupported/i.test(message);
+  console.error(
+    `[elyra] Privy token verification failed: ${message}\n` +
+      (keyProblem
+        ? "  This looks like a key problem rather than a bad token, which means " +
+          "EVERY sign-in is failing. Check PRIVY_VERIFICATION_KEY — the dashboard " +
+          "shows a PEM block and only its base64 body is often pasted. It is " +
+          "re-armoured automatically now; if this persists, unset it and the SDK " +
+          "will verify against JWKS instead.\n"
+        : "  Users will see \"Not signed in\". If they are in fact signed in, the " +
+          "cause is here rather than in the browser.\n"),
+  );
+}
+
 /**
  * The verified caller, or null when there is no valid token.
  *
@@ -281,9 +317,16 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
   try {
     const claims = await privyClient().utils().auth().verifyAccessToken(token);
     privyDid = claims.user_id;
-  } catch {
-    /* Expired, malformed, or issued for another app. All the same to us, and
-       the caller is told nothing beyond "not signed in". */
+  } catch (error: unknown) {
+    /* The caller is still told nothing beyond "not signed in" — the reason a
+       token failed is not the client's business.
+
+       But the SERVER must know, because a misconfiguration and a genuinely
+       signed-out user are otherwise indistinguishable. That is not
+       hypothetical: PRIVY_VERIFICATION_KEY was stored without its PEM
+       armour, so every token failed to verify and every signed-in user was
+       told they were signed out, with nothing anywhere saying why. */
+    noteVerificationFailure(error);
     return null;
   }
 

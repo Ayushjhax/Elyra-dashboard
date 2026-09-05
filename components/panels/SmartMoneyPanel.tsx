@@ -204,24 +204,37 @@ function FindingCard({ finding }: { finding: SmartMoneyFinding }) {
 export function SmartMoneyPanel() {
   const [state, setState] = useState<FeedState>(INITIAL);
 
-  const load = useCallback(async (): Promise<void> => {
-    setState((previous) => ({ ...previous, loading: true }));
+  /* Pure fetch, no setState of its own — see the note in EngineSignalPanel
+     for why: a setState call reachable before the effect's first await
+     trips react-hooks/set-state-in-effect regardless of which function it
+     is textually written in, so every setState here lives behind a real
+     .then() boundary instead. */
+  const load = useCallback(async (): Promise<FeedState> => {
     try {
       const response = await fetch("/api/smart-money?limit=50", { cache: "no-store" });
       const payload = (await response.json()) as Omit<FeedState, "loading">;
-      setState({ ...payload, loading: false });
+      return { ...payload, loading: false };
     } catch (error: unknown) {
-      setState({
+      return {
         findings: [], error: error instanceof Error ? error.message : "request failed",
         needsMigration: false, rejected: [], lastScanAt: null, loading: false,
-      });
+      };
     }
   }, []);
 
   useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), REFRESH_MS);
-    return () => clearInterval(timer);
+    let cancelled = false;
+    const tick = () => {
+      void load().then((next) => {
+        if (!cancelled) setState(next);
+      });
+    };
+    tick();
+    const timer = setInterval(tick, REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [load]);
 
   return (
@@ -233,7 +246,7 @@ export function SmartMoneyPanel() {
         </span>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void load().then(setState)}
           aria-label="Refresh findings"
           className={cn(
             "ml-2 rounded-control p-1 text-text-muted",

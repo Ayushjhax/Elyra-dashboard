@@ -58,8 +58,18 @@ export function EngineSignalPanel() {
   const [state, setState] = useState<FeedState>(INITIAL);
   const [openSignal, setOpenSignal] = useState<SignalDto | null>(null);
 
-  const load = useCallback(async (): Promise<void> => {
-    setState((previous) => ({ ...previous, loading: true }));
+  /*
+   * Pure fetch, no setState of its own — see ConnectionsPanel.tsx for the
+   * same shape. A version of this that called setState as its first
+   * statement, before any await, made the effect below trip
+   * react-hooks/set-state-in-effect: the compiler traces synchronously
+   * through a function called directly from an effect body, and a setState
+   * call reachable before the first await counts as happening "in" the
+   * effect regardless of which function it is textually written in. Moving
+   * every setState call into a .then() — a genuine asynchronous boundary —
+   * is what actually satisfies the rule, not where the code is indented.
+   */
+  const load = useCallback(async (): Promise<FeedState> => {
     try {
       const response = await fetch("/api/signals", { cache: "no-store" });
       const payload = (await response.json()) as {
@@ -68,30 +78,39 @@ export function EngineSignalPanel() {
         engineError: string | null;
         rejected: string[];
       };
-      setState({
+      return {
         signals: payload.signals,
         disclaimer: payload.disclaimer,
         engineError: payload.engineError,
         rejected: payload.rejected,
         loading: false,
         fetchedAt: new Date().toISOString(),
-      });
+      };
     } catch (error: unknown) {
-      setState({
+      return {
         signals: [],
         disclaimer: "",
         engineError: error instanceof Error ? error.message : "request failed",
         rejected: [],
         loading: false,
         fetchedAt: new Date().toISOString(),
-      });
+      };
     }
   }, []);
 
   useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), REFRESH_MS);
-    return () => clearInterval(timer);
+    let cancelled = false;
+    const tick = () => {
+      void load().then((next) => {
+        if (!cancelled) setState(next);
+      });
+    };
+    tick();
+    const timer = setInterval(tick, REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [load]);
 
   /* Open signals first; closed ones stay below as a record. */
@@ -113,7 +132,7 @@ export function EngineSignalPanel() {
         </span>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void load().then(setState)}
           aria-label="Refresh signals"
           className={cn(
             "ml-2 rounded-control p-1 text-text-muted",

@@ -115,8 +115,14 @@ export function EngineSignalCard({
   const setSelectedAssetId = useElyraStore((state) => state.setSelectedAssetId);
   const askElyra = useElyraStore((state) => state.askElyra);
   const setRightDrawerOpen = useElyraStore((state) => state.setRightDrawerOpen);
-  const bySymbol = useAssetsBySymbols([signal.symbol]);
-  const asset = bySymbol.get(signal.symbol.toUpperCase());
+  /* Keyed on `baseSymbol`, not `symbol`. The engine emits the venue's
+     instrument — SOLUSDT — while the asset catalogue is keyed on the asset,
+     SOL, so looking up the venue symbol never matched and every engine
+     signal rendered the lettered chip instead of its logo. The engine sends
+     the base symbol precisely so the UI does not have to guess at suffixes. */
+  const lookup = (signal.baseSymbol || signal.symbol).toUpperCase();
+  const bySymbol = useAssetsBySymbols([lookup]);
+  const asset = bySymbol.get(lookup);
 
   const closed = isClosed(signal.status);
   const decimals = priceDecimals(signal.levels.entry);

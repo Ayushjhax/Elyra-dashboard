@@ -129,6 +129,36 @@ type NullableKeys<T> = {
  * on insert is always legal, and spelling them out twice would let the two
  * lists drift.
  */
+/**
+ * One smart-money finding, written by the scheduled EDGAR scan.
+ *
+ * `edges` and `filings` are JSONB and stay `unknown` here: they are the
+ * engine's own shapes, they cross a workspace boundary, and the route
+ * validates them at the edge rather than this file asserting a structure it
+ * cannot check. A confident type over unvalidated JSON is worse than an
+ * honest `unknown`.
+ */
+export interface SmartMoneyFindingRow {
+  id: string;
+  ticker: string;
+  cik: string;
+  company: string;
+  logo: string | null;
+  kind: string;
+  direction: string;
+  score: number;
+  confidence: number;
+  headline: string;
+  edges: unknown;
+  filings: unknown;
+  /** Acceptance timestamp of the newest evidence. Never a filing date. */
+  observed_at: string;
+  computed_at: string;
+  disclaimer: string;
+  created_at: string;
+  updated_at: string;
+}
+
 type Table<Row, HasDefault extends keyof Row> = {
   Row: Columns<Row>;
   Insert: Columns<
@@ -143,6 +173,10 @@ export interface Database {
   public: {
     Tables: {
       profiles: Table<Profile, "id" | "created_at">;
+      smart_money_findings: Table<
+        SmartMoneyFindingRow,
+        "created_at" | "updated_at"
+      >;
       exchange_accounts: Table<ExchangeAccount, "id" | "created_at">;
       watchlist: Table<WatchlistRow, "added_at">;
       telegram_links: Table<TelegramLink, "id" | "linked_at">;

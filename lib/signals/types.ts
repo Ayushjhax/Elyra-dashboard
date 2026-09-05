@@ -88,7 +88,10 @@ export interface MetricRowDto {
 
 export interface SignalDto {
   id: string;
+  /** The venue's instrument: SOLUSDT. */
   symbol: string;
+  /** The asset alone: SOL. What the asset catalogue and logos are keyed on. */
+  baseSymbol: string;
   instrumentId: string;
   assetClass: string;
   venue: string;

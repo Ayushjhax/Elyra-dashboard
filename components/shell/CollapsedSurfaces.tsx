@@ -20,7 +20,7 @@ import {
 import { ActivityPanel } from "@/components/panels/ActivityPanel";
 import { AgentChatPanel } from "@/components/panels/AgentChatPanel";
 import { AssistPanel } from "@/components/panels/AssistPanel";
-import { EngineSignalPanel } from "@/components/panels/EngineSignalPanel";
+import { SmartMoneySignalPanel } from "@/components/panels/SmartMoneySignalPanel";
 import { WatchlistPanel } from "@/components/panels/WatchlistPanel";
 import { ALL_NAV_ITEMS, NavList } from "@/components/shell/NavRail";
 import { PanelStack } from "@/components/shell/PanelStack";
@@ -156,7 +156,7 @@ const MOBILE_PANELS: {
     label: "Signals",
     icon: Sparkles,
     title: "Signal suggestion",
-    render: () => <EngineSignalPanel />,
+    render: () => <SmartMoneySignalPanel />,
   },
   {
     value: "chat",

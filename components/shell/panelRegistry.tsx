@@ -2,7 +2,7 @@ import { Activity as ActivityIcon, Bot, Eye, Sparkles, Zap, type LucideIcon } fr
 import { ActivityPanel } from "@/components/panels/ActivityPanel";
 import { AgentChatPanel } from "@/components/panels/AgentChatPanel";
 import { AutomationPanel } from "@/components/panels/AutomationPanel";
-import { SignalPanel } from "@/components/panels/SignalPanel";
+import { SmartMoneySignalPanel } from "@/components/panels/SmartMoneySignalPanel";
 import { WatchlistPanel } from "@/components/panels/WatchlistPanel";
 import type { PanelKey } from "@/lib/types";
 
@@ -70,7 +70,7 @@ export const PANEL_REGISTRY: Record<PanelKey, PanelEntry> = {
     group: "Agent",
     icon: Sparkles,
     grow: 1.4,
-    render: () => <SignalPanel />,
+    render: () => <SmartMoneySignalPanel />,
   },
   chat: {
     key: "chat",

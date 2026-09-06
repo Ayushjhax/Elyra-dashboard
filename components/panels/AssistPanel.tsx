@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Bot, Landmark, Sparkles, type LucideIcon } from "lucide-react";
 import { AgentChatPanel } from "@/components/panels/AgentChatPanel";
-import { EngineSignalPanel } from "@/components/panels/EngineSignalPanel";
+import { SmartMoneySignalPanel } from "@/components/panels/SmartMoneySignalPanel";
 import { SmartMoneyPanel } from "@/components/panels/SmartMoneyPanel";
 import { AmbientGlow } from "@/components/ui/Glow";
 import {
@@ -153,7 +153,7 @@ export function AssistPanel() {
         hidden={surface !== "signals"}
         className={cn("min-h-0 flex-1 flex-col", surface === "signals" ? "flex" : "hidden")}
       >
-        <EngineSignalPanel />
+        <SmartMoneySignalPanel />
       </div>
 
       <div

@@ -885,6 +885,32 @@ td {
   animation: elyra-mark-travel 9s linear infinite;
 }
 
+/* A value that is loading.
+
+   Occupies the width its content will occupy, so nothing shifts when the
+   number lands — the whole point of a skeleton rather than a spinner. The
+   surface is --surface-hover, which is the lightest of the four and reads as
+   "something goes here" against a panel without claiming to be content.
+
+   Only opacity moves. A travelling highlight would be a second bloom on the
+   luminance layer and would have to answer to 1.5's contrast floor; a value
+   that has not arrived does not need one. */
+@keyframes elyra-skeleton {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@utility skeleton {
+  background-color: var(--surface-hover);
+  border-radius: var(--radius-chip);
+  animation: elyra-skeleton 1400ms ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Flashes become a static color change; the class is removed on a timer
      either way, so the cell still returns to rest. */
@@ -935,6 +961,14 @@ td {
   /* A column simply is there. Where it came from was never information. */
   .column-enter {
     animation: none;
+  }
+
+  /* The skeleton stops breathing and stays at its brighter value, which is
+     still legible as a placeholder. Its job is to hold the space, and it
+     does that standing still. */
+  .skeleton {
+    animation: none;
+    opacity: 0.85;
   }
 
 

@@ -106,5 +106,11 @@ export async function GET(request: Request) {
     linked: data !== null && data !== undefined,
     username: data?.telegram_username ?? null,
     linkedAt: data?.linked_at ?? null,
+    /* The bot's own handle, so a client can build a t.me link without a
+       second round trip. Additive and leaks nothing: POST already returns it
+       inside `deepLink`, and a bot handle is public by construction. Null
+       when Telegram is not configured, which is how the status bar knows to
+       show the control as unavailable rather than broken. */
+    botUsername: optional("TELEGRAM_BOT_USERNAME") ?? null,
   });
 }

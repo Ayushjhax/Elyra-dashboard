@@ -35,10 +35,10 @@ type NavItem = {
 };
 
 /**
- * The six routes, in the order the operator asked for them.
+ * The routes, in the order the operator asked for them.
  *
- * Home is first and stands apart from the rest — see `NavRail` — so the five
- * below it are the ones that share the scrolling list.
+ * Home is first and stands apart from the rest — see `NavRail` — so the ones
+ * below it are what share the scrolling list.
  */
 export const HOME_ITEM: NavItem = {
   href: "/",
@@ -47,6 +47,7 @@ export const HOME_ITEM: NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: Wallet },
   { href: "/portfolio", label: "Portfolio", icon: PieChart },
   { href: "/personalized", label: "Personalized", icon: Sparkles },
   { href: "/assets", label: "Assets", icon: Coins },

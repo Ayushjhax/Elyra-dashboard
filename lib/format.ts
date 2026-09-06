@@ -127,3 +127,26 @@ export function truncateMiddle(value: string, lead = 4, tail = 4): string {
   if (value.length <= lead + tail + 1) return value;
   return `${value.slice(0, lead)}…${value.slice(-tail)}`;
 }
+
+/**
+ * Wall-clock time in the viewer's own timezone: `03:32PM`.
+ *
+ * Local, unlike every other formatter here, which pins UTC because the mock
+ * data is a fixed instant. This one shows the operator what time it is where
+ * they are, so it must not.
+ *
+ * The separator is stripped rather than formatted away. Intl puts a space
+ * before the day period, and since ICU 72 that space is U+202F (narrow
+ * no-break) rather than U+0020 — so a `.replace(" ", "")` silently stopped
+ * working when Node updated. `\s` matches both.
+ */
+export function formatClock12(at: number): string {
+  return new Date(at)
+    .toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+    .replace(/\s+/g, "")
+    .toUpperCase();
+}

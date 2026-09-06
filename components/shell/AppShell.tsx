@@ -14,6 +14,8 @@ import {
 } from "@/components/shell/CollapsedSurfaces";
 import { NavRail } from "@/components/shell/NavRail";
 import { PanelStack } from "@/components/shell/PanelStack";
+import { StatusBar } from "@/components/shell/StatusBar";
+import { WalletSheet } from "@/components/wallet/WalletSheet";
 import { ColumnResizer } from "@/components/shell/Resizer";
 import { TerminalRuntime } from "@/components/shell/TerminalRuntime";
 import { ShellAtmosphere } from "@/components/ui/Glow";
@@ -132,75 +134,91 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div
-        data-resizing={resizing ? "true" : undefined}
-        className="shell-grid grid h-dvh w-full gap-[var(--gap-shell)] overflow-hidden p-3"
-        style={
-          {
-            "--cols-compact": layout.compact,
-            "--cols-mid": layout.mid,
-            "--cols-full": layout.full,
-          } as React.CSSProperties
-        }
-      >
-        <ShellAtmosphere />
+      {/* The status bar is a row above the grid rather than a track inside it.
+          The grid's tracks are decided by media queries in `.shell-grid` — see
+          the note in CLAUDE.md about the tracks and the items having exactly
+          one authority — so adding a row would mean editing three breakpoints
+          to add something that never varies with them. A flex column outside
+          leaves `.shell-grid` untouched and the bar the same height at every
+          width. The outer element owns the page padding and the gap; the grid
+          keeps everything else it had. */}
+      <div className="flex h-dvh w-full flex-col gap-[var(--gap-shell)] overflow-hidden p-3">
+        <StatusBar />
 
-        {/* No handle while it is collapsed: the rail is pinned to its icon
-            width there, so a drag would have nothing to move. The control in
-            the rail is the way back. */}
-        <ShellColumn id="rail" className="hidden compact:flex" resizable={!railCollapsed}>
-          <NavRail icons={layout.railIcons} />
-        </ShellColumn>
+        <div
+          data-resizing={resizing ? "true" : undefined}
+          className="shell-grid grid min-h-0 w-full flex-1 gap-[var(--gap-shell)] overflow-hidden"
+          style={
+            {
+              "--cols-compact": layout.compact,
+              "--cols-mid": layout.mid,
+              "--cols-full": layout.full,
+            } as React.CSSProperties
+          }
+        >
+          <ShellAtmosphere />
 
-        {paletteOpen && (
-          <ShellColumn id="palette" className="hidden mid:flex">
-            <ComponentPalette />
+          {/* No handle while it is collapsed: the rail is pinned to its icon
+              width there, so a drag would have nothing to move. The control in
+              the rail is the way back. */}
+          <ShellColumn id="rail" className="hidden compact:flex" resizable={!railCollapsed}>
+            <NavRail icons={layout.railIcons} />
           </ShellColumn>
-        )}
 
-        {/* Column 2 — whatever the operator has composed. */}
-        {stackOpen && (
-          <ShellColumn id="stack" className="hidden mid:flex">
-            <PanelStack className="flex min-h-0 flex-1" />
-          </ShellColumn>
-        )}
+          {paletteOpen && (
+            <ShellColumn id="palette" className="hidden mid:flex">
+              <ComponentPalette />
+            </ShellColumn>
+          )}
 
-        {/* The route you are on, beside the chart rather than instead of it.
-            Its own column, resizable like every other, and closed from the X
-            in its header — see RouteClose. */}
-        {routeAside && (
-          <ShellColumn
-            id="route"
-            className="hidden min-h-0 flex-col mid:flex column-enter"
-          >
-            <div className="flex min-h-0 flex-1 flex-col *:min-h-0 *:flex-1">
-              {children}
-            </div>
-          </ShellColumn>
-        )}
+          {/* Column 2 — whatever the operator has composed. */}
+          {stackOpen && (
+            <ShellColumn id="stack" className="hidden mid:flex">
+              <PanelStack className="flex min-h-0 flex-1" />
+            </ShellColumn>
+          )}
 
-        {/* Column 3 — market header, chart, ledger. The one column with no
-            handle of its own: it is what every other handle moves against, and
-            the one thing that is always on screen. */}
-        <main className="flex min-h-0 min-w-0 flex-col gap-[var(--gap-shell)]">
-          {routeAside || !onRoute ? <MarketColumn /> : children}
-        </main>
+          {/* The route you are on, beside the chart rather than instead of it.
+              Its own column, resizable like every other, and closed from the X
+              in its header — see RouteClose. */}
+          {routeAside && (
+            <ShellColumn
+              id="route"
+              className="hidden min-h-0 flex-col mid:flex column-enter"
+            >
+              <div className="flex min-h-0 flex-1 flex-col *:min-h-0 *:flex-1">
+                {children}
+              </div>
+            </ShellColumn>
+          )}
 
-        {/* Column 4 — chat and signals, one at a time behind a tab. Its handle
-            is on its left edge, being the one column right of the chart. */}
-        {assistOpen && (
-          <ShellColumn id="assist" side="start" className="hidden full:flex">
-            <AssistPanel />
-          </ShellColumn>
-        )}
+          {/* Column 3 — market header, chart, ledger. The one column with no
+              handle of its own: it is what every other handle moves against, and
+              the one thing that is always on screen. */}
+          <main className="flex min-h-0 min-w-0 flex-col gap-[var(--gap-shell)]">
+            {routeAside || !onRoute ? <MarketColumn /> : children}
+          </main>
 
-        <MobileTabBar />
+          {/* Column 4 — chat and signals, one at a time behind a tab. Its handle
+              is on its left edge, being the one column right of the chart. */}
+          {assistOpen && (
+            <ShellColumn id="assist" side="start" className="hidden full:flex">
+              <AssistPanel />
+            </ShellColumn>
+          )}
 
-        <RightDrawer />
-        <LeftSheet />
-        <NavSheet />
-        <MobilePanelSheet />
-        <TerminalRuntime />
+          <MobileTabBar />
+
+          <RightDrawer />
+          <LeftSheet />
+          <NavSheet />
+          <MobilePanelSheet />
+          {/* Opened from the balance chip in the status bar. Mounted here
+              rather than inside StatusBar so it is a sibling of the grid and
+              is not clipped by the bar's own overflow. */}
+          <WalletSheet />
+          <TerminalRuntime />
+        </div>
       </div>
     </TooltipProvider>
   );

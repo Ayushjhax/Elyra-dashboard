@@ -126,6 +126,15 @@ interface ElyraState {
   /** Which panel the stacked layout's bottom bar is showing. */
   mobilePanel: MobilePanel;
   setMobilePanel: (panel: MobilePanel) => void;
+  /**
+   * The wallet panel, opened from the balance chip in the status bar.
+   *
+   * Not persisted. A panel showing an address and a balance is a thing you
+   * opened just now, not a preference — and restoring it on the next visit
+   * would put a wallet on screen before the session had been re-established.
+   */
+  walletSheetOpen: boolean;
+  setWalletSheetOpen: (open: boolean) => void;
   /** Close every collapsed surface — used when the viewport grows past a breakpoint. */
   closeCollapsedSurfaces: () => void;
 }
@@ -257,6 +266,9 @@ export const useElyraStore = create<ElyraState>()(
           railCollapsed: false,
           draggingPanel: null,
         }),
+
+      walletSheetOpen: false,
+      setWalletSheetOpen: (open) => set({ walletSheetOpen: open }),
 
       rightDrawerOpen: false,
       setRightDrawerOpen: (open) => set({ rightDrawerOpen: open }),

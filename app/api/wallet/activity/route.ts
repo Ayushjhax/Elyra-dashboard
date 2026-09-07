@@ -45,7 +45,15 @@ export async function GET(request: Request): Promise<NextResponse<ActivityRespon
   if (user === null) return fail("Not signed in", { status: 401 });
 
   const address = user.solanaAddress;
-  if (address === null) return fail("This account has no Solana wallet.");
+  if (address === null) {
+    /* See the same branch in /api/wallet: an unreachable Privy and an account
+       with no wallet are different failures and must not share a message. */
+    return fail(
+      user.addressesUnresolved
+        ? "Could not reach Privy to resolve this account's wallet address."
+        : "This account has no Solana wallet.",
+    );
+  }
   if (!isSolanaAddress(address)) {
     return fail("The wallet address on this account is not a valid Solana address.");
   }

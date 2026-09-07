@@ -63,7 +63,13 @@ export function SmartMoneySignalPanel() {
     try {
       const response = await fetch("/api/tracker/signals?limit=50", { cache: "no-store" });
       const payload = parseTrackerSignalList(await response.json() as unknown);
-      return { signals: payload.signals, disclaimer: payload.disclaimer, error: null, loading: false, fetchedAt: new Date().toISOString(), connection: "polling" };
+      /* The proxy answers 200 with an empty list when the tracker itself is
+         unreachable, and puts the reason in `error`. Reading it is what stops
+         this panel from reporting a connection failure as "the engine is
+         running, but nothing has cleared the gates" — a claim about the
+         market, made when no market was ever consulted. */
+      const engineError = payload.error ?? null;
+      return { signals: payload.signals, disclaimer: payload.disclaimer, error: engineError, loading: false, fetchedAt: new Date().toISOString(), connection: engineError === null ? "polling" : "offline" };
     } catch (error: unknown) {
       return { signals: [], disclaimer: "", error: error instanceof Error ? error.message : "Could not reach the tracker", loading: false, fetchedAt: new Date().toISOString(), connection: "offline" };
     }
@@ -89,7 +95,7 @@ export function SmartMoneySignalPanel() {
   return <Panel label="Smart money signals"><PanelHeader><Eyebrow>Smart money</Eyebrow><span className="type-label ml-auto flex items-center gap-1.5 text-text-muted"><Radio size={12} aria-hidden className={state.connection === "live" ? "text-positive" : undefined} />{state.connection}</span><button type="button" aria-label="Refresh smart money signals" onClick={() => void load().then(setState)} className="ml-2 min-h-10 min-w-10 rounded-control p-2 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><RefreshCw size={14} aria-hidden className={cn(state.loading && "animate-spin")} /></button></PanelHeader><PanelBody>
     {state.error !== null && <div role="alert" className="m-3 rounded-card border border-negative/40 bg-negative-bg p-3"><div className="flex items-center gap-2 text-negative"><AlertTriangle size={14} aria-hidden /><p className="type-label">Tracker unavailable</p></div><p className="type-label mt-1 text-text-muted">{state.error}</p><Button className="mt-2" size="sm" variant="quiet" onClick={() => void load().then(setState)}>Try again</Button></div>}
     {state.loading && <div className="space-y-2 p-3" aria-label="Loading smart money signals"><div className="h-24 animate-pulse rounded-card bg-surface-raised" /><div className="h-24 animate-pulse rounded-card bg-surface-raised" /></div>}
-    {!state.loading && state.error === null && state.signals.length === 0 && <div className="flex flex-col items-center gap-2 px-5 py-10 text-center"><WalletCards size={24} aria-hidden className="text-text-muted" /><p className="type-body-sm text-text-secondary">No consensus signals yet</p><p className="type-label max-w-prose text-text-muted">The engine is running, but no market has cleared the wallet, score, diversity, and confirmation gates.</p></div>}
+    {!state.loading && state.error === null && state.signals.length === 0 && <div className="flex flex-col items-center gap-2 px-5 py-10 text-center"><WalletCards size={24} aria-hidden className="text-text-muted" /><p className="type-body-sm text-text-secondary">No consensus signals yet</p><p className="type-label max-w-prose text-text-muted">The tracker answered, and no market has cleared the wallet, score, diversity and confirmation gates.</p></div>}
     <ul className="list-none">{state.signals.map((signal) => <SmartMoneyCard key={signal.id} signal={signal} />)}</ul>
     {state.fetchedAt !== null && <p className="type-label px-3 py-2 text-text-muted">Updated {formatRelativeTime(state.fetchedAt, Date.now())}{state.disclaimer ? ` · ${state.disclaimer}` : ""}</p>}
   </PanelBody></Panel>;

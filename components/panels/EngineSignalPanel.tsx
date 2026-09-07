@@ -15,6 +15,7 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
 import { EngineSignalCard } from "@/components/panels/EngineSignalCard";
 import { formatRelativeTime } from "@/lib/format";
+import type { EngineDiagnostics } from "@/app/api/signals/route";
 import { isClosed, type SignalDto } from "@/lib/signals/types";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +40,8 @@ interface FeedState {
   disclaimer: string;
   engineError: string | null;
   rejected: string[];
+  /** The engine's account of its last build cycle. Null when unavailable. */
+  diagnostics: EngineDiagnostics | null;
   loading: boolean;
   fetchedAt: string | null;
 }
@@ -48,8 +51,27 @@ const INITIAL: FeedState = {
   disclaimer: "",
   engineError: null,
   rejected: [],
+  diagnostics: null,
   loading: true,
   fetchedAt: null,
+};
+
+/** Reasons listed in the empty state before the rest are counted. */
+const REASONS_SHOWN = 6;
+
+/**
+ * What a rejection stage means, in the reader's terms.
+ *
+ * The engine's stage names are precise and internal; a trader looking at an
+ * empty feed needs to know whether the market was quiet or the service was
+ * broken, and those are different stages.
+ */
+const STAGE_LABEL: Record<string, string> = {
+  source: "upstream data unavailable",
+  scan: "no setup in the live window",
+  levels: "no target far enough away to clear the risk floor",
+  firing: "failed a firing gate",
+  leg: "a pipeline leg failed",
 };
 
 const REFRESH_MS = 60_000;
@@ -77,12 +99,14 @@ export function EngineSignalPanel() {
         disclaimer: string;
         engineError: string | null;
         rejected: string[];
+        diagnostics: EngineDiagnostics | null;
       };
       return {
         signals: payload.signals,
         disclaimer: payload.disclaimer,
         engineError: payload.engineError,
         rejected: payload.rejected,
+        diagnostics: payload.diagnostics,
         loading: false,
         fetchedAt: new Date().toISOString(),
       };
@@ -92,6 +116,7 @@ export function EngineSignalPanel() {
         disclaimer: "",
         engineError: error instanceof Error ? error.message : "request failed",
         rejected: [],
+        diagnostics: null,
         loading: false,
         fetchedAt: new Date().toISOString(),
       };
@@ -194,12 +219,85 @@ export function EngineSignalPanel() {
             <p className="type-body-sm text-text-secondary">
               No signals right now.
             </p>
-            <p className="type-label mt-1 text-text-muted">
-              The engine answered and had nothing to publish. Every candidate
-              was rejected by a gate — most often too few backtested fires to
-              clear the twenty-fire floor. An empty feed is a result, not a
-              fault.
-            </p>
+
+            {/* The engine's own reasons, not a guess made here. An earlier
+                version of this panel asserted the cause was too few
+                backtested fires, which stopped being true the moment the
+                pipeline started measuring live history — a hardcoded
+                explanation of someone else's behaviour goes stale silently. */}
+            {state.diagnostics === null ? (
+              <p className="type-label mt-1 text-text-muted">
+                The engine answered and had nothing to publish. It serves no
+                per-cycle diagnostics, so the reason each candidate was
+                rejected is not available here. An empty feed is a result, not
+                a fault.
+              </p>
+            ) : !state.diagnostics.ran ? (
+              <p className="type-label mt-1 text-text-muted">
+                The engine is up but has not finished its first build cycle.
+                The first one is slow: it fetches years of candles per market
+                and a full XBRL history per issuer before it measures anything.
+              </p>
+            ) : (
+              <>
+                <p className="type-label mt-1 text-text-muted">
+                  The engine ran{" "}
+                  {state.diagnostics.startedAt !== null
+                    ? formatRelativeTime(state.diagnostics.startedAt)
+                    : "recently"}{" "}
+                  and rejected every candidate. An empty feed is a result, not a
+                  fault — these are the gates that stopped them.
+                </p>
+
+                <ul className="mt-2 flex list-none flex-col gap-1">
+                  {Object.entries(state.diagnostics.byStage)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([stage, count]) => (
+                      <li key={stage} className="flex items-baseline gap-2">
+                        <span className="type-data-sm shrink-0 tabular-nums text-text-secondary">
+                          {count}
+                        </span>
+                        <span className="type-label min-w-0 flex-1 text-text-muted">
+                          {STAGE_LABEL[stage] ?? stage}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+
+                <ul className="mt-2 flex list-none flex-col gap-1 border-t border-border-subtle pt-2">
+                  {state.diagnostics.rejections
+                    .slice(0, REASONS_SHOWN)
+                    .map((rejection) => (
+                      <li
+                        key={`${rejection.id}:${rejection.stage}`}
+                        className="type-label break-words text-text-muted"
+                      >
+                        <span className="text-text-secondary">
+                          {rejection.id.split(":").slice(0, 2).join(" ")}
+                        </span>{" "}
+                        — {rejection.detail}
+                      </li>
+                    ))}
+                </ul>
+
+                {state.diagnostics.rejections.length > REASONS_SHOWN && (
+                  <p className="type-label mt-1 text-text-muted">
+                    and {state.diagnostics.rejections.length - REASONS_SHOWN}{" "}
+                    more
+                  </p>
+                )}
+
+                {state.diagnostics.legs.some((leg) => leg.failed) && (
+                  <p className="type-label mt-2 text-negative">
+                    {state.diagnostics.legs
+                      .filter((leg) => leg.failed)
+                      .map((leg) => leg.name)
+                      .join(", ")}{" "}
+                    failed outright — this is a fault, not a quiet market.
+                  </p>
+                )}
+              </>
+            )}
           </div>
         )}
 

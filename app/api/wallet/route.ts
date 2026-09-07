@@ -63,7 +63,14 @@ export async function GET(request: Request): Promise<NextResponse<WalletResponse
 
   const address = user.solanaAddress;
   if (address === null) {
-    return fail("This account has no Solana wallet.");
+    /* Two different failures wear the same null. Saying "no wallet" to a user
+       whose wallet Privy simply could not be reached for sends them looking
+       for a problem in their account instead of in this service. */
+    return fail(
+      user.addressesUnresolved
+        ? "Could not reach Privy to resolve this account's wallet address."
+        : "This account has no Solana wallet.",
+    );
   }
   if (!isSolanaAddress(address)) {
     /* Defence in depth. The address came from Privy, so this should be

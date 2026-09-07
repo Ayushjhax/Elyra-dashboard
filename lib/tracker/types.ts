@@ -13,7 +13,13 @@ export const trackerSignalSchema = z.object({
   qualifies: z.boolean(), rejectionReasons: z.array(z.string()), createdAt: z.string(), status: z.string(), supersededBy: z.string().nullable(), confirmation: z.unknown().nullable(),
 }).passthrough();
 export type TrackerSignal = z.infer<typeof trackerSignalSchema>;
-export const trackerSignalListSchema = z.object({ signals: z.array(trackerSignalSchema), count: z.number(), disclaimer: z.string(), generatedAt: z.string() }).passthrough();
+/* `error` is how /api/tracker/signals reports that the tracker service could
+   not be reached: it answers 200 with an empty list so the panel keeps
+   rendering, and puts the reason here. Declared rather than left to
+   `.passthrough()` because a caller that does not read it renders an empty
+   feed as "nothing has fired yet", which is a claim about the market made on
+   the strength of a connection failure. */
+export const trackerSignalListSchema = z.object({ signals: z.array(trackerSignalSchema), count: z.number(), disclaimer: z.string(), generatedAt: z.string(), error: z.string().nullish() }).passthrough();
 export type TrackerSignalList = z.infer<typeof trackerSignalListSchema>;
 
 export function parseTrackerSignalList(value: unknown): TrackerSignalList {

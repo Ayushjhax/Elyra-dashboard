@@ -19,6 +19,17 @@ export interface SessionUser {
   walletAddress: string | null;
   /** Solana — this app's native chain, and what the UI displays. */
   solanaAddress: string | null;
+  /**
+   * A null address above means "we could not ask", not "there is none".
+   *
+   * The two are indistinguishable in a bare `string | null`, and they call
+   * for opposite messages: one is an account that genuinely has no Solana
+   * wallet, the other is a Privy outage sitting on top of an account that
+   * has one. Telling a user with a funded wallet that they have no wallet is
+   * the worse of the two mistakes, so the difference is carried rather than
+   * flattened.
+   */
+  addressesUnresolved: boolean;
 }
 
 export class UnauthenticatedError extends Error {
@@ -81,28 +92,86 @@ function firstAddress(
   return null;
 }
 
-interface Addresses {
-  evm: string | null;
-  solana: string | null;
+/**
+ * What Privy knows about an account's wallets, or the reason we could not ask.
+ *
+ * A discriminated union rather than a pair of nullable strings, because the
+ * old shape returned `{ evm: null, solana: null }` from the catch block and
+ * so reported an unreachable Privy as an account with no wallets at all —
+ * which the wallet route then rendered as "This account has no Solana
+ * wallet." over a wallet that exists and holds a balance.
+ */
+type AddressLookup =
+  | { ok: true; evm: string | null; solana: string | null }
+  | { ok: false };
+
+/**
+ * Privy's answer, briefly remembered.
+ *
+ * `profiles` is a cache of Privy, not the record of it, and the cache misses
+ * on every request for any database whose `solana_address` column is absent.
+ * Without this, that miss would become one Privy API call per request — the
+ * wallet panel alone polls every thirty seconds — so a successful lookup is
+ * held for long enough to bound the call rate and short enough that a wallet
+ * linked in another tab shows up on its own.
+ *
+ * Failures are deliberately not cached: a five-minute outage must not become
+ * a five-minute lie about the user's wallet after Privy recovers.
+ */
+const ADDRESS_TTL_MS = 5 * 60_000;
+
+const addressCache = new Map<
+  string,
+  { evm: string | null; solana: string | null; expiresAt: number }
+>();
+
+/**
+ * Reported once per distinct reason, for the same purpose as the token
+ * verification log below: a Privy outage and an account with no wallet look
+ * identical from the outside, and only one of them is worth waking up for.
+ */
+const seenAddressFailures = new Set<string>();
+
+function noteAddressLookupFailure(privyDid: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const key = message.slice(0, 120);
+  if (seenAddressFailures.has(key)) return;
+  seenAddressFailures.add(key);
+  console.error(
+    `[elyra] Could not read linked accounts from Privy for ${privyDid}: ${message}\n` +
+      "  Wallet surfaces will report that the address could not be resolved " +
+      "rather than that the account has none.\n",
+  );
 }
 
 /**
- * Best effort. A Privy API failure must not block sign-in: the EVM address is
- * only needed by the Hyperliquid portfolio source, which reports its own
- * absence rather than guessing.
+ * Best effort, and honest about failing. A Privy API failure must not block
+ * sign-in: the EVM address is only needed by the Hyperliquid portfolio
+ * source, which reports its own absence rather than guessing.
  */
-async function fetchAddresses(privyDid: string): Promise<Addresses> {
+async function fetchAddresses(privyDid: string): Promise<AddressLookup> {
+  const cached = addressCache.get(privyDid);
+  if (cached !== undefined && cached.expiresAt > Date.now()) {
+    return { ok: true, evm: cached.evm, solana: cached.solana };
+  }
+
   try {
     const user = await privyClient()
       .users()
       ._get(privyDid, { timeout: PRIVY_TIMEOUT_MS });
-    return {
-      evm: firstAddress(user.linked_accounts, "ethereum"),
-      solana: firstAddress(user.linked_accounts, "solana"),
-    };
-  } catch {
-    return { evm: null, solana: null };
+    const evm = firstAddress(user.linked_accounts, "ethereum");
+    const solana = firstAddress(user.linked_accounts, "solana");
+    addressCache.set(privyDid, { evm, solana, expiresAt: Date.now() + ADDRESS_TTL_MS });
+    return { ok: true, evm, solana };
+  } catch (error: unknown) {
+    noteAddressLookupFailure(privyDid, error);
+    return { ok: false };
   }
+}
+
+/** Test seam. The cache is process-local and holds nothing secret. */
+export function clearAddressCache(): void {
+  addressCache.clear();
 }
 
 /** Postgres unique-violation. Two first requests for one new user race here. */
@@ -188,33 +257,62 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
     const currentEvm = existing.wallet_address;
     const currentSolana = existing.solana_address ?? null;
 
-    /* Backfill an address we could not reach Privy for at creation time, or
-       one linked after the profile was made — a user who signs up with email
-       and connects a wallet later lands here. */
-    if (currentEvm === null || (hasSolanaColumn !== false && currentSolana === null)) {
-      const found = await fetchAddresses(privyDid);
-      const evm = currentEvm ?? found.evm;
-      const solana = currentSolana ?? found.solana;
+    /* Ask Privy whenever either address is missing from the row: it is the
+       record of what is linked, and this row only caches it. Backfills an
+       address Privy was unreachable for at creation time, and one linked
+       after the profile was made — a user who signs up with email and
+       connects a wallet later lands here.
 
-      if (evm !== currentEvm || solana !== currentSolana) {
-        const patch: Partial<Profile> = { wallet_address: evm };
-        if (hasSolanaColumn !== false) patch.solana_address = solana;
-        await db.from("profiles").update(patch).eq("id", existing.id);
-      }
-
+       The guard used to also require `hasSolanaColumn !== false`, which
+       inverted the intent of the whole missing-column fallback. Against a
+       database whose `solana_address` column is absent, `currentSolana` is
+       null for every user forever, so the branch meant to rescue that case
+       was skipped for anyone whose EVM address happened to be stored — and
+       every request then reported an account with no Solana wallet. That is
+       what the balance chip was showing: an error state over a real, funded
+       Phantom wallet. */
+    if (currentEvm !== null && currentSolana !== null) {
       return {
         userId: existing.id,
         privyDid,
-        walletAddress: evm,
-        solanaAddress: hasSolanaColumn === false ? found.solana : solana,
+        walletAddress: currentEvm,
+        solanaAddress: currentSolana,
+        addressesUnresolved: false,
       };
+    }
+
+    const found = await fetchAddresses(privyDid);
+    if (!found.ok) {
+      /* Report what is cached and say the rest is unresolved. Returning null
+         here as "no wallet" is the mistake this whole path exists to avoid. */
+      return {
+        userId: existing.id,
+        privyDid,
+        walletAddress: currentEvm,
+        solanaAddress: currentSolana,
+        addressesUnresolved: true,
+      };
+    }
+
+    const evm = currentEvm ?? found.evm;
+    const solana = currentSolana ?? found.solana;
+
+    /* Persist only what this schema can hold. With the column absent the
+       address is resolved from Privy on every cache miss instead, which is
+       correct but costs a lookup — running the migration ends that. */
+    if (evm !== currentEvm || (hasSolanaColumn !== false && solana !== currentSolana)) {
+      const patch: Partial<Profile> = { wallet_address: evm };
+      if (hasSolanaColumn !== false) patch.solana_address = solana;
+      const update = await db.from("profiles").update(patch).eq("id", existing.id);
+      if (update.error?.code === UNDEFINED_COLUMN) noteMissingColumn();
     }
 
     return {
       userId: existing.id,
       privyDid,
-      walletAddress: currentEvm,
-      solanaAddress: currentSolana,
+      walletAddress: evm,
+      solanaAddress: solana,
+      addressesUnresolved: false,
     };
   }
 
@@ -222,9 +320,9 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
 
   const insert: Partial<Profile> & { privy_did: string } = {
     privy_did: privyDid,
-    wallet_address: found.evm,
+    wallet_address: found.ok ? found.evm : null,
   };
-  if (hasSolanaColumn !== false) insert.solana_address = found.solana;
+  if (hasSolanaColumn !== false) insert.solana_address = found.ok ? found.solana : null;
 
   const created = await db
     .from("profiles")
@@ -250,7 +348,8 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
         userId: raced.id,
         privyDid,
         walletAddress: raced.wallet_address,
-        solanaAddress: raced.solana_address ?? found.solana,
+        solanaAddress: raced.solana_address ?? (found.ok ? found.solana : null),
+        addressesUnresolved: !found.ok,
       };
     }
 
@@ -262,7 +361,8 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
     userId: row.id,
     privyDid,
     walletAddress: row.wallet_address,
-    solanaAddress: row.solana_address ?? found.solana,
+    solanaAddress: row.solana_address ?? (found.ok ? found.solana : null),
+    addressesUnresolved: !found.ok,
   };
 }
 

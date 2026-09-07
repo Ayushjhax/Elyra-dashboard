@@ -1,13 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Blocks,
   Bot,
-  ChevronLeft,
-  ChevronRight,
   LogIn,
   Coins,
   Gift,
@@ -257,115 +253,6 @@ export function NavList({
 }
 
 /**
- * The way into the components palette.
- *
- * It sits under Home and above the rest of the routes, apart from all of them,
- * because it is a tool rather than a destination: pressing it changes what this
- * screen is made of, not which screen you are on. Home stays above it as the
- * one route that is always the way back. Only from 900px up, where the column
- * it composes exists — below that the same panels live in a sheet and there is
- * nothing to arrange.
- *
- * Same shape as a route, and quieter. It used to take a full lime fill when
- * open, which made a tool the loudest thing in the rail — louder than the page
- * you were actually on. On means the icon turns accent and the same 2px bar a
- * route uses lights up, so the rail has exactly one filled item and it is
- * always the current route.
- */
-function PaletteToggle() {
-  const open = useElyraStore((state) => state.paletteOpen);
-  const setPaletteOpen = useElyraStore((state) => state.setPaletteOpen);
-
-  const button = (
-    <button
-      type="button"
-      aria-pressed={open}
-      aria-label={open ? "Close components" : "Open components"}
-      onClick={() => setPaletteOpen(!open)}
-      className={cn(
-        "relative flex h-[var(--control-h)] w-full items-center gap-2.5 rounded-control pl-3 pr-2",
-        "transition-colors duration-[var(--dur-fast)] ease-brand",
-        open
-          ? "text-accent"
-          : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
-      )}
-    >
-      {/* The same marker a route uses, so "on" reads the same way twice. */}
-      <span
-        aria-hidden
-        className={cn(
-          "absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-pill",
-          "fill-accent bg-accent transition-opacity duration-[var(--dur-fast)] ease-brand",
-          open ? "opacity-100 shadow-lift-accent" : "opacity-0",
-        )}
-      />
-      <Blocks size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
-      <span className="type-label rail-label">Components</span>
-    </button>
-  );
-
-  return (
-    <div className="hidden shrink-0 px-2 pb-1 mid:block">
-      <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent side="right">
-          Add, move or remove the panels in column two
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  );
-}
-
-/**
- * Collapse the rail to its icons, and bring it back.
- *
- * It writes a flag rather than a width, so the width the operator dragged the
- * rail to is still theirs when they expand it — see `railCollapsed` in
- * `lib/layout.ts`. Everything else follows from the width the fitter then
- * returns: the labels glide shut, and the rail's own resize handle stands down
- * while it is pinned.
- *
- * `ml-auto` only while there is room for it. In the collapsed rail the flex row
- * wraps and this lands under the mark, still 28px and still pressable, which is
- * the whole point — the control that closes the rail has to be the one that
- * opens it.
- */
-function RailToggle() {
-  const collapsed = useElyraStore((state) => state.railCollapsed);
-  const setRailCollapsed = useElyraStore((state) => state.setRailCollapsed);
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand the navigation" : "Collapse the navigation"}
-          onClick={() => setRailCollapsed(!collapsed)}
-          className={cn(
-            "inline-flex size-7 shrink-0 items-center justify-center rounded-control",
-            "border border-border-subtle text-text-muted",
-            "transition-colors duration-[var(--dur-fast)] ease-brand",
-            "hover:bg-surface-hover hover:text-text-primary",
-            /* Holds the right edge whenever the row is wide enough for it. */
-            "mid:ml-auto group-data-[icons=true]/rail:mid:ml-0",
-          )}
-        >
-          {collapsed ? (
-            <ChevronRight size={16} strokeWidth={1.5} aria-hidden />
-          ) : (
-            <ChevronLeft size={16} strokeWidth={1.5} aria-hidden />
-          )}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right">
-        {collapsed ? "Expand the navigation" : "Collapse to icons"}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-/**
  * The switches for the two columns that can be closed outright.
  *
  * They belong here rather than on the columns themselves for the obvious
@@ -454,48 +341,12 @@ export function NavRail({ icons = false }: { icons?: boolean }) {
         "rim rounded-panel border border-border-subtle bg-surface-panel",
       )}
     >
-      {/* The mark, and the control that collapses the rail behind it. They
-          share a row: at 216px the mark sits left and the chevron holds the
-          right edge, and as the rail narrows the chevron slides in under the
-          mark rather than being dropped — a control that disappears when the
-          rail is collapsed is one you cannot use to uncollapse it. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-1 px-3 py-3">
-        {/* Circular. `logo.png` is a square with a lime ground, so at 28px
-            square it read as a lime tile rather than as a mark. The image is
-            scaled slightly inside the crop so the green disc reaches the edge
-            and only a hairline of lime is left — a full lime disc at this size
-            would be the brightest thing in the rail, which 1.2's distribution
-            does not allow for a static mark. */}
-        <Link
-          href="/"
-          aria-label="Elyra home"
-          className={cn(
-            "relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden",
-            "rounded-pill border border-border-subtle",
-            "transition-shadow duration-[var(--dur-fast)] ease-brand hover:shadow-lift-accent",
-          )}
-        >
-          <Image
-            src="/logo.png"
-            alt="Elyra"
-            width={28}
-            height={28}
-            priority
-            className="size-full scale-[1.14] object-cover"
-          />
-        </Link>
-
-        <RailToggle />
-      </div>
-
-      {/* Home, then the palette, then the rest — the sequence the rail reads
-          in. Home is the one route that is always the way back, so it sits
-          above the tool rather than in the list under it. */}
-      <div className="shrink-0 px-2 pb-1">
+      {/* Home is first: the one route that is always the way back, and now
+          the top of the rail itself — the mark and the collapse control live
+          in the top navbar instead, see `StatusBar`. */}
+      <div className="shrink-0 px-2 pt-2 pb-1">
         <NavList items={[HOME_ITEM]} />
       </div>
-
-      <PaletteToggle />
 
       {/* Below 900px column 2 lives in a sheet, so it needs a way in. */}
       <div className="shrink-0 px-2 pb-1 mid:hidden">

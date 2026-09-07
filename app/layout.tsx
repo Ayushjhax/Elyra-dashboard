@@ -49,6 +49,15 @@ const figures = localFont({
   ],
 });
 
+/* Wordmark — Parastoo. Used once, for the "Elyra" text beside the mark in
+   the nav rail. Not part of the brand's type system otherwise. */
+const parastoo = localFont({
+  src: "./fonts/Parastoo-Latin-Regular.woff2",
+  weight: "400",
+  display: "swap",
+  variable: "--font-parastoo",
+});
+
 export const metadata: Metadata = {
   title: "Elyra — Agentic trading terminal",
   description:
@@ -68,7 +77,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${fustat.variable} ${generalSans.variable} ${figures.variable}`}
+      className={`dark ${fustat.variable} ${generalSans.variable} ${figures.variable} ${parastoo.variable}`}
       suppressHydrationWarning
     >
       <body>

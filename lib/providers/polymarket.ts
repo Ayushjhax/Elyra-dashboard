@@ -11,6 +11,7 @@ import {
   type PredictionOrderbook,
   type PredictionOutcome,
   type PredictionPricePoint,
+  type PredictionTrade,
   type ProviderAdapter,
   type ToolResult,
 } from "@/lib/providers/types";
@@ -47,6 +48,9 @@ import {
 --------------------------------------------------------------------------- */
 
 const GAMMA = "https://gamma-api.polymarket.com";
+/* The keyless account/tape surface. `lib/providers/polymarket-account.ts`
+   holds the same constant for positions; both read the one host. */
+const DATA_API = "https://data-api.polymarket.com";
 
 /** Odds move on trades, not continuously. Fifteen seconds is plenty. */
 const MARKET_TTL_MS = 15_000;
@@ -83,6 +87,20 @@ interface WireMarket {
   closed?: boolean;
   archived?: boolean;
   events?: Array<{ id?: string; title?: string }>;
+  /* --- Microstructure metadata, verified present on live Gamma markets. --- */
+  /** Minimum price increment. Every entry, target and stop must land on it. */
+  orderPriceMinTickSize?: string | number | null;
+  orderMinSize?: string | number | null;
+  /** Part of a negative-risk (mutually exclusive) group — see `negRiskMarketID`. */
+  negRisk?: boolean | null;
+  negRiskMarketID?: string | null;
+  lastTradePrice?: string | number | null;
+  /** Probability point change over the window, as the venue computes it. */
+  oneDayPriceChange?: string | number | null;
+  oneHourPriceChange?: string | number | null;
+  /** False when the venue is not currently matching orders on this market. */
+  acceptingOrders?: boolean | null;
+  enableOrderBook?: boolean | null;
 }
 
 interface WireTag {
@@ -181,6 +199,17 @@ function toMarket(wire: WireMarket, categories?: string[]): PredictionMarket | n
     resolutionSource: wire.resolutionSource ?? null,
     url: wire.slug ? `https://polymarket.com/market/${wire.slug}` : null,
     closed,
+
+    tokenIds: stringList(wire.clobTokenIds) ?? [],
+    conditionId: wire.conditionId ?? null,
+    tickSize: num(wire.orderPriceMinTickSize),
+    minOrderSize: num(wire.orderMinSize),
+    negRisk: wire.negRisk ?? null,
+    negRiskGroupId: wire.negRiskMarketID ?? null,
+    lastTradePrice: num(wire.lastTradePrice),
+    change24hPoints: num(wire.oneDayPriceChange),
+    change1hPoints: num(wire.oneHourPriceChange),
+    acceptingOrders: wire.acceptingOrders ?? null,
   };
 }
 
@@ -242,7 +271,26 @@ export async function polymarketTrending(limit = 10): Promise<ToolResult<Predict
   });
 }
 
-/** Open markets matching a search term. */
+/**
+ * Open markets matching a search term.
+ *
+ * ── Why this goes through /public-search ───────────────────────────────
+ *
+ * `/markets?search=` is SILENTLY IGNORED. Verified live: searching "bitcoin"
+ * and searching "election" both return the same three Fed-rate markets — the
+ * top of the volume-ordered list, unfiltered. The parameter is accepted, the
+ * response is a 200, and nothing about it says the term was dropped.
+ *
+ * That is the worst possible failure for this call. Every text query resolves
+ * to whatever is busiest, so an order book gets read, analysed and captioned
+ * with the market the user actually named — a confident, correct-looking
+ * answer about the wrong instrument.
+ *
+ * `/public-search` does honour the term. It returns EVENTS, so the markets
+ * are flattened out of them; event order is the venue's own relevance
+ * ranking and is preserved, because "bitcoin" should return a Bitcoin market
+ * even when a Fed market trades more.
+ */
 export async function polymarketSearch(
   query: string,
   limit = 5,
@@ -253,30 +301,47 @@ export async function polymarketSearch(
   }
 
   const size = Math.min(Math.max(limit, 1), 20);
-  const url =
-    `${GAMMA}/markets?limit=${size}&closed=false&active=true` +
-    `&order=volume24hr&ascending=false&search=${encodeURIComponent(term)}`;
 
   return cached(`polymarket:search:${term.toLowerCase()}:${size}`, MARKET_TTL_MS, async () => {
-    const response = await providerFetch<WireMarket[]>({
-      provider: "polymarket",
-      url,
-      timeoutMs: 10_000,
+    const params = new URLSearchParams({
+      q: term,
+      limit_per_type: String(Math.min(size * 2, 20)),
+      events_status: "active",
     });
 
-    if (!response.ok || !Array.isArray(response.data)) {
+    const response = await providerFetch<{ events?: WireEvent[] }>({
+      provider: "polymarket",
+      url: `${GAMMA}/public-search?${params.toString()}`,
+      timeoutMs: 12_000,
+    });
+
+    if (!response.ok || response.data === undefined) {
       return fail<PredictionMarket[]>(
         "polymarket",
         response.error?.code ?? "UPSTREAM_UNAVAILABLE",
-        response.error?.message ?? "Polymarket did not answer.",
+        response.error?.message ?? "Polymarket search did not answer.",
       );
     }
 
-    const markets = response.data
-      .map((wire) => toMarket(wire))
-      .filter((market): market is PredictionMarket => market !== null);
+    const markets: PredictionMarket[] = [];
+    for (const event of response.data.events ?? []) {
+      const categories = (event.tags ?? [])
+        .map((tag) => tag.label)
+        .filter((label): label is string => typeof label === "string");
 
-    return ok(markets, "polymarket");
+      /* Within one event, busiest first — an event's markets are the same
+         question at different thresholds, so volume picks the live one. Event
+         ORDER is left alone: that is the relevance ranking. */
+      const inEvent = (event.markets ?? [])
+        .map((wire) => toMarket(wire, categories))
+        .filter((market): market is PredictionMarket => market !== null && !market.closed)
+        .sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
+
+      markets.push(...inEvent);
+      if (markets.length >= size) break;
+    }
+
+    return ok(markets.slice(0, size), "polymarket");
   });
 }
 
@@ -647,10 +712,33 @@ export async function polymarketOrderbook(
   });
 }
 
-/** Probability over time for one outcome token. */
+/**
+ * Probability over time for one outcome token.
+ *
+ * ── The trap in these two parameters ───────────────────────────────────
+ *
+ * `interval` is the LOOKBACK WINDOW, not the bar size. `fidelity` is the bar
+ * size, in MINUTES. Reading `interval` as "one-day bars" is the natural
+ * mistake and it is quietly catastrophic — verified live on a market with
+ * four months of history:
+ *
+ *     interval=1d   fidelity=60     25 points spanning 1 day
+ *     interval=1w   fidelity=60    169 points spanning 7 days
+ *     interval=max  fidelity=60    745 points spanning 31 days
+ *     interval=max  fidelity=1440  126 points spanning 126 days
+ *
+ * A backtest asking for "1d" and expecting a year of daily bars gets
+ * twenty-five hourly ones, and any strategy with a lookback longer than that
+ * silently produces no trades at all — which reads as "this strategy never
+ * triggers" rather than "the data was never there".
+ *
+ * `fidelity` therefore defaults from the window but may be set explicitly,
+ * so a caller that needs daily bars over months can ask for exactly that.
+ */
 export async function polymarketPriceHistory(
   tokenId: string,
   interval: "1h" | "6h" | "1d" | "1w" | "max" = "1d",
+  fidelityMinutes?: number,
 ): Promise<ToolResult<PredictionPricePoint[]>> {
   const token = tokenId.trim();
   if (!/^[0-9]{1,90}$/.test(token)) {
@@ -661,9 +749,16 @@ export async function polymarketPriceHistory(
     );
   }
 
-  const fidelity = interval === "1h" ? 1 : interval === "6h" ? 10 : 60;
+  const fidelity =
+    fidelityMinutes !== undefined && Number.isFinite(fidelityMinutes) && fidelityMinutes > 0
+      ? Math.round(fidelityMinutes)
+      : interval === "1h"
+        ? 1
+        : interval === "6h"
+          ? 10
+          : 60;
 
-  return cached(`polymarket:history:${token}:${interval}`, HISTORY_TTL_MS, async () => {
+  return cached(`polymarket:history:${token}:${interval}:${fidelity}`, HISTORY_TTL_MS, async () => {
     const response = await providerFetch<{ history?: Array<{ t?: number; p?: number }> }>({
       provider: "polymarket",
       url: `${CLOB}/prices-history?market=${token}&interval=${interval}&fidelity=${fidelity}`,
@@ -717,5 +812,308 @@ export async function polymarketMidpoint(tokenId: string): Promise<ToolResult<nu
     }
 
     return ok(Math.min(1, Math.max(0, mid)), "polymarket");
+  });
+}
+
+/* ---------------------------------------------------------------------------
+   Batch books and the public trade tape
+
+   ── Why batch matters here ─────────────────────────────────────────────
+
+   Every analytical surface in this feature needs BOTH outcome books at the
+   same instant: a basket built from a YES book read at t and a NO book read
+   at t+400ms can show a spread that never existed. `POST /books` returns them
+   in one round trip, from one venue snapshot, which is the only way the
+   cross-book integrity check below means anything.
+
+   Verified against docs.polymarket.com/market-data/prices-order-books and a
+   live call. The batch endpoints cap at 500 items.
+--------------------------------------------------------------------------- */
+
+const BATCH_LIMIT = 500;
+
+function bookFrom(wire: WireBook, token: string): PredictionOrderbook {
+  const bids = levels(wire.bids, "high");
+  const asks = levels(wire.asks, "low");
+  const bestBid = bids[0]?.price ?? null;
+  const bestAsk = asks[0]?.price ?? null;
+
+  return {
+    marketId: wire.market ?? "",
+    tokenId: token,
+    bids,
+    asks,
+    midpoint: bestBid !== null && bestAsk !== null ? (bestBid + bestAsk) / 2 : null,
+    spread: bestBid !== null && bestAsk !== null ? bestAsk - bestBid : null,
+    lastTradePrice: num(wire.last_trade_price),
+    minOrderSize: num(wire.min_order_size),
+    tickSize: num(wire.tick_size),
+  };
+}
+
+/**
+ * Books for several outcome tokens, from ONE venue snapshot.
+ *
+ * Returned keyed by token id rather than as an array: the response order is
+ * not documented as positional, and a caller that zipped it against its
+ * request would silently attach the YES book to the NO outcome the first time
+ * the venue reordered. The key is `asset_id`, which the venue itself sets.
+ */
+export async function polymarketBooks(
+  tokenIds: string[],
+): Promise<ToolResult<Map<string, PredictionOrderbook>>> {
+  const tokens = [...new Set(tokenIds.map((id) => id.trim()))].filter((id) =>
+    /^[0-9]{1,90}$/.test(id),
+  );
+
+  if (tokens.length === 0) {
+    return fail<Map<string, PredictionOrderbook>>(
+      "polymarket",
+      "INVALID_REQUEST",
+      "At least one CLOB token id is required.",
+    );
+  }
+  if (tokens.length > BATCH_LIMIT) {
+    return fail<Map<string, PredictionOrderbook>>(
+      "polymarket",
+      "INVALID_REQUEST",
+      `Polymarket accepts at most ${BATCH_LIMIT} tokens per batch.`,
+    );
+  }
+
+  return cached(`polymarket:books:${tokens.join(",")}`, BOOK_TTL_MS, async () => {
+    const response = await providerFetch<WireBook[]>({
+      provider: "polymarket",
+      url: `${CLOB}/books`,
+      method: "POST",
+      body: tokens.map((token) => ({ token_id: token })),
+      timeoutMs: 12_000,
+    });
+
+    if (!response.ok || !Array.isArray(response.data)) {
+      return fail<Map<string, PredictionOrderbook>>(
+        "polymarket",
+        response.error?.code ?? "UPSTREAM_UNAVAILABLE",
+        response.error?.message ?? "The Polymarket order books did not answer.",
+      );
+    }
+
+    const books = new Map<string, PredictionOrderbook>();
+    for (const wire of response.data) {
+      const token = wire.asset_id;
+      if (typeof token !== "string" || !tokens.includes(token)) continue;
+      books.set(token, bookFrom(wire, token));
+    }
+
+    const missing = tokens.filter((token) => !books.has(token));
+
+    return ok(books, "polymarket", {
+      partial: missing.length > 0,
+      warnings:
+        missing.length > 0
+          ? [`No book returned for ${missing.length} of ${tokens.length} outcome token(s).`]
+          : [],
+    });
+  });
+}
+
+interface WireTrade {
+  asset?: string;
+  conditionId?: string;
+  side?: string;
+  size?: number | string;
+  price?: number | string;
+  timestamp?: number | string;
+  outcome?: string | null;
+  transactionHash?: string | null;
+}
+
+/** Trades move the tape, not the clock. Short enough to be current. */
+const TRADE_TTL_MS = 10_000;
+
+/**
+ * The public trade tape for one market.
+ *
+ * Read from the Data API. The CLOB's own `/trades` is authenticated — it
+ * answers 401 without an API key, verified live — so this is the only keyless
+ * source of executed prints, and the recent VWAP in the probability basket
+ * depends on it.
+ *
+ * Keyed on the CONDITION id, which is the market, so a binary market returns
+ * prints for both outcomes. Callers wanting one side filter on `tokenId`.
+ */
+export async function polymarketTrades(
+  conditionId: string,
+  limit = 100,
+): Promise<ToolResult<PredictionTrade[]>> {
+  const condition = conditionId.trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(condition)) {
+    return fail<PredictionTrade[]>(
+      "polymarket",
+      "INVALID_REQUEST",
+      "A Polymarket condition id is a 32-byte hex string.",
+    );
+  }
+
+  const size = Math.min(Math.max(limit, 1), 500);
+
+  return cached(`polymarket:trades:${condition}:${size}`, TRADE_TTL_MS, async () => {
+    const response = await providerFetch<WireTrade[]>({
+      provider: "polymarket",
+      url: `${DATA_API}/trades?market=${condition}&limit=${size}`,
+      timeoutMs: 12_000,
+    });
+
+    if (!response.ok || !Array.isArray(response.data)) {
+      return fail<PredictionTrade[]>(
+        "polymarket",
+        response.error?.code ?? "UPSTREAM_UNAVAILABLE",
+        response.error?.message ?? "The Polymarket trade tape did not answer.",
+      );
+    }
+
+    const trades: PredictionTrade[] = [];
+    for (const wire of response.data) {
+      const price = num(wire.price ?? null);
+      const shares = num(wire.size ?? null);
+      const seconds = num(wire.timestamp ?? null);
+      if (typeof wire.asset !== "string" || price === null || shares === null) continue;
+
+      trades.push({
+        tokenId: wire.asset,
+        marketId: wire.conditionId ?? condition,
+        side: String(wire.side).toUpperCase() === "SELL" ? "sell" : "buy",
+        size: shares,
+        /* Clamped for the same reason as everywhere else in this file: a
+           price above 1 on a probability renders as 140% and destroys trust
+           in every other figure beside it. */
+        price: Math.min(1, Math.max(0, price)),
+        /* Seconds, like the price history endpoint. Treating it as
+           milliseconds dates every print to 1970. */
+        at: new Date((seconds ?? 0) * 1000).toISOString(),
+        outcome: wire.outcome ?? null,
+        txHash: wire.transactionHash ?? null,
+      });
+    }
+
+    /* Newest first, so "recent" means the head of the list regardless of the
+       order the venue chose to return. */
+    trades.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+
+    return ok(trades, "polymarket");
+  });
+}
+
+/* ---------------------------------------------------------------------------
+   Bulk market sampling, for building a backtest universe
+
+   ── Why this is not `polymarketTrending` with a bigger limit ───────────
+
+   Gamma caps a page at 100 and a backtest universe needs several hundred
+   candidates, because most markets are unusable for one of two reasons: they
+   never had a book, or their history was never retained. Verified live —
+   of four closed markets sampled at random, one served 327 price points and
+   three served zero.
+
+   So the sampler pages, and it samples CLOSED markets too. A settled market
+   is the better backtest subject: its history runs all the way to resolution
+   with no survivorship question about how it ends, whereas an open market's
+   most recent bars are the ones a strategy has not yet been tested through.
+--------------------------------------------------------------------------- */
+
+const UNIVERSE_TTL_MS = 10 * 60_000;
+const PAGE_SIZE = 100;
+
+export interface UniverseQuery {
+  /** Markets to gather. Paged internally. */
+  limit?: number;
+  /** Include settled markets, whose history runs to resolution. */
+  includeClosed?: boolean;
+  /** Minimum lifetime volume, in dollars. */
+  minVolumeUsd?: number;
+}
+
+/**
+ * A large sample of markets, for backtesting.
+ *
+ * Ordered by volume so the head of the list is the part most likely to have
+ * retained history — an unavoidable bias, and one the caller states in the
+ * universe label rather than hiding.
+ */
+export async function polymarketUniverse(
+  query: UniverseQuery = {},
+): Promise<ToolResult<PredictionMarket[]>> {
+  const wanted = Math.min(Math.max(query.limit ?? 200, 1), 600);
+  const minVolume = query.minVolumeUsd ?? 0;
+  const includeClosed = query.includeClosed ?? true;
+
+  const key = `polymarket:universe:${wanted}:${includeClosed}:${minVolume}`;
+
+  return cached(key, UNIVERSE_TTL_MS, async () => {
+    const markets: PredictionMarket[] = [];
+    const seen = new Set<string>();
+    const warnings: string[] = [];
+
+    /* Open markets first, then settled ones. Both are needed: open markets
+       carry current microstructure, settled ones carry complete histories. */
+    const passes: Array<{ closed: boolean; order: string }> = includeClosed
+      ? [
+          { closed: false, order: "volume24hr" },
+          { closed: true, order: "volume" },
+        ]
+      : [{ closed: false, order: "volume24hr" }];
+
+    for (const pass of passes) {
+      for (let offset = 0; offset < wanted; offset += PAGE_SIZE) {
+        if (markets.length >= wanted) break;
+
+        const params = new URLSearchParams({
+          limit: String(PAGE_SIZE),
+          offset: String(offset),
+          closed: String(pass.closed),
+          order: pass.order,
+          ascending: "false",
+        });
+        if (!pass.closed) params.set("active", "true");
+
+        const response = await providerFetch<WireMarket[]>({
+          provider: "polymarket",
+          url: `${GAMMA}/markets?${params.toString()}`,
+          timeoutMs: 15_000,
+        });
+
+        if (!response.ok || !Array.isArray(response.data)) {
+          warnings.push(
+            `A universe page failed: ${response.error?.message ?? "unknown"}. The sample is smaller than requested.`,
+          );
+          break;
+        }
+
+        /* A short page is the end of the list, not an error. */
+        if (response.data.length === 0) break;
+
+        for (const wire of response.data) {
+          const market = toMarket(wire);
+          if (market === null) continue;
+          if (seen.has(market.id)) continue;
+          if ((market.volumeUsd ?? 0) < minVolume) continue;
+          /* Binary only. Multi-outcome markets need the exclusivity checks
+             in the signal engine and are not pooled into one win rate. */
+          if (market.outcomes.length !== 2) continue;
+          if ((market.tokenIds ?? []).length !== 2) continue;
+
+          seen.add(market.id);
+          markets.push(market);
+          if (markets.length >= wanted) break;
+        }
+
+        if (response.data.length < PAGE_SIZE) break;
+      }
+    }
+
+    return ok(markets, "polymarket", {
+      partial: warnings.length > 0,
+      warnings,
+    });
   });
 }

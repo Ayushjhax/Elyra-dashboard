@@ -251,4 +251,16 @@ describe("matchingSymbol", () => {
   it("returns nothing for a symbol too short to be meaningful", () => {
     expect(matchingSymbol([position()], "B")).toHaveLength(0);
   });
+
+  it("returns nothing for a symbol that is only punctuation", () => {
+    /* The length check ran on the raw string while the pattern used the
+       stripped one, so "$$" compiled to /\b\b/ and reported every market
+       with a word in its title as exposure to it. */
+    expect(matchingSymbol([position()], "$$")).toHaveLength(0);
+    expect(matchingSymbol([position()], "---")).toHaveLength(0);
+  });
+
+  it("ignores a leading ticker sigil", () => {
+    expect(matchingSymbol([position()], "$BTC")).toHaveLength(1);
+  });
 });

@@ -21,6 +21,7 @@
 --------------------------------------------------------------------------- */
 
 export type ProviderId =
+  | "sec"
   | "jupiter"
   | "birdeye"
   | "kamino"
@@ -364,6 +365,35 @@ export interface PredictionMarket {
   resolutionSource?: string | null;
   url?: string | null;
   closed: boolean;
+
+  /* --- Microstructure metadata -----------------------------------------
+
+     Present on Polymarket. Optional because a second prediction provider
+     need not expose the same fields, and a missing tick size must read as
+     "unknown" rather than as a default that silently rounds a price to a
+     level the venue will reject. */
+
+  /** CLOB token id per outcome, positional with `outcomes`. */
+  tokenIds?: string[];
+  /** The on-chain condition id. What positions and the trade tape key on. */
+  conditionId?: string | null;
+  /** Minimum price increment. Every entry, target and stop must land on it. */
+  tickSize?: number | null;
+  minOrderSize?: number | null;
+  /**
+   * Part of a mutually exclusive outcome group.
+   *
+   * Load-bearing for cross-outcome probability maths: only a verified
+   * exclusive-and-exhaustive set may be normalised to sum to 1.
+   */
+  negRisk?: boolean | null;
+  negRiskGroupId?: string | null;
+  lastTradePrice?: number | null;
+  /** Probability POINT change, not percent — see the alert threshold note. */
+  change24hPoints?: number | null;
+  change1hPoints?: number | null;
+  /** The venue is currently matching orders. False means look, do not trade. */
+  acceptingOrders?: boolean | null;
 }
 
 /**
@@ -485,6 +515,18 @@ export interface PredictionOrderbook {
   /** Null when either side is empty — a one-sided book has no midpoint. */
   midpoint: number | null;
   spread: number | null;
+  /**
+   * MARKET-level last trade, NOT this outcome's.
+   *
+   * Verified live: both outcome books of a binary market carry the identical
+   * value — whichever outcome traded most recently, quoted in THAT outcome's
+   * terms. A YES book at 11/12 routinely reports 0.89 here because the last
+   * print was a NO buy.
+   *
+   * So it must never be read as a price for `tokenId`. Anything needing a
+   * per-outcome last trade filters the trade tape on the token id instead;
+   * `lib/prediction/basket.ts` does exactly that and ignores this field.
+   */
   lastTradePrice: number | null;
   minOrderSize: number | null;
   tickSize: number | null;
@@ -509,4 +551,27 @@ export interface MarketTicker {
   low24h: number | null;
   volume24hBase: number | null;
   volume24hQuote: number | null;
+}
+
+/* ---------------------------------------------------------------------------
+   Prediction market trades
+
+   A print, not a quote. `polymarketTrades` reads these from the Data API,
+   which is keyless; the CLOB's own /trades is authenticated and returns 401
+   without a key, so public trade tape comes from the Data API alone.
+--------------------------------------------------------------------------- */
+
+export interface PredictionTrade {
+  /** The CLOB token this traded, which is one OUTCOME of a market. */
+  tokenId: string;
+  marketId: string;
+  /** Taker direction as the venue reports it. */
+  side: "buy" | "sell";
+  /** Shares. */
+  size: number;
+  /** Price per share, 0–1. */
+  price: number;
+  at: string;
+  outcome: string | null;
+  txHash: string | null;
 }

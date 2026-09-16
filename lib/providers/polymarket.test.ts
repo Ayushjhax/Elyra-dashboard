@@ -352,3 +352,119 @@ describe("activity", () => {
     expect(new Date(result.data![0].at).getUTCFullYear()).toBeGreaterThan(2020);
   });
 });
+
+/* ---------------------------------------------------------------------------
+   Search
+--------------------------------------------------------------------------- */
+
+describe("polymarketSearch", () => {
+  it("queries /public-search rather than the ignored /markets?search=", async () => {
+    /* Gamma accepts `search=` on /markets, answers 200, and SILENTLY IGNORES
+       it — verified live: "bitcoin" and "election" both returned the same
+       top-volume Fed markets. Every text query therefore resolved to whatever
+       traded most, and the order book downstream was read, analysed and
+       captioned with the market the user actually named.
+
+       The URL is asserted because the failure is invisible in the response:
+       no error, no empty list, nothing to notice. */
+    fetchMock.mockResolvedValue(jsonResponse({ events: [] }));
+
+    const { polymarketSearch } = await import("@/lib/providers/polymarket");
+    await polymarketSearch("bitcoin", 3);
+
+    expect(fetchMock).toHaveBeenCalled();
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("/public-search");
+    expect(url).toContain("q=bitcoin");
+    expect(url).not.toContain("/markets?");
+  });
+
+  it("preserves the venue's relevance order across events", async () => {
+    /* Event order is relevance; volume ranks only WITHIN an event. Re-sorting
+       the flattened list by volume would hand back whatever trades most
+       anywhere, which is the bug this replaced. */
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        events: [
+          {
+            id: "1",
+            title: "Bitcoin above X?",
+            markets: [
+              {
+                id: "10",
+                question: "Bitcoin above 76k?",
+                outcomes: '["Yes","No"]',
+                outcomePrices: '["0.4","0.6"]',
+                volume24hr: "1000",
+              },
+              {
+                id: "11",
+                question: "Bitcoin above 80k?",
+                outcomes: '["Yes","No"]',
+                outcomePrices: '["0.2","0.8"]',
+                volume24hr: "5000",
+              },
+            ],
+          },
+          {
+            id: "2",
+            title: "Fed decision",
+            markets: [
+              {
+                id: "20",
+                question: "No change in Fed rates?",
+                outcomes: '["Yes","No"]',
+                outcomePrices: '["0.1","0.9"]',
+                /* Far busier, and from a LESS relevant event. */
+                volume24hr: "9000000",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const { polymarketSearch } = await import("@/lib/providers/polymarket");
+    const result = await polymarketSearch("bitcoin", 5);
+
+    /* Busiest market of the most relevant event leads. */
+    expect(result.data?.[0].question).toBe("Bitcoin above 80k?");
+    expect(result.data?.[1].question).toBe("Bitcoin above 76k?");
+    /* The nine-million-dollar Fed market comes last, not first. */
+    expect(result.data?.[2].question).toBe("No change in Fed rates?");
+  });
+
+  it("drops closed markets from results", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        events: [
+          {
+            id: "1",
+            title: "Event",
+            markets: [
+              {
+                id: "10",
+                question: "Settled already?",
+                outcomes: '["Yes","No"]',
+                outcomePrices: '["1","0"]',
+                closed: true,
+              },
+              {
+                id: "11",
+                question: "Still open?",
+                outcomes: '["Yes","No"]',
+                outcomePrices: '["0.5","0.5"]',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const { polymarketSearch } = await import("@/lib/providers/polymarket");
+    const result = await polymarketSearch("anything", 5);
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data?.[0].question).toBe("Still open?");
+  });
+});

@@ -13,6 +13,7 @@ import {
   PieChart,
   Sparkles,
   Wallet,
+  FileSearch,
   type LucideIcon,
 } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
@@ -48,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/personalized", label: "Personalized", icon: Sparkles },
   { href: "/assets", label: "Assets", icon: Coins },
   { href: "/agent", label: "Agent", icon: Bot },
+  { href: "/research", label: "Research", icon: FileSearch },
   { href: "/referrals", label: "Referrals", icon: Gift },
 ];
 

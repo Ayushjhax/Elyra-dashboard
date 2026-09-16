@@ -29,11 +29,35 @@ import {
   watchView,
 } from "@/lib/telegram/actions-views";
 import { notificationPreferences } from "@/lib/telegram/notifications";
+import { parseResearchIntent } from "@/lib/research/intent";
+import {
+  backtestMenu,
+  handleBacktestCallback,
+  isBacktestCallback,
+  runView as backtestRunView,
+} from "@/lib/telegram/backtest-views";
+import {
+  handleResearchCallback,
+  isResearchCallback,
+  recapView,
+  signalsView,
+  unlocksView,
+  yieldView,
+} from "@/lib/telegram/research-views";
+import { createReport, runReport, signedPdfUrl } from "@/lib/research/store";
+import { appUrl as researchAppUrl } from "@/lib/env";
 import {
   handlePredictionCallback,
   isPredictionCallback,
   predictionHome,
 } from "@/lib/telegram/prediction";
+import {
+  handleSignalCallback,
+  isSignalCallback,
+  predictionBasket,
+  predictionOrderbook,
+  predictionSignal,
+} from "@/lib/telegram/prediction-signals";
 import {
   activityView,
   defiView,
@@ -68,6 +92,13 @@ const HELP = [
   "<b>/alert</b> SOL &gt; 120 — tell me when it crosses",
   "<b>/alerts</b> — what Elyra sends you",
   "<b>/watch</b> [add|remove] &lt;symbol&gt; — your watchlist, priced",
+  "<b>/research</b> — filings, recap, signals, yield, unlocks",
+  "<b>/report</b> NVDA — a sourced company report with PDF",
+  "<b>/recap</b> — what moved",
+  "<b>/signals</b> &lt;symbol&gt; — evidence-backed observations",
+  "<b>/yield</b> — Kamino vault rates",
+  "<b>/unlocks</b> — upcoming token unlocks",
+  "<b>/backtest</b> SOL rsi 12 1h 1y — historical strategy simulation",
   "<b>/predictions</b> — prediction markets and your exposure",
   "<b>/orders</b> — resting orders on Hyperliquid",
   "<b>/activity</b> — recent fills, with realised PnL",
@@ -164,6 +195,113 @@ async function alertsSummary(input: CommandInput): Promise<string> {
     "",
     `Change these in Elyra: ${escapeText(appUrl())}`,
   ].join("\n");
+}
+
+/**
+ * Kicks off a company report and answers immediately.
+ *
+ * The pipeline runs in `after()`, and the result arrives as a second message
+ * rather than by editing the first — a report that took eight seconds and
+ * silently replaced an earlier line is easy to miss in a busy chat.
+ */
+async function startCompanyReport(
+  input: CommandInput,
+  query: string,
+  typed: string,
+): Promise<CommandReply> {
+  const reportId = await createReport({
+    userId: input.userId,
+    query: typed,
+    kind: "earnings",
+  });
+
+  if (reportId === null) {
+    return { chunks: ["Could not start that report. Nothing was changed."] };
+  }
+
+  const { after } = await import("next/server");
+  const { sendChunks: send, sendMessageWithButtons: sendButtons } = await import(
+    "@/lib/telegram/api"
+  );
+
+  after(async () => {
+    try {
+      const outcome = await runReport({
+        reportId,
+        userId: input.userId,
+        query,
+      });
+
+      if (!outcome.ok || outcome.document === undefined) {
+        await send(input.chatId, [
+          `<b>Report failed</b>\n\n${escapeText(outcome.error ?? "Unknown error.")}`,
+        ]);
+        return;
+      }
+
+      const document = outcome.document;
+      const QUALITY = {
+        verified: "Verified",
+        verified_with_warnings: "Verified with warnings",
+        incomplete: "Incomplete",
+      } as const;
+
+      const lines = [
+        `<b>${escapeText(document.title)}</b>`,
+        "",
+        `Period · ${escapeText(document.period?.label ?? "—")}`,
+        `Quality · ${QUALITY[document.quality.level]}`,
+        `Sources · ${document.sources.length}`,
+        "",
+        escapeText(outcome.headline ?? ""),
+      ];
+
+      /* The headline figures, so the message is useful without opening
+         anything. */
+      const scorecard = document.sections.find((section) => section.id === "scorecard");
+      const metrics =
+        scorecard?.blocks.find((block) => block.kind === "metrics")?.metrics ?? [];
+      if (metrics.length > 0) {
+        lines.push("");
+        for (const metric of metrics.slice(0, 5)) {
+          if (metric.raw === null) continue;
+          lines.push(
+            `${escapeText(metric.label)}: <b>${escapeText(metric.value)}</b>` +
+              (metric.change === null || metric.change === undefined
+                ? ""
+                : ` (${escapeText(metric.change)})`),
+          );
+        }
+      }
+
+      if (document.quality.omissions.length > 0) {
+        lines.push("", `<i>${escapeText(document.quality.omissions[0])}</i>`);
+      }
+
+      /* The download link is per-user and expires. It is generated here
+         rather than stored, so a forwarded message cannot be replayed. */
+      const pdf = await signedPdfUrl(reportId, input.userId);
+      const base = researchAppUrl();
+
+      await sendButtons(input.chatId, lines.join("\n"), [
+        [{ text: "Open report", url: `${base}/research/${reportId}` }],
+        ...(pdf === null ? [] : [[{ text: "Download PDF", url: pdf }]]),
+      ]);
+    } catch (error) {
+      console.error("[telegram] report job failed", error);
+      await send(input.chatId, [
+        "The report failed to generate. Nothing was changed.",
+      ]).catch(() => undefined);
+    }
+  });
+
+  return {
+    chunks: [
+      `<b>Researching ${escapeText(typed)}…</b>\n\n` +
+        "Reading SEC filings and XBRL facts. I will send the report here when " +
+        "it is ready — usually a few seconds.",
+    ],
+  };
 }
 
 /** The verified identity, in the shape every tool expects. */
@@ -349,6 +487,120 @@ export async function handleCommand(input: CommandInput): Promise<CommandReply |
       return { chunks: formatChunks(view.html), buttons: view.buttons };
     }
 
+    case "backtest": {
+      /* Private chat only: results are tied to the caller's account and the
+         same gate applies as to any other personal financial surface. */
+      if (input.chatId !== input.telegramUserId) {
+        return ["Backtests are only available in a private chat."];
+      }
+
+      if (argument.trim().length === 0) {
+        const menu = backtestMenu();
+        return { chunks: formatChunks(menu.html), buttons: menu.buttons };
+      }
+
+      const view = await backtestRunView({ userId: input.userId, text: argument });
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
+
+    case "recap": {
+      const view = await recapView(
+        /^equit/i.test(argument) ? "equities" : "crypto",
+      );
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
+
+    case "signals":
+    case "signal": {
+      /* Two signal engines share this verb. A prediction request is routed by
+         an explicit scope word rather than by guessing from the argument: a
+         bare "/signal fed" is ambiguous between a token and a market, and
+         answering the wrong one silently is worse than asking. */
+      const prediction = /^(?:prediction|pm|poly(?:market)?)\b/i.exec(argument);
+      if (prediction !== null) {
+        const query = argument.slice(prediction[0].length).trim();
+        if (query.length === 0) {
+          return [
+            "Name the market — for example <code>/signal prediction fed september</code>.",
+          ];
+        }
+        const view = await predictionSignal(toolContext(input), query);
+        return { chunks: formatChunks(view.html), buttons: view.buttons };
+      }
+
+      const view = await signalsView(
+        argument.length > 0 ? normaliseSymbol(argument) : "SOL",
+      );
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
+
+    case "book":
+    case "orderbook": {
+      if (argument.trim().length === 0) {
+        return ["Name a market — for example <code>/orderbook fed september</code>."];
+      }
+      const view = await predictionOrderbook(argument.trim());
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
+
+    case "basket":
+    case "fair": {
+      if (argument.trim().length === 0) {
+        return ["Name a market — for example <code>/basket fed september</code>."];
+      }
+      const view = await predictionBasket(argument.trim());
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
+
+    case "yield":
+    case "yields": {
+      const view = await yieldView(
+        argument.length > 0 ? normaliseSymbol(argument) : null,
+      );
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
+
+    case "unlocks":
+    case "unlock": {
+      const hours = /30d|month/i.test(argument)
+        ? 720
+        : /24h|today|tomorrow/i.test(argument)
+          ? 24
+          : 168;
+      const token = /^[A-Za-z]{2,10}$/.test(argument.trim())
+        ? normaliseSymbol(argument)
+        : null;
+      const view = await unlocksView(hours, token);
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
+
+    case "research": {
+      /* One entry point, so the BotFather list stays short. The individual
+         commands still work for anyone who knows them. */
+      return {
+        chunks: [
+          [
+            "<b>Elyra Research</b>",
+            "",
+            "Filings, markets, signals, yields and event intelligence.",
+            "",
+            "<b>/report</b> NVDA — a sourced company report with PDF",
+            "<b>/recap</b> — what moved",
+            "<b>/signals</b> SOL — evidence-backed observations",
+            "<b>/yield</b> — Kamino vault rates",
+            "<b>/unlocks</b> — upcoming token unlocks",
+          ].join("\n"),
+        ],
+        buttons: [
+          [
+            { text: "Recap", callbackData: "rs:recap:crypto" },
+            { text: "Yield", callbackData: "rs:yield:all" },
+          ],
+          [{ text: "Unlocks", callbackData: "rs:unlocks:168" }],
+        ],
+      };
+    }
+
     case "alerts":
       return [await alertsSummary(input)];
 
@@ -387,6 +639,32 @@ export async function handleCommand(input: CommandInput): Promise<CommandReply |
 
     default:
       break;
+  }
+
+  /* ---- Company research ----
+
+     Runs in the background and updates one message. A full report is several
+     SEC round trips plus a PDF render — far longer than Telegram's webhook
+     patience, and a webhook that does not answer fast gets retried, which
+     would generate the report twice. */
+  if (command === "report") {
+    const argument2 = argument.trim();
+    if (argument2.length === 0) {
+      return [
+        "<b>Company research</b>\n\n" +
+          "<code>/report NVDA</code> — latest earnings\n" +
+          "<code>/report MSFT 10-K</code> — annual report\n\n" +
+          "Built from SEC filings and XBRL. Takes a few seconds.",
+      ];
+    }
+
+    /* The old tool-loop `/report <symbol>` wrote a market note about a crypto
+       asset. A crypto symbol still means that; a company means the new
+       pipeline. Routed on what the parser actually recognised. */
+    const task = parseResearchIntent(`${argument2} report`);
+    if (task.subject.kind === "registrant") {
+      return startCompanyReport(input, task.subject.query, argument2);
+    }
   }
 
   /* ---- Everything else goes to the agent ----
@@ -536,6 +814,34 @@ export async function handleCallback(input: {
   /* Prediction navigation is read-only and owns the `pm:` prefix. Routed
      before the prepared-action path so a browse tap never touches the action
      store. */
+  /* Research navigation is read-only and public data — no identity needed
+     beyond the linked account the webhook already resolved. */
+  if (isBacktestCallback(input.data)) {
+    const view = await handleBacktestCallback(input.userId, input.data);
+    return { chunks: formatChunks(view.html), buttons: view.buttons };
+  }
+
+  if (isResearchCallback(input.data)) {
+    const view = await handleResearchCallback(input.data);
+    return { chunks: formatChunks(view.html), buttons: view.buttons };
+  }
+
+  /* The two prefixes are disjoint — "pm:" carries its colon, so "pms:" does
+     not match it — but the more specific one is still checked first, so that
+     a future "pm" prefix cannot silently swallow these. */
+  if (isSignalCallback(input.data)) {
+    const view = await handleSignalCallback(
+      {
+        userId: input.userId,
+        sessionWallet: input.sessionWallet ?? null,
+        solanaAddress: input.solanaAddress ?? null,
+        polymarketAddress: input.polymarketAddress ?? null,
+      },
+      input.data,
+    );
+    return { chunks: formatChunks(view.html), buttons: view.buttons };
+  }
+
   if (isPredictionCallback(input.data)) {
     const view = await handlePredictionCallback(
       {

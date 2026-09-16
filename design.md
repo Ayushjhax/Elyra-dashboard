@@ -1,115 +1,129 @@
-# design.md — Elyra Unified Agent + Telegram Capital OS
+# Elyra Prediction Market Intelligence
+## Polymarket real-time data, order books, probability baskets, technical signals, alerts, Agent + Telegram
 
-## 0. Document purpose
+## 0. Scope
 
-This document specifies the full product and engineering architecture for extending **Elyra** into one unified, personalized capital intelligence system across:
+Build Prediction Markets as a first-class Elyra capability across:
 
-1. the existing Elyra web dashboard;
-2. the existing Personalized / Agent experience;
-3. a new Telegram bot;
-4. a Telegram Mini App;
-5. a shared portfolio, wallet, memory, alerts, provider-data, and execution backend.
+- Elyra Agent / Personalized
+- Research
+- Telegram bot
+- Telegram Mini App
+- Signal Engine
+- NotificationService
+- Backtesting Engine
 
-The implementation must connect and normalize data from:
+Primary Phase-1 provider: **Polymarket**.
 
-- Jupiter
-- Birdeye
-- Kamino
-- Raydium
-- DFlow
-- Hyperliquid
-- Polymarket
-- Binance public market data
+The system must use live Polymarket market data and order books, calculate deterministic order-book analytics and a probability basket, generate backtested technical signals, and surface the same data in the web Agent and Telegram.
 
-It must continue using:
+A prediction signal may contain:
 
-- Privy for Elyra identity and wallet ownership;
-- Claude and Gemini for agent reasoning;
-- Elyra's existing Portfolio and Assets infrastructure wherever it exists;
-- preview → explicit confirmation → execution for all money-moving actions.
+```text
+Direction
+Entry
+Target
+Stop / Invalidation
+Risk / Reward
+Historical Win Rate
+Sample Size
+Order-book evidence
+Probability Basket
+Liquidity
+Spread
+Freshness
+Warnings
+```
 
-### Product principle
+No numeric signal field may be invented by Claude or Gemini.
 
-**There is one Elyra user, one identity graph, one portfolio, one memory system, one agent runtime, and one execution layer. Web and Telegram are only different clients.**
+Claude/Gemini may explain deterministic tool results, but they cannot manufacture entry, target, stop, win rate, order-book imbalance, fair probability, or liquidity metrics.
 
-Do not build a separate Telegram wallet database, separate Telegram portfolio, or separate Telegram AI agent.
+A signal does **not** authorize a Polymarket order. Trading remains a separate PreparedAction → confirmation → authenticated execution flow.
+
+For political prediction markets, keep the analytical layer neutral: report observable contract prices, order-book dynamics, historical signal behavior, and sourced public information. Do not turn Elyra's own political opinion into signal evidence or independent election-outcome advocacy.
 
 ---
 
-# 1. Immediate credential rule
+# 1. Product placement
 
-A Jupiter credential has been shared outside the intended secret store during development.
+Recommended Research navigation:
 
-The implementation must:
-
-- never copy that literal credential into source code;
-- never place it in this document;
-- never place it in tests, screenshots, logs, prompts, analytics, or README files;
-- read Jupiter credentials only from `.env.local` / production secret storage;
-- support rotating the credential without code changes.
-
-Before production, rotate any credential that was exposed outside the intended secrets manager.
-
-Expected server-only variables:
-
-```env
-JUPITER_API_KEY=
-BIRDEYE_API_KEY=
-
-ANTHROPIC_API_KEY=
-GEMINI_API_KEY=
-
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_BOT_USERNAME=
-TELEGRAM_WEBHOOK_SECRET=
-APP_URL=https://try.getelyra.xyz
+```text
+Research
+├── Reports
+├── Market Recap
+├── Signals
+├── Backtests
+├── Prediction Markets
+├── Yield
+└── Unlocks
 ```
 
-Optional later:
+Suggested route:
 
-```env
-DFLOW_API_KEY=
-BINANCE_API_KEY=
-BINANCE_API_SECRET=
-POLYMARKET_API_KEY=
-POLYMARKET_API_SECRET=
-POLYMARKET_API_PASSPHRASE=
+```text
+/research/prediction-markets
 ```
 
-Never use `NEXT_PUBLIC_` for any secret.
+Telegram:
+
+```text
+/predictions
+/signals
+/alerts
+```
+
+Natural language remains primary.
 
 ---
 
-# 2. Elyra brand system
+# 2. Core user journeys
 
-All new dashboard UI and Telegram Mini App UI must preserve the supplied Elyra brand.
+User can ask:
 
-## Typography
+```text
+Read the Polymarket order book for this market.
+```
 
-Primary: **Fustat**
+```text
+Give me direction, entry, target, stop and win rate.
+```
 
-Use for:
-- headings;
-- financial values;
-- tabs;
-- buttons;
-- navigation;
-- card titles;
-- important labels.
+```text
+What is Elyra's probability basket for this market?
+```
 
-Secondary: **General Sans**
+```text
+Show prediction markets with strong bid imbalance.
+```
 
-Use for:
-- conversation body;
-- metadata;
-- timestamps;
-- descriptions;
-- helper text;
-- source labels.
+```text
+Alert me if YES breaks 65¢ with strong book support.
+```
 
-Use tabular numerals for prices, balances, PnL, and percentages.
+```text
+Show my prediction positions and estimate exit liquidity.
+```
 
-## Palette
+```text
+Compare the live market price with the basket probability.
+```
+
+Same questions must work in Telegram.
+
+---
+
+# 3. Brand
+
+Use current Elyra brand.
+
+Typography:
+- Fustat primary
+- General Sans secondary
+- tabular numerals for all market values
+
+Palette:
 
 ```text
 Elyra Green   #2E5129
@@ -132,2883 +146,2465 @@ Ink           #15170F
 Clay          #C4633A
 ```
 
-Recommended semantic tokens:
-
-```css
---elyra-bg: #050704;
---elyra-panel: #090c08;
---elyra-panel-raised: #0d110c;
---elyra-panel-soft: #11160f;
-
---elyra-border: rgba(168,180,78,.18);
---elyra-border-strong: rgba(228,235,157,.30);
-
---elyra-text: #F7F8EA;
---elyra-text-secondary: #B8BAA8;
---elyra-text-muted: #6f7467;
-
---elyra-positive: #7A9E70;
---elyra-accent: #E4EB9D;
---elyra-negative: #C4633A;
-```
-
-Design character:
-- near-black;
-- institutional;
-- compact;
-- data-dense;
-- restrained lime;
-- thin olive borders;
-- no generic blue/purple AI gradients;
-- no consumer-bank rainbow cards;
-- no permanent neon glow;
-- no large glassmorphism panels.
+Do not copy Polymarket's visual theme.
 
 ---
 
-# 3. User experience vision
-
-A user should be able to ask Elyra from either web or Telegram:
+# 4. High-level architecture
 
 ```text
-What should I care about today?
+Polymarket Official APIs / SDK / WebSocket
+                  │
+                  ▼
+         PolymarketProvider
+                  │
+      ┌───────────┼──────────────┐
+      │           │              │
+      ▼           ▼              ▼
+ Market       Order Books     User Data
+ Discovery    + Trades        Positions/Orders
+      │           │              │
+      └───────────┴──────┬───────┘
+                         ▼
+            PredictionMarketStateService
+                         │
+          ┌──────────────┼────────────────┐
+          ▼              ▼                ▼
+ OrderBookAnalytics  ProbabilityBasket  Historical Data
+          │              │                │
+          └──────────────┼────────────────┘
+                         ▼
+              PredictionSignalEngine
+                         │
+           ┌─────────────┴────────────┐
+           ▼                          ▼
+ Prediction Backtests          Prediction Alerts
+           │                          │
+           └─────────────┬────────────┘
+                         ▼
+                 Signal Snapshot
+                         │
+                   ┌─────┴─────┐
+                   ▼           ▼
+                 Agent      Telegram
 ```
 
-and Elyra should understand:
-
-- current Privy wallet;
-- wallet balances;
-- portfolio equity;
-- asset allocation;
-- Hyperliquid exposure;
-- Kamino positions;
-- Raydium LP/owner positions;
-- Polymarket exposure;
-- current orders;
-- recent activity;
-- market prices;
-- user risk preferences;
-- past conversation;
-- alerts;
-- capital available to deploy.
-
-The user should not need to specify which API to query.
-
-For example:
-
-```text
-How much SOL do I own?
-```
-
-should return separate concepts:
-
-```text
-Direct SOL holdings
-SOL collateral
-SOL-related LP exposure
-SOL perpetual notional
-Net directional exposure (only if correctly calculable)
-```
-
-Do not mathematically combine 10 SOL spot with a $1,000 SOL perpetual as though both are token balances.
+Telegram must not implement its own signal math.
 
 ---
 
-# 4. Product boundaries
+# 5. Official Polymarket integration
 
-## Portfolio
+Before implementing endpoints, inspect current official Polymarket documentation:
 
-Portfolio answers:
-- how much capital do I have?
-- how has it performed?
-- how is it allocated?
-- what drove PnL?
+```text
+https://docs.polymarket.com/llms.txt
+```
 
-## Assets
+Follow current official documentation/specs for:
 
-Assets answers:
-- where are funds held?
-- what balances do I have?
-- what accounts/venues exist?
-- what positions/orders/history exist?
-- what can I deposit/swap/transfer/withdraw?
+- market discovery
+- market details
+- prices and order books
+- public analytics
+- real-time market feeds
+- wallet activity
+- positions
+- open orders
+- order lifecycle
+- authenticated order updates
+- OpenAPI specs
+- AsyncAPI specs
 
-## Personalized / Agent
-
-Agent answers:
-- what matters for me?
-- what changed?
-- how does this market move affect my capital?
-- where is my risk?
-- what actions could I take?
-- what do my preferences imply?
-
-## Telegram
-
-Telegram is a channel into the same Personalized / Agent system.
-
-It does not own separate business logic.
+Do not implement endpoint paths from memory if official schemas changed.
 
 ---
 
-# 5. High-level architecture
+# 6. PolymarketProvider
+
+Create or extend:
 
 ```text
-                   ┌───────────────────────────┐
-                   │     Elyra Dashboard       │
-                   │ Portfolio / Assets / AI   │
-                   └─────────────┬─────────────┘
-                                 │
-                                 │ Privy authenticated user
-                                 ▼
-                  ┌────────────────────────────┐
-                  │      Elyra API / BFF       │
-                  │ Auth + domain boundaries   │
-                  └─────────────┬──────────────┘
-                                │
-          ┌─────────────────────┼─────────────────────────┐
-          │                     │                         │
-          ▼                     ▼                         ▼
-┌───────────────────┐  ┌────────────────────┐  ┌────────────────────┐
-│ Personalized      │  │ Portfolio          │  │ Action / Execution │
-│ Agent Runtime     │  │ Aggregation        │  │ Orchestrator       │
-│ Claude + Gemini   │  │ Service            │  │                    │
-└─────────┬─────────┘  └─────────┬──────────┘  └─────────┬──────────┘
-          │                      │                       │
-          └──────────────┬───────┴───────────────┬───────┘
-                         │                       │
-                         ▼                       ▼
-             ┌────────────────────┐      ┌──────────────────┐
-             │ Provider Adapters  │      │ Privy / Signers  │
-             └──────────┬─────────┘      └──────────────────┘
-                        │
-  ┌─────────┬───────────┼────────┬─────────┬────────────┬───────────┐
-  ▼         ▼           ▼        ▼         ▼            ▼           ▼
-Jupiter  Birdeye     Kamino   Raydium    DFlow    Hyperliquid  Polymarket
-                                                                  │
-                                                                  ▼
-                                                               Binance
-
-
-                   ┌───────────────────────────┐
-                   │       Telegram Bot        │
-                   │ webhook + commands + AI   │
-                   └─────────────┬─────────────┘
-                                 │
-                        Telegram numeric user ID
-                                 │
-                                 ▼
-                   ┌───────────────────────────┐
-                   │ Privy user resolution     │
-                   └─────────────┬─────────────┘
-                                 │
-                                 └── same services above
-```
-
----
-
-# 6. The most important engineering rule: semantic Elyra tools
-
-Claude and Gemini must not receive a giant list of vendor-specific endpoints.
-
-Bad tool design:
-
-```text
-birdeye_wallet_v2_net_worth
-jup_swap_v2_order
-raydium_owner_v1_x
-hyperliquid_clearinghouse_state
-kamino_endpoint_42
-```
-
-Preferred domain tools:
-
-```text
-portfolio.get_summary
-portfolio.get_changes
-portfolio.get_allocation
-portfolio.get_asset_exposure
-
-wallet.get_balances
-wallet.get_activity
-
-market.get_asset_snapshot
-market.get_prices
-market.get_candles
-market.get_orderbook
-
-perps.get_positions
-perps.get_orders
-perps.get_funding
-
-defi.get_positions
-defi.get_protocol_summary
-defi.get_yields
-
-prediction.search_markets
-prediction.get_market
-prediction.get_positions
-
-trading.prepare_swap
-trading.prepare_transfer
-trading.prepare_perp_order
-trading.prepare_position_close
-trading.prepare_order_cancel
-trading.prepare_prediction_order
-```
-
-A deterministic provider router chooses the correct upstream API.
-
-This protects the agent from provider API churn and keeps prompts small.
-
----
-
-# 7. Provider abstraction
-
-Create a server-side normalized provider layer.
-
-Conceptual providers:
-
-```text
-JupiterProvider
-BirdeyeProvider
-KaminoProvider
-RaydiumProvider
-DFlowProvider
-HyperliquidProvider
 PolymarketProvider
-BinanceProvider
 ```
 
-Conceptual interfaces:
+Required conceptual methods:
 
 ```ts
-interface ProviderAdapter {
-  id: ProviderId;
-  capabilities: ProviderCapability[];
-  health(): Promise<ProviderHealth>;
-}
+searchMarkets()
+getMarket()
+getMarketPrices()
+getOrderBook()
+getRecentTrades()
+getPositions()
+getOpenOrders()
+getActivity()
 
-interface PriceProvider {
-  getPrice(input: PriceRequest): Promise<PriceResult>;
-}
-
-interface WalletPortfolioProvider {
-  getWalletPortfolio(input: WalletPortfolioRequest): Promise<WalletPortfolioResult>;
-}
-
-interface MarketDataProvider {
-  getSnapshot(input: MarketSnapshotRequest): Promise<MarketSnapshot>;
-  getCandles(input: CandleRequest): Promise<Candle[]>;
-  getOrderBook?(input: OrderBookRequest): Promise<OrderBook>;
-}
-
-interface PositionProvider {
-  getPositions(input: PositionRequest): Promise<UnifiedPosition[]>;
-}
-
-interface TradingProvider {
-  prepare(input: TradingActionRequest): Promise<PreparedProviderAction>;
-}
+subscribeMarket()
+subscribeOrderBook()
+subscribeTrades()
 ```
 
-Provider adapters must be:
-- server-only;
-- typed;
-- timeout-aware;
-- rate-limit-aware;
-- response-validated;
-- testable with mocks;
-- free of UI logic;
-- free of LLM logic.
+Use official SDK/API where practical.
 
 ---
 
-# 8. Standard provider/tool response envelope
+# 7. Canonical market model
 
 ```ts
-type ToolResult<T> = {
-  ok: boolean;
-  data?: T;
+type PredictionMarket = {
+  id: string
+  provider: 'polymarket'
+  eventId?: string
 
-  provider: string | string[];
-  asOf: string;
+  question: string
+  description?: string
 
-  stale?: boolean;
-  partial?: boolean;
-  warnings?: string[];
+  category?: string
+  tags?: string[]
 
-  error?: {
-    code:
-      | 'AUTH'
-      | 'RATE_LIMIT'
-      | 'UPSTREAM_TIMEOUT'
-      | 'UPSTREAM_UNAVAILABLE'
-      | 'NOT_FOUND'
-      | 'INVALID_REQUEST'
-      | 'UNSUPPORTED'
-      | 'STALE_DATA';
+  outcomes: Array<{
+    id: string
+    label: string
+    tokenId?: string
+  }>
 
-    message: string;
-    retryable: boolean;
-  };
-};
-```
+  status: 'open' | 'closed' | 'resolved' | 'cancelled'
 
-Do not silently convert a failed protocol into a zero-dollar balance.
+  startsAt?: string
+  endsAt?: string
+  resolvedAt?: string
 
-If Kamino fails, the unified result should be marked partial.
+  volumeUsd?: number
+  liquidityUsd?: number
 
----
+  resolutionSource?: string
+  marketUrl?: string
 
-# 9. Provider capability matrix
-
-| Provider | Main role | Public reads | Personal positions | Execution | Secret requirement |
-|---|---|---:|---:|---:|---|
-| Jupiter | Solana pricing + swap routing | yes | indirect wallet context | swap | configured API key |
-| Birdeye | Solana wallet/token analytics | API-key read | wallet balances/net worth | no primary execution | API key |
-| Kamino | lending, borrow, liquidity, holdings | yes | yes | unsigned tx/action surfaces | public read |
-| Raydium | pools + owner positions | yes | Owner API | transaction API/SDK | mostly public read |
-| DFlow | quote/orderbook/routing | dev public | execution context | swaps/orders | prod key |
-| Hyperliquid | spot/perps + user account | yes | by wallet | signed exchange actions | public reads |
-| Polymarket | markets + CLOB + user positions | yes | wallet/account data | authenticated CLOB | public reads; auth to trade |
-| Binance | CEX market data | yes | requires private API connection | signed private API | private account key/secret |
-
-### Critical distinction
-
-“Open API” means public market/read data may be accessible.
-
-It does **not** mean Elyra can read a user's private Binance account without that user's authenticated API connection.
-
----
-
-# 10. Jupiter
-
-Use the existing `.env.local` Jupiter key.
-
-Never copy a literal key into code.
-
-Current server gateway:
-
-```text
-https://api.jup.ag
-```
-
-Primary swap architecture should use current **Swap API V2** where compatible.
-
-Conceptual execution:
-
-```text
-GET  /swap/v2/order
-POST /swap/v2/execute
-```
-
-Authentication:
-
-```http
-x-api-key: ${JUPITER_API_KEY}
-```
-
-Elyra tools:
-
-```text
-market.get_solana_price
-trading.get_swap_quote
-trading.prepare_swap
-```
-
-Action flow:
-
-```text
-user intent
-→ resolve token mints
-→ validate balance
-→ fetch order/quote
-→ inspect expected output
-→ inspect price impact
-→ inspect fees
-→ create PreparedAction
-→ explicit user confirmation
-→ wallet authorization/signing
-→ execute
-→ verify
-→ ledger entry
-```
-
-LLMs must never submit Jupiter transaction payloads directly.
-
----
-
-# 11. Birdeye
-
-Use the Birdeye environment key already in the project.
-
-Do not rename it if a working variable already exists.
-
-Read capabilities should include, where plan permits:
-
-- Solana wallet token balances;
-- current wallet net worth;
-- historical wallet net worth;
-- token prices;
-- token metadata;
-- market data;
-- OHLCV;
-- wallet analytics;
-- smart-money data if enabled.
-
-Typical request headers:
-
-```http
-X-API-KEY: ...
-x-chain: solana
-```
-
-High-value agent questions:
-
-```text
-What changed in my wallet today?
-What assets are driving my wallet value?
-How much is this wallet worth?
-What did my wallet look like yesterday?
-```
-
-Historical wallet data should be cached/snapshotted rather than fetched on every prompt.
-
----
-
-# 12. Kamino
-
-Base:
-
-```text
-https://api.kamino.finance
-```
-
-Use its live official OpenAPI schema during implementation.
-
-Do not guess endpoint paths from memory.
-
-Relevant product surfaces:
-
-- Lend;
-- Borrow;
-- Swap;
-- Multiply;
-- Liquidity;
-- Leverage;
-- User Holdings;
-- protocol data/utilities;
-- unsigned transactions.
-
-Initial semantic tools:
-
-```text
-defi.get_kamino_positions
-defi.get_kamino_health
-defi.get_kamino_yields
-```
-
-Normalized position:
-
-```ts
-{
-  protocol: 'kamino',
-  category: 'lend' | 'borrow' | 'liquidity' | 'multiply' | 'leverage',
-  asset: string,
-  suppliedUsd?: number,
-  borrowedUsd?: number,
-  netValueUsd?: number,
-  apyPct?: number,
-  aprPct?: number,
-  healthFactor?: number,
-  rewards?: unknown[],
-  asOf: string
+  updatedAt: string
 }
 ```
 
-Never fabricate a health factor.
-
-Read-side integration should ship before transaction execution.
-
 ---
 
-# 13. Raydium
-
-Relevant current services:
-
-```text
-API v3:
-https://api-v3.raydium.io
-
-Transaction API:
-https://transaction-v1.raydium.io
-
-Owner API:
-https://owner-v1.raydium.io
-```
-
-Use:
-
-- API v3 for pools/mints/configs/chain information;
-- Owner API for per-wallet positions, balances, claimable rewards;
-- Transaction API or existing SDK for prepared actions if intentionally supported.
-
-Semantic tools:
-
-```text
-market.get_raydium_pool
-market.get_raydium_liquidity
-defi.get_raydium_positions
-defi.get_raydium_rewards
-```
-
-Do not implement unrelated LaunchLab forum authentication just because it appears in Raydium docs.
-
----
-
-# 14. DFlow
-
-Developer endpoints:
-
-```text
-https://dev-quote-api.dflow.net
-wss://dev-quote-api.dflow.net
-```
-
-Production endpoints:
-
-```text
-https://quote-api.dflow.net
-wss://quote-api.dflow.net
-```
-
-WebSocket paths:
-
-```text
-/quote-stream
-/book-stream
-/priority-fees/stream
-```
-
-Dev is keyless but testing/rate-limited.
-
-Production uses:
-
-```http
-x-api-key: ${DFLOW_API_KEY}
-```
-
-when a production key is configured.
-
-Useful current surfaces include:
-
-```text
-GET  /quote
-POST /swap
-POST /swap-instructions
-GET  /order
-GET  /order-status
-GET  /tokens
-GET  /venues
-```
-
-Semantic tools:
-
-```text
-market.get_dflow_quote
-market.get_dflow_orderbook
-trading.prepare_dflow_swap
-```
-
-Default route policy:
-
-```text
-Jupiter = primary general Solana swap route
-DFlow = secondary quote/orderbook/routing source
-```
-
-The model should not randomly choose execution providers.
-
----
-
-# 15. Hyperliquid
-
-Mainnet:
-
-```text
-https://api.hyperliquid.xyz
-```
-
-Read account/exchange data through official info APIs.
-
-Use WebSockets where the current application can benefit from live streams.
-
-Normalized account data should cover:
+# 8. Live outcome state
 
 ```ts
-{
-  equityUsd?: number,
-  availableUsd?: number,
-  marginUsedUsd?: number,
-  positions: UnifiedPosition[],
-  openOrders: UnifiedOrder[],
-  funding: FundingRecord[],
-  asOf: string
+type PredictionOutcomeState = {
+  marketId: string
+  outcomeId: string
+  label: string
+
+  lastTradePrice?: number
+
+  bestBid?: number
+  bestAsk?: number
+
+  midpoint?: number
+  microprice?: number
+
+  spread?: number
+  spreadBps?: number
+
+  bidDepthUsd?: number
+  askDepthUsd?: number
+
+  timestamp: string
 }
 ```
 
-Semantic tools:
+Internal price domain:
 
 ```text
-perps.get_positions
-perps.get_orders
-perps.get_funding
-market.get_hyperliquid_book
-market.get_hyperliquid_prices
+0..1
 ```
 
-Prepared actions:
-
-```text
-trading.prepare_hyperliquid_order
-trading.prepare_hyperliquid_close
-trading.prepare_hyperliquid_cancel
-```
-
-Signing remains outside LLM control.
+Display may be cents or percent.
 
 ---
 
-# 16. Polymarket
+# 9. Order book model
 
-Public read capabilities:
+```ts
+type PredictionOrderBook = {
+  marketId: string
+  outcomeId: string
 
-- market discovery;
-- event/market details;
-- current prices;
-- orderbooks;
-- analytics;
-- live feeds;
-- wallet activity where available.
+  bids: Array<{ price: number; size: number; notional?: number }>
+  asks: Array<{ price: number; size: number; notional?: number }>
 
-User-specific capabilities:
+  bestBid?: number
+  bestAsk?: number
+  midpoint?: number
+  microprice?: number
+  spread?: number
 
-- positions;
-- activity;
-- order lifecycle;
-- authenticated CLOB trading when configured.
+  sequence?: string | number
 
-Semantic tools:
-
-```text
-prediction.search_markets
-prediction.get_market
-prediction.get_prices
-prediction.get_orderbook
-prediction.get_positions
-prediction.get_wallet_activity
+  timestamp: string
+  source: 'polymarket'
+}
 ```
 
-Future action tools:
-
-```text
-prediction.prepare_order
-prediction.prepare_close
-```
-
-Public market browsing must not depend on private CLOB credentials.
+Never reduce a market to only its last trade.
 
 ---
 
-# 17. Binance
+# 10. PredictionMarketStateService
 
-Phase 1 should use **public market data only**.
-
-Capabilities:
+Build:
 
 ```text
-ticker
-candles / klines
-orderbook
-exchange information
-recent trades
+PredictionMarketStateService
 ```
 
-Semantic tools:
+Responsibilities:
+
+1. initialize from official REST snapshot;
+2. connect to official real-time feed;
+3. update live price state;
+4. maintain outcome order books;
+5. maintain recent trades;
+6. detect stale feeds;
+7. reconnect with backoff;
+8. re-snapshot after reconnect;
+9. publish normalized internal events.
+
+State machine:
 
 ```text
-market.get_binance_ticker
-market.get_binance_candles
-market.get_binance_book
+disconnected
+→ connecting
+→ snapshot
+→ live
+→ stale
+→ reconnecting
+→ snapshot
+→ live
 ```
 
-Do not show a Binance personal balance unless a private Binance connection exists.
-
-Private Binance integration is a separate capability because account and trade endpoints require authenticated/signed requests.
-
-If added later:
-
-- encrypt user API secrets at rest;
-- implement read-only first;
-- do not request withdrawal permission;
-- encourage IP restrictions;
-- keep trading permission a separate explicit opt-in;
-- never expose credentials to browser or LLM.
+No actionable signal can be generated from a stale book.
 
 ---
 
-# 18. Data provider router
+# 11. PredictionSubscriptionManager
+
+Create/reuse:
+
+```text
+PredictionSubscriptionManager
+```
+
+Reference-count subscriptions used by:
+
+- open market page
+- Agent
+- active Telegram alert
+- user position
+- watchlist
+- signal discovery
+
+Do not open a separate upstream WebSocket connection for each user if shared subscriptions can be reused.
+
+---
+
+# 12. OrderBookAnalyticsService
 
 Create:
 
 ```text
-DataProviderRouter
+PredictionOrderBookAnalyticsService
 ```
 
-Capabilities:
-
-```ts
-type DataCapability =
-  | 'solana_price'
-  | 'wallet_balances'
-  | 'wallet_net_worth'
-  | 'historical_wallet_value'
-  | 'candles'
-  | 'orderbook'
-  | 'defi_positions'
-  | 'perp_positions'
-  | 'prediction_markets'
-  | 'swap_quote';
-```
-
-Suggested routing:
+Calculate deterministically:
 
 ```text
-Solana wallet balances
-  → existing wallet service / Birdeye
+best bid
+best ask
+midpoint
+spread
+spread bps
+microprice
 
-Solana prices
-  → Jupiter
-  → Birdeye fallback
+top-1 bid depth
+top-1 ask depth
+top-5 bid depth
+top-5 ask depth
+top-10 depth
 
-Historical wallet value
-  → stored Elyra snapshots
-  → Birdeye as source/fallback
+depth within 1¢
+depth within 2¢
 
-Kamino positions
-  → Kamino
+normalized order-book imbalance
+weighted imbalance
 
-Raydium owner positions
-  → Raydium Owner API
+persistent bid walls
+persistent ask walls
+support zones
+resistance zones
 
-Hyperliquid
-  → Hyperliquid
-
-Prediction markets
-  → Polymarket
-
-CEX candles
-  → Binance
-
-Solana orderbook / secondary execution data
-  → DFlow
+book slope
+liquidity vacuum
 ```
-
-Provider fallback should be deterministic and logged.
 
 ---
 
-# 19. Cross-source quality
+# 13. Order-book imbalance
 
-For current critical prices, the backend may compare multiple feeds.
-
-Example:
+Canonical form:
 
 ```text
-Jupiter price
-Birdeye price
-Binance SOLUSDT price
+(BidDepth - AskDepth) / (BidDepth + AskDepth)
 ```
 
-Do not blindly average different venues.
+Always retain the window used:
 
-If divergence is above a configured threshold:
+```text
+top 5 levels
+within 2 cents
+```
 
-1. refresh;
-2. mark uncertainty;
-3. avoid execution based on stale data;
-4. require a fresh executable quote.
+Do not compare incompatible windows without labels.
 
 ---
 
-# 20. Provider health
+# 14. Microprice
 
-Create:
+Calculate size-weighted microprice from top-of-book when valid.
 
-```text
-ProviderHealthService
-```
+Use it as a short-horizon analytical reference.
+
+Never label it the true event probability.
+
+---
+
+# 15. Persistent liquidity zones
+
+A single large order can disappear.
+
+Support/resistance requires persistence.
 
 Track:
 
-- last success;
-- latency;
-- error rate;
-- 401/403;
-- 429;
-- timeout;
-- circuit-breaker status.
+```text
+price level
+cumulative depth
+number of consecutive updates
+lifetime
+executions against level
+```
 
-Use provider-specific throttles/backoff.
-
-Never keep hammering an API that is consistently returning 429.
-
-Transaction submission retries require idempotency awareness; never blindly retry a potentially accepted transaction.
+Do not label a one-frame wall "strong support".
 
 ---
 
-# 21. Canonical portfolio service
+# 16. PredictionExecutionEstimator
 
-Build or extend one:
+Build:
 
 ```text
-PortfolioAggregationService
+PredictionExecutionEstimator
+```
+
+Input:
+
+```ts
+{
+  outcomeId,
+  side: 'buy' | 'sell',
+  notionalUsd?: number,
+  shares?: number
+}
+```
+
+Walk the live book.
+
+Return:
+
+```text
+average execution price
+worst execution price
+estimated shares
+slippage
+book levels consumed
+unfilled amount
+```
+
+Signal entry and position exit estimates must use executable depth when appropriate.
+
+---
+
+# 17. Probability Basket
+
+Build:
+
+```text
+PredictionProbabilityBasketService
+```
+
+This is Elyra's **price/probability basketing** layer.
+
+Phase-1 inputs:
+
+```text
+last trade
+bid/ask midpoint
+microprice
+recent volume-weighted trade price
+complementary YES/NO outcome
+```
+
+Optional later:
+
+```text
+related markets
+external crypto reference model
+other prediction providers
+```
+
+The basket must never be called "true probability".
+
+Preferred label:
+
+```text
+Elyra Probability Basket
+```
+
+---
+
+# 18. Fair-value model
+
+```ts
+type PredictionFairValueState = {
+  marketId: string
+  outcomeId: string
+
+  observedLast?: number
+  observedMid?: number
+  microprice?: number
+  recentVwap?: number
+
+  complementaryNormalized?: number
+  relatedMarketReference?: number
+  externalModelReference?: number
+
+  basketProbability?: number
+
+  components: Array<{
+    source: string
+    value: number
+    weight: number
+    timestamp: string
+  }>
+
+  confidence: 'low' | 'medium' | 'high'
+  warnings: string[]
+
+  asOf: string
+}
+```
+
+---
+
+# 19. Binary YES/NO basket
+
+For binary markets inspect both outcome books.
+
+Calculate:
+
+```text
+YES midpoint
+NO midpoint
+
+YES microprice
+NO microprice
+
+YES/NO normalized reference
+executable ask relationship
+spread distortion
+```
+
+Optional normalized reference:
+
+```text
+P_yes = yesReference / (yesReference + noReference)
+```
+
+only if both sides are valid and fresh.
+
+Keep observed prices untouched.
+
+---
+
+# 20. Multi-outcome safety
+
+Only normalize across outcomes when they are verified as a mutually exclusive/exhaustive event set under current Polymarket structure.
+
+Do not normalize arbitrary related markets.
+
+Respect current negative-risk/combinatorial market mechanics.
+
+---
+
+# 21. Related-market service
+
+Create optional:
+
+```text
+PredictionMarketRelationService
+```
+
+Relations must come from:
+- provider metadata
+- explicit deterministic rules
+- manually verified mapping
+
+Claude must not invent logical market relationships used in probability math.
+
+---
+
+# 22. External crypto reference
+
+For markets like:
+
+```text
+Will BTC be above X at Y?
+```
+
+Elyra may use:
+
+- Binance
+- Jupiter/Birdeye
+- Hyperliquid
+- realized volatility
+- time to expiry
+
+as contextual model inputs.
+
+Do not claim spot data alone determines the probability.
+
+---
+
+# 23. Basket deviation
+
+Calculate:
+
+```text
+observedExecutablePrice - basketProbability
+```
+
+Possible interpretation:
+
+```text
+market_above_basket
+market_below_basket
+```
+
+Do not automatically label every deviation "mispricing".
+
+---
+
+# 24. PredictionTechnicalSignalEngine
+
+Create:
+
+```text
+PredictionTechnicalSignalEngine
 ```
 
 Inputs:
 
+```text
+current market state
+order-book analytics
+recent trades
+historical probability series
+probability basket
+time to resolution
+liquidity
+signal-strategy definition
+historical backtest stats
+```
+
+---
+
+# 25. Signal families
+
+Initial families:
+
+```text
+probability_momentum
+probability_mean_reversion
+probability_breakout
+
+orderbook_imbalance
+microprice_divergence
+
+basket_deviation
+basket_convergence
+
+support_break
+resistance_break
+
+spread_compression
+spread_expansion
+
+liquidity_breakout
+volume_confirmation
+
+cross_market_divergence
+```
+
+---
+
+# 26. Required signal schema
+
+```ts
+type PredictionTechnicalSignal = {
+  id: string
+
+  marketId: string
+  outcomeId: string
+
+  marketQuestion: string
+  outcomeLabel: string
+
+  direction:
+    | 'long_yes'
+    | 'long_no'
+    | 'long_outcome'
+    | 'neutral'
+    | 'watch'
+
+  entry: {
+    type: 'limit' | 'zone' | 'breakout' | 'confirmation'
+    price?: number
+    minPrice?: number
+    maxPrice?: number
+    trigger?: string
+  }
+
+  target: {
+    price?: number
+    minPrice?: number
+    maxPrice?: number
+    basis: string
+  }
+
+  stop: {
+    price?: number
+    invalidation?: string
+    basis: string
+  }
+
+  riskReward?: number
+
+  historicalWinRate?: {
+    valuePct: number
+    sampleSize: number
+    strategyId: string
+    strategyVersion: string
+    lookback: string
+    marketUniverse: string
+    successDefinition: string
+    dataSource: string
+  }
+
+  strength: 'low' | 'medium' | 'high'
+
+  liquidityQuality: 'poor' | 'fair' | 'good'
+
+  evidence: SignalEvidence[]
+
+  generatedAt: string
+  expiresAt?: string
+
+  dataFreshnessMs: number
+  warnings: string[]
+}
+```
+
+---
+
+# 27. Direction
+
+User-facing direction should be explicit:
+
+```text
+LONG YES
+LONG NO
+WATCH
+NEUTRAL
+```
+
+Do not use generic `BUY` without stating the outcome.
+
+If bearish on YES, prefer `LONG NO` where that is the executable expression.
+
+---
+
+# 28. Entry
+
+Entry must be generated by deterministic strategy logic.
+
+Inputs may include:
+
+- executable ask
+- support zone
+- breakout level
+- spread
+- basket deviation
+- liquidity
+
+Examples:
+
+```text
+Entry 61–63¢
+```
+
+or:
+
+```text
+Trigger above 64¢ only if top-5 bid imbalance remains > 0.25.
+```
+
+If market has already moved beyond the entry zone:
+
+```text
+Entry missed
+```
+
+Do not chase silently.
+
+---
+
+# 29. Target
+
+Supported methods:
+
+```text
+next persistent liquidity zone
+basket convergence
+fixed probability points
+volatility-scaled move
+risk/reward multiple
+historical move distribution
+```
+
+Validate:
+
+```text
+0 <= target <= 1
+```
+
+Round to valid market tick.
+
+---
+
+# 30. Stop / invalidation
+
+Supported:
+
+```text
+hard probability level
+support break
+order-book imbalance reversal
+basket invalidation
+time stop
+```
+
+Prefer label:
+
+```text
+Invalidation
+```
+
+when a stop cannot be guaranteed to fill.
+
+---
+
+# 31. Stop execution warning
+
+A thin order book can gap.
+
+Signal panel should distinguish:
+
+```text
+Invalidation level
+```
+
+from:
+
+```text
+Guaranteed execution price
+```
+
+Never promise guaranteed stop fills.
+
+---
+
+# 32. Risk/reward
+
+For numeric long-outcome setup:
+
+```text
+Reward = target - entry
+Risk = entry - stop
+R:R = Reward / Risk
+```
+
+Compute in backend.
+
+Validate target/entry/stop ordering.
+
+---
+
+# 33. Historical win rate
+
+Win rate **must** come from the existing Backtesting Engine.
+
+Never let the Agent say:
+
+```text
+Win Rate 72%
+```
+
+without a stored/deterministic backtest result.
+
+Display:
+
+```text
+Historical Win Rate
+58.4% · 137 comparable signals
+```
+
+And retain:
+
+```text
+strategy version
+sample size
+date range
+market universe
+success definition
+```
+
+---
+
+# 34. Success definition
+
+Store exactly what counts as a win.
+
+Examples:
+
+```text
+Target hit before invalidation after entry.
+```
+
+or:
+
+```text
+Outcome settles in directional favor.
+```
+
+These cannot be mixed.
+
+---
+
+# 35. Insufficient sample
+
+If sample is too small:
+
+```text
+Historical Win Rate
+Insufficient sample · 14 comparable signals
+```
+
+Do not headline an unstable percentage.
+
+---
+
+# 36. PredictionSignalStrategyRegistry
+
+Create:
+
+```text
+PredictionSignalStrategyRegistry
+```
+
+Initial strategies:
+
+```text
+PM_MOMENTUM_BREAKOUT_V1
+PM_MEAN_REVERSION_V1
+PM_ORDERBOOK_IMBALANCE_V1
+PM_MICROPRICE_DIVERGENCE_V1
+PM_BASKET_CONVERGENCE_V1
+PM_SUPPORT_BREAK_V1
+PM_VOLUME_BREAKOUT_V1
+```
+
+All rules must be explicit and versioned.
+
+---
+
+# 37. PM_ORDERBOOK_IMBALANCE_V1
+
+Example parameters:
+
+```text
+imbalanceWindow = top5
+minImbalance = 0.25
+maxSpread = configurable
+minDepthUsd = configurable
+persistenceUpdates = configurable
+```
+
+Long conditions:
+
+```text
+bid imbalance >= threshold
+microprice > midpoint
+spread acceptable
+depth acceptable
+condition persists N updates
+```
+
+Entry:
+current executable ask / validated limit zone.
+
+Target/stop:
+configured deterministic methodology.
+
+---
+
+# 38. PM_BASKET_CONVERGENCE_V1
+
+Long an outcome when:
+
+```text
+basketProbability - executableAsk >= minEdge
+basket components fresh
+spread <= max
+liquidity >= min
+```
+
+Exit:
+
+```text
+convergence
+target
+invalidation
+time expiry
+```
+
+Backtest only if historical basket inputs exist.
+
+---
+
+# 39. PM_MOMENTUM_BREAKOUT_V1
+
+Use historical probability series.
+
+Possible deterministic inputs:
+
+```text
+EMA
+ROC
+volume
+probability breakout level
+```
+
+Version rules.
+
+---
+
+# 40. Existing technical indicators
+
+Reuse the existing Backtesting Engine's indicator library where mathematically useful:
+
+```text
+RSI
+MACD
+Bollinger
+EMA
+VWMA
+momentum
+volatility
+```
+
+Do not blindly run all twenty technical indicators on every prediction market.
+
+---
+
+# 41. Time-to-resolution
+
+Every signal includes:
+
+```text
+timeToResolution
+```
+
+Market behavior close to resolution differs from an early market.
+
+Signal eligibility/strength may be adjusted deterministically.
+
+---
+
+# 42. Resolution proximity
+
+Suggested classifications:
+
+```text
+far
+medium
+near
+imminent
+```
+
+Strategy can disable itself in imminent state.
+
+---
+
+# 43. Event-risk windows
+
+Known event windows may cause discontinuous price changes.
+
+Add:
+
+```text
+eventRisk = true
+```
+
+where applicable.
+
+Do not present ordinary chart-pattern confidence as unaffected by imminent event resolution.
+
+---
+
+# 44. Liquidity gates
+
+Actionable signal must be downgraded/disabled if:
+
+```text
+book stale
+spread too wide
+depth too low
+volume too low
+```
+
+A high-strength signal cannot come from poor liquidity.
+
+---
+
+# 45. Strength model
+
+Strength is deterministic:
+
+```text
+technical confirmation
+order-book confirmation
+basket agreement
+liquidity quality
+historical robustness
+```
+
+Output only:
+
+```text
+Low
+Medium
+High
+```
+
+Do not output arbitrary AI-confidence percentages.
+
+---
+
+# 46. Evidence model
+
+```ts
+type SignalEvidence = {
+  key: string
+  label: string
+  value: number | string
+  direction: 'supports' | 'contradicts' | 'neutral'
+  source: string
+  timestamp: string
+}
+```
+
+---
+
+# 47. Conflicting evidence
+
+If:
+
+```text
+momentum positive
+book imbalance negative
+basket neutral
+```
+
+signal can become:
+
+```text
+WATCH
+```
+
+Do not force direction.
+
+---
+
+# 48. Freshness and expiry
+
+Every signal:
+
+```text
+generatedAt
+expiresAt
+```
+
+If required live data becomes stale:
+
+```text
+Signal paused
+```
+
+---
+
+# 49. Prediction backtesting
+
+Extend HistoricalMarketDataService for prediction markets.
+
+Possible normalized historical bar:
+
+```ts
+type PredictionMarketBar = {
+  timestamp: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume?: number
+
+  spread?: number
+  bidDepth?: number
+  askDepth?: number
+  imbalance?: number
+}
+```
+
+Only populate fields actually available.
+
+---
+
+# 50. Historical order-book limitation
+
+If official/current historical data does not contain depth snapshots:
+
+- price-based strategies may be backtested;
+- order-book strategies may not have historical win rate.
+
+Start collecting order-book features going forward.
+
+Never reconstruct fake depth.
+
+---
+
+# 51. PredictionSignalBacktestService
+
+Create:
+
+```text
+PredictionSignalBacktestService
+```
+
+Input:
+
 ```ts
 {
-  userId: string;
-  accountScope?: string[];
-  include?: string[];
+  strategyId,
+  strategyVersion,
+  marketUniverse,
+  dateRange,
+  parameters,
+  successDefinition
 }
 ```
 
 Output:
 
-```ts
-type UnifiedPortfolio = {
-  asOf: string;
-  status: 'complete' | 'partial';
-
-  totalEquityUsd?: number;
-  availableCapitalUsd?: number;
-
-  accounts: UnifiedAccount[];
-  balances: UnifiedBalance[];
-  positions: UnifiedPosition[];
-  orders: UnifiedOrder[];
-
-  allocationByAsset: Allocation[];
-  allocationByVenue: Allocation[];
-  allocationByStrategy: Allocation[];
-
-  warnings: PortfolioWarning[];
-};
-```
-
-It must be used by:
-
-- Portfolio;
-- Assets;
-- Personalized;
-- Agent;
-- Telegram.
-
-Do not maintain separate financial totals per surface.
-
----
-
-# 22. Canonical account model
-
-```ts
-type UnifiedAccountKind =
-  | 'privy_solana_wallet'
-  | 'external_solana_wallet'
-  | 'hyperliquid'
-  | 'polymarket'
-  | 'kamino'
-  | 'raydium'
-  | 'binance'
-  | 'other';
-```
-
-Protocol positions are not independent Elyra identities.
-
----
-
-# 23. Canonical position model
-
-```ts
-type PositionKind =
-  | 'spot'
-  | 'perp'
-  | 'lend'
-  | 'borrow'
-  | 'lp'
-  | 'stake'
-  | 'prediction'
-  | 'vault';
-
-type UnifiedPosition = {
-  id: string;
-  provider: string;
-  accountId: string;
-  kind: PositionKind;
-
-  label: string;
-  symbol?: string;
-
-  valueUsd?: number;
-  pnlUsd?: number;
-  pnlPct?: number;
-
-  side?: 'long' | 'short';
-  leverage?: number;
-
-  suppliedUsd?: number;
-  borrowedUsd?: number;
-  healthFactor?: number;
-
-  apyPct?: number;
-  aprPct?: number;
-
-  metadata?: Record<string, unknown>;
-  asOf: string;
-};
-```
-
----
-
-# 24. Direct holdings vs derivatives
-
-Never tell a user:
-
 ```text
-You hold 20 SOL
+wins
+losses
+sampleSize
+winRate
+averageReturn
+averageRiskReward
+warnings
 ```
-
-if 10 SOL is spot and the rest is just perp notional.
-
-Expose:
-
-```text
-Direct SOL holdings
-SOL collateral
-Long SOL perp notional
-Short SOL perp notional
-LP-related SOL value
-Net directional exposure
-```
-
-Net exposure only when the model/data is mathematically sound.
 
 ---
 
-# 25. Provenance
+# 52. Comparable market universe
 
-Financial data should retain provider provenance.
-
-```ts
-type DataProvenance = {
-  provider: string;
-  retrievedAt: string;
-  sourceAccount?: string;
-};
-```
-
-This is essential for debugging discrepancies.
-
-Normal UI can show friendly labels rather than raw endpoint paths.
-
----
-
-# 26. Caching
-
-Suggested targets:
-
-```text
-prices                    5–15s
-wallet balances          10–30s
-Hyperliquid positions     2–10s
-open orders               2–10s
-Kamino positions         30–120s
-Raydium positions        30–120s
-Polymarket positions     10–30s
-market metadata          minutes/hours
-historical portfolio     persisted snapshots
-```
-
-Use existing Redis/cache infrastructure if present.
-
-Do not add a new cache product unless necessary.
-
----
-
-# 27. Personalized agent pipeline
-
-```text
-User message
-    ↓
-Intent classifier
-    ↓
-Context planner
-    ↓
-Semantic Elyra tools
-    ↓
-Deterministic financial analytics
-    ↓
-Model router
-    ├── Claude
-    └── Gemini
-    ↓
-Synthesis
-    ↓
-Structured Elyra answer
-```
-
-The LLM never receives API secrets.
-
-The LLM never decides authorization.
-
----
-
-# 28. Reasoning modes
-
-Keep three modes:
-
-```text
-FAST
-PERSONALIZED_REASONING
-ACTION_PLANNING
-```
-
-## FAST
+Historical win rate must define universe.
 
 Examples:
 
 ```text
-How much USDC do I have?
-What is SOL?
-How many open positions?
+liquid binary crypto markets
+spread <= 5¢
+7–30 days to resolution
+entry probability 40–70%
 ```
 
-Use deterministic data and one model only if wording is needed.
+Do not pool all market classes blindly.
 
-## PERSONALIZED_REASONING
+---
 
-Examples:
+# 53. Probability bands
+
+Optionally segment historical results:
 
 ```text
-Why am I down?
-What is my biggest risk?
-What changed?
-Am I too exposed to SOL?
+0–20%
+20–40%
+40–60%
+60–80%
+80–100%
 ```
 
-Use relevant tools and potentially both Claude + Gemini.
+Contract behavior differs by price.
 
-## ACTION_PLANNING
+---
 
-Examples:
+# 54. Historical vs forward track record
+
+Show separately:
 
 ```text
-Reduce my SOL exposure.
-Swap $500 USDC to SOL.
-Close half my perp.
+Historical Backtest Win Rate
+Forward Tracked Signal Win Rate
 ```
 
-No direct execution.
+Never merge them.
 
 ---
 
-# 29. Deterministic analytics first
-
-Compute in code:
-
-- total equity;
-- available capital;
-- asset allocation;
-- venue allocation;
-- direct holdings;
-- perp notional;
-- stablecoin ratio;
-- PnL attribution where supported;
-- margin utilization;
-- liquidation distance;
-- health factor;
-- net deposits/withdrawals;
-- protocol position value;
-- largest risk.
-
-Models explain these numbers.
-
-Models do not perform critical arithmetic from raw strings.
-
----
-
-# 30. Shared memory
-
-Telegram and dashboard must use the same durable Personalized memory.
-
-Example:
+# 55. Signal lifecycle
 
 ```text
-Max SOL exposure: 30%
-Stablecoin buffer target: 20%
-Preferred perp venue: Hyperliquid
+generated
+→ waiting_entry
+→ entered
+→ target_hit / invalidated / expired
 ```
 
-Explicit preferences are authoritative.
-
-Inferred behavior must not silently become a hard policy.
+If entry never occurs, it is not a win/loss.
 
 ---
 
-# 31. Shared conversations
+# 56. Forward signal tracking
 
-Messages should identify channel:
+Once generated:
+- watch live market;
+- detect valid entry;
+- track target/invalidation;
+- record forward result.
 
-```ts
-type ConversationChannel = 'dashboard' | 'telegram';
-```
-
-A user can continue context across channels.
-
-The system can choose whether Telegram starts a new thread or attaches to the user's active thread, but all conversation records belong to the same Elyra user.
+This remains paper tracking, not auto trading.
 
 ---
 
-# 32. Telegram identity architecture
+# 57. PredictionAlertEngine
 
-Use Privy as the authoritative user identity.
+Extend NotificationService.
 
-Ideal Privy user:
+Alerts:
 
 ```text
-Privy User
-├── existing login identity
-├── Telegram linked account
-│   └── telegram_user_id
-├── Solana embedded wallet
-├── external wallets
-├── preferences
-├── conversations
-└── portfolio accounts
+price_above
+price_below
+probability_change
+breakout
+orderbook_imbalance
+spread_expansion
+spread_compression
+liquidity_change
+
+signal_new
+signal_strengthened
+signal_weakened
+signal_entry
+signal_target
+signal_invalidated
+signal_expired
+
+market_resolution
+position_pnl
+order_fill
 ```
 
-Use numeric `telegram_user_id`, not username, as the stable Telegram identity.
-
 ---
 
-# 33. Existing dashboard user → Telegram
+# 58. Alert state machine
 
-Preferred journey:
+No notification spam.
+
+For thresholds:
 
 ```text
-Dashboard
-→ Settings / Agent / Personalized
-→ Connect Telegram
-→ Privy Telegram link
-→ Telegram linked to same Privy user
-→ Open Elyra bot
-→ bot resolves Telegram ID to Privy user
-→ same wallet + portfolio + memory
+below
+→ crossed
+→ active
+→ reset
 ```
 
-Never link solely by asking the user to type their Telegram username.
-
----
-
-# 34. Telegram-first user
+For signals:
 
 ```text
-/start
-→ bot cannot resolve Privy user
-→ "Open Elyra" Mini App
-→ Privy seamless Telegram auth
-→ create/authenticate Privy user
-→ check linked wallets
-→ create/pregenerate Solana embedded wallet only if none exists
-→ bot can now resolve Telegram user
+new
+→ active
+→ strengthened/weakened
+→ target/invalidated/expired
 ```
 
-Do not create a raw Solana private-key wallet inside bot code.
-
 ---
 
-# 35. Wallet custody
+# 59. Natural-language alerts
 
-Recommended Phase 1:
-
-- Privy embedded Solana wallet;
-- public address usable by bot;
-- public balance data readable by backend;
-- transaction preparation performed by backend;
-- user approval/signing through Privy-enabled Mini App or existing secure flow.
-
-Never:
-
-- save a seed phrase in Elyra database;
-- send a private key to Telegram;
-- let Claude/Gemini see signing material;
-- store user secret keys in webhook process;
-- create a new wallet every `/start`.
-
----
-
-# 36. Telegram bot commands
-
-Configure:
+Support:
 
 ```text
-/start       Start or reconnect Elyra
-/portfolio   Portfolio overview
-/wallet      Wallet balances
-/positions   Open positions
-/orders      Open orders
-/activity    Recent activity
-/alerts      Alerts and settings
-/markets     Market snapshot
-/settings    Elyra Telegram settings
-/link        Link to Elyra
-/unlink      Disconnect Telegram
-/help        Help
+Alert me if YES crosses 65%.
 ```
 
-Natural language is the main interaction.
-
-Commands are accelerators.
-
----
-
-# 37. `/start` state machine
-
 ```text
-/start
-  ↓
-read Telegram numeric user ID
-  ↓
-resolve Privy user
-  ├─ found
-  │    ↓
-  │  load Elyra user
-  │    ↓
-  │  show private personalized home
-  │
-  └─ not found
-       ↓
-     show connection CTA
-       ↓
-     Open Elyra Mini App
+Alert me if bid imbalance is above 0.3.
 ```
 
-Do not show portfolio values before authentication/linking.
+```text
+Alert me when this setup enters.
+```
+
+```text
+Alert me if target is hit.
+```
+
+```text
+Alert me if the signal becomes invalid.
+```
+
+Compile to validated alert rules.
+
+No model-generated executable code.
 
 ---
 
-# 38. Telegram home
+# 60. Telegram `/predictions`
 
-Example structure:
+Menu:
 
 ```text
-Elyra · Capital Overview
+Prediction Markets
 
-Total equity
-$24,581.42
+[Trending]
+[My Positions]
 
-24H
--$442.10 (-1.77%)
+[Signals]
+[Alerts]
 
-Available
-$6,881.25
-
-Largest exposure
-SOL · 34.2%
-
-[Portfolio] [Positions]
-[Wallet]    [Ask Elyra]
+[Search]
 [Open Elyra]
 ```
 
-These numbers must be real.
-
-Prefer editing navigation messages over spamming the chat.
-
 ---
 
-# 39. Telegram natural-language examples
-
-```text
-why am i down today
-```
-
-```text
-how much SOL do i have everywhere
-```
-
-```text
-show my kamino positions
-```
-
-```text
-what is my hyperliquid margin usage
-```
-
-```text
-find SOL yield opportunities
-```
-
-```text
-what is happening on polymarket
-```
-
-```text
-compare Jupiter and DFlow for swapping 100 USDC to SOL
-```
-
-The Telegram controller calls the same `PersonalizedAgentService` as web.
-
----
-
-# 40. Telegram response renderer
-
-The agent returns one channel-independent structured response.
-
-Renderers:
-
-```text
-WebAnswerRenderer
-TelegramAnswerRenderer
-```
-
-Telegram renderer should:
-- be concise;
-- escape markup safely;
-- avoid giant tables;
-- use inline buttons;
-- preserve critical numbers;
-- include partial-data warnings.
-
-Do not run a separate second LLM merely to format Telegram.
-
----
-
-# 41. Telegram private-chat rule
-
-Private financial data is only available in private chat.
-
-In group chat:
-- generic public market questions may be allowed;
-- portfolio/balance/position queries must not reveal anything;
-- financial actions must not be prepared;
-- direct the user to private chat.
-
-This is mandatory.
-
----
-
-# 42. Telegram Mini App
-
-Create a mobile-first route inside the existing Elyra app, such as:
-
-```text
-/telegram
-```
-
-Views:
-
-```text
-Home
-Portfolio
-Wallet
-Positions
-Orders
-Swap
-Transfer
-Action Confirmation
-Settings
-```
-
-Reuse the Elyra component system.
-
-Do not create a second unrelated visual language.
-
----
-
-# 43. Mini App authentication
-
-Use current Privy Telegram/Mini App support.
-
-Requirements:
-
-- authenticated Privy user;
-- same Elyra user as dashboard;
-- same wallet;
-- no trust in raw Telegram `initDataUnsafe`;
-- follow current Privy SDK API in the repo;
-- use Telegram launch context only through verified/official flow.
-
----
-
-# 44. Telegram wallet screen
+# 61. Telegram prediction signal
 
 Example:
 
 ```text
-Elyra Wallet
+Prediction Signal
 
-Address
-8rY...cEgo
+Market
+Will ... ?
 
-Wallet value
-$10,472.19
+Outcome
+YES
 
-SOL        42.50
-USDC    3,500.00
-JUP     2,100.00
+Direction
+LONG YES
 
-[Deposit]
-[Swap]
-[Transfer]
-[Open wallet]
+Entry
+61–63¢
+
+Target
+70¢
+
+Invalidation
+57¢
+
+Risk / Reward
+1.8
+
+Historical Win Rate
+58.4% · 137 signals
+
+Order Book
+Imbalance +0.31
+Spread 2¢
+Microprice 62.4¢
+
+Basket
+64.1%
+
+Strength
+Medium
+
+[Live Book]
+[Set Alert]
+[Backtest]
+[Open Market]
 ```
 
-No seed phrase.
-
-No private key export through chat.
+Render only available real values.
 
 ---
 
-# 45. Telegram action philosophy
+# 62. Telegram live order book
 
-Phase 1:
+Natural language:
 
 ```text
-Chat prepares
-Mini App confirms/signs
-Backend executes
-Bot reports result
+read the orderbook
 ```
 
-This is safer than making an inline Telegram callback equivalent to a wallet signature.
+or button:
+
+```text
+[Live Book]
+```
+
+Output:
+
+```text
+YES Order Book
+
+Best Bid       61¢
+Best Ask       63¢
+Mid            62¢
+Microprice     62.4¢
+Spread          2¢
+
+Top-5 Depth
+Bid   $18.2k
+Ask   $11.4k
+
+Imbalance
++0.23
+
+[Refresh]
+[Set Alert]
+```
 
 ---
 
-# 46. Swap flow
+# 63. Telegram probability basket
 
 User:
 
 ```text
-swap 100 USDC to SOL
+what is the fair price?
 ```
 
-Flow:
+Response:
 
 ```text
-parse intent
-→ resolve user
-→ resolve wallet
-→ check live USDC balance
-→ request Jupiter quote/order
-→ normalize fees/output
-→ create PreparedAction
-→ send Telegram preview
-→ user taps Review & Confirm
-→ Mini App opens
-→ Privy-authenticated confirmation
-→ refresh/revalidate quote
-→ wallet authorization/sign
-→ execute
-→ confirm chain result
-→ record activity
-→ Telegram completion message
+Elyra Probability Basket
+
+Observed Mid
+62.0%
+
+Microprice
+62.4%
+
+YES/NO Normalized
+63.2%
+
+Basket
+64.1%
+
+Difference vs Market
++2.1 pts
+
+Analytical reference, not guaranteed probability.
+
+[Signal]
+[Order Book]
 ```
 
 ---
 
-# 47. Transfer flow
+# 64. Telegram prediction alerts
 
-User:
+Integrate with existing `/alerts`.
 
-```text
-send 0.5 SOL to <address>
-```
-
-Must:
-
-1. validate address;
-2. show full destination on confirmation screen;
-3. show amount;
-4. show estimated fee;
-5. require explicit confirmation;
-6. revalidate balance;
-7. authorize/sign;
-8. execute once;
-9. show signature/result.
-
-One chat message must never immediately transfer funds.
-
----
-
-# 48. Hyperliquid action flow
-
-User:
+Example notification:
 
 ```text
-close half my SOL perp
-```
+Polymarket Signal Triggered
 
-Bot:
-
-```text
-SOL-PERP · LONG
-
-Current size: ...
-Entry: ...
-Mark: ...
-PnL: ...
-
-Prepared action:
-Close 50% of position
-
-[Review & Confirm]
-[Cancel]
-```
-
-Refresh the position immediately before execution.
-
----
-
-# 49. Polymarket action flow
-
-Read-only market/position data first.
-
-If authenticated trading is correctly configured, a request like:
-
-```text
-buy $20 YES on <market>
-```
-
-creates a prepared CLOB action.
-
-Do not pretend public Polymarket data access grants trading authorization.
-
----
-
-# 50. Prepared action record
-
-```ts
-type PreparedActionRecord = {
-  id: string;
-  userId: string;
-  conversationId?: string;
-  channel: 'dashboard' | 'telegram';
-
-  kind: string;
-  provider: string;
-  payload: unknown;
-
-  status:
-    | 'prepared'
-    | 'awaiting_confirmation'
-    | 'confirmed'
-    | 'executing'
-    | 'succeeded'
-    | 'failed'
-    | 'cancelled'
-    | 'expired';
-
-  expiresAt: string;
-  createdAt: string;
-  updatedAt: string;
-};
-```
-
-The callback contains only an opaque action reference.
-
----
-
-# 51. Action validation
-
-Before any execution, verify:
-
-- authenticated user;
-- resource ownership;
-- Telegram/Privy linkage;
-- account still exists;
-- balance still sufficient;
-- position/order still exists;
-- quote not stale;
-- provider supports action;
-- risk rules pass;
-- amount under policy;
-- destination valid;
-- action not already executed;
-- confirmation still valid.
-
-LLM-generated IDs are never trusted without server lookup.
-
----
-
-# 52. Action idempotency
-
-A Telegram webhook can be retried.
-
-A callback can be tapped repeatedly.
-
-Therefore:
-- Telegram `update_id` must be deduplicated;
-- prepared action must have a state machine;
-- execution must have an idempotency key where possible;
-- already executing/succeeded actions cannot execute again.
-
-This is mandatory for financial safety.
-
----
-
-# 53. Telegram webhook
-
-Create:
-
-```text
-POST /api/telegram/webhook
-```
-
-Production uses `setWebhook`.
-
-Set a webhook secret.
-
-Verify header:
-
-```text
-X-Telegram-Bot-Api-Secret-Token
-```
-
-against:
-
-```env
-TELEGRAM_WEBHOOK_SECRET
-```
-
-Reject invalid requests before business logic.
-
-Webhook layer should:
-1. verify secret;
-2. parse update;
-3. dedupe update ID;
-4. route to app controller;
-5. respond quickly.
-
----
-
-# 54. Telegram services
-
-Create an abstraction such as:
-
-```text
-TelegramBotService
-```
-
-Responsibilities:
-- send message;
-- edit message;
-- answer callback;
-- send chat action;
-- create inline keyboards;
-- create Mini App button;
-- escape formatting;
-- retry delivery safely.
-
-And:
-
-```text
-TelegramAgentController
-```
-
-Responsibilities:
-- commands;
-- natural-language messages;
-- callback routing;
-- Privy resolution;
-- portfolio calls;
-- agent calls;
-- prepared actions.
-
-Provider-specific data code must not live in Telegram handlers.
-
----
-
-# 55. Telegram linking cache
-
-Optionally persist:
-
-```ts
-type TelegramLink = {
-  telegramUserId: string;
-  privyUserId: string;
-  chatId: string;
-  linkedAt: string;
-  lastSeenAt: string;
-};
-```
-
-Privy remains authoritative.
-
-Use this only as a performance/indexing aid.
-
----
-
-# 56. `/unlink`
-
-Never disconnect on one accidental tap.
-
-Flow:
-
-```text
-Disconnect Telegram from Elyra?
-
-This stops Telegram portfolio access and alerts.
-
-[Disconnect]
-[Keep connected]
-```
-
-Then use the supported Privy unlink flow or secure dashboard/Mini App settings flow.
-
----
-
-# 57. Dashboard Telegram card
-
-Add a compact connection card in the most appropriate current settings/Personalized/Agent settings surface.
-
-Disconnected:
-
-```text
-Telegram
-
-Chat with Elyra and receive capital alerts.
-
-[Connect Telegram]
-```
-
-Connected:
-
-```text
-Telegram
-@username
-
-Connected
-Alerts enabled
-
-[Open Telegram]
-[Notification settings]
-[Disconnect]
-```
-
-Do not expose numeric Telegram ID in normal UI.
-
----
-
-# 58. Telegram notifications
-
-The bot is an excellent delivery channel for Elyra alerts.
-
-Potential alerts:
-
-```text
-price threshold
-portfolio drawdown
-asset concentration
-margin utilization
-liquidation proximity
-funding spike
-order fill
-position change
-prediction-market movement
-saved risk preference crossed
-action awaiting confirmation
-```
-
-Example:
-
-```text
-Risk watch
-
-SOL exposure reached 31.4%.
-Your saved limit is 30%.
-
-[Review exposure]
-```
-
-Avoid alarmist copy.
-
----
-
-# 59. Notification service
-
-Do not duplicate alert logic inside Telegram.
-
-Architecture:
-
-```text
-Risk / Alert engine
-        ↓
-Notification event
-        ↓
-NotificationService
-   ├── in-app
-   ├── Telegram
-   └── future email
-```
-
-One event, multiple delivery channels.
-
----
-
-# 60. Notification preferences
-
-```ts
-type TelegramNotificationPreferences = {
-  userId: string;
-  enabled: boolean;
-
-  priceAlerts: boolean;
-  portfolioAlerts: boolean;
-  riskAlerts: boolean;
-  orderUpdates: boolean;
-  agentUpdates: boolean;
-
-  quietHours?: {
-    start: string;
-    end: string;
-    timezone: string;
-  };
-};
-```
-
----
-
-# 61. Alert deduplication
-
-Persist trigger/delivery state.
-
-Do not send the same alert every polling interval.
-
-Use an alert/event ID and threshold state.
-
----
-
-# 62. Portfolio history and “what changed?”
-
-Persist portfolio snapshots.
-
-Example:
-
-```ts
-type PortfolioSnapshot = {
-  userId: string;
-  timestamp: string;
-
-  totalEquityUsd?: number;
-  accountValues: Record<string, number>;
-  assetValues: Record<string, number>;
-  positionValues: Record<string, number>;
-
-  cumulativeDepositsUsd?: number;
-  cumulativeWithdrawalsUsd?: number;
-};
-```
-
-This enables:
-
-```text
-What changed since yesterday?
-Why am I down?
-What moved my portfolio?
-```
-
-Deposits must not be described as profit.
-
----
-
-# 63. Unified activity ledger
-
-```ts
-type UnifiedActivity = {
-  id: string;
-  userId: string;
-  provider: string;
-  accountId: string;
-
-  type:
-    | 'deposit'
-    | 'withdrawal'
-    | 'swap'
-    | 'transfer'
-    | 'spot_trade'
-    | 'perp_open'
-    | 'perp_close'
-    | 'funding'
-    | 'lend'
-    | 'borrow'
-    | 'repay'
-    | 'lp_add'
-    | 'lp_remove'
-    | 'prediction_trade'
-    | 'order';
-
-  valueUsd?: number;
-  timestamp: string;
-  metadata?: Record<string, unknown>;
-};
-```
-
-Use it on web and Telegram.
-
----
-
-# 64. Provider connection state
-
-For private providers later:
-
-```ts
-type ProviderConnection = {
-  id: string;
-  userId: string;
-  provider: 'binance' | 'polymarket' | 'other';
-  mode: 'read_only' | 'trading';
-  status: 'active' | 'disabled' | 'error';
-  encryptedCredentialsRef?: string;
-  createdAt: string;
-  updatedAt: string;
-};
-```
-
-Never store plaintext private exchange secrets.
-
----
-
-# 65. Binance private integration policy
-
-Not required for Phase 1.
-
-If later implemented:
-- read-only first;
-- explicit user consent;
-- encrypted secret storage;
-- no withdrawal scope;
-- separate trading permission;
-- audit every request;
-- never pass credentials to Claude/Gemini.
-
-The agent must know the distinction:
-
-```text
-Binance market data available.
-Binance personal account not connected.
-```
-
----
-
-# 66. Telegram BotFather setup
-
-## Step 1 — Create bot
-
-Open `@BotFather`.
-
-Run:
-
-```text
-/newbot
-```
-
-Choose:
-- display name: Elyra;
-- a unique username ending in `bot`.
-
-Store the returned token only in:
-
-```env
-TELEGRAM_BOT_TOKEN=
-```
-
-## Step 2 — Profile
-
-Set:
-- Elyra logo;
-- short description;
-- about text.
-
-Suggested description:
-
-```text
-Your personalized crypto capital agent — portfolio, markets, positions and Elyra alerts.
-```
-
-## Step 3 — Commands
-
-Configure the command list from this document.
-
-## Step 4 — Domain
-
-Configure Elyra's production HTTPS domain, e.g.:
-
-```text
-https://try.getelyra.xyz
-```
-
-## Step 5 — Mini App
-
-Configure the Mini App route, e.g.:
-
-```text
-https://try.getelyra.xyz/telegram
-```
-
-## Step 6 — Privy
-
-In Privy dashboard:
-- enable/configure Telegram authentication/linking;
-- configure the Elyra bot as required by current Privy settings;
-- enable seamless Mini App auth where appropriate;
-- verify the production domain.
-
-## Step 7 — Server env
-
-```env
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_BOT_USERNAME=
-TELEGRAM_WEBHOOK_SECRET=
-APP_URL=
-```
-
-## Step 8 — Deploy webhook
-
-Example:
-
-```text
-https://try.getelyra.xyz/api/telegram/webhook
-```
-
-## Step 9 — Register webhook
-
-Use Telegram `setWebhook`.
-
-Set:
-- webhook URL;
-- `secret_token`;
-- `allowed_updates` initially:
-  - `message`;
-  - `callback_query`.
-
-## Step 10 — Verify
-
-Call `getWebhookInfo` and confirm:
-- URL;
-- no persistent error;
-- sensible pending-update count.
-
----
-
-# 67. Webhook setup script
-
-Create:
-
-```text
-scripts/setup-telegram-webhook.ts
-```
-
-The script:
-
-1. loads server env;
-2. validates required variables;
-3. sends `setWebhook`;
-4. includes `secret_token`;
-5. configures allowed updates;
-6. prints safe status;
-7. never prints bot token.
-
-Optional:
-
-```text
-scripts/delete-telegram-webhook.ts
-```
-
-for development reset.
-
----
-
-# 68. Local Telegram development
-
-Production webhooks need reachable HTTPS.
-
-For local development:
-- use a secure tunnel approved by the team;
-- use a separate dev bot if possible;
-- never commit tunnel URLs;
-- optionally use `getUpdates` in isolated dev;
-- never run polling and production webhook simultaneously.
-
----
-
-# 69. Callback security
-
-Bad:
-
-```text
-callback_data = swap|USDC|SOL|100|wallet123
-```
-
-Good:
-
-```text
-callback_data = action:pa_xxxxx
-```
-
-The server loads the record and verifies:
-- action owner;
-- Telegram user;
-- Privy user;
-- status;
-- expiry;
-- account state;
-- balance;
-- quote freshness.
-
----
-
-# 70. Telegram group privacy
-
-Private account tools must be disabled in group chats.
-
-Group chat may answer:
-
-```text
-What is SOL trading at?
-```
-
-Group chat must not answer:
-
-```text
-What is my portfolio?
-```
-
-with private data.
-
-Reply:
-
-```text
-Open a private chat with Elyra to access your portfolio.
-```
-
----
-
-# 71. Telegram Mini App visual direction
-
-Mobile-first, Elyra brand.
-
-Example:
-
-```text
-┌───────────────────────────┐
-│ Elyra              ● Live │
-│                           │
-│ Total Equity              │
-│ $24,581.42                │
-│ -1.77% today              │
-│                           │
-│ [Deposit] [Swap]          │
-│ [Send]    [Portfolio]     │
-│                           │
-│ Capital                   │
-│ Spot          $...        │
-│ Hyperliquid   $...        │
-│ DeFi          $...        │
-│ Prediction    $...        │
-│                           │
-│ Ask Elyra                 │
-│ [____________________] ↑  │
-└───────────────────────────┘
-```
-
-Use 8–10px panel radii and compact spacing.
-
----
-
-# 72. Telegram action confirmation screen
-
-Example:
-
-```text
-SWAP PREVIEW
-
-From
-100 USDC
-
-To
-~1.01 SOL
-
-Provider
-Jupiter
-
-Price impact
-0.04%
-
-Network/priority fees
+Market
 ...
 
-Quote expires
-24 seconds
+Direction
+LONG YES
 
-[Confirm]
-[Cancel]
-```
+Entry zone
+61–63¢
 
-If quote refresh changes output materially, show new values and require fresh confirmation.
+Current
+62.5¢
 
----
+Target
+70¢
 
-# 73. Execution provider router
+Invalidation
+57¢
 
-Read providers may fail over.
+Historical Win Rate
+58.4% · 137 comparable signals
 
-Execution providers cannot silently change after confirmation.
-
-Prepared action records exact route/provider.
-
-Example:
-
-```ts
-{
-  routeProvider: 'jupiter',
-  quoteRef: '...',
-  expiresAt: '...',
-}
-```
-
-If expired:
-- refresh;
-- compare;
-- invalidate previous confirmation if materially changed.
-
----
-
-# 74. Action permission levels
-
-## Level 0 — read
-
-No confirmation.
-
-```text
-portfolio
-prices
-positions
-orders
-research
-```
-
-## Level 1 — prepare
-
-No execution.
-
-```text
-prepare swap
-prepare transfer
-prepare close
-```
-
-## Level 2 — financial action
-
-Explicit confirmation + authorization.
-
-```text
-swap
-transfer
-perp order
-prediction trade
-DeFi deposit
-```
-
-## Level 3 — sensitive account operation
-
-Stronger controls.
-
-```text
-withdrawal
-API credential changes
-wallet policy changes
-wallet export
-```
-
-Do not implement private-key export through Telegram.
-
----
-
-# 75. Server-side execution later
-
-If later using Privy server-side wallet access:
-- use policies;
-- spend limits;
-- approved contracts/destinations;
-- explicit user approval;
-- action size limits;
-- audit logs;
-- extra authorization for larger transfers.
-
-Do not implement an unrestricted hot-wallet daemon.
-
----
-
-# 76. Agent grounding metadata
-
-Record internally:
-
-```ts
-{
-  contextUsed: [
-    'portfolio',
-    'birdeye_wallet',
-    'hyperliquid_positions',
-    'kamino_positions'
-  ],
-  asOf: '...',
-  partial: false
-}
-```
-
-Dashboard may display:
-
-```text
-Context: Portfolio · Positions · Kamino
-```
-
-Telegram only needs to surface this when useful or when data is stale/partial.
-
----
-
-# 77. API routes
-
-Adapt to current repository conventions.
-
-Conceptual routes:
-
-```text
-POST /api/agent/chat
-
-GET  /api/portfolio
-GET  /api/portfolio/changes
-GET  /api/providers/health
-
-POST /api/telegram/webhook
-GET  /api/telegram/status
-GET  /api/telegram/preferences
-PATCH /api/telegram/preferences
-
-GET  /api/actions/:id
-POST /api/actions/:id/confirm
-POST /api/actions/:id/cancel
-```
-
-Reuse existing Personalized endpoints rather than creating duplicates.
-
----
-
-# 78. Mini App routes
-
-Conceptual:
-
-```text
-/telegram
-/telegram/portfolio
-/telegram/wallet
-/telegram/positions
-/telegram/orders
-/telegram/action/[id]
-/telegram/settings
-```
-
-All account views require authenticated identity.
-
----
-
-# 79. Suggested backend modules
-
-Follow the repository's actual architecture, but conceptually:
-
-```text
-providers/
-  jupiter/
-  birdeye/
-  kamino/
-  raydium/
-  dflow/
-  hyperliquid/
-  polymarket/
-  binance/
-
-portfolio/
-  aggregation
-  analytics
-  snapshots
-  normalization
-
-agent/
-  tools
-  context
-  orchestration
-
-actions/
-  prepare
-  validate
-  execute
-
-telegram/
-  bot-client
-  controller
-  commands
-  callbacks
-  renderer
-  user-resolution
-  webhook
-```
-
-Do not force these exact paths if the codebase already has a better pattern.
-
----
-
-# 80. Rate limits
-
-Rate-limit:
-- Telegram messages per user;
-- AI calls;
-- provider-heavy scans;
-- repeated portfolio refresh;
-- prepared actions.
-
-Respect:
-- Birdeye plan limits;
-- DFlow dev limits;
-- Raydium Cloudflare limits;
-- Binance weight limits;
-- Hyperliquid limits;
-- Telegram flood control.
-
----
-
-# 81. Timeout strategy
-
-Suggested starting targets:
-
-```text
-simple price request       3–5s
-wallet data                5–8s
-DeFi account               8–12s
-portfolio aggregate       10–15s
-AI fast                    ~10s
-AI deep                    20–30s
-```
-
-Independent provider reads should run in parallel.
-
-Return partial portfolio data when safe rather than blocking everything on one provider.
-
----
-
-# 82. Observability
-
-Track:
-- provider latency;
-- provider error rate;
-- cache hit rate;
-- 429 rate;
-- portfolio aggregation latency;
-- Claude/Gemini latency;
-- Telegram webhook latency;
-- Telegram send failures;
-- action preparation;
-- action confirmation;
-- execution outcome.
-
-Use correlation IDs.
-
-Never log secret values.
-
----
-
-# 83. Audit log
-
-For every financial action:
-
-```ts
-{
-  userId,
-  channel,
-  preparedActionId,
-  provider,
-  actionType,
-
-  requestedAt,
-  confirmedAt?,
-  executionStartedAt?,
-  executionFinishedAt?,
-
-  result,
-  transactionSignature?,
-  errorCode?
-}
-```
-
-No secret material.
-
----
-
-# 84. Provider tests
-
-For every adapter:
-
-- happy path;
-- malformed JSON;
-- provider error;
-- timeout;
-- 401/403;
-- 429;
-- missing fields;
-- decimal conversion;
-- stale timestamp;
-- normalization.
-
-Unit tests should mock upstream calls.
-
-Do not make production network calls in standard unit tests.
-
----
-
-# 85. Portfolio tests
-
-Fixture:
-
-```text
-wallet        $5,000
-Kamino        $2,000
-Raydium       $1,000
-Hyperliquid   $2,000
-```
-
-Expected total:
-
-```text
-$10,000
-```
-
-Then simulate Kamino failure.
-
-Expected:
-- partial status;
-- Kamino warning;
-- UI/agent must not claim the total is guaranteed complete.
-
----
-
-# 86. Telegram tests
-
-Test:
-
-```text
-invalid webhook secret → reject
-duplicate update_id → no duplicate processing
-unlinked user → link prompt
-linked user /portfolio → correct service
-group /portfolio → private-chat warning
-callback wrong user → reject
-expired action → reject/refresh
+[View Signal]
+[Live Book]
 ```
 
 ---
 
-# 87. Wallet tests
-
-New Telegram-first user:
+# 65. Telegram target alert
 
 ```text
-Telegram auth
-→ Privy user
-→ Solana wallet created/pregenerated once
-→ repeated /start reuses same wallet
+Signal Update
+
+Target reached.
+
+Market
+...
+
+Entry
+61–63¢
+
+Target
+70¢
+
+Current
+70.5¢
+
+[View Result]
 ```
 
-Existing dashboard user:
+Only for a previously tracked signal.
+
+---
+
+# 66. Telegram invalidation alert
 
 ```text
-existing Privy user + wallet
-→ link Telegram
-→ bot resolves same user
-→ same wallet appears
+Signal Invalidated
+
+YES fell below the 57¢ invalidation level.
+
+The previous setup is no longer active.
+
+[Live Book]
 ```
 
 ---
 
-# 88. Swap/action tests
+# 67. Telegram privacy
 
-Input:
+User positions, orders and private account details:
+private chats only.
 
-```text
-swap 100 USDC to SOL
-```
+Public market signals may be viewable in group chat only if existing bot privacy policy allows it.
 
-Must:
-- resolve correct user;
-- resolve wallet;
-- fetch balance;
-- fetch quote;
-- create action preview;
-- not execute yet;
-- require confirmation;
-- refresh/revalidate;
-- sign securely;
-- execute exactly once;
-- persist result.
-
-Duplicate callback must not submit twice.
+Safest Phase 1:
+keep all prediction account tooling in private chat.
 
 ---
 
-# 89. Environment validation
+# 68. Telegram Mini App
 
-Validate secrets server-side without logging values.
-
-Core AI:
+Prediction Market views:
 
 ```text
-ANTHROPIC_API_KEY
-GEMINI_API_KEY
+Discover
+Market Detail
+Order Book
+Signals
+Alerts
+My Positions
+Orders
+Activity
 ```
 
-Configured provider:
-
-```text
-JUPITER_API_KEY
-BIRDEYE_API_KEY
-```
-
-Telegram:
-
-```text
-TELEGRAM_BOT_TOKEN
-TELEGRAM_BOT_USERNAME
-TELEGRAM_WEBHOOK_SECRET
-APP_URL
-```
-
-If a feature is disabled, missing optional credentials should not crash the whole app.
+Reuse the existing Elyra Mini App and Privy identity.
 
 ---
 
-# 90. Feature flags
-
-Use existing flag mechanism where available.
+# 69. Web Prediction Markets page
 
 Recommended:
 
 ```text
-ENABLE_TELEGRAM
-ENABLE_TELEGRAM_ACTIONS
+PREDICTION MARKETS                               Live ●
 
-ENABLE_KAMINO
-ENABLE_RAYDIUM
-ENABLE_DFLOW
-ENABLE_HYPERLIQUID
-ENABLE_POLYMARKET
+Search markets...
 
-ENABLE_BINANCE_PRIVATE
+[Trending] [Signals] [My Positions] [Alerts]
+
+Question                     YES   NO  Volume  Liquidity  Signal
+...
 ```
 
 ---
 
-# 91. Rollout phases
+# 70. Market detail page
 
-## Phase 1 — read-only omnichannel
-
-Ship:
-- all requested provider read adapters;
-- semantic tools;
-- unified portfolio;
-- Telegram bot;
-- Telegram identity linking;
-- Mini App login;
-- wallet/portfolio/positions/orders reads;
-- natural-language AI;
-- Telegram alerts.
-
-## Phase 2 — safe Solana actions
-
-Ship:
-- Jupiter swap previews;
-- transfer previews;
-- Mini App signing;
-- transaction lifecycle/status.
-
-## Phase 3 — protocol actions
-
-Add one at a time:
-- Kamino;
-- Raydium;
-- DFlow;
-- Hyperliquid;
-- Polymarket.
-
-Each requires provider-specific tests and authorization review.
-
-## Phase 4 — optional private CEX connection
-
-Binance:
-- encrypted read-only account integration first;
-- optional trading later;
-- never withdrawal permission.
-
----
-
-# 92. Recommended implementation order
-
-1. inspect repository;
-2. inventory current services;
-3. normalize provider interfaces;
-4. connect/clean Jupiter;
-5. connect/clean Birdeye;
-6. connect Hyperliquid reads;
-7. connect Kamino reads;
-8. connect Raydium reads;
-9. connect Polymarket reads;
-10. connect DFlow reads;
-11. connect Binance public market data;
-12. unified portfolio;
-13. semantic tools;
-14. agent integration;
-15. provider health/caching;
-16. Telegram Bot client;
-17. webhook + idempotency;
-18. Privy Telegram identity resolution;
-19. Mini App;
-20. bot commands;
-21. natural-language bot;
-22. alerts;
-23. prepared actions;
-24. safe Mini App confirmation/signing;
-25. tests;
-26. observability;
-27. production webhook.
-
-Do not begin with unrestricted transaction execution.
-
----
-
-# 93. Current official API references to verify during implementation
-
-Use current official docs before writing each adapter.
+Show:
 
 ```text
-Jupiter
-https://developers.jup.ag/
+Question
+Resolution rules
+Time remaining
 
-Birdeye
-https://docs.birdeye.so/
+YES / NO live prices
+Spread
+Volume
+Liquidity
 
-Kamino
-https://api.kamino.finance/
+Price / Probability chart
+Elyra Probability Basket
 
-DFlow
-https://pond.dflow.net/llms.txt
+Order Book
+Recent Trades
 
-Raydium
-https://docs.raydium.io/llms.txt
+Technical Signal
+Direction
+Entry
+Target
+Invalidation
+Historical Win Rate
 
-Hyperliquid
-https://hyperliquid.gitbook.io/hyperliquid-docs/llms.txt
-
-Polymarket
-https://docs.polymarket.com/llms.txt
-
-Binance
-https://developers.binance.com/
-
-Telegram
-https://core.telegram.org/bots/api
-https://core.telegram.org/bots/webapps
-
-Privy
-https://docs.privy.io/
+My Position
+Alerts
 ```
-
-Do not implement undocumented endpoint paths based only on model memory.
 
 ---
 
-# 94. Definition of done
+# 71. Probability chart
 
-The full project extension is complete when:
+Possible series:
 
-- Jupiter adapter uses env key and no hardcoded secret;
-- Birdeye adapter uses env key and normalized wallet analytics;
-- Kamino read integration uses current official schema;
-- Raydium read integration uses current API/Owner surfaces;
-- DFlow dev/prod behavior is separated;
-- Hyperliquid positions/orders/account context work;
-- Polymarket public market and position context work where account data is available;
-- Binance public market data works;
-- private Binance balances are never falsely implied;
-- unified portfolio handles partial provider failure;
-- Agent uses semantic tools instead of raw vendor calls;
-- Claude/Gemini receive only relevant normalized context;
-- Telegram webhook is authenticated;
-- duplicate updates cannot replay actions;
-- Telegram numeric user ID resolves to Privy user;
-- dashboard user can link Telegram;
-- Telegram-first user can authenticate in Mini App;
-- existing wallet is reused;
-- wallet private material is never stored in Telegram bot;
-- `/portfolio`, `/wallet`, `/positions`, `/orders` work;
-- natural-language Telegram agent works;
-- group chats cannot access private financial data;
-- Telegram and dashboard share memory/conversations;
-- alerts can deliver to Telegram;
-- money-moving requests create prepared actions;
-- explicit confirmation is required;
-- execution revalidates state;
-- Portfolio and Assets remain visually intact;
-- TypeScript passes;
+```text
+observed midpoint
+last trade
+Elyra basket
+signal markers
+```
+
+Clearly label basket as analytical.
+
+---
+
+# 72. Order-book UI
+
+Desktop depth:
+
+```text
+ASKS
+Price | Size | Cumulative
+
+-----------------
+Mid / Microprice
+-----------------
+
+BIDS
+Price | Size | Cumulative
+```
+
+Use Elyra colors.
+
+---
+
+# 73. Signal panel
+
+Example:
+
+```text
+TECHNICAL SIGNAL
+
+Direction
+LONG YES
+
+Entry
+61–63¢
+
+Target
+70¢
+
+Invalidation
+57¢
+
+R:R
+1.8
+
+Historical Win Rate
+58.4%
+137 comparable signals
+PM_ORDERBOOK_IMBALANCE_V1
+
+Strength
+Medium
+
+Evidence
+✓ persistent top-5 bid imbalance
+✓ microprice above midpoint
+✓ market below basket
+△ resolution approaching
+
+Generated
+12 seconds ago
+```
+
+---
+
+# 74. Agent semantic tools
+
+Add:
+
+```text
+prediction.search_markets
+prediction.get_market
+prediction.get_live_state
+prediction.get_orderbook
+prediction.get_recent_trades
+
+prediction.get_positions
+prediction.get_open_orders
+
+prediction.get_orderbook_analytics
+prediction.get_probability_basket
+
+prediction.get_signal
+prediction.list_signals
+prediction.backtest_signal
+prediction.get_signal_history
+
+prediction.create_alert
+prediction.list_alerts
+prediction.delete_alert
+```
+
+---
+
+# 75. Agent signal flow
+
+For:
+
+```text
+Give me direction, entry, target, stop and win rate.
+```
+
+Tool plan:
+
+```text
+resolve market
+→ fetch live state
+→ fetch live order book
+→ order-book analytics
+→ probability basket
+→ strategy selection
+→ backtest statistics
+→ liquidity/freshness checks
+→ deterministic signal
+→ Agent explanation
+```
+
+---
+
+# 76. Agent numeric integrity
+
+Claude/Gemini must never create:
+- entry;
+- target;
+- stop;
+- R:R;
+- win rate;
+- book imbalance;
+- basket probability.
+
+Those numbers come from tool outputs.
+
+Agent prose should be validated/templated against result fields.
+
+---
+
+# 77. User positions
+
+When connected, show:
+
+```text
+Outcome
+Shares
+Average Entry
+Current Mark
+PnL
+Estimated Exit Price
+Estimated Exit Slippage
+```
+
+Use upstream data when available.
+
+Do not infer realized PnL from the current book.
+
+---
+
+# 78. Position exit liquidity
+
+Estimate:
+
+```text
+exit 25%
+exit 50%
+exit 100%
+```
+
+by walking current book.
+
+Agent may say:
+
+```text
+A full exit would consume 4 price levels and has materially worse execution than the midpoint.
+```
+
+---
+
+# 79. Pricing hierarchy
+
+Use different references for different tasks:
+
+```text
+display mark
+→ provider mark/mid where appropriate
+
+executable entry/exit
+→ actual book walk
+
+technical signal
+→ microprice + book + basket
+
+portfolio estimation
+→ existing normalized portfolio methodology
+```
+
+Do not use last trade for every purpose.
+
+---
+
+# 80. Real-time storage
+
+Hot state:
+- in-memory + shared Redis/pubsub if existing horizontal architecture needs it.
+
+Persist:
+- sampled market state;
+- selected book features;
+- signal-trigger snapshots.
+
+Do not store every raw WebSocket update forever by default.
+
+---
+
+# 81. Book snapshot schema
+
+```ts
+type StoredPredictionBookSnapshot = {
+  marketId: string
+  outcomeId: string
+  timestamp: string
+
+  bestBid?: number
+  bestAsk?: number
+
+  bidDepth1?: number
+  askDepth1?: number
+
+  bidDepth5?: number
+  askDepth5?: number
+
+  imbalance5?: number
+  microprice?: number
+
+  rawDepthRef?: string
+}
+```
+
+---
+
+# 82. Signal persistence
+
+```ts
+type PredictionSignalRecord = {
+  id: string
+
+  marketId: string
+  outcomeId: string
+
+  strategyId: string
+  strategyVersion: string
+
+  signal: PredictionTechnicalSignal
+
+  status:
+    | 'generated'
+    | 'waiting_entry'
+    | 'entered'
+    | 'target_hit'
+    | 'invalidated'
+    | 'expired'
+    | 'cancelled'
+
+  createdAt: string
+  updatedAt: string
+}
+```
+
+---
+
+# 83. Market discovery
+
+Search/filter:
+- query;
+- category;
+- status;
+- end date;
+- volume;
+- liquidity.
+
+Trending must be deterministic, e.g. based on:
+- volume;
+- probability change;
+- trade rate;
+- liquidity.
+
+Do not let LLM label markets trending without metrics.
+
+---
+
+# 84. Signal discovery
+
+For:
+
+```text
+show strongest prediction setups
+```
+
+Filter out:
+- stale books;
+- insufficient liquidity;
+- excessive spread;
+- invalid backtest sample;
+- expired markets.
+
+Sort transparently.
+
+---
+
+# 85. Tick size
+
+Use current market metadata.
+
+Create/reuse:
+
+```text
+PredictionPriceNormalizer
+```
+
+Every entry/target/stop must be valid for current tick.
+
+---
+
+# 86. Outcome execution semantics
+
+Maintain separate YES and NO books.
+
+For LONG YES:
+use YES ask for executable entry.
+
+For LONG NO:
+use NO ask.
+
+Do not treat YES bid as identical to NO ask.
+
+---
+
+# 87. Resolution data
+
+Show official resolution rules/source where available.
+
+Technical signal does not override market resolution mechanics.
+
+---
+
+# 88. Political markets
+
+For political markets:
+- technical signals describe contract price behavior;
+- order-book data remains factual;
+- Polymarket prices are market prices, not Elyra political opinions;
+- if public narrative research is added, use neutral sourced reporting;
+- do not independently tell the user who will win or who to support.
+
+---
+
+# 89. Trading boundary
+
+Do not introduce automatic Polymarket trading.
+
+If authenticated trading already exists, signal can offer:
+
+```text
+[Prepare Order]
+```
+
+Flow:
+
+```text
+fresh book
+→ execution estimate
+→ PreparedAction
+→ explicit confirmation
+→ authenticated order
+```
+
+Never directly execute from signal card or Telegram alert.
+
+---
+
+# 90. Entry-missed handling
+
+If market leaves entry zone:
+
+```text
+Signal status: Entry missed
+```
+
+Do not silently revise entry upward.
+
+A revised setup should be a new signal/version.
+
+---
+
+# 91. Alerts from signal lifecycle
+
+Support:
+- waiting;
+- entry triggered;
+- target;
+- invalidation;
+- expiry.
+
+Signal alert rules reference stored signal ID, not model text.
+
+---
+
+# 92. Provider health
+
+Extend ProviderHealthService with:
+
+```text
+polymarket_rest
+polymarket_realtime
+polymarket_user
+```
+
+Track:
+- latency;
+- last event;
+- stream lag;
+- reconnect count;
+- errors;
+- rate limiting.
+
+---
+
+# 93. REST fallback
+
+If realtime feed fails:
+- optional REST polling;
+- mark degraded;
+- disable microstructure signals that require realtime fidelity.
+
+Do not represent polling as equivalent to realtime.
+
+---
+
+# 94. Capability registry
+
+Add:
+
+```text
+prediction.market_discovery
+prediction.market_details
+prediction.realtime
+prediction.orderbook
+prediction.orderbook_analytics
+prediction.probability_basket
+prediction.positions
+prediction.signals
+prediction.signal_backtest
+prediction.alerts
+```
+
+---
+
+# 95. Capability self-check
+
+Before signal:
+
+```text
+market details          required
+live price              required
+order book              required for book strategy
+history                 required for win rate
+strategy                required
+```
+
+Optional:
+- related markets;
+- external model;
+- user position.
+
+Gracefully degrade.
+
+---
+
+# 96. API routes
+
+Follow repository convention.
+
+Conceptual:
+
+```text
+GET /api/prediction-markets/:id/live
+GET /api/prediction-markets/:id/orderbook
+GET /api/prediction-markets/:id/basket
+GET /api/prediction-markets/:id/signal
+
+GET /api/prediction-signals
+GET /api/prediction-signals/:id
+
+POST /api/prediction-alerts
+GET /api/prediction-alerts
+PATCH /api/prediction-alerts/:id
+DELETE /api/prediction-alerts/:id
+```
+
+Server derives user identity.
+
+---
+
+# 97. Database additions
+
+Reuse existing DB.
+
+Possible new tables:
+
+```text
+prediction_market_snapshots
+prediction_book_snapshots
+prediction_signals
+prediction_signal_outcomes
+prediction_alert_rules
+prediction_watchlist
+```
+
+Do not duplicate existing:
+- positions;
+- orders;
+- notifications;
+- backtest result tables.
+
+---
+
+# 98. Testing — provider
+
+Mock:
+- market search;
+- detail;
+- order book;
+- trades;
+- positions;
+- open orders;
+- realtime stream;
+- reconnect/resnapshot.
+
+---
+
+# 99. Testing — order book
+
+Exact unit tests:
+- best bid/ask;
+- spread;
+- midpoint;
+- microprice;
+- imbalance;
+- top-N depth;
+- empty book;
+- crossed book;
+- zero size;
+- tick normalization.
+
+---
+
+# 100. Testing — basket
+
+Test:
+- binary YES/NO;
+- stale side;
+- missing side;
+- normalization;
+- valid bounds;
+- confidence downgrade;
+- unrelated market rejection.
+
+---
+
+# 101. Testing — signals
+
+Test:
+- direction;
+- entry;
+- target;
+- stop;
+- R:R;
+- stale book;
+- low liquidity;
+- wide spread;
+- conflicting evidence;
+- expiration.
+
+---
+
+# 102. Testing — win rate
+
+Test:
+- entry occurs;
+- target first;
+- stop first;
+- no entry;
+- time expiry;
+- insufficient sample.
+
+---
+
+# 103. Testing — Agent
+
+Queries:
+
+```text
+read the polymarket orderbook
+```
+
+```text
+give me direction entry target stop win rate
+```
+
+```text
+what is the basket probability
+```
+
+```text
+alert me if YES breaks 65
+```
+
+Ensure all numeric output originates from deterministic tools.
+
+---
+
+# 104. Testing — Telegram
+
+Test:
+- `/predictions`;
+- prediction signal;
+- live book;
+- basket;
+- alert creation;
+- alert dedupe;
+- target;
+- invalidation;
+- stale realtime feed;
+- user position privacy.
+
+---
+
+# 105. Security
+
+Required:
+- user positions scoped by auth;
+- private Telegram account data only in private chat;
+- no secrets in LLM context;
+- validated market/outcome IDs;
+- no arbitrary model code;
+- no automatic trading;
+- alert ownership checks;
+- signal ownership where private.
+
+---
+
+# 106. Observability
+
+Track:
+
+```text
+Polymarket REST latency
+realtime connection status
+stream lag
+reconnect rate
+order-book updates/sec
+signal generation latency
+alert latency
+stale-market count
+backtest sample size
+```
+
+---
+
+# 107. Analytics
+
+Events:
+
+```text
+prediction_market_opened
+prediction_orderbook_opened
+prediction_signal_viewed
+prediction_signal_backtested
+prediction_alert_created
+telegram_prediction_signal_viewed
+telegram_prediction_alert_created
+```
+
+Do not log private raw chat by default.
+
+---
+
+# 108. Phase 1
+
+Ship:
+
+- real Polymarket discovery;
+- live market data;
+- live order books;
+- recent trades;
+- user positions/orders where already authenticated;
+- order-book analytics;
+- executable-price estimator;
+- binary Probability Basket;
+- technical Signal Engine;
+- Direction;
+- Entry;
+- Target;
+- Stop/Invalidation;
+- R:R;
+- historical win rate when backtest data supports it;
+- signal freshness;
+- prediction alerts;
+- Agent integration;
+- Telegram integration;
+- Mini App market/order-book/signal views;
+- historical price-strategy backtests.
+
+---
+
+# 109. Phase 1.5
+
+Add:
+
+- persistent order-book history;
+- order-book historical strategy backtests;
+- related-market basket;
+- richer multi-outcome constraints;
+- forward signal track record.
+
+---
+
+# 110. Definition of done
+
+Complete when:
+
+- current official Polymarket APIs/streams are used;
+- real-time state works;
+- books are normalized;
+- reconnect/resnapshot works;
+- stale data blocks actionable signal;
+- order-book analytics work;
+- Probability Basket works;
+- signal has Direction;
+- signal has Entry;
+- signal has Target;
+- signal has Stop/Invalidation;
+- R:R is deterministic;
+- win rate is from Backtesting Engine;
+- sample size is shown;
+- insufficient history is handled;
+- Agent supports prediction technical signals;
+- Telegram supports prediction technical signals;
+- Telegram alerts work;
+- order-book view works;
+- private positions remain private;
+- no automatic trading is added;
+- existing Research/Backtests/Signals/Portfolio remain intact;
+- typecheck passes;
 - lint passes;
 - tests pass;
 - production build passes.
 
 ---
 
-# 95. Final product bar
+# 111. Final product bar
 
-A user should be able to ask on the Elyra dashboard:
-
-```text
-What is my biggest risk?
-```
-
-then open Telegram and say:
+A user should be able to ask:
 
 ```text
-What changed since then?
+Read this Polymarket order book and give me direction, entry, target, stop and win rate.
 ```
 
-and Elyra should still understand the same:
+Elyra should:
 
-- user;
-- wallet;
-- portfolio;
-- positions;
-- memory;
-- conversation context;
-- providers;
-- risk constraints.
+```text
+resolve market
+→ load live Polymarket data
+→ load YES/NO books
+→ calculate spread, depth, microprice, imbalance
+→ calculate Elyra Probability Basket
+→ evaluate deterministic strategy
+→ fetch valid historical backtest statistics
+→ enforce liquidity and freshness gates
+→ create a structured signal
+→ explain it in Agent/Telegram
+```
 
-The target is:
+Then:
 
-> **One Elyra intelligence layer. One identity. One portfolio. Multiple protocols. Two interfaces — dashboard and Telegram.**
+```text
+alert me when this setup triggers
+```
+
+should create a real signal-lifecycle alert using the same backend.
+
+The standard is:
+
+> **Real-time Polymarket microstructure + executable pricing + probability baskets + backtested strategy rules + auditable alerts.**

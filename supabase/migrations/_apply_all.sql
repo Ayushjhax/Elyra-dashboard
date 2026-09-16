@@ -958,3 +958,376 @@ create index if not exists prediction_probability_marks_recorded_idx
 
 alter table public.prediction_probability_marks enable row level security;
 
+-- ===================== 0009_research.sql =====================
+-- ---------------------------------------------------------------------------
+-- Research reports.
+--
+-- ── One table, not a job queue ──────────────────────────────────────────
+--
+-- A row IS the job and, once finished, the report. Splitting them would mean
+-- a two-phase write for every state change and a join for every read, to
+-- model a lifecycle that is strictly linear: queued, running, done or failed.
+--
+-- `status` carries the lifecycle and `document` carries the result. A row
+-- with status 'complete' and a null document is a bug, not a state.
+--
+-- ── Why the document is jsonb ───────────────────────────────────────────
+--
+-- The report is a typed tree of sections, metrics and sources that is
+-- rendered to both HTML and PDF. Normalising it into tables would let the
+-- database validate nothing useful — no constraint expresses "every metric
+-- cites a source that exists" — while making the common read a five-way join.
+-- The application verifies the structure before it is stored.
+--
+-- ── Ownership ───────────────────────────────────────────────────────────
+--
+-- Privy means auth.uid() is null, so RLS is on with no policies and every
+-- query filters by user_id. A report contains a user's research; the download
+-- path re-checks ownership rather than trusting an unguessable id.
+--
+-- Safe to run against a database that already has these.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.research_reports (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+
+  -- What was asked for, as typed. Kept so a failed report can be retried and
+  -- so history reads like the user's own words rather than a parsed summary.
+  query       text not null,
+  kind        text not null check (kind in ('earnings', '10-K', '10-Q', 'custom')),
+
+  -- Resolved subject. Null until the entity step succeeds, which is why a
+  -- failed report can still say what it was looking for.
+  subject_name   text,
+  subject_ticker text,
+  subject_cik    text,
+  period_label   text,
+
+  status      text not null default 'queued'
+                check (status in ('queued','resolving','collecting','analyzing','rendering','complete','failed')),
+
+  -- Written for a person. Shown while the job runs and after it fails.
+  status_detail text,
+
+  -- 'verified' | 'verified_with_warnings' | 'incomplete'. Null until complete.
+  quality     text check (quality in ('verified','verified_with_warnings','incomplete')),
+
+  -- The full ResearchReportDocument. Null until the document is built.
+  document    jsonb,
+
+  -- Object-storage path of the rendered PDF. Null until rendering succeeds,
+  -- so a non-null value means a file that exists.
+  pdf_path    text,
+  pdf_bytes   integer,
+
+  -- Why it failed. Null on success.
+  error       text,
+
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+create index if not exists research_reports_user_idx
+  on public.research_reports(user_id, created_at desc);
+
+-- The worker scans this: anything still running.
+create index if not exists research_reports_active_idx
+  on public.research_reports(created_at)
+  where status not in ('complete', 'failed');
+
+alter table public.research_reports enable row level security;
+
+-- ===================== 0010_backtests.sql =====================
+-- ---------------------------------------------------------------------------
+-- Backtest results.
+--
+-- ── One row per run, with the arrays inline ─────────────────────────────
+--
+-- A year of hourly bars produces a few hundred trades and ~8,700 equity
+-- points. That is tens of kilobytes of JSON — small enough to live in the row
+-- and far simpler than a side table plus object storage. The listing query
+-- selects explicit columns rather than `*`, so browsing history never drags
+-- the arrays across the wire.
+--
+-- ── Why the config is stored whole ──────────────────────────────────────
+--
+-- A result is only meaningful alongside the assumptions that produced it: the
+-- fee, the slippage, the execution timing, the exact parameters. Storing them
+-- as a blob beside the numbers is what makes a saved result reproducible, and
+-- `engine_version` plus `strategy_version` say whether today's code would
+-- still produce it.
+--
+-- Same lockdown as the rest of the schema: Privy means auth.uid() is null, so
+-- RLS is on with no policies and every query filters by user_id.
+--
+-- Safe to run against a database that already has these.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.backtest_results (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+
+  -- What was asked for, as typed, so history reads like the user's own words.
+  query       text,
+
+  instrument   text not null,
+  venue        text not null,
+  timeframe    text not null,
+  strategy_id  text not null,
+  strategy_version integer not null,
+  engine_version   text not null,
+
+  started_at  timestamptz not null,
+  ended_at    timestamptz not null,
+
+  status      text not null default 'queued'
+                check (status in ('queued','loading','simulating','complete','failed')),
+  status_detail text,
+
+  -- The full BacktestConfig, including costs and execution timing.
+  config      jsonb,
+  -- Computed metrics. Nulls inside are meaningful: see lib/backtest/metrics.
+  metrics     jsonb,
+  -- Trades and the equity curve.
+  trades      jsonb,
+  equity      jsonb,
+  -- Robustness checks, when they were run.
+  robustness  jsonb,
+
+  quality     text check (quality in ('insufficient_data','insufficient_trades','valid','valid_with_warnings')),
+  -- Every caveat, so a stored result still carries its own warnings.
+  warnings    jsonb,
+
+  error       text,
+
+  created_at  timestamptz not null default now(),
+  completed_at timestamptz
+);
+
+create index if not exists backtest_results_user_idx
+  on public.backtest_results(user_id, created_at desc);
+
+create index if not exists backtest_results_active_idx
+  on public.backtest_results(created_at)
+  where status not in ('complete', 'failed');
+
+alter table public.backtest_results enable row level security;
+
+-- ================ 0011_prediction_signals.sql ================
+-- ---------------------------------------------------------------------------
+-- Prediction market intelligence: signals, book history, alerts, watchlist.
+--
+-- Builds on 0008, which added the Polymarket account linkage and the
+-- probability marks. Nothing here duplicates an existing table: positions and
+-- orders stay upstream at the venue, notifications stay in the Telegram
+-- preference row, and backtest_results (0010) remains the SPOT backtest store.
+-- Prediction backtests are a different simulator over a different data shape
+-- and carry their own success definition, so they are not forced into it.
+--
+-- Same lockdown as the rest of the schema: Privy means auth.uid() is null, so
+-- RLS is enabled with no policies and row scoping is the query's job. The
+-- service-role client bypasses RLS entirely — `.eq("user_id", ...)` IS the
+-- tenant boundary, and every read in lib/prediction/ carries one.
+--
+-- Safe to run against a database that already has these.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- Generated signals, and what became of them.
+--
+-- The signal JSON is stored whole rather than shredded into columns. It is an
+-- AUDIT RECORD: the exact object a user was shown, including the evidence and
+-- the thresholds in force at the time. Normalising it would mean a later
+-- schema change silently rewrites history, and a win rate attributed to a
+-- rule nobody can reconstruct is not a measurement.
+--
+-- The queryable fields are lifted out alongside it for indexing only.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.prediction_signals (
+  id          uuid primary key default gen_random_uuid(),
+  -- Null for a signal generated by a scan rather than for one person.
+  user_id     uuid references public.profiles(id) on delete cascade,
+
+  market_id   text not null,
+  condition_id text,
+  token_id    text not null,
+
+  strategy_id      text not null,
+  strategy_version text not null,
+
+  direction   text not null
+                check (direction in ('long_yes','long_no','long_outcome','neutral','watch')),
+  strength    text not null check (strength in ('low','medium','high')),
+
+  -- The whole PredictionTechnicalSignal, exactly as rendered.
+  signal      jsonb not null,
+
+  -- Lifecycle. A setup that never entered is neither a win nor a loss, which
+  -- is why 'waiting_entry' and 'expired' are distinct from 'invalidated'.
+  status      text not null default 'generated'
+                check (status in ('generated','waiting_entry','entered','target_hit',
+                                  'invalidated','expired','cancelled')),
+
+  -- Forward tracking. Paper only: nothing here places an order.
+  entry_filled_at timestamptz,
+  entry_price     numeric check (entry_price > 0 and entry_price < 1),
+  resolved_at     timestamptz,
+  -- Signed probability points from entry. Null until resolved.
+  result_points   numeric,
+
+  generated_at timestamptz not null default now(),
+  expires_at   timestamptz,
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists prediction_signals_user_idx
+  on public.prediction_signals(user_id, generated_at desc);
+
+create index if not exists prediction_signals_market_idx
+  on public.prediction_signals(market_id, generated_at desc);
+
+-- The lifecycle worker's hot path: everything still being tracked.
+create index if not exists prediction_signals_open_idx
+  on public.prediction_signals(status, expires_at)
+  where status in ('generated','waiting_entry','entered');
+
+alter table public.prediction_signals enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Forward order-book features.
+--
+-- Polymarket publishes probability history but not historical DEPTH, so
+-- order-book strategies have no comparable historical sample and report no
+-- win rate (see lib/prediction/signal-backtest.ts). This table is how that
+-- stops being true: features are recorded as they are observed, so the
+-- sample accumulates from real observations rather than a reconstruction.
+--
+-- Deliberately NOT a raw update log. Storing every WebSocket frame forever
+-- costs gigabytes per market per month to answer questions that the derived
+-- features answer directly. One row per token per sampling interval.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.prediction_book_snapshots (
+  id          bigserial primary key,
+  token_id    text not null,
+  market_id   text not null,
+
+  best_bid    numeric,
+  best_ask    numeric,
+  midpoint    numeric,
+  microprice  numeric,
+  spread      numeric,
+
+  bid_depth_1  numeric,
+  ask_depth_1  numeric,
+  bid_depth_5  numeric,
+  ask_depth_5  numeric,
+  imbalance_5  numeric check (imbalance_5 >= -1 and imbalance_5 <= 1),
+
+  -- Which transport produced it. A snapshot is not a live observation, and
+  -- a sample pooled across both without this column cannot be split later.
+  transport   text not null default 'rest_snapshot'
+                check (transport in ('rest_snapshot','realtime')),
+
+  recorded_at timestamptz not null default now()
+);
+
+create index if not exists prediction_book_snapshots_token_idx
+  on public.prediction_book_snapshots(token_id, recorded_at desc);
+
+-- Retention sweeps read this. Compression and pruning live in the worker.
+create index if not exists prediction_book_snapshots_recorded_idx
+  on public.prediction_book_snapshots(recorded_at);
+
+alter table public.prediction_book_snapshots enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Alert rules.
+--
+-- Separate from price_alerts (0007): that table keys on a SYMBOL and a spot
+-- price. A prediction alert keys on an outcome token, and half of its kinds
+-- are not price thresholds at all — imbalance, spread, and the signal
+-- lifecycle events. Forcing both into one table would mean a symbol column
+-- that is null for half the rows and a direction column that means different
+-- things per kind.
+--
+-- `state` is what stops an alert firing on every tick: a threshold rule that
+-- has fired sits in 'triggered' until the condition clears and re-arms it.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.prediction_alert_rules (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+
+  market_id   text not null,
+  token_id    text,
+  market_question text,
+  outcome_label   text,
+
+  kind        text not null
+                check (kind in ('price_above','price_below','probability_change',
+                                'orderbook_imbalance','spread_expansion','spread_compression',
+                                'liquidity_change','signal_new','signal_entry','signal_target',
+                                'signal_invalidated','signal_expired','market_resolution')),
+
+  -- The level, in the unit the kind implies: 0–1 for price, −1..1 for
+  -- imbalance, probability POINTS for a change, dollars for liquidity.
+  threshold   numeric,
+
+  -- Set for the signal_* kinds. Refers to a stored signal id, never to model
+  -- text — an alert that names a setup must name the exact one it watched.
+  signal_id   uuid references public.prediction_signals(id) on delete cascade,
+
+  -- armed -> triggered -> armed. Never fires twice without re-arming.
+  state       text not null default 'armed' check (state in ('armed','triggered','disabled')),
+  last_value  numeric,
+  triggered_at timestamptz,
+  -- Suppresses a re-fire for this long even after the condition clears.
+  cooldown_seconds integer not null default 300 check (cooldown_seconds >= 0),
+
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists prediction_alert_rules_user_idx
+  on public.prediction_alert_rules(user_id, created_at desc);
+
+-- The evaluator's hot path.
+create index if not exists prediction_alert_rules_armed_idx
+  on public.prediction_alert_rules(token_id)
+  where state = 'armed';
+
+-- One rule per user per market/outcome/kind/threshold. Re-sending the same
+-- request re-arms rather than stacking duplicates that all fire together.
+create unique index if not exists prediction_alert_rules_unique_idx
+  on public.prediction_alert_rules(
+    user_id, market_id, coalesce(token_id, ''), kind, coalesce(threshold, -999)
+  );
+
+alter table public.prediction_alert_rules enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Watchlist. What a user wants kept warm.
+--
+-- Also the subscription manager's persistence: the reference counts in
+-- lib/prediction/state.ts live in process memory and do not survive a
+-- restart, so this is what tells a fresh process which markets to re-watch.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.prediction_watchlist (
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  market_id   text not null,
+  token_id    text,
+  market_question text,
+  added_at    timestamptz not null default now(),
+  primary key (user_id, market_id)
+);
+
+create index if not exists prediction_watchlist_market_idx
+  on public.prediction_watchlist(market_id);
+
+alter table public.prediction_watchlist enable row level security;
+

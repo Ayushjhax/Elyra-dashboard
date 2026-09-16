@@ -650,6 +650,118 @@ async function deliverDailySummary(
  * a liquidation warning is the most important message this system sends and
  * it should not be lost to a price-alert bug.
  */
+/* ---------------------------------------------------------------------------
+   Prediction signal lifecycle and microstructure alerts
+
+   Distinct from `deliverPredictionAlerts` above, which watches the PROBABILITY
+   of markets a user holds. This one watches user-created rules and the
+   lifecycle of signals Elyra generated — entry, target, invalidation — and it
+   is driven by `lib/prediction/worker.ts`, which owns all the arithmetic.
+
+   Nothing here recomputes a threshold. The worker decides what fired; this
+   function decides who may be told and sends it.
+--------------------------------------------------------------------------- */
+
+const LIFECYCLE_TITLE: Record<string, string> = {
+  entered: "Signal Entered",
+  target_hit: "Target Reached",
+  invalidated: "Signal Invalidated",
+  expired: "Signal Expired",
+};
+
+async function deliverPredictionSignalAlerts(
+  chats: Map<string, Recipient>,
+  report: DeliveryReport,
+): Promise<void> {
+  const { runPredictionWorker } = await import("@/lib/prediction/worker");
+
+  const outcome = await runPredictionWorker();
+  report.scanned += outcome.alertsChecked + outcome.signalsChecked;
+  report.errors += outcome.errors;
+
+  /* ---- Threshold rules the user created ---- */
+  for (const fired of outcome.alertsFired) {
+    const chat = chats.get(fired.userId);
+    if (chat === undefined) {
+      report.skipped += 1;
+      continue;
+    }
+
+    const preferences = await notificationPreferences(fired.userId);
+    if (!preferences.predictionAlerts) {
+      report.skipped += 1;
+      continue;
+    }
+
+    const lines = [
+      "<b>Prediction Alert</b>",
+      "",
+      escapeHtml(fired.marketQuestion ?? fired.marketId),
+      "",
+      escapeHtml(fired.message),
+      "",
+      "<i>This alert is now quiet until the condition clears.</i>",
+    ];
+
+    try {
+      await sendMessage(chat.chatId, lines.join("\n"));
+      report.sent += 1;
+    } catch {
+      report.errors += 1;
+    }
+  }
+
+  /* ---- Lifecycle transitions on generated signals ---- */
+  for (const change of outcome.lifecycleChanges) {
+    if (change.userId === null) continue;
+
+    const chat = chats.get(change.userId);
+    if (chat === undefined) {
+      report.skipped += 1;
+      continue;
+    }
+
+    const preferences = await notificationPreferences(change.userId);
+    if (!preferences.predictionAlerts) {
+      report.skipped += 1;
+      continue;
+    }
+
+    const title = LIFECYCLE_TITLE[change.status];
+    /* Only the transitions worth interrupting someone for. A move to
+       `waiting_entry` is bookkeeping, not news. */
+    if (title === undefined) continue;
+
+    const lines = [
+      `<b>${escapeHtml(title)}</b>`,
+      "",
+      escapeHtml(change.marketQuestion),
+      `<b>${escapeHtml(change.outcomeLabel)}</b>`,
+      "",
+      escapeHtml(change.reason),
+    ];
+
+    if (change.resultPoints !== null) {
+      lines.push(
+        "",
+        `Result  ${change.resultPoints >= 0 ? "+" : ""}${change.resultPoints.toFixed(1)} points`,
+      );
+    }
+
+    lines.push(
+      "",
+      "<i>Forward paper tracking. No order was placed.</i>",
+    );
+
+    try {
+      await sendMessage(chat.chatId, lines.join("\n"));
+      report.sent += 1;
+    } catch {
+      report.errors += 1;
+    }
+  }
+}
+
 export async function deliverNotifications(): Promise<DeliveryReport> {
   const report: DeliveryReport = { scanned: 0, sent: 0, skipped: 0, errors: 0 };
 
@@ -661,6 +773,7 @@ export async function deliverNotifications(): Promise<DeliveryReport> {
     deliverLiquidationWarnings,
     deliverLargeMoves,
     deliverPredictionAlerts,
+    deliverPredictionSignalAlerts,
     deliverDailySummary,
   ]) {
     try {

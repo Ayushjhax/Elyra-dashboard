@@ -45,7 +45,10 @@ type View =
   | "risk"
   | "defi"
   | "prediction"
-  | "prediction-trending";
+  | "prediction-trending"
+  | "prediction-signals"
+  | "prediction-alerts"
+  | "backtests";
 
 const TABS: Array<{ id: View; label: string }> = [
   { id: "portfolio", label: "Overview" },
@@ -54,6 +57,9 @@ const TABS: Array<{ id: View; label: string }> = [
   { id: "defi", label: "DeFi" },
   { id: "prediction", label: "Predictions" },
   { id: "prediction-trending", label: "Markets" },
+  { id: "prediction-signals", label: "Signals" },
+  { id: "prediction-alerts", label: "Alerts" },
+  { id: "backtests", label: "Backtests" },
 ];
 
 interface Payload {
@@ -218,6 +224,258 @@ function ViewBody({ view, data }: { view: View; data: Record<string, unknown> })
       {view === "defi" ? <Defi data={data} /> : null}
       {view === "prediction" ? <Prediction data={data} /> : null}
       {view === "prediction-trending" ? <PredictionMarkets data={data} /> : null}
+      {view === "prediction-signals" ? <PredictionSignals data={data} /> : null}
+      {view === "prediction-alerts" ? <PredictionAlerts data={data} /> : null}
+      {view === "backtests" ? <Backtests data={data} /> : null}
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Backtests
+
+   Read-only here. Configuring a run needs parameter controls that do not fit
+   a 380px webview, so the Mini App shows recent results and links out.
+--------------------------------------------------------------------------- */
+
+function Backtests({ data }: { data: Record<string, unknown> }) {
+  const results = (data.results ?? []) as Array<{
+    id: string;
+    instrument: string;
+    timeframe: string;
+    strategyId: string;
+    quality: string | null;
+    metrics: { totalReturnPct: number; maxDrawdownPct: number; trades: number } | null;
+  }>;
+
+  if (results.length === 0) {
+    return (
+      <div className="mini-card">
+        <span className="mini-label">Backtests</span>
+        <p className="mini-note">
+          No backtests yet. Run one with <b>/backtest SOL rsi 1h 1y</b> in the
+          chat, or open Elyra.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {results.map((row) => (
+        <div key={row.id} className="mini-card">
+          <span className="mini-body">
+            {row.instrument} · {row.strategyId.split("_")[0]}
+          </span>
+          <div className="mini-row">
+            <span>Return</span>
+            <span className="mini-prob">
+              {row.metrics === null ? "—" : `${row.metrics.totalReturnPct.toFixed(1)}%`}
+            </span>
+          </div>
+          <div className="mini-row">
+            <span>Max drawdown</span>
+            <span className="mini-num">
+              {row.metrics === null ? "—" : `${row.metrics.maxDrawdownPct.toFixed(1)}%`}
+            </span>
+          </div>
+          <p className="mini-note">
+            {row.timeframe} · {row.metrics?.trades ?? 0} trades · {row.quality ?? "—"}
+          </p>
+        </div>
+      ))}
+      <p className="mini-note">
+        Historical simulation. Long only, costs included, funding excluded.
+      </p>
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Prediction signals
+
+   Renders the stored record. Nothing is computed here — the figures were
+   produced by the engine when the signal was generated, and recomputing any
+   of them in the chat client would let the two disagree.
+--------------------------------------------------------------------------- */
+
+const SIGNAL_STATUS: Record<string, string> = {
+  generated: "Generated",
+  waiting_entry: "Waiting for entry",
+  entered: "Entered",
+  target_hit: "Target hit",
+  invalidated: "Invalidated",
+  expired: "Expired",
+  cancelled: "Cancelled",
+};
+
+function PredictionSignals({ data }: { data: Record<string, unknown> }) {
+  const signals = (data.signals ?? []) as Array<{
+    id: string;
+    status: string;
+    entryPrice: number | null;
+    resultPoints: number | null;
+    signal: {
+      marketQuestion: string;
+      outcomeLabel: string;
+      direction: string;
+      strategyId: string;
+      riskReward: number | null;
+      strength: string;
+      entry: { minPrice?: number; maxPrice?: number; price?: number };
+      target: { price?: number };
+      stop: { price?: number; executable: boolean };
+      historicalWinRate: { valuePct: number; sampleSize: number; insufficientSample: boolean } | null;
+    };
+  }>;
+
+  const forward = data.forwardTrackRecord as
+    | {
+        entered: number;
+        targetHit: number;
+        invalidated: number;
+        winRatePct: number | null;
+        basis: string;
+      }
+    | undefined;
+
+  if (signals.length === 0) {
+    return (
+      <div className="mini-card">
+        <span className="mini-label">Prediction signals</span>
+        <p className="mini-note">
+          No signals yet. Ask for one with <b>/signal prediction fed september</b>{" "}
+          in the chat.
+        </p>
+      </div>
+    );
+  }
+
+  const centsOf = (value: number | null | undefined): string =>
+    typeof value === "number" && Number.isFinite(value)
+      ? `${(value * 100).toFixed(value * 100 < 10 ? 1 : 0)}\u00A2`
+      : "\u2014";
+
+  return (
+    <>
+      {forward !== undefined && (
+        <div className="mini-card">
+          <span className="mini-label">Forward track record</span>
+          <div className="mini-row">
+            <span>Decided</span>
+            <span className="mini-num">{forward.targetHit + forward.invalidated}</span>
+          </div>
+          <div className="mini-row">
+            <span>Win rate</span>
+            <span className="mini-prob">
+              {forward.winRatePct === null
+                ? "Not yet reportable"
+                : `${forward.winRatePct.toFixed(1)}%`}
+            </span>
+          </div>
+          {/* The basis is printed so this can never be read as the historical
+              backtested figure — they are different statistics. */}
+          <p className="mini-note">{forward.basis}</p>
+        </div>
+      )}
+
+      {signals.map((row) => (
+        <div key={row.id} className="mini-card">
+          <span className="mini-body">{row.signal.marketQuestion}</span>
+          <div className="mini-row">
+            <span>{row.signal.outcomeLabel}</span>
+            <span className="mini-prob">
+              {row.signal.direction.replace("long_", "LONG ").toUpperCase()}
+            </span>
+          </div>
+          <div className="mini-row">
+            <span>Entry</span>
+            <span className="mini-num">
+              {row.signal.entry.minPrice !== undefined && row.signal.entry.maxPrice !== undefined
+                ? `${centsOf(row.signal.entry.minPrice)}\u2013${centsOf(row.signal.entry.maxPrice)}`
+                : centsOf(row.signal.entry.price)}
+            </span>
+          </div>
+          <div className="mini-row">
+            <span>Target</span>
+            <span className="mini-num">{centsOf(row.signal.target.price)}</span>
+          </div>
+          <div className="mini-row">
+            <span>{row.signal.stop.executable ? "Stop" : "Invalidation"}</span>
+            <span className="mini-num">{centsOf(row.signal.stop.price)}</span>
+          </div>
+          <div className="mini-row">
+            <span>Risk / reward</span>
+            <span className="mini-num">
+              {row.signal.riskReward === null ? "\u2014" : row.signal.riskReward.toFixed(2)}
+            </span>
+          </div>
+          <div className="mini-row">
+            <span>Win rate</span>
+            <span className="mini-num">
+              {row.signal.historicalWinRate === null
+                ? "Not measurable"
+                : row.signal.historicalWinRate.insufficientSample
+                  ? `Insufficient \u00B7 ${row.signal.historicalWinRate.sampleSize}`
+                  : `${row.signal.historicalWinRate.valuePct.toFixed(1)}% \u00B7 ${row.signal.historicalWinRate.sampleSize}`}
+            </span>
+          </div>
+          <p className="mini-note">
+            {SIGNAL_STATUS[row.status] ?? row.status} \u00B7 {row.signal.strategyId} \u00B7{" "}
+            {row.signal.strength} strength
+          </p>
+        </div>
+      ))}
+      <p className="mini-note">
+        Computed by Elyra&apos;s engine from live order books. Analysis, not advice
+        \u2014 a signal does not place an order.
+      </p>
+    </>
+  );
+}
+
+function PredictionAlerts({ data }: { data: Record<string, unknown> }) {
+  const alerts = (data.alerts ?? []) as Array<{
+    id: string;
+    marketQuestion: string | null;
+    outcomeLabel: string | null;
+    kind: string;
+    threshold: number | null;
+    state: string;
+  }>;
+
+  if (alerts.length === 0) {
+    return (
+      <div className="mini-card">
+        <span className="mini-label">Prediction alerts</span>
+        <p className="mini-note">
+          No alerts yet. Open a market in the chat and use <b>Set alert</b>.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {alerts.map((alert) => (
+        <div key={alert.id} className="mini-card">
+          <span className="mini-body">{alert.marketQuestion ?? "Market"}</span>
+          <div className="mini-row">
+            <span>{alert.outcomeLabel ?? "Outcome"}</span>
+            <span className="mini-prob">{alert.kind.replace(/_/g, " ")}</span>
+          </div>
+          {alert.threshold !== null && (
+            <div className="mini-row">
+              <span>Threshold</span>
+              <span className="mini-num">{alert.threshold}</span>
+            </div>
+          )}
+          <p className="mini-note">{alert.state}</p>
+        </div>
+      ))}
+      <p className="mini-note">
+        An alert fires once on the crossing, then re-arms when the condition clears.
+      </p>
     </>
   );
 }

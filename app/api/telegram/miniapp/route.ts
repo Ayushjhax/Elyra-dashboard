@@ -100,6 +100,41 @@ export async function POST(request: Request): Promise<Response> {
     "prediction-trending": "prediction_get_trending",
   };
 
+  /* Prediction signals come from the store for the same reason as backtests:
+     the list is the user's own history and its forward track record, neither
+     of which should be asked of a model. The forward figure is returned under
+     its own key with its own basis string so it can never be rendered as the
+     historical backtested rate. */
+  if (view === "prediction-signals") {
+    const { listSignals, forwardRecord } = await import("@/lib/prediction/signal-store");
+    const [signals, forward] = await Promise.all([
+      listSignals(link.user_id, 10),
+      forwardRecord(link.user_id),
+    ]);
+    return NextResponse.json(
+      { linked: true, view, data: { signals, forwardTrackRecord: forward } },
+      { status: 200, headers: { "cache-control": "no-store" } },
+    );
+  }
+
+  if (view === "prediction-alerts") {
+    const { listPredictionAlerts } = await import("@/lib/prediction/alerts");
+    return NextResponse.json(
+      { linked: true, view, data: { alerts: await listPredictionAlerts(link.user_id) } },
+      { status: 200, headers: { "cache-control": "no-store" } },
+    );
+  }
+
+  /* Backtests are read from the store rather than through a tool: the list is
+     the user's own history, not something a model should be asked for. */
+  if (view === "backtests") {
+    const { listResults } = await import("@/lib/backtest/run");
+    return NextResponse.json(
+      { linked: true, view, data: { results: await listResults(link.user_id, 10) } },
+      { status: 200, headers: { "cache-control": "no-store" } },
+    );
+  }
+
   const tool = TOOL[view];
   if (tool === undefined) {
     return NextResponse.json({ error: "Unknown view" }, { status: 400 });

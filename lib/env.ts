@@ -58,7 +58,11 @@ type OptionalKey =
   | "UPSTASH_REDIS_REST_URL"
   | "UPSTASH_REDIS_REST_TOKEN"
   | "AGENT_MAX_RUNS_PER_DAY"
-  | "APP_URL";
+  | "APP_URL"
+  | "SEC_USER_AGENT"
+  | "SEC_MAX_RPS"
+  | "TOKENOMIST_API_KEY"
+  | "COINMARKETCAL_API_KEY";
 
 type RequiredKey = (typeof REQUIRED)[number];
 

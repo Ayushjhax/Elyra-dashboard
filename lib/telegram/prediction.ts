@@ -55,6 +55,8 @@ export const PREDICTION_CALLBACKS = {
   discover: "pm:discover",
   trending: "pm:trending",
   orders: "pm:orders",
+  signalsHelp: "pm:signals",
+  alertsHelp: "pm:alerts",
 } as const;
 
 export function isPredictionCallback(data: string): boolean {
@@ -172,7 +174,15 @@ export async function predictionHome(context: ToolContext): Promise<PredictionVi
         { text: "Trending", callbackData: PREDICTION_CALLBACKS.trending },
         { text: "Open orders", callbackData: PREDICTION_CALLBACKS.orders },
       ],
-      [{ text: "Open Elyra", url: `${appUrl()}/portfolio` }],
+      /* Signals and alerts need a MARKET to act on, which a menu button
+         cannot carry — a token id alone is 77 digits against Telegram's
+         64-byte callback limit. So these prompt for one rather than
+         pretending a global "signals" view exists. */
+      [
+        { text: "Signals", callbackData: PREDICTION_CALLBACKS.signalsHelp },
+        { text: "Alerts", callbackData: PREDICTION_CALLBACKS.alertsHelp },
+      ],
+      [{ text: "Open Elyra", url: `${appUrl()}/research` }],
     ],
   };
 }
@@ -423,6 +433,61 @@ export async function predictionOrders(context: ToolContext): Promise<Prediction
 --------------------------------------------------------------------------- */
 
 /** Handles a `pm:` button tap. Every branch is read-only. */
+/* ---------------------------------------------------------------------------
+   Signal and alert entry points
+
+   Both need a named market. These cards say how to name one rather than
+   offering a button that cannot carry the argument.
+--------------------------------------------------------------------------- */
+
+function signalsHelp(): PredictionView {
+  return {
+    html: [
+      "<b>Prediction Signals</b>",
+      "",
+      "Name a market and Elyra reads its live order book, computes the " +
+        "microstructure and the probability basket, evaluates the strategy " +
+        "rules, and returns a direction with an entry, target, invalidation " +
+        "and — where one can honestly be measured — a backtested win rate.",
+      "",
+      "<code>/signal prediction fed september</code>",
+      "<code>/orderbook fed september</code>",
+      "<code>/basket fed september</code>",
+      "",
+      "<i>Every figure is computed by Elyra's engine from the venue's own book. " +
+        "Nothing is estimated.</i>",
+    ].join("\n"),
+    buttons: [
+      [{ text: "Trending markets", callbackData: PREDICTION_CALLBACKS.trending }],
+      [{ text: "Back", callbackData: PREDICTION_CALLBACKS.home }],
+    ],
+  };
+}
+
+function alertsHelp(): PredictionView {
+  return {
+    html: [
+      "<b>Prediction Alerts</b>",
+      "",
+      "Open a market with <code>/signal prediction &lt;market&gt;</code>, then use " +
+        "<b>Set alert</b> on the card.",
+      "",
+      "Conditions Elyra understands:",
+      "· <code>alert me if YES breaks 65</code>",
+      "· <code>alert me if imbalance is above 0.3</code>",
+      "· <code>alert me when this setup enters</code>",
+      "· <code>alert me if target is hit</code>",
+      "",
+      "<i>An alert fires once on the crossing, then re-arms when the condition " +
+        "clears — not once per book update.</i>",
+    ].join("\n"),
+    buttons: [
+      [{ text: "All alerts", callbackData: "alerts:list" }],
+      [{ text: "Back", callbackData: PREDICTION_CALLBACKS.home }],
+    ],
+  };
+}
+
 export async function handlePredictionCallback(
   context: ToolContext,
   data: string,
@@ -431,6 +496,8 @@ export async function handlePredictionCallback(
   if (data === PREDICTION_CALLBACKS.discover) return predictionDiscover();
   if (data === PREDICTION_CALLBACKS.trending) return predictionTrending(context);
   if (data === PREDICTION_CALLBACKS.orders) return predictionOrders(context);
+  if (data === PREDICTION_CALLBACKS.signalsHelp) return signalsHelp();
+  if (data === PREDICTION_CALLBACKS.alertsHelp) return alertsHelp();
 
   const category = /^pm:cat:([a-z0-9-]{1,40})$/.exec(data);
   if (category !== null) return predictionCategory(context, category[1]);

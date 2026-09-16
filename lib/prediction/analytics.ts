@@ -306,12 +306,17 @@ export function matchingSymbol(
   positions: PredictionPosition[],
   symbol: string,
 ): PredictionPosition[] {
-  const needle = symbol.trim().toUpperCase();
+  /* Strip before the length check, not inside the pattern. "$$" clears a
+     check on the raw string but leaves nothing to match on, and an empty
+     needle compiles to /\b\b/ — which matches every title containing a word
+     and would report the whole book as exposure to it. Stripping first also
+     lets "$BTC" reach the alias table below. */
+  const needle = symbol.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (needle.length < 2) return [];
 
   /* Word-boundary match on the market title. A substring search would match
      "ETH" inside "whETHer" and report an unrelated market as BTC exposure. */
-  const pattern = new RegExp(`\\b${needle.replace(/[^A-Z0-9]/g, "")}\\b`, "i");
+  const pattern = new RegExp(`\\b${needle}\\b`, "i");
 
   const ALIASES: Record<string, string[]> = {
     BTC: ["BITCOIN"],

@@ -83,6 +83,9 @@ export const FULL_BLEED_ROUTES: readonly string[] = [
   "/assets",
   "/personalized",
   "/referrals",
+  /* Research renders tables of filings, signals and yields side by side —
+     content that does not fit the 640px route column beside the chart. */
+  "/research",
 ];
 
 /** Whether `pathname` is one of them. */

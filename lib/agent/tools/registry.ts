@@ -8,6 +8,9 @@ import { ELYRA_TOOLS } from "@/lib/agent/tools/elyra";
 import { MARKET_TOOLS } from "@/lib/agent/tools/market";
 import { PORTFOLIO_TOOLS } from "@/lib/agent/tools/portfolio";
 import { PREDICTION_TOOLS } from "@/lib/agent/tools/prediction";
+import { PREDICTION_SIGNAL_TOOLS } from "@/lib/agent/tools/prediction-signals";
+import { companyResearch } from "@/lib/research/tool";
+import { BACKTEST_TOOLS } from "@/lib/backtest/tool";
 
 /* ---------------------------------------------------------------------------
    The tool registry.
@@ -59,6 +62,9 @@ export const TOOLS: RegisteredTool[] = [
   ...PORTFOLIO_TOOLS,
   ...ELYRA_TOOLS,
   ...PREDICTION_TOOLS,
+  ...PREDICTION_SIGNAL_TOOLS,
+  companyResearch,
+  ...BACKTEST_TOOLS,
 ];
 
 const BY_NAME = new Map(TOOLS.map((tool) => [tool.def.name, tool]));

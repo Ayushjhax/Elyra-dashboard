@@ -5,6 +5,8 @@ import { useFundWallet } from "@privy-io/react-auth/solana";
 import { ArrowDownToLine, ArrowLeftRight, ArrowUpRight, Send } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { ActionButton } from "@/components/assets/primitives";
+import { SwapDialog } from "@/components/assets/SwapDialog";
+import { TransferDialog } from "@/components/assets/TransferDialog";
 import { Button } from "@/components/ui/Button";
 import {
   Dialog,
@@ -26,26 +28,20 @@ import { cn } from "@/lib/utils";
    reused rather than reimplemented, which is what §3 asks for and what keeps
    the on-ramp from being invented here.
 
-   SWAP, TRANSFER and WITHDRAW do not, and this file does not pretend they
-   do. §3 says "REUSE existing workflows if they already exist" — they do
-   not. There is no Jupiter swap route, no transfer builder, and no signing
-   path anywhere in this repository: `sendTransaction`, `signTransaction` and
-   `signAndSendTransaction` appear zero times in the whole app, and
-   lib/exchange is read-only by construction ("Nothing in lib/exchange/ may
-   call an endpoint that places, modifies or cancels an order").
+   SWAP and TRANSFER work now. Both quote or build on the server, sign in
+   this browser through Privy, and submit the signed bytes back — see those
+   two files for the reasoning specific to each: a swap re-quotes before it
+   signs, a transfer shows the recipient in full before it sends.
 
-   So the choice was between building three money-moving flows from scratch —
-   quoting, transaction construction, signing, submission, confirmation —
-   against live funds inside a redesign task, or stating plainly that they
-   are not wired up. The second is correct, and it is what §"NO FAKE DATA"
-   demands: a Swap dialog showing a fabricated quote and a Confirm button
-   that cannot confirm is worse than no dialog, because it looks like a bug
-   in something real rather than a feature that does not exist.
+   WITHDRAW still does not, and this file does not pretend it does. Venue
+   connections are read-only by construction, which is a design decision
+   rather than an unfinished one. §"NO FAKE DATA": a dialog with a Confirm
+   button that cannot confirm is worse than no dialog, because it looks like
+   a bug in something real rather than a feature that does not exist.
 
-   Each unavailable action therefore opens the same modal SHELL §31
-   describes — title, the route the capital would take, what is missing —
-   with no fabricated quote, no fee, and no Confirm. When the flows land,
-   the shell is where they go.
+   It therefore opens the same modal SHELL §31 describes — title, the route
+   the capital would take, what is missing — with no fabricated quote, no
+   fee, and no Confirm. That shell is where the working flows grew from.
 --------------------------------------------------------------------------- */
 
 export type AssetAction = "deposit" | "swap" | "transfer" | "withdraw";
@@ -58,20 +54,7 @@ interface Unavailable {
   missing: string;
 }
 
-const UNAVAILABLE: Record<Exclude<AssetAction, "deposit">, Unavailable> = {
-  swap: {
-    title: "Swap",
-    purpose:
-      "Exchange one token for another inside your wallet, routed for the best available price.",
-    missing:
-      "Elyra reads Jupiter for token metadata and prices, but no swap route, quote step or transaction signing path is wired up yet. Quoting, preview and confirmation all land together when it is.",
-  },
-  transfer: {
-    title: "Transfer",
-    purpose: "Move tokens from this wallet to another address or to a connected venue.",
-    missing:
-      "No transfer builder or signing path exists in Elyra yet. Sending funds needs transaction construction and a confirmation step, and neither is implemented.",
-  },
+const UNAVAILABLE: Record<Exclude<AssetAction, "deposit" | "swap" | "transfer">, Unavailable> = {
   withdraw: {
     title: "Withdraw",
     purpose: "Move capital off a connected venue and back into your wallet.",
@@ -125,7 +108,7 @@ function UnavailableDialog({
   address,
   onClose,
 }: {
-  action: Exclude<AssetAction, "deposit">;
+  action: Exclude<AssetAction, "deposit" | "swap" | "transfer">;
   address: string | null;
   onClose: () => void;
 }) {
@@ -197,6 +180,7 @@ function UnavailableDialog({
 export function AssetActionBar({ address }: { address: string | null }) {
   const auth = useElyraAuth();
   const [open, setOpen] = useState<Exclude<AssetAction, "deposit"> | null>(null);
+  const unavailable = open === "withdraw" ? open : null;
 
   const canFund = auth.available && address !== null;
 
@@ -240,8 +224,20 @@ export function AssetActionBar({ address }: { address: string | null }) {
         />
       </div>
 
-      {open !== null && (
-        <UnavailableDialog action={open} address={address} onClose={() => setOpen(null)} />
+      {open === "swap" && (
+        <SwapDialog address={address} onClose={() => setOpen(null)} />
+      )}
+
+      {open === "transfer" && (
+        <TransferDialog address={address} onClose={() => setOpen(null)} />
+      )}
+
+      {unavailable !== null && (
+        <UnavailableDialog
+          action={unavailable}
+          address={address}
+          onClose={() => setOpen(null)}
+        />
       )}
     </>
   );

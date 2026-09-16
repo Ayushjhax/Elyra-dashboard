@@ -26,13 +26,17 @@ import {
 
    ── Two things this adapter exists to get right ────────────────────────
 
-   1. `indexed: false` is not "no position".
+   1. `indexed: false` is a product the wallet does not use.
 
-      Kamino reports per-section indexing state. A section that has not been
-      indexed for this wallet is a section nobody has looked at, and it is
-      returned as a WARNING with `partial: true` — never as an empty array.
-      Rendering an unindexed section as zero is how a leveraged position
-      disappears from a risk screen while it is still liquidatable.
+      It reads like "nobody looked", and it was treated that way here until a
+      live check proved otherwise: Kamino sets `indexed: true` on exactly the
+      sections a wallet holds positions in. An active borrower returns
+      `lending` and `multiply` indexed with rows and the other five unindexed
+      and empty; a wallet with no Kamino history returns all seven unindexed.
+
+      A genuine failure arrives in a section's `errors` instead, which is what
+      `partial: true` is reserved for. Warning on `indexed: false` marked every
+      portfolio partial unless the user held all seven products at once.
 
    2. Every number arrives as a decimal STRING.
 
@@ -320,18 +324,42 @@ export async function kaminoPositions(
     }
     for (const item of wire.staking ?? []) positions.push(stakingToPosition(item));
 
-    /* ---- Indexing state becomes warnings, not silence ----
+    const rows: Record<string, number> = {
+      lending: (wire.lending ?? []).length,
+      multiply: (wire.multiply ?? []).length,
+      leverage: (wire.leverage ?? []).length,
+      liquidity: (wire.liquidity ?? []).length,
+      earn: (wire.earn ?? []).length,
+      privateCredit: (wire.privateCredit ?? []).length,
+      staking: (wire.staking ?? []).length,
+    };
 
-       A section with `indexed: false` was not read. Saying nothing about it
-       turns "we did not look" into "there is nothing there". */
+    /* ---- What actually counts as a section this read missed ----
+
+       `indexed: false` alone is NOT a failed read, despite how it sounds.
+       Kamino marks a section indexed once the wallet has used that product:
+       checked against a live borrower, `lending` and `multiply` came back
+       `indexed: true` with rows while the five products that wallet has never
+       touched came back `indexed: false`, no errors, no rows — and a wallet
+       with no Kamino history returns `indexed: false` for all seven.
+
+       So treating it as "we did not look" marks every portfolio partial
+       forever unless the user happens to hold all seven products at once,
+       which is the opposite of informative: a permanent warning is one nobody
+       reads, and it hides the real ones below.
+
+       Kamino reports a genuine failure in `errors`. That, and a section
+       claiming to be unindexed while still returning rows, are the two cases
+       where this read really is incomplete. */
     const warnings: string[] = [];
     for (const [key, section] of Object.entries(wire.sections ?? {})) {
       const label = SECTION_LABELS[key] ?? key;
-      if (section.indexed === false) {
-        warnings.push(`Kamino ${label} positions were not indexed for this wallet.`);
-      }
       if ((section.errors ?? []).length > 0) {
         warnings.push(`Kamino reported an error reading ${label} positions.`);
+        continue;
+      }
+      if (section.indexed === false && (rows[key] ?? 0) > 0) {
+        warnings.push(`Kamino ${label} positions were not indexed for this wallet.`);
       }
     }
 

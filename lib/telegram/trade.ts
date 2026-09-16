@@ -219,6 +219,16 @@ export interface SwapPreview {
   action: PreparedAction;
   /** Rendered separately so the caller can decide where the caveat goes. */
   note: string;
+  /**
+   * The unsigned transaction Jupiter built, base64.
+   *
+   * Absent when the route came back without one, which is the case that
+   * keeps `readiness` at `unsupported`: there is a price to show but nothing
+   * to sign, and offering a confirm for it would be a button that cannot work.
+   */
+  unsignedTransaction?: string;
+  /** Jupiter's handle for this order, required to submit the signed bytes. */
+  quoteRef?: string;
 }
 
 const fmt = (value: number, digits = 6): string =>
@@ -371,23 +381,44 @@ export async function previewSwap(input: {
     warnings.push("This quote is only good for about twenty seconds.");
   }
 
+  /* A route without a transaction is a price, not a trade. Jupiter returns
+     one for a taker it could actually build for, so its absence is the
+     signal that this quote is not signable — and readiness follows the
+     bytes rather than the happy path. */
+  const unsignedTransaction = quote.data.unsignedTransaction;
+  const signable =
+    typeof unsignedTransaction === "string" &&
+    unsignedTransaction.length > 0 &&
+    typeof quote.data.quoteRef === "string";
+
   return {
     action: {
       id: quote.data.quoteRef ?? `${from.mint}:${to.mint}:${baseUnits}`,
       kind: "swap",
       summary: `Swap ${fmt(amount)} ${fromSymbol} to ${fmt(out)} ${toSymbol}`,
       fields,
-      /* The numbers are live and correct. Execution is what is missing, and
-         conflating the two would either overstate the preview or understate
-         the quote. */
-      readiness: "unsupported",
-      reason:
-        "Elyra cannot sign transactions yet, so this cannot be executed from " +
-        "here. The quote above is live — it is what Jupiter would route right now.",
+      readiness: signable ? "ready" : "unsupported",
+      /* Jupiter's own words when it has them. It priced this route and knows
+         precisely why it could not build it — "Insufficient funds" is the
+         common one, and it tells the operator what to do next in a way no
+         generic sentence about missing bytes ever would. */
+      reason: signable
+        ? null
+        : quote.data.unexecutableReason !== undefined
+          ? `Jupiter could not build this swap: ${quote.data.unexecutableReason}. The price above is live.`
+          : "Jupiter quoted this route but did not return a transaction for it, " +
+            "so there is nothing to sign. The price above is live; the trade is not available.",
       warnings,
       preparedAt: quote.asOf,
     },
-    note: "Nothing has been sent.",
+    /* Still says nothing has been sent, because nothing has: signing happens
+       in the browser, against this same quote, only once the operator
+       confirms it there. */
+    note: signable
+      ? "Nothing has been sent — confirm in Elyra to sign it."
+      : "Nothing has been sent.",
+    unsignedTransaction: signable ? unsignedTransaction : undefined,
+    quoteRef: signable ? quote.data.quoteRef : undefined,
   };
 }
 

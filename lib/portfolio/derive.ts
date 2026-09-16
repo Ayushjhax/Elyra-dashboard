@@ -387,11 +387,13 @@ export function brief(snapshot: PortfolioSnapshot): BriefObservation[] {
   /* A failed source outranks an ordinary observation: the user needs to know
      the totals are of what could be read before they read anything into
      them. */
-  const failed = snapshot.notes.filter((note) => note.kind === "failed");
-  if (failed.length > 0) {
+  const failedScopes = [
+    ...new Set(snapshot.notes.filter((note) => note.kind === "failed").map((n) => n.scope)),
+  ];
+  if (failedScopes.length > 0) {
     out.unshift({
       id: "partial",
-      text: `Totals exclude ${failed.map((n) => n.scope).join(", ")} — ${failed.length === 1 ? "that source" : "those sources"} could not be read.`,
+      text: `Totals exclude ${failedScopes.join(", ")} — ${failedScopes.length === 1 ? "that source" : "those sources"} could not be read.`,
       tone: "negative",
     });
   }

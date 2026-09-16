@@ -146,15 +146,13 @@ export async function jupiterPrices(mints: string[]): Promise<ToolResult<PriceQu
    Swap quotes
 
    Swap API V2: GET /swap/v2/order builds the order, POST /swap/v2/execute
-   submits a signed one. Only the first half is implemented here.
+   submits a signed one. Both halves are implemented here.
 
-   The second half is deliberately absent. Executing requires a signed
-   transaction, and this repository has no signing path — `sendTransaction`,
-   `signTransaction` and `signAndSendTransaction` appear nowhere in it. An
-   `execute` helper with nothing able to produce its input would be a loaded
-   gun with no safety: the point of the preview/confirm boundary is that the
-   only code able to submit lives behind an explicit user confirmation, and
-   that code does not exist yet.
+   The signature comes from the operator's own wallet, in their own browser,
+   through Privy. This server never holds a key and never signs: it hands out
+   the unsigned bytes Jupiter built and takes back signed bytes it does not
+   parse. That is the whole safety property — a bug here cannot move funds
+   without a signature that only the operator's browser can produce.
 
    Notably `order` REQUIRES a real taker with a real balance — verified live:
    a taker holding nothing returns 400 "Winning quote has no transaction".
@@ -172,6 +170,18 @@ interface OrderResponse {
   priceImpactPct?: string | number;
   slippageBps?: number;
   requestId?: string;
+  /**
+   * Base64, unsigned.
+   *
+   * Verified live: an EMPTY STRING, not null and not absent, is what comes
+   * back for a taker who cannot afford the trade — alongside HTTP 200, a full
+   * set of prices, and `error: "Insufficient funds"`. So emptiness is the
+   * signal, and the length check below is the one that matters.
+   */
+  transaction?: string | null;
+  /** Jupiter's own reason when it priced a route it could not build. */
+  error?: string | null;
+  errorMessage?: string | null;
   routePlan?: Array<{ swapInfo?: { label?: string } }>;
 }
 
@@ -268,6 +278,14 @@ export async function jupiterSwapQuote(
         .map((leg) => leg.swapInfo?.label)
         .filter((label): label is string => typeof label === "string"),
       quoteRef: order.requestId,
+      unsignedTransaction:
+        typeof order.transaction === "string" && order.transaction.length > 0
+          ? order.transaction
+          : undefined,
+      unexecutableReason:
+        typeof order.transaction === "string" && order.transaction.length > 0
+          ? undefined
+          : (order.errorMessage ?? order.error ?? undefined),
       /* Jupiter does not publish an expiry on the order, so this is Elyra's
          own freshness policy rather than a claim about theirs: past this the
          confirmation step re-quotes and compares before it will execute. */
@@ -275,4 +293,91 @@ export async function jupiterSwapQuote(
     },
     "jupiter",
   );
+}
+
+/* ---------------------------------------------------------------------------
+   Executing a signed swap
+--------------------------------------------------------------------------- */
+
+interface ExecuteResponse {
+  status?: string;
+  signature?: string;
+  code?: number;
+  error?: string;
+}
+
+export interface SwapExecution {
+  /** The on-chain signature. Present only once the swap actually landed. */
+  signature: string;
+}
+
+/**
+ * Submits a swap the operator signed, and reports whether it landed.
+ *
+ * Jupiter broadcasts and polls for confirmation itself, so this returns a
+ * landed transaction or an error — never an optimistic "sent". A signature
+ * reported for something that never confirmed is the one outcome worth
+ * ruling out: it is indistinguishable from success to everything downstream.
+ *
+ * `quoteRef` must be the one from the order that produced these bytes —
+ * Jupiter's `requestId`, carried under this name everywhere above the
+ * adapter. Jupiter pairs them, which is what stops a signature from one
+ * quote being replayed against another.
+ */
+export async function jupiterSwapExecute(input: {
+  /** Base64, exactly as the wallet returned it. Never rebuilt. */
+  signedTransaction: string;
+  quoteRef: string;
+}): Promise<ToolResult<SwapExecution>> {
+  if (apiKey() === undefined) {
+    return fail<SwapExecution>(
+      "jupiter",
+      "AUTH",
+      "JUPITER_API_KEY is not configured, so swaps cannot be submitted.",
+    );
+  }
+
+  const result = await providerFetch<ExecuteResponse>({
+    provider: "jupiter",
+    url: `${GATEWAY}/swap/v2/execute`,
+    method: "POST",
+    headers: headers(),
+    /* An object, not a string: `providerFetch` serialises the body itself,
+       and handing it JSON would encode the JSON. */
+    body: {
+      signedTransaction: input.signedTransaction,
+      requestId: input.quoteRef,
+    },
+    timeoutMs: 60_000,
+    /* Never retried. A retry here is a second submission of a transaction
+       that may already have landed — at best wasted, at worst a double swap.
+       Solana's own replay protection makes that unlikely rather than
+       impossible, and "unlikely" is not a basis for resending someone's
+       money. A failed submit is reported and re-quoted instead. */
+    attempts: 1,
+  });
+
+  if (!result.ok || result.data === undefined) {
+    return fail<SwapExecution>(
+      "jupiter",
+      result.error?.code ?? "UPSTREAM_UNAVAILABLE",
+      result.error?.message ?? "The swap could not be submitted.",
+    );
+  }
+
+  const response = result.data;
+
+  /* Jupiter answers 200 with a failed status, so the HTTP code is not the
+     outcome. The swap failing on-chain and the request failing look nothing
+     alike to the operator and must not be reported alike. */
+  if (response.status !== "Success" || typeof response.signature !== "string") {
+    return fail<SwapExecution>(
+      "jupiter",
+      "UPSTREAM_UNAVAILABLE",
+      response.error ??
+        `The swap did not land${response.code === undefined ? "" : ` (code ${response.code})`}.`,
+    );
+  }
+
+  return ok<SwapExecution>({ signature: response.signature }, "jupiter");
 }

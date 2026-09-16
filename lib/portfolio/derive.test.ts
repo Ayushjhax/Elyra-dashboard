@@ -185,6 +185,21 @@ describe("brief", () => {
     expect(lines[0].text).toContain("binance");
   });
 
+  it("names a repeated scope once, not once per failed note", () => {
+    const lines = brief(
+      snapshot({
+        spot: [holding({ valueUsd: 1000, change24hPct: 5 })],
+        notes: [
+          { scope: "defi", reason: "Kamino not indexed", kind: "failed" },
+          { scope: "defi", reason: "Marginfi not indexed", kind: "failed" },
+          { scope: "defi", reason: "2 positions could not be valued", kind: "failed" },
+        ],
+        partial: true,
+      }),
+    );
+    expect(lines[0].text).toBe("Totals exclude defi — that source could not be read.");
+  });
+
   it("states coverage when the 24h figure covers only part of the value", () => {
     const lines = brief(
       snapshot({

@@ -92,14 +92,36 @@ function rejected(
 }
 
 /**
- * Why nothing is executable, stated once.
+ * Which kinds have something behind them that can actually carry them out.
+ *
+ * A swap is routed by Jupiter and signed by the operator's own wallet, so it
+ * is the one spot move a PROPOSAL can carry all the way.
+ *
+ * A transfer is deliberately absent even though Elyra can now build and send
+ * one. An `ActionProposal` has no recipient field — "send 1 SOL" names an
+ * amount and nothing else — so a transfer prepared from a proposal has
+ * nowhere to go. Calling that ready would put a Confirm button under a send
+ * with no destination. Transfers are started from the transfer dialog, where
+ * the operator types the address themselves.
+ *
+ * `readiness` is derived from this set rather than asserted per branch, so a
+ * kind cannot become executable by being edited in one place and forgotten
+ * in another — which matters because swap, transfer and withdraw all share
+ * the branch below.
+ */
+const EXECUTABLE: ReadonlySet<PreparedActionKind> = new Set(["swap"]);
+
+/**
+ * Why the rest are not executable, stated once.
  *
  * Named rather than hand-waved: an operator reading "not supported" learns
  * nothing, and an engineer reading it learns less.
  */
 const NO_EXECUTOR: Record<PreparedActionKind, string> = {
   swap: "Elyra has no swap route or transaction signing path yet, so this cannot be executed.",
-  transfer: "Elyra has no transfer builder or signing path yet, so this cannot be executed.",
+  transfer:
+    "A transfer needs a destination address, which this cannot carry. Start it " +
+    "from Transfer in Elyra and the send will be built and signed there.",
   withdraw:
     "Venue connections are read-only by design, so Elyra cannot move funds off a venue yet.",
   close_perp:
@@ -227,13 +249,15 @@ export function prepareAction(
     ];
     if (proposal.kind === "swap") fields.splice(1, 0, field("To", toSymbol, false));
 
+    const executable = EXECUTABLE.has(proposal.kind);
+
     return {
       id,
       kind: proposal.kind,
       summary,
       fields,
-      readiness: "unsupported",
-      reason: NO_EXECUTOR[proposal.kind],
+      readiness: executable ? "ready" : "unsupported",
+      reason: executable ? null : NO_EXECUTOR[proposal.kind],
       warnings,
       preparedAt,
     };

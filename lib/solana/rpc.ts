@@ -6,9 +6,13 @@ import { fetchJson, UpstreamError } from "@/lib/market/http";
 /* ---------------------------------------------------------------------------
    The Solana RPC, from the server only.
 
-   Three read methods, no writes, no signing. This file is the only place in
-   the app that talks to a Solana node, and it is server-only for one reason:
-   an RPC URL in client code is an RPC URL anyone can drain the quota with.
+   Reads, plus one write: `sendTransaction`, which broadcasts a transaction
+   that is ALREADY SIGNED by the time it gets here. No signing happens in
+   this file or anywhere else on the server — the signature comes from the
+   operator's wallet in their browser, so nothing here can move funds on its
+   own. This file is the only place in the app that talks to a Solana node,
+   and it is server-only for one reason: an RPC URL in client code is an RPC
+   URL anyone can drain the quota with.
    The browser reaches this through /api/wallet, the same shape as the Pyth
    key living behind /api/market/prices.
 
@@ -168,6 +172,41 @@ export interface SignatureInfo {
   /** "processed" | "confirmed" | "finalized", or null on older nodes. */
   confirmationStatus: string | null;
   memo: string | null;
+}
+
+export interface LatestBlockhash {
+  blockhash: string;
+  lastValidBlockHeight: number;
+}
+
+/**
+ * The blockhash a new transaction is built against.
+ *
+ * Never cached. A blockhash is the transaction's expiry — it is valid for
+ * roughly a minute — so a cached one builds a transaction that is already
+ * partly spent, and the operator signs something that may expire between the
+ * signature and the submission. `finalized` rather than `processed`: a
+ * blockhash from a slot that gets dropped takes the transaction with it.
+ */
+export function getLatestBlockhash(): Promise<RpcContext & { value: LatestBlockhash }> {
+  return rpcCall<RpcContext & { value: LatestBlockhash }>("getLatestBlockhash", [
+    { commitment: "finalized" },
+  ]);
+}
+
+/**
+ * Broadcasts a transaction the operator signed.
+ *
+ * `skipPreflight: false` keeps the simulation, which is what turns "the
+ * transaction failed on chain" into an error before any fee is paid.
+ * `maxRetries: 0` because this app decides whether to resend, not the node:
+ * a retry is a second attempt at moving someone's money.
+ */
+export function sendTransaction(base64Transaction: string): Promise<string> {
+  return rpcCall<string>("sendTransaction", [
+    base64Transaction,
+    { encoding: "base64", skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 0 },
+  ]);
 }
 
 /**

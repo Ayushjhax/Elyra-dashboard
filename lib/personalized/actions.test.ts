@@ -78,11 +78,21 @@ describe('"Sell half my SOL"', () => {
     expect(amount?.derived).toBe(true);
   });
 
-  it("never reports itself as executed, and says why", () => {
-    /* Nothing in Elyra can execute a swap: no signing path exists. */
+  it("reports a swap as ready, because one can now be signed and routed", () => {
     const action = prepareAction({ kind: "swap", symbol: "SOL", fraction: 0.5 }, base);
+    expect(action.readiness).toBe("ready");
+    /* Ready carries no reason — the field exists to say why something is not. */
+    expect(action.reason).toBeNull();
+  });
+
+  it("still refuses a transfer, because a proposal carries no destination", () => {
+    /* Readiness is per kind, not per shape: a transfer takes the same branch
+       as a swap, so a change that made swaps executable could silently carry
+       transfers with it — and a transfer with no recipient is a Confirm
+       button over a send with nowhere to go. */
+    const action = prepareAction({ kind: "transfer", symbol: "SOL", fraction: 0.5 }, base);
     expect(action.readiness).toBe("unsupported");
-    expect(action.reason).toMatch(/no swap route|signing/i);
+    expect(action.reason).toMatch(/destination address/i);
   });
 
   it("shows the balance that would remain", () => {

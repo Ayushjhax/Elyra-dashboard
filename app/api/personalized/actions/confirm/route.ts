@@ -6,15 +6,16 @@ import { resolve } from "@/lib/personalized/session";
 /* ---------------------------------------------------------------------------
    The confirmation boundary.
 
-   This is the only endpoint that could ever move money, and today it moves
-   none. It re-validates against a fresh snapshot and then reports that no
-   executor exists — see the note in lib/personalized/actions.ts for what is
-   missing and why it was not built here.
+   This route re-validates a proposal against a fresh snapshot and reports
+   what could be done with it. It does not execute, and for a swap it cannot:
+   signing happens in the operator's browser, so no server route can complete
+   one on its own. A `ready` swap is finished through /api/swap/build and
+   /api/swap/submit, which is where the signature enters the flow.
 
-   The shape is the point. When an executor lands, it is called from exactly
-   one place: below the re-validation, after `readiness === "ready"`, and only
-   on a request the operator made by pressing Confirm. A model response can
-   never reach this code path, because the model does not talk to this route.
+   That is a property worth keeping rather than a gap to close. A model
+   response can never reach an executor here, because there is no executor
+   here — the only thing that can move funds needs a signature this server
+   cannot produce.
 --------------------------------------------------------------------------- */
 
 export const runtime = "nodejs";
@@ -80,7 +81,6 @@ export async function POST(request: Request) {
     );
   }
 
-  /* The only gate. Nothing below this line exists yet. */
   if (action.readiness !== "ready") {
     return NextResponse.json({
       executed: false,
@@ -89,12 +89,15 @@ export async function POST(request: Request) {
     });
   }
 
-  /* Unreachable today: no `prepareAction` path returns "ready" because no
-     executor is wired up. Left as the explicit seam so the hand-off is one
-     call in one place when it is. */
+  /* Ready, and still not executed here. The signature has to come from the
+     operator's wallet, so this reports what is executable and points at the
+     surface that can finish it rather than pretending to have done it. */
   return NextResponse.json({
     executed: false,
     action,
-    error: "No executor is connected for this action.",
+    signingRequired: true,
+    error:
+      "This is ready, but it has to be signed in your browser. Open the Swap " +
+      "dialog in Elyra to confirm it.",
   });
 }

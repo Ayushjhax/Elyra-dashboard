@@ -620,10 +620,17 @@ export async function handleCommand(input: CommandInput): Promise<CommandReply |
         solanaAddress: input.solanaAddress ?? null,
       });
 
-      /* A quote that cannot execute gets NO confirm button. Offering one for
-         something nothing can carry out is a promise the product will not
-         keep — the link goes to Elyra instead, where the work continues. */
-      return { chunks: formatChunks(result.html) };
+      /* No confirm button, even now that swaps execute. The signature has to
+         come from the wallet in the browser, and a Telegram tap authenticates
+         a chat account rather than the Elyra account behind it — so the
+         button opens Elyra and the confirmation happens where the key is. */
+      return {
+        chunks: formatChunks(result.html),
+        buttons:
+          result.action?.readiness === "ready"
+            ? [[{ text: "Confirm in Elyra", url: appUrl() }]]
+            : undefined,
+      };
     }
 
     case "settings":

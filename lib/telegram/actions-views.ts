@@ -237,7 +237,7 @@ const SWAP_HELP = [
   ),
   "",
   "I fetch a live Jupiter route — the real output, the real price impact.",
-  "I cannot sign it: Elyra has no transaction signing yet.",
+  "Signing happens in Elyra, in your browser, where your wallet is.",
 ].join("\n");
 
 export interface SwapResult {
@@ -275,9 +275,13 @@ export async function swapView(input: {
     lines.push("", `! ${escapeHtml(warning)}`);
   }
 
-  /* The reason is not optional. A preview that looks executable and is not is
-     worse than no preview: the user waits for something that cannot happen. */
-  lines.push("", escapeHtml(action.reason ?? ""), "", "<i>Nothing has been sent.</i>");
+  /* A reason only exists when something is wrong, and an empty line where it
+     used to be would read as a missing sentence. A preview that looks
+     executable and is not is worse than no preview: the user waits for
+     something that cannot happen. */
+  if (action.reason !== null) lines.push("", escapeHtml(action.reason));
+
+  lines.push("", `<i>${escapeHtml(preview.note)}</i>`);
 
   return { html: lines.join("\n"), action };
 }

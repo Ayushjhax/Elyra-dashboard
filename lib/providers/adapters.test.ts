@@ -105,9 +105,10 @@ describe("kamino", () => {
     expect(position?.supplied[0].amount).toBeCloseTo(1.44888, 4);
   });
 
-  it("reports an unindexed section as a warning, never as no position", async () => {
-    /* The failure this prevents: a leveraged position that Kamino has not
-       indexed disappearing from a risk screen while it is still liquidatable. */
+  it("treats an unindexed, empty section as a product the wallet does not use", async () => {
+    /* Kamino marks a section indexed only once the wallet has used that
+       product, so `indexed: false` with no rows and no errors is silence about
+       nothing. Warning on it marked every portfolio partial forever. */
     fetchMock.mockResolvedValue(
       jsonResponse({
         timestamp: "2026-09-16T00:00:00.000Z",
@@ -120,6 +121,25 @@ describe("kamino", () => {
     const result = await kaminoPositions(WALLET);
 
     expect(result.ok).toBe(true);
+    /* `ok()` omits the key rather than setting it false. */
+    expect(result.partial).toBeUndefined();
+    expect(result.warnings ?? []).toEqual([]);
+  });
+
+  it("still warns when an unindexed section returns rows anyway", async () => {
+    /* The contradictory case is the one that could hide a live position: a
+       section that says it was never indexed while handing back an obligation. */
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        timestamp: "2026-09-16T00:00:00.000Z",
+        sections: { ...KAMINO_SECTIONS, leverage: { indexed: false, errors: [] } },
+        leverage: [{ obligation: "ob1", netValue: "10" }],
+      }),
+    );
+
+    const { kaminoPositions } = await import("@/lib/providers/kamino");
+    const result = await kaminoPositions(WALLET);
+
     expect(result.partial).toBe(true);
     expect(result.warnings?.join(" ")).toMatch(/leverage.*not indexed/i);
   });

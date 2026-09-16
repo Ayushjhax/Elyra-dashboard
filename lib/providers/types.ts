@@ -208,6 +208,24 @@ export interface SwapQuote {
   routeLabels?: string[];
   /** Opaque handle the execute step needs. Never interpreted here. */
   quoteRef?: string;
+  /**
+   * The unsigned transaction, base64, exactly as the router built it.
+   *
+   * Opaque on purpose: it is signed as bytes and handed back, never parsed or
+   * rebuilt here. Anything this app reconstructed could differ from what the
+   * router quoted, and the difference would be invisible at the point of
+   * signing.
+   */
+  unsignedTransaction?: string;
+  /**
+   * Why this quote cannot be signed, in the router's own words.
+   *
+   * Set only when there is a price but no transaction. The router knows
+   * exactly why — "Insufficient funds" is the common one — and that is worth
+   * far more to the operator than anything this app could infer from an
+   * empty field.
+   */
+  unexecutableReason?: string;
   /** After this the quote must be refreshed before it may be executed. */
   expiresAt?: string;
 }

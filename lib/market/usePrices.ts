@@ -132,6 +132,21 @@ function ensurePolling(): void {
   if (timer === null && !inFlight) void poll();
 }
 
+/**
+ * Ask the shared feed to refresh now.
+ *
+ * This keeps retry buttons on individual surfaces from creating their own
+ * fetch path (and therefore a second price loop). The current in-flight poll,
+ * when there is one, remains authoritative and schedules the next cycle.
+ */
+export function refreshPrices(): void {
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  ensurePolling();
+}
+
 function retain(ids: number[]): void {
   for (const id of ids) wanted.set(id, (wanted.get(id) ?? 0) + 1);
   ensurePolling();

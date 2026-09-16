@@ -1,17 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ChevronDown, FlaskConical, RefreshCw, Radio, WalletCards } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ChevronDown, FlaskConical, RefreshCw, Radio } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CoinMark } from "@/components/ui/CoinMark";
+import { DeltaText } from "@/components/ui/DeltaText";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
-import { formatRelativeTime } from "@/lib/format";
+import { formatPrice, formatRelativeTime } from "@/lib/format";
+import { priceDecimals } from "@/lib/market/precision";
+import { refreshPrices, useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
+import type { PriceRow, PythAsset } from "@/lib/market/pyth/types";
 import { useMinute } from "@/lib/useClock";
+import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
 import { parseTrackerSignalList, type TrackerSignal } from "@/lib/tracker/types";
 
 interface FeedState { signals: TrackerSignal[]; disclaimer: string; error: string | null; loading: boolean; fetchedAt: string | null; connection: "live" | "polling" | "offline"; }
 const INITIAL: FeedState = { signals: [], disclaimer: "", error: null, loading: true, fetchedAt: null, connection: "polling" };
+
+/**
+ * Pyth tickers usually resolve cleanly. META is the exception: the catalogue
+ * also carries a MetaDAO token and the app's general resolver prefers crypto
+ * on collisions. Pin only that feed so this list means Meta Platforms.
+ */
+const LIVE_MARKETS = ["SOL", "BTC", "ETH", "NVDA", "META", "AAPL", "MSFT", "TSLA"] as const;
+const META_EQUITY_FEED_ID = 1272;
 
 /* `formatRelativeTime` defaults its `now` to MOCK_NOW — a frozen instant the
    seeded panels use — so live data has to pass the real one. It cannot come
@@ -38,6 +52,142 @@ function isSeeded(signal: TrackerSignal): boolean {
 
 function money(value: string | null): string { if (value === null) return "—"; const number = Number(value); return Number.isFinite(number) ? `$${number.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : value; }
 function quantity(value: string): string { const number = Number(value); return Number.isFinite(number) ? `${number > 0 ? "+" : ""}${number.toLocaleString("en-US", { maximumFractionDigits: 4 })}` : value; }
+
+function emaDistance(row: PriceRow): number {
+  if (row.emaPrice === 0) return 0;
+  return ((row.price - row.emaPrice) / row.emaPrice) * 100;
+}
+
+function LiveMarketRow({
+  asset,
+  row,
+  previous,
+  seq,
+}: {
+  asset: PythAsset;
+  row: PriceRow;
+  previous: number | undefined;
+  seq: number;
+}) {
+  const distance = emaDistance(row);
+  const long = distance >= 0;
+  const direction = previous === undefined || previous === row.price
+    ? "flat"
+    : row.price > previous
+      ? "up"
+      : "down";
+  const flash = useFlash(seq, direction);
+
+  return (
+    <li>
+      <article className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-border-subtle px-3 py-2.5">
+        <CoinMark symbol={asset.symbol} logo={asset.logo} size={24} />
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="type-data shrink-0 text-text-primary">{asset.symbol}</span>
+            <span className={cn("type-label rounded-chip px-1.5 py-0.5", long ? "bg-positive-bg text-positive" : "bg-negative-bg text-negative")}>
+              {long ? "LONG" : "SHORT"}
+            </span>
+            <span className="type-label min-w-0 truncate text-text-muted">{asset.name}</span>
+          </div>
+          <p className="type-label mt-0.5 text-text-muted">
+            {long ? "Above" : "Below"} EMA by {Math.abs(distance).toFixed(2)}%
+            {row.marketSession && row.marketSession !== "regular" ? ` · ${row.marketSession}` : ""}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className={cn("type-data rounded-chip px-1 text-text-primary", flash)}>
+            ${formatPrice(row.price, priceDecimals(row.price))}
+          </p>
+          {row.change24hPct === null ? (
+            <span className="type-data-sm text-text-muted">24h —</span>
+          ) : (
+            <DeltaText value={row.change24hPct} className="type-data-sm" />
+          )}
+        </div>
+      </article>
+    </li>
+  );
+}
+
+function LiveMarketSignals() {
+  const lookupSymbols = useMemo(
+    () => LIVE_MARKETS.filter((symbol) => symbol !== "META"),
+    [],
+  );
+  const bySymbol = useAssetsBySymbols(lookupSymbols);
+  const { byId } = useAssets([META_EQUITY_FEED_ID]);
+  const assets = useMemo(
+    () => LIVE_MARKETS.flatMap((symbol) => {
+      const asset = symbol === "META"
+        ? byId.get(META_EQUITY_FEED_ID)
+        : bySymbol.get(symbol);
+      return asset ? [asset] : [];
+    }),
+    [byId, bySymbol],
+  );
+  const ids = useMemo(() => assets.map((asset) => asset.id), [assets]);
+  const feed = usePrices(ids);
+  const rows = assets.flatMap((asset) => {
+    const row = feed.rows.get(asset.id);
+    return row ? [{ asset, row }] : [];
+  });
+  const resolving = assets.length < LIVE_MARKETS.length || (rows.length === 0 && feed.status === "loading");
+
+  return (
+    <section aria-labelledby="live-market-signals-title" className="border-b border-border-strong">
+      <div className="flex items-center gap-2 border-b border-border-subtle bg-surface-raised px-3 py-2">
+        <Eyebrow id="live-market-signals-title">Live market signals</Eyebrow>
+        <span className="type-label ml-auto flex items-center gap-1.5 text-text-muted">
+          <span className={cn("size-1.5 rounded-pill", feed.status === "live" ? "bg-positive" : feed.status === "error" ? "bg-negative" : "bg-text-muted")} aria-hidden />
+          {feed.status === "live" ? "Pyth live" : feed.status === "error" ? "Prices delayed" : "Connecting"}
+        </span>
+      </div>
+
+      {feed.status === "error" && (
+        <div role="alert" className="flex items-center gap-2 border-b border-border-subtle bg-negative-bg px-3 py-2">
+          <AlertTriangle size={13} aria-hidden className="shrink-0 text-negative" />
+          <p className="type-label min-w-0 flex-1 text-text-secondary">Latest prices could not refresh. Last good prices stay visible.</p>
+          <Button size="xs" variant="quiet" onClick={refreshPrices}>Retry</Button>
+        </div>
+      )}
+
+      {resolving && rows.length === 0 ? (
+        <div className="space-y-px" aria-label="Loading live market signals" aria-busy="true">
+          {LIVE_MARKETS.slice(0, 5).map((symbol) => (
+            <div key={symbol} className="flex h-14 items-center gap-2 border-b border-border-subtle px-3">
+              <span className="size-6 animate-pulse rounded-pill bg-surface-raised" />
+              <span className="h-3 w-20 animate-pulse rounded-chip bg-surface-raised" />
+              <span className="ml-auto h-3 w-16 animate-pulse rounded-chip bg-surface-raised" />
+            </div>
+          ))}
+        </div>
+      ) : rows.length > 0 ? (
+        <ul className="list-none">
+          {rows.map(({ asset, row }) => (
+            <LiveMarketRow
+              key={asset.id}
+              asset={asset}
+              row={row}
+              previous={feed.previous.get(asset.id)}
+              seq={feed.seq}
+            />
+          ))}
+        </ul>
+      ) : (
+        <div className="px-3 py-5 text-center">
+          <p className="type-body-sm text-text-secondary">Live prices are unavailable</p>
+          <p className="type-label mt-1 text-text-muted">Check the Pyth connection, then retry.</p>
+          <Button className="mt-3" size="sm" variant="quiet" onClick={refreshPrices}>Try again</Button>
+        </div>
+      )}
+
+      <p className="type-label px-3 py-2 text-text-muted">
+        Signals compare live price with Pyth EMA · Prices refresh every 5s · Not financial advice.
+      </p>
+    </section>
+  );
+}
 
 function SmartMoneyCard({ signal, now }: { signal: TrackerSignal; now: number | null }) {
   const [open, setOpen] = useState(false);
@@ -129,7 +279,8 @@ export function SmartMoneySignalPanel() {
     return () => { cancelled = true; clearInterval(timer); stream.close(); };
   }, [load]);
 
-  return <Panel label="Smart money signals"><PanelHeader><Eyebrow>Smart money</Eyebrow><span className="type-label ml-auto flex items-center gap-1.5 text-text-muted"><Radio size={12} aria-hidden className={state.connection === "live" ? "text-positive" : undefined} />{state.connection}</span><button type="button" aria-label="Refresh smart money signals" onClick={() => void load().then(setState)} className="ml-2 min-h-10 min-w-10 rounded-control p-2 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><RefreshCw size={14} aria-hidden className={cn(state.loading && "animate-spin")} /></button></PanelHeader><PanelBody>
+  return <Panel label="Smart money signals"><PanelHeader><Eyebrow>Smart money live</Eyebrow><span className="type-label ml-auto flex items-center gap-1.5 text-text-muted"><Radio size={12} aria-hidden className={state.connection === "live" ? "text-positive" : undefined} />{state.connection}</span><button type="button" aria-label="Refresh smart money signals" onClick={() => void load().then(setState)} className="ml-2 min-h-10 min-w-10 rounded-control p-2 text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><RefreshCw size={14} aria-hidden className={cn(state.loading && "animate-spin")} /></button></PanelHeader><PanelBody>
+    <LiveMarketSignals />
     {state.error !== null && <div role="alert" className="m-3 rounded-card border border-negative/40 bg-negative-bg p-3"><div className="flex items-center gap-2 text-negative"><AlertTriangle size={14} aria-hidden /><p className="type-label">Tracker unavailable</p></div><p className="type-label mt-1 text-text-muted">{state.error}</p><Button className="mt-2" size="sm" variant="quiet" onClick={() => void load().then(setState)}>Try again</Button></div>}
     {state.signals.some(isSeeded) && (
       <div className="m-3 flex flex-col gap-1 rounded-card border border-accent-quiet bg-surface-raised px-2.5 py-2">
@@ -146,8 +297,7 @@ export function SmartMoneySignalPanel() {
       </div>
     )}
     {state.loading && <div className="space-y-2 p-3" aria-label="Loading smart money signals"><div className="h-24 animate-pulse rounded-card bg-surface-raised" /><div className="h-24 animate-pulse rounded-card bg-surface-raised" /></div>}
-    {!state.loading && state.error === null && state.signals.length === 0 && <div className="flex flex-col items-center gap-2 px-5 py-10 text-center"><WalletCards size={24} aria-hidden className="text-text-muted" /><p className="type-body-sm text-text-secondary">No consensus signals yet</p><p className="type-label max-w-prose text-text-muted">The tracker answered, and no market has cleared the wallet, score, diversity and confirmation gates.</p></div>}
     <ul className="list-none">{state.signals.map((signal) => <SmartMoneyCard key={signal.id} signal={signal} now={now} />)}</ul>
-    {state.fetchedAt !== null && <p className="type-label px-3 py-2 text-text-muted">Updated {age(state.fetchedAt, now)}{state.disclaimer ? ` · ${state.disclaimer}` : ""}</p>}
+    {state.signals.length > 0 && state.fetchedAt !== null && <p className="type-label px-3 py-2 text-text-muted">Wallet consensus updated {age(state.fetchedAt, now)}{state.disclaimer ? ` · ${state.disclaimer}` : ""}</p>}
   </PanelBody></Panel>;
 }

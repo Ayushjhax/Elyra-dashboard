@@ -14,6 +14,7 @@ import {
   type ToolContext,
 } from "@/lib/agent/tools/registry";
 import { maxRunsPerDay } from "@/lib/env";
+import { predictionAccount } from "@/lib/prediction/account";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Surface } from "@/lib/supabase/types";
 
@@ -207,6 +208,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     userId: input.userId,
     sessionWallet: input.sessionWallet ?? null,
     solanaAddress: input.solanaAddress ?? null,
+    /* Resolved from the profile rather than passed in: it is an identity,
+       and identities do not travel through request bodies here. */
+    polymarketAddress: (await predictionAccount(input.userId))?.address ?? null,
   };
 
   const [history, system] = await Promise.all([

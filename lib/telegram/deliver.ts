@@ -3,6 +3,9 @@ import "server-only";
 import { escapeHtml } from "@/lib/personalized/render/telegram";
 import { composePortfolio } from "@/lib/portfolio/compose";
 import { binanceTicker } from "@/lib/providers/binance-public";
+import { moveInPoints } from "@/lib/prediction/analytics";
+import { predictionAccount } from "@/lib/prediction/account";
+import { polymarketPositions } from "@/lib/providers/polymarket-account";
 import { routeDefiPositions } from "@/lib/providers/router";
 import { liquidationHeadroom } from "@/lib/providers/types";
 import { serviceClient } from "@/lib/supabase/server";
@@ -293,6 +296,200 @@ async function deliverLargeMoves(
 }
 
 /* ---------------------------------------------------------------------------
+   Prediction markets
+
+   Two things are worth telling someone about a prediction position they hold:
+   the probability moved materially, and the market resolved in their favour
+   with money sitting unclaimed.
+
+   ── Points, not percent ────────────────────────────────────────────────
+
+   A market going 54% -> 64% moved TEN POINTS. As a relative change it moved
+   18.5%. People mean the first, so the threshold is in points and the
+   message says points. Using the relative figure would fire roughly twice as
+   often as asked and would be most wrong at the extremes, where a 2% market
+   reaching 4% is a 100% "move" that means almost nothing.
+--------------------------------------------------------------------------- */
+
+interface Mark {
+  probability: number;
+  recordedAt: string;
+}
+
+/** The last probability recorded for an outcome, for comparison. */
+async function previousMarks(tokenIds: string[]): Promise<Map<string, Mark>> {
+  if (tokenIds.length === 0) return new Map();
+
+  const { data } = await serviceClient()
+    .from("prediction_probability_marks")
+    .select("token_id, probability, recorded_at")
+    .in("token_id", tokenIds);
+
+  const marks = new Map<string, Mark>();
+  for (const row of data ?? []) {
+    marks.set(row.token_id, {
+      probability: Number(row.probability),
+      recordedAt: row.recorded_at,
+    });
+  }
+  return marks;
+}
+
+async function recordMark(
+  tokenId: string,
+  marketId: string,
+  title: string,
+  probability: number,
+): Promise<void> {
+  await serviceClient()
+    .from("prediction_probability_marks")
+    .upsert(
+      {
+        token_id: tokenId,
+        market_id: marketId,
+        title,
+        probability,
+        recorded_at: new Date().toISOString(),
+      },
+      { onConflict: "token_id" },
+    );
+}
+
+async function deliverPredictionAlerts(
+  chats: Map<string, Recipient>,
+  report: DeliveryReport,
+): Promise<void> {
+  for (const chat of chats.values()) {
+    const preferences = await notificationPreferences(chat.userId);
+    if (!preferences.predictionAlerts && !preferences.predictionResolutionAlerts) {
+      continue;
+    }
+
+    const account = await predictionAccount(chat.userId);
+    /* No linked account means nothing to compare against — not zero
+       positions, just nothing to look at. Skipped silently, because a user
+       who never linked one does not want to be told so every five minutes. */
+    if (account === null) continue;
+
+    const positions = await polymarketPositions(account.address);
+    if (!positions.ok || positions.data === undefined) {
+      report.errors += 1;
+      continue;
+    }
+
+    const tokenIds = positions.data.map((position) => position.id);
+    const marks = await previousMarks(tokenIds);
+
+    for (const position of positions.data) {
+      report.scanned += 1;
+
+      /* ---- Resolved in the holder's favour ----
+
+         `claimable` already means resolved AND still worth something — the
+         provider flags losers as redeemable too, so the adapter filters them
+         out. Without that, this branch would congratulate someone on a
+         market they lost. */
+      if (position.status === "claimable" && preferences.predictionResolutionAlerts) {
+        const claimed = await claimNotification(
+          chat.userId,
+          "prediction_resolution",
+          position.id,
+        );
+        if (claimed) {
+          const message = [
+            "<b>Prediction market resolved</b>",
+            "",
+            escapeHtml(position.marketTitle),
+            "",
+            `Your <b>${escapeHtml(position.outcome)}</b> position settled in your favour.`,
+            position.currentValueUsd === null
+              ? ""
+              : `Claimable: <b>${money(position.currentValueUsd)}</b>`,
+            "",
+            "<i>Claim it in Elyra.</i>",
+          ]
+            .filter((line) => line !== "")
+            .join("\n");
+
+          try {
+            await sendMessage(chat.chatId, message);
+            report.sent += 1;
+          } catch {
+            report.errors += 1;
+          }
+        }
+        continue;
+      }
+
+      if (!preferences.predictionAlerts) continue;
+      if (position.status !== "open" || position.currentPrice === null) continue;
+
+      const previous = marks.get(position.id);
+
+      /* First sighting: record the baseline and say nothing. An alert on the
+         first reading would be a comparison against a number that does not
+         exist. */
+      if (previous === undefined) {
+        await recordMark(
+          position.id,
+          position.marketId,
+          position.marketTitle,
+          position.currentPrice,
+        );
+        continue;
+      }
+
+      const points = moveInPoints(previous.probability, position.currentPrice);
+      if (Math.abs(points) < preferences.predictionMoveThresholdPoints) continue;
+
+      /* Bucketed by the direction and the rounded level it reached, so a
+         market oscillating around the threshold does not notify repeatedly. */
+      const bucket = Math.round(position.currentPrice * 20) / 20;
+      const claimed = await claimNotification(
+        chat.userId,
+        "prediction_move",
+        `${position.id}:${bucket}`,
+      );
+      if (!claimed) continue;
+
+      const from = Math.round(previous.probability * 1000) / 10;
+      const to = Math.round(position.currentPrice * 1000) / 10;
+
+      const message = [
+        "<b>Prediction market update</b>",
+        "",
+        escapeHtml(position.marketTitle),
+        "",
+        `${escapeHtml(position.outcome)} probability`,
+        `<b>${from}% → ${to}%</b> (${points >= 0 ? "+" : ""}${points.toFixed(1)} points)`,
+        "",
+        position.currentValueUsd === null
+          ? ""
+          : `Your position: ${money(position.currentValueUsd)}`,
+        position.pnlUsd === null
+          ? ""
+          : `Open PnL: ${position.pnlUsd >= 0 ? "+" : ""}${money(position.pnlUsd)}`,
+      ]
+        .filter((line) => line !== "")
+        .join("\n");
+
+      try {
+        await sendMessage(chat.chatId, message);
+        report.sent += 1;
+        await recordMark(
+          position.id,
+          position.marketId,
+          position.marketTitle,
+          position.currentPrice,
+        );
+      } catch {
+        report.errors += 1;
+      }
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Daily summary
 --------------------------------------------------------------------------- */
 
@@ -463,6 +660,7 @@ export async function deliverNotifications(): Promise<DeliveryReport> {
     deliverPriceAlerts,
     deliverLiquidationWarnings,
     deliverLargeMoves,
+    deliverPredictionAlerts,
     deliverDailySummary,
   ]) {
     try {

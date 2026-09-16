@@ -5,6 +5,9 @@ import { UpstreamError } from "@/lib/market/http";
 import { pythConfigured } from "@/lib/market/pyth/catalog";
 import { pricesForIds } from "@/lib/market/pyth/client";
 import { snapshots } from "@/lib/market/router";
+import { exposureOf, resolvingWithin } from "@/lib/prediction/analytics";
+import { predictionAccount } from "@/lib/prediction/account";
+import { polymarketPositions } from "@/lib/providers/polymarket-account";
 import { routeDefiPositions } from "@/lib/providers/router";
 import type { DefiPosition as ProviderDefiPosition } from "@/lib/providers/types";
 import { clusterOf, type Cluster } from "@/lib/solana/cluster";
@@ -25,6 +28,7 @@ import type {
   DefiPosition as DefiPositionView,
   PerpPosition,
   PortfolioSnapshot,
+  PredictionSummary,
   SourceNote,
   SpotHolding,
   WalletScope,
@@ -188,6 +192,109 @@ function toDefiRow(position: ProviderDefiPosition): DefiPositionView {
        inventing the protocol's own risk metric — §17. */
     healthFactor: null,
     inRange: null,
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   Prediction markets
+
+   Included in the portfolio because prediction positions ARE capital: shares
+   bought at 40c are dollars committed, and a portfolio that omits them
+   understates what the operator has at work.
+
+   ── Not connected is not zero ──────────────────────────────────────────
+
+   Polymarket holds positions in a proxy wallet whose address is not the
+   user's EOA, so without a linked address there is nothing to query. That is
+   why `connected` travels with the figures and why every null here stays
+   null: rendering an unlinked account as $0 prediction exposure is a claim
+   about someone's money that nobody checked.
+--------------------------------------------------------------------------- */
+
+/** The honest shape for an account Elyra cannot see. */
+export function predictionUnavailable(reason: string): PredictionSummary {
+  return {
+    connected: false,
+    valueUsd: null,
+    costBasisUsd: null,
+    unrealisedPnlUsd: null,
+    capitalAtRiskUsd: null,
+    maxPayoutUsd: null,
+    activeMarkets: null,
+    resolvingWithin24h: null,
+    resolvingWithin7d: null,
+    claimableCount: null,
+    claimableValueUsd: null,
+    unavailableReason: reason,
+  };
+}
+
+interface PredictionRead {
+  summary: PredictionSummary;
+  /** Counted toward the portfolio total. Null when unreadable. */
+  valueUsd: number | null;
+  notes: SourceNote[];
+}
+
+async function readPrediction(userId: string | null): Promise<PredictionRead> {
+  const account = await predictionAccount(userId);
+
+  if (account === null) {
+    return {
+      summary: predictionUnavailable(
+        "No prediction-market account is linked, so positions cannot be read.",
+      ),
+      valueUsd: null,
+      /* `missing`, not `failed`: nothing broke. An unlinked account is a
+         setup step, and marking the whole portfolio partial over it would
+         flag every user who does not trade prediction markets. */
+      notes: [
+        note("prediction", "No prediction-market account is linked.", "missing"),
+      ],
+    };
+  }
+
+  const result = await polymarketPositions(account.address);
+
+  if (!result.ok || result.data === undefined) {
+    const reason = result.error?.message ?? "Prediction positions could not be read.";
+    return {
+      summary: predictionUnavailable(reason),
+      valueUsd: null,
+      /* This one IS a failure: an account is linked and we could not read it,
+         so the portfolio total is genuinely incomplete. */
+      notes: [note("prediction", reason, "failed")],
+    };
+  }
+
+  const exposure = exposureOf(result.data);
+
+  return {
+    summary: {
+      connected: true,
+      valueUsd: exposure.currentValueUsd,
+      costBasisUsd: exposure.costBasisUsd,
+      unrealisedPnlUsd: exposure.unrealisedPnlUsd,
+      capitalAtRiskUsd: exposure.maxLossUsd,
+      maxPayoutUsd: exposure.maxPayoutUsd,
+      activeMarkets: exposure.openCount,
+      resolvingWithin24h: resolvingWithin(result.data, 24).length,
+      resolvingWithin7d: resolvingWithin(result.data, 24 * 7).length,
+      claimableCount: exposure.claimableCount,
+      claimableValueUsd: exposure.claimableValueUsd,
+      unavailableReason: null,
+    },
+    valueUsd: exposure.currentValueUsd,
+    notes:
+      exposure.unvaluedCount > 0
+        ? [
+            note(
+              "prediction",
+              `${exposure.unvaluedCount} prediction position(s) could not be valued and are not counted.`,
+              "failed",
+            ),
+          ]
+        : [],
   };
 }
 
@@ -556,10 +663,11 @@ async function applyChange24h(holdings: SpotHolding[]): Promise<void> {
 export async function composePortfolio(
   options: ComposeOptions,
 ): Promise<PortfolioSnapshot> {
-  const [wallet, venues, defi] = await Promise.all([
+  const [wallet, venues, defi, prediction] = await Promise.all([
     readWallet(options.solanaAddress),
     readVenues(options),
     readDefi(options.solanaAddress),
+    readPrediction(options.userId),
   ]);
 
   const spot = [...wallet.holdings, ...venues.spot];
@@ -582,7 +690,13 @@ export async function composePortfolio(
     0,
   );
 
-  const notes = [...wallet.notes, ...venues.notes, ...defi.notes, ...missingSurfaces()];
+  const notes = [
+    ...wallet.notes,
+    ...venues.notes,
+    ...defi.notes,
+    ...prediction.notes,
+    ...missingSurfaces(),
+  ];
   const partial = notes.some((entry) => entry.kind === "failed");
 
   /* Null, not zero, when nothing could be read at all. A wallet that was
@@ -592,9 +706,10 @@ export async function composePortfolio(
     counted.length === 0 &&
     venues.perps.length === 0 &&
     defi.positions.length === 0 &&
+    prediction.valueUsd === null &&
     wallet.notes.length > 0
       ? null
-      : spotValue + perpValue + (defi.valueUsd ?? 0);
+      : spotValue + perpValue + (defi.valueUsd ?? 0) + (prediction.valueUsd ?? 0);
 
   if (totalValueUsd !== null && totalValueUsd > 0) {
     for (const holding of spot) {
@@ -638,6 +753,7 @@ export async function composePortfolio(
     spot,
     perps: venues.perps,
     defi: defi.positions,
+    prediction: prediction.summary,
     orders: [],
     activity: [],
     history: [],

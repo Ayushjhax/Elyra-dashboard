@@ -26,6 +26,9 @@ const FLAGS = [
   "liquidationAlerts",
   "largeMoves",
   "dailySummary",
+  "predictionAlerts",
+  "predictionOrderUpdates",
+  "predictionResolutionAlerts",
 ] as const;
 
 export async function GET(request: Request): Promise<Response> {
@@ -69,6 +72,18 @@ export async function PATCH(request: Request): Promise<Response> {
       );
     }
     patch.moveThresholdPct = value;
+  }
+
+  if (typeof body.predictionMoveThresholdPoints === "number") {
+    const value = body.predictionMoveThresholdPoints;
+    /* Points, and a probability cannot move more than 100 of them. */
+    if (!Number.isFinite(value) || value <= 0 || value > 100) {
+      return NextResponse.json(
+        { error: "Probability move threshold must be between 0 and 100 points." },
+        { status: 400 },
+      );
+    }
+    patch.predictionMoveThresholdPoints = value;
   }
 
   if (typeof body.dailySummaryMinute === "number") {

@@ -23,7 +23,14 @@
 export type Venue = "wallet" | "hyperliquid" | "binance" | "okx" | (string & {});
 
 /** Which surface produced a figure, for allocation by strategy. */
-export type Strategy = "cash" | "spot" | "perps" | "yield" | "lp" | "agent";
+export type Strategy =
+  | "cash"
+  | "spot"
+  | "perps"
+  | "yield"
+  | "lp"
+  | "prediction"
+  | "agent";
 
 export interface SpotHolding {
   id: string;
@@ -182,6 +189,32 @@ export interface PortfolioSummary {
   agentManagedPct: number | null;
 }
 
+/**
+ * Prediction-market exposure, as the portfolio sees it.
+ *
+ * `connected` is the field that carries the weight. False means Elyra cannot
+ * see the positions at all, which is NOT the same as there being none — and
+ * every surface that renders this has to say which it is rather than showing
+ * $0 either way.
+ */
+export interface PredictionSummary {
+  connected: boolean;
+  /** Null when not connected or unreadable. Never 0 as a stand-in. */
+  valueUsd: number | null;
+  costBasisUsd: number | null;
+  unrealisedPnlUsd: number | null;
+  /** Bounded and exact: shares settle at $1 or $0. */
+  capitalAtRiskUsd: number | null;
+  maxPayoutUsd: number | null;
+  activeMarkets: number | null;
+  resolvingWithin24h: number | null;
+  resolvingWithin7d: number | null;
+  claimableCount: number | null;
+  claimableValueUsd: number | null;
+  /** Why it is not connected or not readable. Null when it is fine. */
+  unavailableReason: string | null;
+}
+
 export interface PortfolioSnapshot {
   asOf: string;
   summary: PortfolioSummary;
@@ -192,6 +225,11 @@ export interface PortfolioSnapshot {
   orders: OpenOrder[];
   activity: PortfolioActivity[];
   history: PortfolioHistoryPoint[];
+  /**
+   * Prediction markets, always present so a caller never has to guess whether
+   * the absence of this field means "none" or "not asked".
+   */
+  prediction: PredictionSummary;
   notes: SourceNote[];
   /**
    * A source failed, so the totals above are of what could be read and not of

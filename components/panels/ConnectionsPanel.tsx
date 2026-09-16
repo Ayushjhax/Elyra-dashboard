@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
-import { Check, Copy, Link2, Plug } from "lucide-react";
+import { Check, Copy, Link2, Plug, TrendingUp } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Button } from "@/components/ui/Button";
 import { RouteClose } from "@/components/shell/RouteClose";
@@ -330,6 +330,333 @@ function NotificationToggles() {
   );
 }
 
+/* --- Prediction markets --------------------------------------------------- */
+
+interface PredictionState {
+  connected: boolean;
+  address: string | null;
+  verifiedAt: string | null;
+  /** The connected wallet, offered as a starting point. */
+  suggestion: string | null;
+}
+
+interface PredictionFound {
+  address: string;
+  positionCount: number;
+  valueUsd: number;
+  sample: Array<{ market: string; outcome: string; valueUsd: number | null }>;
+}
+
+const shortAddress = (value: string): string =>
+  `${value.slice(0, 6)}…${value.slice(-4)}`;
+
+/**
+ * Linking a prediction-market account.
+ *
+ * ── Why this asks instead of deriving ──────────────────────────────────
+ *
+ * Polymarket holds positions in a contract wallet, not the EOA that controls
+ * it. The newest generation is derivable from the signer, but the legacy
+ * Proxy wallets (email login) and Safe wallets (browser wallet) are not, and
+ * between them they cover most existing accounts. A derivation that produces
+ * the wrong address does not fail loudly — it attaches a stranger's positions
+ * to this portfolio and reports them as the operator's own.
+ *
+ * ── Check before saving ────────────────────────────────────────────────
+ *
+ * The check is a live read that writes nothing. It shows what is actually at
+ * that address — count, value, a couple of market names — so the operator
+ * recognises their own account before it is attached. A typo shows an empty
+ * result rather than becoming a permanent wrong link.
+ */
+function PredictionSection() {
+  const authedFetch = useAuthedFetch();
+  const addressId = useId();
+
+  const [state, setState] = useState<PredictionState | null>(null);
+  const [draft, setDraft] = useState("");
+  const [found, setFound] = useState<PredictionFound | null>(null);
+  const [busy, setBusy] = useState<"detect" | "check" | "save" | "unlink" | null>(null);
+  const [detectNote, setDetectNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  /** Re-reads the linked state. Used after a save or an unlink. */
+  const load = useCallback(async () => {
+    try {
+      const response = await authedFetch("/api/prediction/account");
+      if (!response.ok) return;
+      setState((await response.json()) as PredictionState);
+    } catch {
+      /* Silence rather than a wrong claim — the section stays hidden until
+         we know what is actually linked. */
+    }
+  }, [authedFetch]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    /* Inlined rather than calling `load` directly: every setState below sits
+       behind an await, so nothing runs synchronously in the effect body and
+       there is no cascading render. */
+    void (async () => {
+      try {
+        const response = await authedFetch("/api/prediction/account");
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as PredictionState;
+        if (!cancelled) setState(body);
+      } catch {
+        /* See above. */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authedFetch]);
+
+  /**
+   * Finds the account from the connected wallet, so nothing is typed.
+   *
+   * Links only what it actually finds. A derived address with nothing at it
+   * is reported, never stored — a silent wrong link would attach a stranger's
+   * positions to this portfolio.
+   */
+  const detect = useCallback(async () => {
+    setBusy("detect");
+    setError(null);
+    setDetectNote(null);
+    try {
+      const response = await authedFetch("/api/prediction/account", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ detect: true }),
+      });
+      const body = (await response.json()) as {
+        detected?: boolean;
+        reason?: string;
+        error?: string;
+      };
+      if (!response.ok) {
+        setError(body.error ?? "Could not check your wallet.");
+        return;
+      }
+      if (body.detected === true) {
+        await load();
+        return;
+      }
+      setDetectNote(body.reason ?? "Nothing found for your connected wallet.");
+    } catch {
+      setError("Could not reach the provider.");
+    } finally {
+      setBusy(null);
+    }
+  }, [authedFetch, load]);
+
+  const check = useCallback(async () => {
+    setBusy("check");
+    setError(null);
+    setFound(null);
+    try {
+      const response = await authedFetch("/api/prediction/account", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ address: draft.trim(), preview: true }),
+      });
+      const body = (await response.json()) as { found?: PredictionFound; error?: string };
+      if (!response.ok) {
+        setError(body.error ?? "Could not check that address.");
+        return;
+      }
+      setFound(body.found ?? null);
+    } catch {
+      setError("Could not reach the provider.");
+    } finally {
+      setBusy(null);
+    }
+  }, [authedFetch, draft]);
+
+  const save = useCallback(async () => {
+    setBusy("save");
+    setError(null);
+    try {
+      const response = await authedFetch("/api/prediction/account", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ address: draft.trim() }),
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        setError(body.error ?? "Could not save that.");
+        return;
+      }
+      setDraft("");
+      setFound(null);
+      await load();
+    } catch {
+      setError("Could not save that. Nothing was changed.");
+    } finally {
+      setBusy(null);
+    }
+  }, [authedFetch, draft, load]);
+
+  const unlink = useCallback(async () => {
+    setBusy("unlink");
+    try {
+      await authedFetch("/api/prediction/account", { method: "DELETE" });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }, [authedFetch, load]);
+
+  if (state === null) return null;
+
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-center gap-1.5">
+        <TrendingUp size={14} strokeWidth={1.5} aria-hidden className="text-text-muted" />
+        <h2 className="type-label text-text-secondary">Prediction markets</h2>
+      </div>
+
+      <Row>
+        {state.connected ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="type-body-sm text-text-primary">
+                  Linked{state.verifiedAt === null ? "" : " and verified"}.
+                </p>
+                <p className="type-mono-addr mt-0.5 break-all text-text-muted">
+                  {state.address}
+                </p>
+              </div>
+              <Button variant="ghost" size="xs" onClick={() => void unlink()} disabled={busy !== null}>
+                {busy === "unlink" ? "Removing…" : "Unlink"}
+              </Button>
+            </div>
+
+            {state.verifiedAt === null && (
+              /* Saved but nothing found. Said out loud, because the likeliest
+                 explanation is a typo and the second likeliest is a brand-new
+                 account — and only the operator can tell which. */
+              <p className="type-label text-text-muted">
+                Nothing was found at this address yet. That is normal for a new
+                account; if you expected positions, check the address.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="type-body-sm text-text-secondary">
+              Track your prediction-market positions alongside the rest of your
+              capital. Browsing markets needs no account.
+            </p>
+
+            <Button
+              variant="accent"
+              size="sm"
+              className="self-start"
+              onClick={() => void detect()}
+              disabled={busy !== null}
+            >
+              {busy === "detect" ? "Looking…" : "Find my account"}
+            </Button>
+
+            {detectNote !== null && (
+              <p className="type-label text-text-muted">{detectNote}</p>
+            )}
+
+            <label htmlFor={addressId} className="type-label pt-1 text-text-muted">
+              Or enter the address yourself
+            </label>
+            <input
+              id={addressId}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="0x…"
+              spellCheck={false}
+              autoComplete="off"
+              className={cn(
+                "type-mono-addr w-full rounded-control border border-border-subtle",
+                "bg-surface-base px-2.5 py-2 text-text-primary",
+                "placeholder:text-text-muted focus:border-border-strong focus:outline-none",
+              )}
+            />
+
+            <p className="type-label text-text-muted">
+              Needed only if you trade on Polymarket under a different login.
+              Find it on polymarket.com under your profile — it is the address
+              your positions are held in, which is usually not the wallet you
+              sign in with.
+            </p>
+
+            {state.suggestion !== null && draft.length === 0 && (
+              <button
+                type="button"
+                onClick={() => setDraft(state.suggestion ?? "")}
+                className="type-label self-start text-accent hover:underline"
+              >
+                Try my connected wallet ({shortAddress(state.suggestion)})
+              </button>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void check()}
+                disabled={busy !== null || draft.trim().length === 0}
+              >
+                {busy === "check" ? "Checking…" : "Check"}
+              </Button>
+              {found !== null && (
+                <Button variant="accent" size="sm" onClick={() => void save()} disabled={busy !== null}>
+                  {busy === "save" ? "Linking…" : "This is mine — link it"}
+                </Button>
+              )}
+            </div>
+
+            {found !== null && (
+              <div className="rounded-control border border-border-subtle bg-surface-base p-2.5">
+                {found.positionCount === 0 ? (
+                  <p className="type-body-sm text-text-secondary">
+                    No positions found at {shortAddress(found.address)}. Link it
+                    anyway if the account is new, or check the address.
+                  </p>
+                ) : (
+                  <>
+                    <p className="type-body-sm text-text-primary">
+                      {found.positionCount} position
+                      {found.positionCount === 1 ? "" : "s"} worth{" "}
+                      {found.valueUsd.toLocaleString("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                    <ul className="mt-1.5 flex list-none flex-col gap-0.5">
+                      {found.sample.map((row) => (
+                        <li
+                          key={`${row.market}:${row.outcome}`}
+                          className="type-label text-text-muted"
+                        >
+                          {row.market.slice(0, 54)} · {row.outcome}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+
+            {error !== null && <p className="type-label text-negative">{error}</p>}
+          </div>
+        )}
+      </Row>
+    </section>
+  );
+}
+
 /* --- Exchanges ----------------------------------------------------------- */
 
 function ExchangeSection() {
@@ -556,6 +883,7 @@ export function ConnectionsPanel() {
           ) : (
             <>
               <TelegramSection />
+              <PredictionSection />
               <ExchangeSection />
             </>
           )}

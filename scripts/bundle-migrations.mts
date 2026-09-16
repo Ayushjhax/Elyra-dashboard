@@ -45,6 +45,7 @@ const SOURCES = [
   "supabase/migrations/0005_personalized.sql",
   "supabase/migrations/0006_referrals.sql",
   "supabase/migrations/0007_telegram_capital_os.sql",
+  "supabase/migrations/0008_prediction_markets.sql",
 ];
 
 const TARGET = "supabase/migrations/_apply_all.sql";

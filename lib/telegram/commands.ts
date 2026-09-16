@@ -30,6 +30,11 @@ import {
 } from "@/lib/telegram/actions-views";
 import { notificationPreferences } from "@/lib/telegram/notifications";
 import {
+  handlePredictionCallback,
+  isPredictionCallback,
+  predictionHome,
+} from "@/lib/telegram/prediction";
+import {
   activityView,
   defiView,
   marketsView,
@@ -63,6 +68,7 @@ const HELP = [
   "<b>/alert</b> SOL &gt; 120 — tell me when it crosses",
   "<b>/alerts</b> — what Elyra sends you",
   "<b>/watch</b> [add|remove] &lt;symbol&gt; — your watchlist, priced",
+  "<b>/predictions</b> — prediction markets and your exposure",
   "<b>/orders</b> — resting orders on Hyperliquid",
   "<b>/activity</b> — recent fills, with realised PnL",
   "<b>/ask</b> &lt;question&gt; — same as just typing",
@@ -115,6 +121,8 @@ export interface CommandInput {
   sessionWallet: string | null;
   /** Solana, for the unified Personalized context. */
   solanaAddress?: string | null;
+  /** The prediction-market account, resolved by the webhook from the profile. */
+  polymarketAddress?: string | null;
 }
 
 /** Splits "/report SOL" into its parts, ignoring an @botname suffix. */
@@ -164,6 +172,7 @@ function toolContext(input: CommandInput): ToolContext {
     userId: input.userId,
     sessionWallet: input.sessionWallet,
     solanaAddress: input.solanaAddress ?? null,
+    polymarketAddress: input.polymarketAddress ?? null,
   };
 }
 
@@ -327,6 +336,18 @@ export async function handleCommand(input: CommandInput): Promise<CommandReply |
     case "activity":
     case "fills":
       return formatChunks(await activityView(toolContext(input)));
+
+    case "predictions":
+    case "prediction": {
+      /* Prediction markets are private financial data, so the same §41 gate
+         that guards the portfolio applies: chatId equals telegramUserId only
+         in a direct message. */
+      if (input.chatId !== input.telegramUserId) {
+        return ["Prediction positions are only available in a private chat."];
+      }
+      const view = await predictionHome(toolContext(input));
+      return { chunks: formatChunks(view.html), buttons: view.buttons };
+    }
 
     case "alerts":
       return [await alertsSummary(input)];
@@ -508,7 +529,26 @@ export async function respond(
 export async function handleCallback(input: {
   userId: string;
   data: string;
-}): Promise<string> {
+  sessionWallet?: string | null;
+  solanaAddress?: string | null;
+  polymarketAddress?: string | null;
+}): Promise<string | CommandReply> {
+  /* Prediction navigation is read-only and owns the `pm:` prefix. Routed
+     before the prepared-action path so a browse tap never touches the action
+     store. */
+  if (isPredictionCallback(input.data)) {
+    const view = await handlePredictionCallback(
+      {
+        userId: input.userId,
+        sessionWallet: input.sessionWallet ?? null,
+        solanaAddress: input.solanaAddress ?? null,
+        polymarketAddress: input.polymarketAddress ?? null,
+      },
+      input.data,
+    );
+    return { chunks: formatChunks(view.html), buttons: view.buttons };
+  }
+
   const token = tokenFromCallback(input.data);
   if (token === null) {
     return "That button is no longer valid. Ask again for a fresh preview.";

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { predictionUnavailable } from "@/lib/portfolio/compose";
 import {
   allocationFor,
   availableModes,
@@ -50,7 +51,11 @@ function snapshot(over: Partial<PortfolioSnapshot> = {}): PortfolioSnapshot {
       agentManagedPct: null,
     },
     scopes: [], spot: [], perps: [], defi: [], orders: [], activity: [],
-    history: [], notes: [], partial: false,
+    history: [],
+    /* No prediction account linked — a different state from having no
+       positions, which the snapshot is required to carry. */
+    prediction: predictionUnavailable("No prediction-market account is linked."),
+    notes: [], partial: false,
     ...over,
   };
 }

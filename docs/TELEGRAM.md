@@ -212,6 +212,7 @@ consent to be told things.
 | `/wallet` | no | token holdings, unverified ones flagged |
 | `/positions` | no | exposure and concentration |
 | `/defi` | no | lending, leverage and vault positions |
+| `/predictions` | no | prediction markets, exposure and discovery |
 | `/price SOL` | no | a quick price |
 | `/markets [symbol]` | no | funding and mark price, or what markets are pricing |
 | `/swap 1.5 SOL to USDC` | no | a **live** Jupiter quote — preview only |
@@ -222,6 +223,27 @@ consent to be told things.
 | `/activity` | no | recent fills, with realised PnL |
 | `/report [symbol]` | yes | the tool-loop agent |
 | anything in plain language | yes | the Personalized runtime |
+
+### Prediction markets
+
+`/predictions` opens a card with inline navigation — positions, discovery by
+category, trending, open orders. Everything reads through the same semantic
+tools the web agent uses, so the card and "how are my prediction positions
+doing?" cannot disagree.
+
+Private financial data, so the same gate as the portfolio applies: the command
+refuses outside a direct message.
+
+**Not connected is not zero.** Polymarket holds positions in a proxy wallet
+whose address is not the user's EOA, so without a linked address there is
+nothing to query. The card says the account is not linked and offers to
+connect it; it never renders `$0.00`, which would be a false statement about
+someone's money and the one they are least likely to question.
+
+Browsing needs no account at all — market data is public. Open orders are the
+exception: unlike positions they are not on-chain, so reading them needs an
+authenticated trading session Elyra does not have, and the bot says that
+rather than showing an empty order book.
 
 ### What `/swap` does and does not do
 

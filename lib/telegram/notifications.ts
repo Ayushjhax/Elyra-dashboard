@@ -24,6 +24,16 @@ export interface TelegramNotificationPreferences {
   dailySummaryMinute: number;
   timezone: string;
   moveThresholdPct: number;
+  /** Probability moves on prediction markets the user holds. */
+  predictionAlerts: boolean;
+  predictionOrderUpdates: boolean;
+  predictionResolutionAlerts: boolean;
+  /**
+   * In percentage POINTS. 54% to 64% is a 10-point move and an 18.5%
+   * relative one; people mean the first, and using the second makes the
+   * alert fire roughly twice as often as asked.
+   */
+  predictionMoveThresholdPoints: number;
 }
 
 /** Everything off. The answer whenever we are not certain of the opposite. */
@@ -35,6 +45,10 @@ export const NOTIFICATIONS_OFF: TelegramNotificationPreferences = {
   dailySummaryMinute: 540,
   timezone: "UTC",
   moveThresholdPct: 5,
+  predictionAlerts: false,
+  predictionOrderUpdates: false,
+  predictionResolutionAlerts: false,
+  predictionMoveThresholdPoints: 10,
 };
 
 export async function notificationPreferences(
@@ -43,7 +57,7 @@ export async function notificationPreferences(
   const { data, error } = await serviceClient()
     .from("telegram_notification_preferences")
     .select(
-      "price_alerts, liquidation_alerts, large_moves, daily_summary, daily_summary_minute, timezone, move_threshold_pct",
+      "price_alerts, liquidation_alerts, large_moves, daily_summary, daily_summary_minute, timezone, move_threshold_pct, prediction_alerts, prediction_order_updates, prediction_resolution_alerts, prediction_move_threshold_points",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -59,6 +73,10 @@ export async function notificationPreferences(
     dailySummaryMinute: data.daily_summary_minute,
     timezone: data.timezone,
     moveThresholdPct: Number(data.move_threshold_pct),
+    predictionAlerts: data.prediction_alerts,
+    predictionOrderUpdates: data.prediction_order_updates,
+    predictionResolutionAlerts: data.prediction_resolution_alerts,
+    predictionMoveThresholdPoints: Number(data.prediction_move_threshold_points),
   };
 }
 
@@ -89,6 +107,13 @@ export async function savePreferences(
         timezone: merged.timezone,
         move_threshold_pct:
           merged.moveThresholdPct > 0 ? merged.moveThresholdPct : current.moveThresholdPct,
+        prediction_alerts: merged.predictionAlerts,
+        prediction_order_updates: merged.predictionOrderUpdates,
+        prediction_resolution_alerts: merged.predictionResolutionAlerts,
+        prediction_move_threshold_points:
+          merged.predictionMoveThresholdPoints > 0
+            ? merged.predictionMoveThresholdPoints
+            : current.predictionMoveThresholdPoints,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },

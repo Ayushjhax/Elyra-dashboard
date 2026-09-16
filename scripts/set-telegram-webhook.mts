@@ -136,6 +136,7 @@ const COMMANDS = [
   { command: "wallet", description: "Your token holdings" },
   { command: "positions", description: "Exposure and concentration" },
   { command: "defi", description: "Lending, leverage and vault positions" },
+  { command: "predictions", description: "Prediction markets and your exposure" },
   { command: "price", description: "A quick price — /price SOL" },
   { command: "markets", description: "Funding and mark price for a symbol" },
   { command: "swap", description: "A live quote — /swap 1.5 SOL to USDC" },

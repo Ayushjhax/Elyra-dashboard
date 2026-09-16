@@ -1,4 +1,8 @@
 import "server-only";
+import { boundsOf, shareOfPortfolio } from "@/lib/prediction/analytics";
+import { predictionAccount } from "@/lib/prediction/account";
+import { polymarketPositions } from "@/lib/providers/polymarket-account";
+import type { PredictionContext } from "@/lib/personalized/types";
 
 import { composePortfolio } from "@/lib/portfolio/compose";
 import {
@@ -88,6 +92,7 @@ export async function buildContext(input: ContextInput): Promise<BuiltContext> {
         risk: [],
         today: [],
         memories,
+        prediction: null,
         unavailable: [
           {
             scope: "portfolio",
@@ -112,6 +117,20 @@ export async function buildContext(input: ContextInput): Promise<BuiltContext> {
   const wantsRisk = facets.has("risk");
   const wantsChange = facets.has("change") || facets.has("equity");
 
+  /* ---- Prediction markets ----
+
+     Loaded only when the question was about them, or when it was about risk —
+     a "what am I exposed to" answer that silently omits an 11% prediction
+     allocation is wrong in a way the reader cannot detect.
+
+     The portfolio snapshot already carries the SUMMARY (it is part of the
+     unified total), so the extra call here buys the individual positions,
+     and only when they will actually be used. */
+  const wantsPrediction = facets.has("prediction") || facets.has("risk");
+  const prediction = wantsPrediction
+    ? await predictionContext(input.userId, portfolio, total)
+    : null;
+
   return {
     snapshot: portfolio,
     context: {
@@ -122,6 +141,7 @@ export async function buildContext(input: ContextInput): Promise<BuiltContext> {
       /* Capped: a wallet with two hundred dust tokens would otherwise fill
          the prompt with rows that cannot move any conclusion. */
       exposures: wantsAllocation ? exposures(portfolio).slice(0, 12) : [],
+      prediction,
       largestExposure: largestExposure(portfolio),
       positionCount: portfolio.perps.length,
       openOrderCount: portfolio.orders.length,
@@ -214,4 +234,80 @@ export function renderContext(context: PersonalizedContext): string {
   }
 
   return lines.join("\n");
+}
+
+/* ---------------------------------------------------------------------------
+   Prediction markets in Personalized context
+
+   The portfolio snapshot already carries the summary, because prediction
+   value is part of the unified total. What this adds is the individual
+   positions — bounded to the largest few, because a prompt does not get more
+   useful for carrying the fortieth-biggest 2¢ position, and every row costs
+   tokens on every turn.
+--------------------------------------------------------------------------- */
+
+async function predictionContext(
+  userId: string | null,
+  portfolio: PortfolioSnapshot,
+  totalEquity: number | null,
+): Promise<PredictionContext> {
+  const summary = portfolio.prediction;
+
+  const base: PredictionContext = {
+    connected: summary.connected,
+    unavailableReason: summary.unavailableReason,
+    valueUsd: summary.valueUsd,
+    capitalAtRiskUsd: summary.capitalAtRiskUsd,
+    maxPayoutUsd: summary.maxPayoutUsd,
+    unrealisedPnlUsd: summary.unrealisedPnlUsd,
+    sharePctOfPortfolio:
+      summary.valueUsd === null ? null : shareOfPortfolio(summary.valueUsd, totalEquity),
+    activeMarkets: summary.activeMarkets,
+    resolvingWithin7d: summary.resolvingWithin7d,
+    claimableValueUsd: summary.claimableValueUsd,
+    positions: [],
+  };
+
+  /* Not connected, or the summary read already failed. Either way there is
+     nothing further to fetch, and the reason travels with the empty list so
+     the model says "not connected" rather than "no positions". */
+  if (!summary.connected) return base;
+
+  const account = await predictionAccount(userId);
+  if (account === null) return base;
+
+  const result = await polymarketPositions(account.address);
+  if (!result.ok || result.data === undefined) {
+    return {
+      ...base,
+      unavailableReason:
+        result.error?.message ?? "Prediction positions could not be read.",
+    };
+  }
+
+  const ranked = [...result.data]
+    .filter((position) => position.status === "open" || position.status === "claimable")
+    .sort((a, b) => (b.currentValueUsd ?? 0) - (a.currentValueUsd ?? 0))
+    .slice(0, 8);
+
+  return {
+    ...base,
+    positions: ranked.map((position) => {
+      const bounds = boundsOf(position);
+      return {
+        market: position.marketTitle,
+        outcome: position.outcome,
+        currentValueUsd: position.currentValueUsd,
+        probabilityPct:
+          position.currentPrice === null ? null : Math.round(position.currentPrice * 1000) / 10,
+        entryProbabilityPct:
+          position.entryPrice === null ? null : Math.round(position.entryPrice * 1000) / 10,
+        pnlUsd: position.pnlUsd,
+        maxLossUsd: bounds.maxLossUsd,
+        maxPayoutUsd: bounds.maxPayoutUsd,
+        endsAt: position.endsAt,
+        status: position.status,
+      };
+    }),
+  };
 }

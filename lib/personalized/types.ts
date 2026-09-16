@@ -41,7 +41,16 @@ export type ContextFacet =
   | "activity"
   | "risk"
   | "memory"
-  | "change";
+  | "change"
+  /**
+   * Prediction-market positions and exposure.
+   *
+   * A facet of its own rather than folded into `positions`, because loading
+   * it costs a call to a different provider and most questions do not need
+   * it. Intent-aware retrieval is the point: "what are my perps doing" must
+   * not pay for a Polymarket round trip.
+   */
+  | "prediction";
 
 export interface Intent {
   task: PersonalizedTask;
@@ -247,10 +256,46 @@ export interface PersonalizedContext {
   risk: RiskMetric[];
   today: TodayRow[];
   memories: PersonalizedMemory[];
+  /**
+   * Prediction markets, when the question touched them.
+   *
+   * Null means the facet was not requested — NOT that exposure is zero. The
+   * summary inside carries its own `connected` flag for the other case.
+   */
+  prediction: PredictionContext | null;
   /** Sources that failed, so the model is told its picture is incomplete. */
   unavailable: Array<{ scope: string; reason: string }>;
   /** True when the operator has nothing to personalize around yet. */
   empty: boolean;
+}
+
+export interface PredictionContextPosition {
+  market: string;
+  outcome: string;
+  currentValueUsd: number | null;
+  probabilityPct: number | null;
+  entryProbabilityPct: number | null;
+  pnlUsd: number | null;
+  maxLossUsd: number | null;
+  maxPayoutUsd: number | null;
+  endsAt: string | null;
+  status: string;
+}
+
+export interface PredictionContext {
+  connected: boolean;
+  /** Why not, when `connected` is false. */
+  unavailableReason: string | null;
+  valueUsd: number | null;
+  capitalAtRiskUsd: number | null;
+  maxPayoutUsd: number | null;
+  unrealisedPnlUsd: number | null;
+  sharePctOfPortfolio: number | null;
+  activeMarkets: number | null;
+  resolvingWithin7d: number | null;
+  claimableValueUsd: number | null;
+  /** The largest few, not everything — see the note on intent-aware context. */
+  positions: PredictionContextPosition[];
 }
 
 export interface PersonalizedInsight {

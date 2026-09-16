@@ -52,7 +52,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { data: link } = await serviceClient()
     .from("telegram_links")
-    .select("user_id, profiles(wallet_address, solana_address)")
+    .select("user_id, profiles(wallet_address, solana_address, polymarket_address)")
     .eq("telegram_user_id", verified.data.telegramUserId)
     .maybeSingle();
 
@@ -71,13 +71,18 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const profile = link.profiles as unknown as
-    | { wallet_address: string | null; solana_address: string | null }
+    | {
+        wallet_address: string | null;
+        solana_address: string | null;
+        polymarket_address: string | null;
+      }
     | null;
 
   const context = {
     userId: link.user_id,
     sessionWallet: profile?.wallet_address ?? null,
     solanaAddress: profile?.solana_address ?? null,
+    polymarketAddress: profile?.polymarket_address ?? null,
   };
 
   const view = typeof body.view === "string" ? body.view : "portfolio";
@@ -90,6 +95,9 @@ export async function POST(request: Request): Promise<Response> {
     holdings: "portfolio_holdings",
     risk: "portfolio_risk",
     defi: "defi_positions",
+    prediction: "prediction_get_portfolio_summary",
+    "prediction-positions": "prediction_get_positions",
+    "prediction-trending": "prediction_get_trending",
   };
 
   const tool = TOOL[view];

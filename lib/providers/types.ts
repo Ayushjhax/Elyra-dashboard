@@ -341,16 +341,159 @@ export interface PredictionOutcome {
   price: number;
 }
 
+export type PredictionStatus = "open" | "closed" | "resolved" | "cancelled";
+
 export interface PredictionMarket {
   id: string;
   provider: ProviderId;
+  /** The event this market belongs to, where the provider groups them. */
+  eventId?: string | null;
   question: string;
+  description?: string | null;
+  /** The provider's own category labels. Never invented here. */
+  categories?: string[];
   slug: string | null;
   outcomes: PredictionOutcome[];
   liquidityUsd: number | null;
   volume24hUsd: number | null;
+  volumeUsd?: number | null;
+  startAt?: string | null;
+  endsAt: string | null;
+  resolvedAt?: string | null;
+  status?: PredictionStatus;
+  resolutionSource?: string | null;
+  url?: string | null;
+  closed: boolean;
+}
+
+/**
+ * An event: one question with several markets under it.
+ *
+ * "Fed decision in September?" is an event; "no change", "25bp cut", "50bp
+ * cut" are markets within it. Kept distinct because exposure concentrates by
+ * EVENT — three positions across one event's outcomes is one bet, not three.
+ */
+export interface PredictionEvent {
+  id: string;
+  provider: ProviderId;
+  title: string;
+  slug: string | null;
+  description?: string | null;
+  categories: string[];
+  markets: PredictionMarket[];
+  liquidityUsd: number | null;
+  volumeUsd: number | null;
   endsAt: string | null;
   closed: boolean;
+  url?: string | null;
+}
+
+export type PredictionPositionStatus = "open" | "resolved" | "claimable" | "closed";
+
+/**
+ * One holding in one outcome of one market.
+ *
+ * ── Why max loss and max payout are separate fields ────────────────────
+ *
+ * A prediction position is not like a spot holding. Its downside is bounded
+ * and KNOWN — shares settle at $0 or $1, so the most that can be lost is what
+ * remains at risk, and the most that can be won is the share count minus that.
+ * Those are arithmetic, not estimates, which is exactly why they are computed
+ * once in the analytics layer and never asked of a model.
+ */
+export interface PredictionPosition {
+  id: string;
+  provider: ProviderId;
+  /** The address these were read for. Proves WHOSE positions these are. */
+  accountId: string;
+  marketId: string;
+  eventId?: string | null;
+  marketTitle: string;
+  slug?: string | null;
+  /** "Yes", "No", or a named outcome in a multi-outcome market. */
+  outcome: string;
+  outcomeIndex?: number | null;
+  /** Shares held. Each settles at $1 or $0. */
+  quantity: number | null;
+  /** Average price paid per share, 0–1. Also the entry probability. */
+  entryPrice: number | null;
+  /** Current price per share, 0–1. Also the market's implied probability. */
+  currentPrice: number | null;
+  costBasisUsd: number | null;
+  currentValueUsd: number | null;
+  pnlUsd: number | null;
+  pnlPct: number | null;
+  realizedPnlUsd?: number | null;
+  endsAt: string | null;
+  status: PredictionPositionStatus;
+  /** Settled in the holder's favour and awaiting a redeem transaction. */
+  redeemable?: boolean;
+}
+
+export interface PredictionOrder {
+  id: string;
+  provider: ProviderId;
+  marketId: string;
+  marketTitle?: string | null;
+  outcome: string;
+  side: "buy" | "sell";
+  price: number | null;
+  quantity: number | null;
+  filledQuantity: number | null;
+  status: string;
+  createdAt: string;
+}
+
+export type PredictionActivityKind =
+  | "prediction_buy"
+  | "prediction_sell"
+  | "prediction_redeem"
+  | "prediction_settlement"
+  | "prediction_split"
+  | "prediction_merge"
+  | "prediction_other";
+
+export interface PredictionActivity {
+  id: string;
+  provider: ProviderId;
+  kind: PredictionActivityKind;
+  marketId: string | null;
+  marketTitle: string | null;
+  outcome: string | null;
+  /** Shares. */
+  quantity: number | null;
+  /** Price per share, 0–1. */
+  price: number | null;
+  usdValue: number | null;
+  at: string;
+  txHash?: string | null;
+}
+
+/** One side of an order book, best price first once normalised. */
+export interface PredictionBookLevel {
+  price: number;
+  size: number;
+}
+
+export interface PredictionOrderbook {
+  marketId: string;
+  tokenId: string;
+  /** Best bid first. */
+  bids: PredictionBookLevel[];
+  /** Best ask first. */
+  asks: PredictionBookLevel[];
+  /** Null when either side is empty — a one-sided book has no midpoint. */
+  midpoint: number | null;
+  spread: number | null;
+  lastTradePrice: number | null;
+  minOrderSize: number | null;
+  tickSize: number | null;
+}
+
+export interface PredictionPricePoint {
+  at: string;
+  /** 0–1. */
+  probability: number;
 }
 
 /* ---------------------------------------------------------------------------

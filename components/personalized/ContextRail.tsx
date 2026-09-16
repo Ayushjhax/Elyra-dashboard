@@ -377,8 +377,16 @@ export function ContextRail({
       {context !== null && context.unavailable.length > 0 && (
         <Section icon={Sparkles} title="Partial data">
           <ul className="flex list-none flex-col gap-1">
+            {/* Keyed on scope AND reason: one scope can report several
+                distinct failures — a protocol that left two sections
+                unindexed produces two "defi" rows, and both are worth
+                showing. The scope alone stopped being unique the moment a
+                provider could fail partially. */}
             {context.unavailable.map((entry) => (
-              <li key={entry.scope} className="type-label text-negative">
+              <li
+                key={`${entry.scope}:${entry.reason}`}
+                className="type-label text-negative"
+              >
                 {entry.scope}: <span className="text-text-muted">{entry.reason}</span>
               </li>
             ))}

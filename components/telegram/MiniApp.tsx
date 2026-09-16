@@ -39,13 +39,21 @@ function webApp(): TelegramWebApp | null {
   return telegram?.WebApp ?? null;
 }
 
-type View = "portfolio" | "holdings" | "risk" | "defi";
+type View =
+  | "portfolio"
+  | "holdings"
+  | "risk"
+  | "defi"
+  | "prediction"
+  | "prediction-trending";
 
 const TABS: Array<{ id: View; label: string }> = [
   { id: "portfolio", label: "Overview" },
   { id: "holdings", label: "Holdings" },
   { id: "risk", label: "Risk" },
   { id: "defi", label: "DeFi" },
+  { id: "prediction", label: "Predictions" },
+  { id: "prediction-trending", label: "Markets" },
 ];
 
 interface Payload {
@@ -208,6 +216,142 @@ function ViewBody({ view, data }: { view: View; data: Record<string, unknown> })
       {view === "holdings" ? <Holdings data={data} /> : null}
       {view === "risk" ? <Risk data={data} /> : null}
       {view === "defi" ? <Defi data={data} /> : null}
+      {view === "prediction" ? <Prediction data={data} /> : null}
+      {view === "prediction-trending" ? <PredictionMarkets data={data} /> : null}
+    </>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   Prediction markets
+
+   Elyra's own palette throughout — Lime for a probability that is being
+   emphasised, Clay only for a real loss. Polymarket supplies the data and
+   none of the visual language.
+--------------------------------------------------------------------------- */
+
+function Prediction({ data }: { data: Record<string, unknown> }) {
+  /* Not connected is its own screen, never a $0 card. Polymarket holds
+     positions in a proxy wallet, so an unlinked account cannot be read at
+     all — showing zero would be a claim nobody checked. */
+  if (data.connected === false) {
+    return (
+      <>
+        <div className="mini-card">
+          <span className="mini-label">Prediction markets</span>
+          <p className="mini-note">
+            Market data is available and you can browse any market. Your own
+            prediction account is not linked yet, so I cannot see your
+            positions.
+          </p>
+        </div>
+        <p className="mini-muted">Link it in Elyra to track them here.</p>
+      </>
+    );
+  }
+
+  const claimable = (data.claimable ?? {}) as { count?: number; valueUsd?: number };
+  const largest = data.largestPosition as Record<string, unknown> | null;
+  const next = data.nextResolution as Record<string, unknown> | null;
+
+  return (
+    <>
+      <div className="mini-card">
+        <span className="mini-label">Prediction value</span>
+        <span className="mini-figure">{money(data.currentValueUsd)}</span>
+      </div>
+
+      <div className="mini-grid">
+        <div className="mini-card">
+          <span className="mini-label">At risk</span>
+          <span className="mini-figure-sm">{money(data.capitalAtRiskUsd)}</span>
+        </div>
+        <div className="mini-card">
+          <span className="mini-label">Max payout</span>
+          <span className="mini-figure-sm">{money(data.maxPayoutUsd)}</span>
+        </div>
+      </div>
+
+      <div className="mini-card">
+        <div className="mini-row">
+          <span>Active markets</span>
+          <span className="mini-num">{String(data.activeMarkets ?? "—")}</span>
+        </div>
+        <div className="mini-row">
+          <span>Resolving in 7 days</span>
+          <span className="mini-num">{String(data.resolvingWithin7d ?? "—")}</span>
+        </div>
+        <div className="mini-row">
+          <span>Open PnL</span>
+          <span className="mini-num">{money(data.unrealisedPnlUsd)}</span>
+        </div>
+      </div>
+
+      {(claimable.count ?? 0) > 0 ? (
+        <div className="mini-card mini-claim">
+          <span className="mini-label">Unclaimed winnings</span>
+          <span className="mini-figure-sm">{money(claimable.valueUsd)}</span>
+          <p className="mini-note">
+            {claimable.count} market(s) settled in your favour. Claim them in Elyra.
+          </p>
+        </div>
+      ) : null}
+
+      {largest !== null ? (
+        <div className="mini-card">
+          <span className="mini-label">Largest position</span>
+          <span className="mini-body">{String(largest.market)}</span>
+          <p className="mini-note">
+            {String(largest.outcome)} · {money(largest.currentValueUsd)} ·{" "}
+            <span className="mini-prob">{String(largest.currentProbabilityPct ?? "—")}%</span>
+          </p>
+        </div>
+      ) : null}
+
+      {next !== null ? (
+        <div className="mini-card">
+          <span className="mini-label">Next resolution</span>
+          <span className="mini-body">{String(next.market)}</span>
+          <p className="mini-note">{String(next.endsAt ?? "").slice(0, 10)}</p>
+        </div>
+      ) : null}
+
+      <p className="mini-note">
+        Probabilities are market prices, not Elyra forecasts. Each share
+        settles at $1 or $0.
+      </p>
+    </>
+  );
+}
+
+function PredictionMarkets({ data }: { data: Record<string, unknown> }) {
+  const markets = (data.markets ?? []) as Array<{
+    question: string;
+    outcomes: Array<{ label: string; impliedProbabilityPct: number }>;
+    volume24hUsd: number | null;
+    endsAt: string | null;
+  }>;
+
+  if (markets.length === 0) return <p className="mini-muted">No markets to show.</p>;
+
+  return (
+    <>
+      {markets.map((market) => (
+        <div key={market.question} className="mini-card">
+          <span className="mini-body">{market.question}</span>
+          {market.outcomes.slice(0, 3).map((outcome) => (
+            <div key={outcome.label} className="mini-row">
+              <span>{outcome.label}</span>
+              <span className="mini-prob">{outcome.impliedProbabilityPct}%</span>
+            </div>
+          ))}
+          <p className="mini-note">
+            {market.volume24hUsd === null ? "" : `Vol ${money(market.volume24hUsd)}`}
+            {market.endsAt === null ? "" : ` · Ends ${market.endsAt.slice(0, 10)}`}
+          </p>
+        </div>
+      ))}
+      <p className="mini-note">Market-implied probabilities, not Elyra forecasts.</p>
     </>
   );
 }
@@ -398,6 +542,17 @@ const CSS = `
   letter-spacing: 0.05em; color: var(--muted);
 }
 .mini-note { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+.mini-body { font-size: 14px; line-height: 1.35; }
+/* Elyra Lime, for the probability the reader is being pointed at. Never
+   Polymarket's palette — the data is theirs, the product is not. */
+.mini-prob {
+  color: var(--accent, #D2DC76);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+/* Elyra Lime at low alpha. Claimable money is good news, so it does not get
+   the Clay treatment reserved for real losses. */
+.mini-claim { box-shadow: inset 0 0 0 1px rgba(210, 220, 118, 0.35); }
 .mini-muted { color: var(--muted); font-size: 14px; }
 .mini-error { color: #e2725b; font-size: 14px; }
 .mini-warn {

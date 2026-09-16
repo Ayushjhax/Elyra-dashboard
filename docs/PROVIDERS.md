@@ -27,7 +27,7 @@ echoes a request into an error page would otherwise echo a key with it.
 | Raydium | pools and yields | none | live API v3 |
 | Hyperliquid | `perp_positions` (public) | none | live `/info` |
 | Binance | `candles`, `perp_positions` (public) | none | live spot + fapi |
-| Polymarket | `prediction_markets` | none | live Gamma API |
+| Polymarket | markets, books, positions, activity | none | official OpenAPI specs + live |
 | DFlow | `swap_quote` | — | **not connected** |
 
 ### Why DFlow is not connected
@@ -84,6 +84,39 @@ allocator cares about. Both travel, and the fee figure is the default.
 
 **Binance answers `200` with an error object for an unknown symbol**, not a
 404. Status alone does not establish that a call worked.
+
+## Polymarket traps
+
+Three APIs, all public, all verified against the specs Polymarket publishes at
+`docs.polymarket.com/api-spec/`: Gamma (markets and events), CLOB (books and
+price history) and the Data API (positions and activity). Positions are
+on-chain, which is why reading them needs no credential — and why nothing in
+the adapter can write.
+
+**`redeemable` does not mean "won".** Polymarket sets it on every position in
+a resolved market, winners and losers alike: a losing row comes back
+`redeemable: true` with `currentValue: 0` and a `cashPnl` of minus the whole
+stake. Trusting the flag alone reported 200 settled losses on a live account
+as "unclaimed winnings". A claim is only a claim when there is something to
+collect.
+
+**Both order-book sides put the best price last.** Bids ascend and asks
+descend, so `bids[0]` is the *worst* bid. Reading index 0 as best quotes
+several ticks away on both sides and looks entirely plausible doing it.
+
+**Timestamps are seconds.** Treating them as milliseconds dates every point to
+January 1970 and renders an empty-looking chart.
+
+**Tags are not categories.** The tag list is thousands of entries deep and
+mostly long-tail; `crypto`, `politics` and `sports` exist, `culture` does not.
+Category slugs are validated against the provider before use, because
+filtering on one that does not exist returns an empty list that reads as
+"nothing is happening".
+
+**An account that is not linked cannot be read.** Positions live in a proxy
+wallet whose address is not the user's EOA, so an empty result only means "no
+positions" when we know we asked about the right address. Everything above the
+adapter carries a `connected` flag for exactly this reason.
 
 ## Liquidation distance is never estimated
 

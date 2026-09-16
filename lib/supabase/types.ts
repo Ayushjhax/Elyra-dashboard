@@ -22,6 +22,9 @@ export interface Profile {
   solana_address: string | null;
   display_name: string | null;
   created_at: string;
+  /** The prediction-market proxy wallet. Not the EOA — see lib/prediction/account.ts. */
+  polymarket_address?: string | null;
+  polymarket_verified_at?: string | null;
 }
 
 export interface ExchangeAccount {
@@ -317,6 +320,11 @@ export interface TelegramNotificationPreferencesRow {
   daily_summary_minute: number;
   timezone: string;
   move_threshold_pct: number;
+  prediction_alerts: boolean;
+  prediction_order_updates: boolean;
+  prediction_resolution_alerts: boolean;
+  /** Percentage POINTS, not percent-of-percent. */
+  prediction_move_threshold_points: number;
   created_at: string;
   updated_at: string;
 }
@@ -405,8 +413,22 @@ export interface Database {
         PreparedActionRow,
         "id" | "status" | "created_at" | "updated_at"
       >;
+      prediction_probability_marks: Table<
+        {
+          token_id: string;
+          market_id: string;
+          title: string | null;
+          probability: number;
+          recorded_at: string;
+        },
+        "recorded_at"
+      >;
       telegram_notification_preferences: Table<
         TelegramNotificationPreferencesRow,
+        | "prediction_alerts"
+        | "prediction_order_updates"
+        | "prediction_resolution_alerts"
+        | "prediction_move_threshold_points"
         | "price_alerts"
         | "liquidation_alerts"
         | "large_moves"

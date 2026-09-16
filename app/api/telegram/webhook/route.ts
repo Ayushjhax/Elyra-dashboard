@@ -141,23 +141,29 @@ async function linkedAccount(telegramUserId: number): Promise<{
   userId: string;
   walletAddress: string | null;
   solanaAddress: string | null;
+  polymarketAddress: string | null;
 } | null> {
   const { data } = await serviceClient()
     .from("telegram_links")
-    .select("user_id, profiles(wallet_address, solana_address)")
+    .select("user_id, profiles(wallet_address, solana_address, polymarket_address)")
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
 
   if (!data) return null;
 
   const profile = data.profiles as unknown as
-    | { wallet_address: string | null; solana_address: string | null }
+    | {
+        wallet_address: string | null;
+        solana_address: string | null;
+        polymarket_address: string | null;
+      }
     | null;
 
   return {
     userId: data.user_id,
     walletAddress: profile?.wallet_address ?? null,
     solanaAddress: profile?.solana_address ?? null,
+    polymarketAddress: profile?.polymarket_address ?? null,
   };
 }
 
@@ -177,8 +183,19 @@ async function processCallback(input: {
     return;
   }
 
-  const reply = await handleCallback({ userId: account.userId, data: input.data });
-  await sendMessage(input.chatId, reply);
+  /* `respond` handles both shapes — a plain string and a reply carrying
+     inline buttons — so prediction navigation can render its own keyboard
+     without a second send path. */
+  await respond(input.chatId, async () => {
+    const reply = await handleCallback({
+      userId: account.userId,
+      data: input.data,
+      sessionWallet: account.walletAddress,
+      solanaAddress: account.solanaAddress,
+      polymarketAddress: account.polymarketAddress,
+    });
+    return typeof reply === "string" ? [reply] : reply;
+  });
 }
 
 async function process(input: {
@@ -212,6 +229,7 @@ async function process(input: {
       text: input.text,
       sessionWallet: link.walletAddress,
       solanaAddress: link.solanaAddress,
+      polymarketAddress: link.polymarketAddress,
     }),
   );
 }

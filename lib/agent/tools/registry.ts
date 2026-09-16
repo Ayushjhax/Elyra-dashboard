@@ -7,6 +7,7 @@ import { ToolArgumentError } from "@/lib/agent/tools/args";
 import { ELYRA_TOOLS } from "@/lib/agent/tools/elyra";
 import { MARKET_TOOLS } from "@/lib/agent/tools/market";
 import { PORTFOLIO_TOOLS } from "@/lib/agent/tools/portfolio";
+import { PREDICTION_TOOLS } from "@/lib/agent/tools/prediction";
 
 /* ---------------------------------------------------------------------------
    The tool registry.
@@ -34,6 +35,15 @@ export interface ToolContext {
    * that could pass an address could be talked into passing someone else's.
    */
   solanaAddress?: string | null;
+  /**
+   * The prediction-market account address.
+   *
+   * Distinct from `sessionWallet`: Polymarket holds positions in a proxy
+   * wallet it deploys, whose address is not the EOA that controls it. Null
+   * when no prediction account is linked, and that null is load-bearing —
+   * it is the difference between "no positions" and "cannot see positions".
+   */
+  polymarketAddress?: string | null;
 }
 
 export interface RegisteredTool {
@@ -48,6 +58,7 @@ export const TOOLS: RegisteredTool[] = [
   ...MARKET_TOOLS,
   ...PORTFOLIO_TOOLS,
   ...ELYRA_TOOLS,
+  ...PREDICTION_TOOLS,
 ];
 
 const BY_NAME = new Map(TOOLS.map((tool) => [tool.def.name, tool]));

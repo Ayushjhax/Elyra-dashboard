@@ -84,6 +84,17 @@ export function extractSymbols(message: string): string[] {
   return [...found];
 }
 
+/**
+ * Prediction-market intent.
+ *
+ * Deliberately includes the provider's name: people say "Polymarket" far more
+ * often than "prediction market", and a classifier that only knows the
+ * category name would miss most real questions. "odds" and "probability" are
+ * here too — they are how the outcome prices are actually discussed.
+ */
+const PREDICTION_WORDS =
+  /\b(prediction|predictions|polymarket|prediction[- ]market|prediction[- ]markets|odds|implied probability|probabilit(?:y|ies)|betting market|event market|resolve[sd]?|resolution)\b/i;
+
 function facetsFor(message: string, task: PersonalizedTask): ContextFacet[] {
   const facets = new Set<ContextFacet>();
 
@@ -107,6 +118,12 @@ function facetsFor(message: string, task: PersonalizedTask): ContextFacet[] {
     facets.add("allocation");
   }
   if (BALANCE_WORDS.test(message)) facets.add("allocation");
+  if (PREDICTION_WORDS.test(message)) {
+    facets.add("prediction");
+    /* Prediction exposure is only meaningful beside the rest of the book —
+       "11% of my capital" needs a denominator. */
+    facets.add("allocation");
+  }
 
   /* Planning a capital move needs to see everything it could move, what it
      would breach, and what is already open. */

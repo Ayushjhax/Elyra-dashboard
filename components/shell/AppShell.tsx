@@ -20,7 +20,12 @@ import { ColumnResizer } from "@/components/shell/Resizer";
 import { TerminalRuntime } from "@/components/shell/TerminalRuntime";
 import { ShellAtmosphere } from "@/components/ui/Glow";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { isFullBleedRoute, shellLayout, type ShellColumnId } from "@/lib/layout";
+import {
+  isFullBleedRoute,
+  isStandaloneRoute,
+  shellLayout,
+  type ShellColumnId,
+} from "@/lib/layout";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +121,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
      for them. */
   const fullBleed = isFullBleedRoute(pathname);
 
+  /* A standalone route renders with no shell whatsoever — see
+     STANDALONE_ROUTES. Returned before any of the layout work below, because
+     none of it applies and measuring a viewport for columns that will not
+     render is wasted work on the device least able to afford it. */
+  const standalone = isStandaloneRoute(pathname);
+
   /* Null until the first measurement — on the server and for the first paint,
      where the stored widths stand on their own and nothing has to be fitted.
      window.innerWidth rather than an observed element, because that is exactly
@@ -152,6 +163,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     routeOpen: routeAside,
     railCollapsed,
   });
+
+  if (standalone) return <>{children}</>;
 
   return (
     <TooltipProvider delayDuration={300}>

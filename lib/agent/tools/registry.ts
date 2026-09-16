@@ -4,6 +4,7 @@ import type { ToolDef } from "@/lib/agent/providers/types";
 import { ToolArgumentError } from "@/lib/agent/tools/args";
 /* The tool modules import `RegisteredTool` from this file, but only as a
    type, so the cycle is erased at compile time and there is no runtime one. */
+import { ELYRA_TOOLS } from "@/lib/agent/tools/elyra";
 import { MARKET_TOOLS } from "@/lib/agent/tools/market";
 import { PORTFOLIO_TOOLS } from "@/lib/agent/tools/portfolio";
 
@@ -26,6 +27,13 @@ export interface ToolContext {
   userId: string;
   /** The Privy wallet, for the address-keyed Hyperliquid read. */
   sessionWallet: string | null;
+  /**
+   * The Solana address, for wallet and DeFi reads.
+   *
+   * Resolved from the caller's profile, never from a tool argument — a model
+   * that could pass an address could be talked into passing someone else's.
+   */
+  solanaAddress?: string | null;
 }
 
 export interface RegisteredTool {
@@ -36,7 +44,11 @@ export interface RegisteredTool {
   ): Promise<unknown>;
 }
 
-export const TOOLS: RegisteredTool[] = [...MARKET_TOOLS, ...PORTFOLIO_TOOLS];
+export const TOOLS: RegisteredTool[] = [
+  ...MARKET_TOOLS,
+  ...PORTFOLIO_TOOLS,
+  ...ELYRA_TOOLS,
+];
 
 const BY_NAME = new Map(TOOLS.map((tool) => [tool.def.name, tool]));
 

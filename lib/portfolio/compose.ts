@@ -5,6 +5,8 @@ import { UpstreamError } from "@/lib/market/http";
 import { pythConfigured } from "@/lib/market/pyth/catalog";
 import { pricesForIds } from "@/lib/market/pyth/client";
 import { snapshots } from "@/lib/market/router";
+import { routeDefiPositions } from "@/lib/providers/router";
+import type { DefiPosition as ProviderDefiPosition } from "@/lib/providers/types";
 import { clusterOf, type Cluster } from "@/lib/solana/cluster";
 import {
   RpcUnconfiguredError,
@@ -20,6 +22,7 @@ import { composeSnapshot } from "@/lib/wallet/compose";
 import { foldAccounts } from "@/lib/wallet/fold";
 import { LAMPORTS_PER_SOL } from "@/lib/wallet/types";
 import type {
+  DefiPosition as DefiPositionView,
   PerpPosition,
   PortfolioSnapshot,
   SourceNote,
@@ -60,6 +63,134 @@ const SOL_FEED_ID = 6;
 /** Holdings below this are noise in a capital view. */
 const DUST_USD = 0.01;
 
+/* ---------------------------------------------------------------------------
+   DeFi
+
+   Added with the provider layer. `routeDefiPositions` fans out across
+   protocol adapters; today that is Kamino, whose schema was verified against
+   its published OpenAPI document and a live call.
+--------------------------------------------------------------------------- */
+
+interface DefiRead {
+  positions: DefiPositionView[];
+  /** Net USD to add to the portfolio total. Null when nothing was readable. */
+  valueUsd: number | null;
+  /** Receipt mints already represented by a DeFi position — see below. */
+  shareMints: Set<string>;
+  notes: SourceNote[];
+}
+
+/**
+ * Every DeFi position for a wallet, as portfolio rows.
+ *
+ * Two things here are easy to get wrong and expensive when wrong.
+ *
+ * DOUBLE COUNTING. An LP or vault position issues a receipt token that sits
+ * in the wallet. The wallet read prices it, and the protocol also values the
+ * underlying position — the same dollars, counted twice, and the portfolio
+ * silently inflates. The receipt mints come back with the positions and the
+ * matching spot holdings are excluded from the total below.
+ *
+ * NET VALUE, NOT SUPPLIED. A position supplying $124 against an $85 borrow
+ * is worth $39. Adding the supplied figure would report borrowed money as
+ * the user's own capital.
+ */
+async function readDefi(solanaAddress: string | null): Promise<DefiRead> {
+  const empty: DefiRead = {
+    positions: [],
+    valueUsd: null,
+    shareMints: new Set<string>(),
+    notes: [],
+  };
+
+  if (solanaAddress === null) return empty;
+
+  const result = await routeDefiPositions(solanaAddress);
+
+  if (!result.ok || result.data === undefined) {
+    return {
+      ...empty,
+      notes: [
+        note(
+          "defi",
+          result.error?.message ?? "DeFi positions could not be read.",
+          "failed",
+        ),
+      ],
+    };
+  }
+
+  const notes: SourceNote[] = (result.warnings ?? []).map((warning) =>
+    /* A protocol section that was not indexed is a read that did not happen,
+       which is a `failed` note — it makes the snapshot partial, and the UI
+       says the total is a floor. */
+    note("defi", warning, "failed"),
+  );
+
+  const shareMints = new Set<string>();
+  for (const position of result.data) {
+    if (position.shareMint !== null && position.shareMint !== undefined) {
+      shareMints.add(position.shareMint);
+    }
+  }
+
+  const priced = result.data.filter((position) => position.netUsd !== null);
+  const valueUsd =
+    result.data.length === 0
+      ? 0
+      : priced.length === 0
+        ? null
+        : priced.reduce((sum, position) => sum + (position.netUsd ?? 0), 0);
+
+  if (priced.length < result.data.length) {
+    notes.push(
+      note(
+        "defi",
+        `${result.data.length - priced.length} DeFi position(s) could not be valued and are not counted.`,
+        "failed",
+      ),
+    );
+  }
+
+  return {
+    positions: result.data.map(toDefiRow),
+    valueUsd,
+    shareMints,
+    notes,
+  };
+}
+
+/** A provider position as the row shape the Portfolio page already renders. */
+function toDefiRow(position: ProviderDefiPosition): DefiPositionView {
+  const CATEGORY: Record<string, DefiPositionView["category"]> = {
+    lending: "lend",
+    multiply: "lend",
+    leverage: "lend",
+    liquidity: "lp",
+    earn: "vault",
+    staking: "stake",
+    private_credit: "vault",
+  };
+
+  return {
+    id: `${position.provider}:${position.id}`,
+    protocol: position.provider === "kamino" ? "Kamino" : position.provider,
+    chain: "solana",
+    category: CATEGORY[position.kind] ?? "other",
+    label: position.label,
+    valueUsd: position.netUsd,
+    suppliedUsd: position.suppliedUsd,
+    borrowedUsd: position.borrowedUsd,
+    apyPct: position.apy,
+    earnedUsd: null,
+    /* Kamino reports LTV and the liquidation LTV, not a health factor. The
+       two are not interchangeable and converting one into the other would be
+       inventing the protocol's own risk metric — §17. */
+    healthFactor: null,
+    inRange: null,
+  };
+}
+
 export interface ComposeOptions {
   solanaAddress: string | null;
   /** EVM. Makes Hyperliquid readable with nothing connected. */
@@ -75,7 +206,6 @@ function note(scope: string, reason: string, kind: SourceNote["kind"]): SourceNo
 /** Surfaces the product has not built yet, stated once, in one place. */
 function missingSurfaces(): SourceNote[] {
   return [
-    note("defi", "No DeFi protocol integrations are connected yet.", "missing"),
     note("orders", "Order management is not implemented on this venue set.", "missing"),
     note(
       "history",
@@ -426,15 +556,25 @@ async function applyChange24h(holdings: SpotHolding[]): Promise<void> {
 export async function composePortfolio(
   options: ComposeOptions,
 ): Promise<PortfolioSnapshot> {
-  const [wallet, venues] = await Promise.all([
+  const [wallet, venues, defi] = await Promise.all([
     readWallet(options.solanaAddress),
     readVenues(options),
+    readDefi(options.solanaAddress),
   ]);
 
   const spot = [...wallet.holdings, ...venues.spot];
   await applyChange24h(spot);
 
-  const counted = spot.filter((holding) => holding.verified && holding.valueUsd !== null);
+  /* A receipt token for a DeFi position is the SAME dollars the protocol is
+     already reporting. Counting both inflates the portfolio by the size of
+     every LP position the user holds. The row stays visible — it is really in
+     the wallet — but it does not count toward the total. */
+  const counted = spot.filter(
+    (holding) =>
+      holding.verified &&
+      holding.valueUsd !== null &&
+      !(holding.address !== null && defi.shareMints.has(holding.address)),
+  );
   const spotValue = counted.reduce((sum, holding) => sum + (holding.valueUsd ?? 0), 0);
 
   const perpValue = venues.perps.reduce(
@@ -442,16 +582,19 @@ export async function composePortfolio(
     0,
   );
 
-  const notes = [...wallet.notes, ...venues.notes, ...missingSurfaces()];
+  const notes = [...wallet.notes, ...venues.notes, ...defi.notes, ...missingSurfaces()];
   const partial = notes.some((entry) => entry.kind === "failed");
 
   /* Null, not zero, when nothing could be read at all. A wallet that was
      unreachable and a wallet that is empty are different facts, and $0.00 is
      the wrong one to show for the first. */
   const totalValueUsd =
-    counted.length === 0 && venues.perps.length === 0 && wallet.notes.length > 0
+    counted.length === 0 &&
+    venues.perps.length === 0 &&
+    defi.positions.length === 0 &&
+    wallet.notes.length > 0
       ? null
-      : spotValue + perpValue;
+      : spotValue + perpValue + (defi.valueUsd ?? 0);
 
   if (totalValueUsd !== null && totalValueUsd > 0) {
     for (const holding of spot) {
@@ -494,7 +637,7 @@ export async function composePortfolio(
     scopes,
     spot,
     perps: venues.perps,
-    defi: [],
+    defi: defi.positions,
     orders: [],
     activity: [],
     history: [],

@@ -201,6 +201,17 @@ always null, so RLS is a backstop and not the mechanism — every server query
 filters by `user_id` explicitly. The comment above `lib/supabase/server.ts`
 says so at more length.
 
+## Where to read more
+
+- `docs/ELYRA_BRAND.md` — colour, type, spacing and voice. The single source
+  of truth; do not introduce a value that is not in it.
+- `docs/PROVIDERS.md` — the upstream data layer: what each provider answers,
+  the normalisation trap each one carries, and why DFlow is declared but not
+  connected.
+- `docs/TELEGRAM.md` — BotFather setup, the link flow, and the security
+  boundaries: why a tap is not a signature, why `callback_data` carries an
+  opaque handle, and why `initDataUnsafe` is never trusted.
+
 ## Three deliberate deviations from the brand doc
 
 All are noted where they happen, in the file that makes the choice.

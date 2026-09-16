@@ -114,12 +114,13 @@ function TelegramSection() {
 
       <Row>
         {linked === true ? (
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-col gap-3">
             <p className="type-body-sm text-text-primary">
               Linked{username === null ? "" : ` to @${username}`}. Send{" "}
               <code className="type-data-sm text-text-secondary">/unlink</code> in
               the chat to disconnect.
             </p>
+            <NotificationToggles />
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -196,6 +197,136 @@ function TelegramSection() {
         )}
       </Row>
     </section>
+  );
+}
+
+/* --- Notifications -------------------------------------------------------- */
+
+interface Preferences {
+  priceAlerts: boolean;
+  liquidationAlerts: boolean;
+  largeMoves: boolean;
+  dailySummary: boolean;
+  moveThresholdPct: number;
+}
+
+const TOGGLES: Array<{ key: keyof Preferences; label: string; hint: string }> = [
+  {
+    key: "liquidationAlerts",
+    label: "Liquidation warnings",
+    hint: "When a DeFi position approaches its published liquidation threshold.",
+  },
+  {
+    key: "largeMoves",
+    label: "Large moves",
+    hint: "When something you hold moves more than your threshold.",
+  },
+  {
+    key: "priceAlerts",
+    label: "Price alerts",
+    hint: "Levels you set on the chart.",
+  },
+  {
+    key: "dailySummary",
+    label: "Daily summary",
+    hint: "One message a day with where your capital stands.",
+  },
+];
+
+/**
+ * What Elyra is allowed to send, unprompted, into a Telegram chat.
+ *
+ * Everything starts off. Linking a chat is consent to ASK questions; it is not
+ * consent to be told things, and an unsolicited message containing a balance
+ * is a disclosure nobody agreed to. Each switch is written immediately rather
+ * than behind a Save, because a half-applied notification setting is worse
+ * than either state.
+ */
+function NotificationToggles() {
+  const authedFetch = useAuthedFetch();
+  const [preferences, setPreferences] = useState<Preferences | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await authedFetch("/api/telegram/notifications");
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as Preferences;
+        if (!cancelled) setPreferences(body);
+      } catch {
+        /* Silence rather than a wrong claim — the section simply does not
+           render until we know what is actually set. */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authedFetch]);
+
+  const toggle = useCallback(
+    async (key: keyof Preferences, next: boolean) => {
+      setPending(key);
+      setError(null);
+      try {
+        const response = await authedFetch("/api/telegram/notifications", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ [key]: next }),
+        });
+
+        if (!response.ok) {
+          const body = (await response.json()) as { error?: string };
+          setError(body.error ?? "Could not save that.");
+          return;
+        }
+
+        /* The server's answer, not the optimistic value. A switch that shows
+           on while the row says off is a promise the product will not keep. */
+        setPreferences((await response.json()) as Preferences);
+      } catch {
+        setError("Could not save that. Nothing was changed.");
+      } finally {
+        setPending(null);
+      }
+    },
+    [authedFetch],
+  );
+
+  if (preferences === null) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-border-subtle pt-3">
+      <p className="type-label text-text-muted">What Elyra sends you</p>
+
+      {TOGGLES.map((item) => {
+        const on = preferences[item.key] === true;
+        return (
+          <label
+            key={item.key}
+            className="flex cursor-pointer items-start justify-between gap-3 py-1"
+          >
+            <span className="flex flex-col">
+              <span className="type-body-sm text-text-primary">{item.label}</span>
+              <span className="type-label text-text-muted">{item.hint}</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={on}
+              disabled={pending === item.key}
+              onChange={(event) => void toggle(item.key, event.target.checked)}
+              className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]"
+            />
+          </label>
+        );
+      })}
+
+      {error !== null && <p className="type-label text-negative">{error}</p>}
+    </div>
   );
 }
 

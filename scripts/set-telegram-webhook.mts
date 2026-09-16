@@ -1,9 +1,15 @@
 /**
  * Registers (or inspects, or removes) the Telegram webhook from env vars.
  *
- *   pnpm telegram:webhook            register APP_URL/api/telegram/webhook
- *   pnpm telegram:webhook -- --info  show what Telegram currently has
- *   pnpm telegram:webhook -- --delete
+ *   npm run telegram:webhook            register APP_URL/api/telegram/webhook
+ *   npm run telegram:webhook -- --info  show what Telegram currently has
+ *   npm run telegram:webhook -- --delete
+ *
+ * Also registers the bot's command menu, so the typed "/" list matches what
+ * the bot actually answers.
+ *
+ * Reads .env.local then .env. Nothing it prints contains a secret: the token
+ * lives in the request path, which this never echoes.
  *
  * Run this whenever the tunnel URL changes. It is deliberately self-contained
  * — no `@/` imports — so `node --experimental-strip-types` can run it without
@@ -109,15 +115,43 @@ if (!url.startsWith("https://")) {
 await call("setWebhook", {
   url,
   secret_token: secret,
-  /* The only update type this bot reads. Anything else is delivery Telegram
-     would retry and the webhook would acknowledge and discard. */
-  allowed_updates: ["message"],
+  /* Exactly what the webhook handles, and nothing more. `callback_query` is
+     not optional: without it Telegram never delivers a button tap, so every
+     inline keyboard in the bot silently does nothing. Anything absent here is
+     delivery Telegram would retry and the webhook would discard. */
+  allowed_updates: ["message", "edited_message", "callback_query"],
   max_connections: 40,
 });
 
+/* ---------------------------------------------------------------------------
+   The typed "/" menu.
+
+   Registered from the same place as the webhook so the two cannot drift. A
+   menu offering a command the bot does not answer is worse than no menu: the
+   user reads it as the product being broken rather than as a stale list.
+--------------------------------------------------------------------------- */
+
+const COMMANDS = [
+  { command: "portfolio", description: "Total capital across every venue" },
+  { command: "wallet", description: "Your token holdings" },
+  { command: "positions", description: "Exposure and concentration" },
+  { command: "defi", description: "Lending, leverage and vault positions" },
+  { command: "price", description: "A quick price — /price SOL" },
+  { command: "markets", description: "Funding and mark price for a symbol" },
+  { command: "swap", description: "A live quote — /swap 1.5 SOL to USDC" },
+  { command: "alert", description: "Tell me when it crosses — /alert SOL > 120" },
+  { command: "alerts", description: "What Elyra sends you" },
+  { command: "watch", description: "Your watchlist — /watch add SOL" },
+  { command: "report", description: "A short written report" },
+  { command: "settings", description: "Open Elyra" },
+  { command: "help", description: "What I can do" },
+];
+
+await call("setMyCommands", { commands: COMMANDS });
+
 const info = await call("getWebhookInfo");
 
-console.log(`\n  Webhook set\n`);
+console.log(`\n  Webhook set · ${COMMANDS.length} commands registered\n`);
 console.log(`  url                        ${url}`);
 console.log(`  secret_token               set (${secret.length} chars)`);
 console.log(`  pending_update_count       ${info.pending_update_count ?? 0}`);

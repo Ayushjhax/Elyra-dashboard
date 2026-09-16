@@ -70,6 +70,16 @@ class Query implements PromiseLike<Result<Row[]>> {
     return this;
   }
 
+  gt(column: string, value: string) {
+    this.filters.push((row) => String(row[column]) > value);
+    return this;
+  }
+
+  in(column: string, values: readonly unknown[]) {
+    this.filters.push((row) => values.includes(row[column]));
+    return this;
+  }
+
   order(column: string, options?: { ascending?: boolean }) {
     this.orderBy = { column, ascending: options?.ascending ?? true };
     return this;
@@ -236,12 +246,29 @@ class Query implements PromiseLike<Result<Row[]>> {
   }
 }
 
-/** Treats a matching `code` or `update_id` as a primary-key collision. */
+/**
+ * The unique constraints the real schema carries.
+ *
+ * Kept in step with the migrations by hand. The ones here are the ones tests
+ * depend on for idempotency: a code, an update_id, a prepared-action token,
+ * and the (user, kind, dedupe_key) triple that stops a notification being
+ * sent twice.
+ */
 function collides(a: Row, b: Row): boolean {
-  for (const key of ["code", "update_id"]) {
+  for (const key of ["code", "update_id", "token"]) {
     if (a[key] !== undefined && a[key] === b[key]) return true;
   }
   if (a.privy_did !== undefined && a.privy_did === b.privy_did) return true;
+
+  if (
+    a.dedupe_key !== undefined &&
+    a.dedupe_key === b.dedupe_key &&
+    a.user_id === b.user_id &&
+    a.kind === b.kind
+  ) {
+    return true;
+  }
+
   return false;
 }
 

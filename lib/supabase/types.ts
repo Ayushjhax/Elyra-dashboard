@@ -288,6 +288,60 @@ type Table<Row, HasDefault extends keyof Row> = {
   Relationships: [];
 };
 
+/* ---------------------------------------------------------------------------
+   Telegram Capital OS
+--------------------------------------------------------------------------- */
+
+export interface PreparedActionRow {
+  id: string;
+  user_id: string;
+  /** Opaque, random, and the only thing a Telegram button carries. */
+  token: string;
+  kind: string;
+  /** The PreparedAction exactly as it was shown. */
+  payload: unknown;
+  surface: "web" | "telegram";
+  status: "prepared" | "acknowledged" | "confirmed" | "expired" | "cancelled";
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TelegramNotificationPreferencesRow {
+  user_id: string;
+  price_alerts: boolean;
+  liquidation_alerts: boolean;
+  large_moves: boolean;
+  daily_summary: boolean;
+  /** Minutes past local midnight. */
+  daily_summary_minute: number;
+  timezone: string;
+  move_threshold_pct: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PriceAlertRow {
+  id: string;
+  user_id: string;
+  symbol: string;
+  direction: "above" | "below";
+  target: number;
+  created_price: number | null;
+  /** Null while armed. Stamped on the first crossing. */
+  triggered_at: string | null;
+  triggered_price: number | null;
+  created_at: string;
+}
+
+export interface TelegramNotificationSentRow {
+  id: string;
+  user_id: string;
+  kind: string;
+  dedupe_key: string;
+  sent_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -346,6 +400,30 @@ export interface Database {
         | "latency_ms"
         | "input_tokens"
         | "output_tokens"
+      >;
+      prepared_actions: Table<
+        PreparedActionRow,
+        "id" | "status" | "created_at" | "updated_at"
+      >;
+      telegram_notification_preferences: Table<
+        TelegramNotificationPreferencesRow,
+        | "price_alerts"
+        | "liquidation_alerts"
+        | "large_moves"
+        | "daily_summary"
+        | "daily_summary_minute"
+        | "timezone"
+        | "move_threshold_pct"
+        | "created_at"
+        | "updated_at"
+      >;
+      telegram_notifications_sent: Table<
+        TelegramNotificationSentRow,
+        "id" | "sent_at"
+      >;
+      price_alerts: Table<
+        PriceAlertRow,
+        "id" | "created_at" | "created_price" | "triggered_at" | "triggered_price"
       >;
       usage_counters: Table<
         { user_id: string; day: string; runs: number },

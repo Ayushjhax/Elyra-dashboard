@@ -13,7 +13,10 @@ const SECRET = "test-webhook-secret-at-least-32-chars-long";
 
 const state = vi.hoisted(() => ({
   db: null as unknown as FakeSupabase,
+  /** The old tool-loop agent, which now serves /report alone. */
   runAgent: vi.fn(),
+  /** The unified Personalized runtime, which serves plain language. */
+  answer: vi.fn(),
   sent: [] as Array<{ chatId: number; chunks: string[] }>,
   /** Every userId the portfolio layer was asked about. */
   portfolioReads: [] as string[],
@@ -40,6 +43,14 @@ vi.mock("@/lib/agent", () => ({
   runAgent: state.runAgent,
   ensureConversation: async () => "conv-1",
   UsageLimitError: class UsageLimitError extends Error {},
+}));
+
+/* Plain-language messages run the SAME runtime as the dashboard, so the
+   properties this file guards — one run per update_id, and a user resolved
+   from from.id rather than from message text — are asserted against that
+   entry point rather than against the old tool loop. */
+vi.mock("@/lib/telegram/personalized", () => ({
+  answerFromTelegram: state.answer,
 }));
 
 vi.mock("@/lib/telegram/api", () => ({
@@ -103,6 +114,17 @@ const update = (updateId: number, telegramUserId: number, text: string) => ({
   },
 });
 
+/** The same sender, speaking in a group rather than to the bot directly. */
+const groupUpdate = (updateId: number, telegramUserId: number, text: string) => ({
+  update_id: updateId,
+  message: {
+    message_id: 1,
+    from: { id: telegramUserId, username: "operator" },
+    chat: { id: -1001234567890, type: "supergroup" },
+    text,
+  },
+});
+
 async function drainAfter(): Promise<void> {
   const tasks = [...state.afterTasks];
   state.afterTasks.length = 0;
@@ -129,6 +151,8 @@ beforeEach(() => {
 
   state.runAgent.mockReset();
   state.runAgent.mockResolvedValue({ reply: "Answer.", runId: "run-1" });
+  state.answer.mockReset();
+  state.answer.mockResolvedValue({ html: "Answer.", suggestions: [] });
   state.sent.length = 0;
   state.portfolioReads.length = 0;
   state.afterTasks.length = 0;
@@ -142,12 +166,13 @@ describe("secret token", () => {
     expect(await response.text()).toBe("");
     expect(state.afterTasks).toHaveLength(0);
     expect(state.runAgent).not.toHaveBeenCalled();
+    expect(state.answer).not.toHaveBeenCalled();
   });
 
   it("rejects a missing secret header with 401", async () => {
     const response = await post(update(1, TG_A, "hi"), null);
     expect(response.status).toBe(401);
-    expect(state.runAgent).not.toHaveBeenCalled();
+    expect(state.answer).not.toHaveBeenCalled();
   });
 
   it("rejects everything when the surface is not configured", async () => {
@@ -174,7 +199,7 @@ describe("idempotency", () => {
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    expect(state.runAgent).toHaveBeenCalledOnce();
+    expect(state.answer).toHaveBeenCalledOnce();
     expect(state.sent).toHaveLength(1);
     expect(state.db.rows("telegram_updates")).toHaveLength(1);
   });
@@ -185,7 +210,7 @@ describe("idempotency", () => {
     /* Claimed on the request, not in the deferred task: a retry arriving
        while the first is still running must still be rejected. */
     expect(state.db.rows("telegram_updates")).toHaveLength(1);
-    expect(state.runAgent).not.toHaveBeenCalled();
+    expect(state.answer).not.toHaveBeenCalled();
   });
 
   it("processes different update_ids separately", async () => {
@@ -193,7 +218,7 @@ describe("idempotency", () => {
     await post(update(2, TG_A, "two"));
     await drainAfter();
 
-    expect(state.runAgent).toHaveBeenCalledTimes(2);
+    expect(state.answer).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -202,8 +227,8 @@ describe("identity and tenant isolation", () => {
     await post(update(10, TG_A, "hi"));
     await drainAfter();
 
-    expect(state.runAgent).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: USER_A, surface: "telegram" }),
+    expect(state.answer).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_A, chatId: TG_A }),
     );
   });
 
@@ -215,9 +240,29 @@ describe("identity and tenant isolation", () => {
     );
     await drainAfter();
 
-    const call = state.runAgent.mock.calls[0][0] as { userId: string };
+    const call = state.answer.mock.calls[0][0] as { userId: string };
     expect(call.userId).toBe(USER_A);
     expect(call.userId).not.toBe(USER_B);
+  });
+
+  it("marks a group chat as not private, so §41 can refuse", async () => {
+    /* chatId and from.id are equal in a private chat and differ in a group.
+       Getting this backwards would read a balance aloud to a group. */
+    await post(groupUpdate(13, TG_A, "what is my equity"));
+    await drainAfter();
+
+    expect(state.answer).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_A, isPrivateChat: false }),
+    );
+  });
+
+  it("marks a direct message as private", async () => {
+    await post(update(14, TG_A, "what is my equity"));
+    await drainAfter();
+
+    expect(state.answer).toHaveBeenCalledWith(
+      expect.objectContaining({ isPrivateChat: true }),
+    );
   });
 
   it("reads only user A's exchange rows on user A's request", async () => {
@@ -255,7 +300,7 @@ describe("identity and tenant isolation", () => {
     await post(update(12, 999999, "hello"));
     await drainAfter();
 
-    expect(state.runAgent).not.toHaveBeenCalled();
+    expect(state.answer).not.toHaveBeenCalled();
     expect(state.sent[0].chunks[0]).toContain("not linked");
   });
 });
@@ -270,6 +315,7 @@ describe("commands that skip the model", () => {
     await drainAfter();
 
     expect(state.runAgent).not.toHaveBeenCalled();
+    expect(state.answer).not.toHaveBeenCalled();
     expect(state.sent[0].chunks[0]).toContain("SOL");
   });
 });

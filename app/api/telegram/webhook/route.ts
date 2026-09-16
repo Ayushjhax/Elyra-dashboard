@@ -2,8 +2,13 @@ import { after, NextResponse } from "next/server";
 import { safeEqual } from "@/lib/crypto/credentials";
 import { optional } from "@/lib/env";
 import { serviceClient } from "@/lib/supabase/server";
-import type { TelegramUpdate } from "@/lib/telegram/api";
-import { handleCommand, handleUnlinked, respond } from "@/lib/telegram/commands";
+import { answerCallbackQuery, sendMessage, type TelegramUpdate } from "@/lib/telegram/api";
+import {
+  handleCallback,
+  handleCommand,
+  handleUnlinked,
+  respond,
+} from "@/lib/telegram/commands";
 
 /* ---------------------------------------------------------------------------
    The Telegram surface.
@@ -76,6 +81,32 @@ export async function POST(request: Request) {
 
   if ((claim.data ?? []).length === 0) return ACK;
 
+  /* ---- A tapped button ----
+
+     Routed before messages because a callback carries no `message.text` and
+     would otherwise fall through as an empty update. Identity is resolved the
+     same way: from `from.id`, never from the payload the button handed back. */
+  const callback = update.callback_query;
+  if (callback !== undefined) {
+    const data = callback.data;
+    if (data === undefined || data.length === 0) return ACK;
+
+    after(async () => {
+      try {
+        await processCallback({
+          callbackQueryId: callback.id,
+          chatId: callback.message?.chat.id ?? callback.from.id,
+          telegramUserId: callback.from.id,
+          data,
+        });
+      } catch (error) {
+        console.error("[telegram] callback failed", error);
+      }
+    });
+
+    return ACK;
+  }
+
   const message = update.message ?? update.edited_message;
   const text = message?.text?.trim();
   const from = message?.from;
@@ -99,6 +130,57 @@ export async function POST(request: Request) {
   return ACK;
 }
 
+/**
+ * Resolves the Elyra account a Telegram account is linked to.
+ *
+ * `telegram_user_id` is what Telegram vouches for. Nothing else in an update
+ * is trustworthy for identity — not the chat id, not the username, and
+ * certainly not anything in the message body.
+ */
+async function linkedAccount(telegramUserId: number): Promise<{
+  userId: string;
+  walletAddress: string | null;
+  solanaAddress: string | null;
+} | null> {
+  const { data } = await serviceClient()
+    .from("telegram_links")
+    .select("user_id, profiles(wallet_address, solana_address)")
+    .eq("telegram_user_id", telegramUserId)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  const profile = data.profiles as unknown as
+    | { wallet_address: string | null; solana_address: string | null }
+    | null;
+
+  return {
+    userId: data.user_id,
+    walletAddress: profile?.wallet_address ?? null,
+    solanaAddress: profile?.solana_address ?? null,
+  };
+}
+
+async function processCallback(input: {
+  callbackQueryId: string;
+  chatId: number;
+  telegramUserId: number;
+  data: string;
+}): Promise<void> {
+  /* Clear the spinner first. Telegram leaves the button loading until this is
+     answered, and the work below can take a round trip to the database. */
+  await answerCallbackQuery(input.callbackQueryId);
+
+  const account = await linkedAccount(input.telegramUserId);
+  if (account === null) {
+    await sendMessage(input.chatId, "This chat is not linked to an Elyra account.");
+    return;
+  }
+
+  const reply = await handleCallback({ userId: account.userId, data: input.data });
+  await sendMessage(input.chatId, reply);
+}
+
 async function process(input: {
   chatId: number;
   telegramUserId: number;
@@ -108,13 +190,9 @@ async function process(input: {
   /* Identity comes from `from.id`, which Telegram asserts, resolved against
      telegram_links. Never from message text: a chat is not a trusted channel,
      and anything typed into it is asserted by a stranger. */
-  const { data: link } = await serviceClient()
-    .from("telegram_links")
-    .select("user_id, profiles(wallet_address)")
-    .eq("telegram_user_id", input.telegramUserId)
-    .maybeSingle();
+  const link = await linkedAccount(input.telegramUserId);
 
-  if (!link) {
+  if (link === null) {
     await respond(input.chatId, () =>
       handleUnlinked({
         text: input.text,
@@ -126,17 +204,14 @@ async function process(input: {
     return;
   }
 
-  const profile = link.profiles as unknown as
-    | { wallet_address: string | null }
-    | null;
-
   await respond(input.chatId, () =>
     handleCommand({
-      userId: link.user_id,
+      userId: link.userId,
       chatId: input.chatId,
       telegramUserId: input.telegramUserId,
       text: input.text,
-      sessionWallet: profile?.wallet_address ?? null,
+      sessionWallet: link.walletAddress,
+      solanaAddress: link.solanaAddress,
     }),
   );
 }

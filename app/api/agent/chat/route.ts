@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       message: trimmed,
       surface: "web",
       sessionWallet: user.walletAddress,
+      solanaAddress: user.solanaAddress,
     });
 
     return NextResponse.json({ reply, runId, conversationId });

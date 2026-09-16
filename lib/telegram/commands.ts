@@ -4,10 +4,40 @@ import { ensureConversation, runAgent, UsageLimitError } from "@/lib/agent";
 import { formatForTelegram } from "@/lib/agent/format/telegram";
 import { reportPrompt } from "@/lib/agent/prompt";
 import { normaliseSymbol } from "@/lib/agent/tools/args";
-import { executeTool, type ToolContext } from "@/lib/agent/tools/registry";
+import type { ToolContext } from "@/lib/agent/tools/registry";
 import { appUrl, optional } from "@/lib/env";
 import { serviceClient } from "@/lib/supabase/server";
-import { sendChunks, startTypingHeartbeat } from "@/lib/telegram/api";
+import {
+  sendChunks,
+  sendMessage,
+  sendMessageWithButtons,
+  startTypingHeartbeat,
+  type InlineButton,
+} from "@/lib/telegram/api";
+import {
+  acknowledgePreparedAction,
+  callbackDataFor,
+  resolvePreparedAction,
+  storePreparedAction,
+  tokenFromCallback,
+} from "@/lib/telegram/actions";
+import { answerFromTelegram } from "@/lib/telegram/personalized";
+import {
+  alertView,
+  priceView,
+  swapView,
+  watchView,
+} from "@/lib/telegram/actions-views";
+import { notificationPreferences } from "@/lib/telegram/notifications";
+import {
+  activityView,
+  defiView,
+  marketsView,
+  ordersView,
+  portfolioView,
+  positionsView,
+  walletView,
+} from "@/lib/telegram/views";
 
 /* ---------------------------------------------------------------------------
    Telegram commands.
@@ -23,10 +53,21 @@ const HELP = [
   "",
   "Ask anything in plain language, or use:",
   "",
+  "<b>/portfolio</b> — total capital across every venue",
+  "<b>/wallet</b> — your token holdings",
+  "<b>/positions</b> — exposure and concentration",
+  "<b>/defi</b> — lending, leverage and vault positions",
+  "<b>/markets</b> [symbol] — funding and mark price, or what markets are pricing",
+  "<b>/price</b> &lt;symbol&gt; — a quick price",
+  "<b>/swap</b> 1.5 SOL to USDC — a live quote, preview only",
+  "<b>/alert</b> SOL &gt; 120 — tell me when it crosses",
+  "<b>/alerts</b> — what Elyra sends you",
+  "<b>/watch</b> [add|remove] &lt;symbol&gt; — your watchlist, priced",
+  "<b>/orders</b> — resting orders on Hyperliquid",
+  "<b>/activity</b> — recent fills, with realised PnL",
   "<b>/ask</b> &lt;question&gt; — same as just typing",
-  "<b>/report</b> [symbol] — a short report on a symbol, or your account",
-  "<b>/positions</b> — your open positions, no model call",
-  "<b>/watch</b> — your watchlist, no model call",
+  "<b>/report</b> [symbol] — a short written report",
+  "<b>/settings</b> — open Elyra",
   "<b>/unlink</b> — disconnect this chat",
   "<b>/help</b> — this message",
   "",
@@ -55,14 +96,13 @@ function escapeText(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-const money = (value: number) =>
-  value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  });
-
 /* ------------------------------------------------------------------------- */
+
+/** A reply, with the buttons that belong under it. */
+export interface CommandReply {
+  chunks: string[];
+  buttons?: InlineButton[][];
+}
 
 /** What the webhook hands to a command. */
 export interface CommandInput {
@@ -73,6 +113,8 @@ export interface CommandInput {
   telegramUserId: number;
   text: string;
   sessionWallet: string | null;
+  /** Solana, for the unified Personalized context. */
+  solanaAddress?: string | null;
 }
 
 /** Splits "/report SOL" into its parts, ignoring an @botname suffix. */
@@ -91,81 +133,38 @@ export function parseCommand(text: string): {
 
 /* --- commands that need no model call ------------------------------------ */
 
-async function positions(input: CommandInput): Promise<string[]> {
-  const context: ToolContext = {
-    userId: input.userId,
-    sessionWallet: input.sessionWallet,
-  };
+/**
+ * What is currently being sent, and how to change it.
+ *
+ * Read-only in chat on purpose. Toggling a notification changes what gets
+ * broadcast to this chat, and a tap in Telegram authenticates a chat account
+ * rather than the Elyra account behind it — so the switch lives where the
+ * session does.
+ */
+async function alertsSummary(input: CommandInput): Promise<string> {
+  const preferences = await notificationPreferences(input.userId);
 
-  const outcome = await executeTool("get_positions", {}, context);
-  const data = outcome.result as {
-    positions?: Array<{
-      label: string;
-      side: string;
-      size: number;
-      markPrice: number;
-      unrealizedPnl: number | null;
-      notional: number;
-      exchange: string;
-    }>;
-    unreadable?: Array<{ scope: string; reason: string }>;
-    error?: string;
-  };
+  const state = (on: boolean) => (on ? "on" : "off");
 
-  if (data.error !== undefined) {
-    return [`<b>Could not read positions.</b>\n${escapeText(data.error)}`];
-  }
-
-  const rows = data.positions ?? [];
-  const lines: string[] = [];
-
-  if (rows.length === 0) {
-    lines.push("No open positions.");
-  } else {
-    lines.push(`<b>Open positions (${rows.length})</b>`, "");
-    for (const row of rows) {
-      const pnl =
-        row.unrealizedPnl === null
-          ? ""
-          : `\n  PnL: ${money(row.unrealizedPnl)}`;
-      lines.push(
-        `<b>${escapeText(row.label)}</b> · ${escapeText(row.side)}`,
-        `  Size: ${row.size} @ ${row.markPrice}`,
-        `  Notional: ${money(row.notional)}${pnl}`,
-        `  Venue: ${escapeText(row.exchange)}`,
-        "",
-      );
-    }
-  }
-
-  /* Never present a partial portfolio as a complete one. */
-  for (const failure of data.unreadable ?? []) {
-    lines.push(
-      `<i>${escapeText(failure.scope)} could not be read: ${escapeText(failure.reason)}</i>`,
-    );
-  }
-
-  return formatChunks(lines.join("\n"));
+  return [
+    "<b>Alerts</b>",
+    "",
+    `Price alerts: <b>${state(preferences.priceAlerts)}</b>`,
+    `Liquidation warnings: <b>${state(preferences.liquidationAlerts)}</b>`,
+    `Large moves: <b>${state(preferences.largeMoves)}</b> (over ${preferences.moveThresholdPct}%)`,
+    `Daily summary: <b>${state(preferences.dailySummary)}</b>`,
+    "",
+    `Change these in Elyra: ${escapeText(appUrl())}`,
+  ].join("\n");
 }
 
-async function watchlist(input: CommandInput): Promise<string[]> {
-  const outcome = await executeTool(
-    "get_watchlist",
-    {},
-    { userId: input.userId, sessionWallet: input.sessionWallet },
-  );
-  const data = outcome.result as { symbols?: string[]; error?: string };
-
-  if (data.error !== undefined) {
-    return [`<b>Could not read watchlist.</b>\n${escapeText(data.error)}`];
-  }
-
-  const symbols = data.symbols ?? [];
-  return symbols.length === 0
-    ? ["Your watchlist is empty."]
-    : [
-        `<b>Watchlist</b>\n${symbols.map((s) => `• ${escapeText(s)}`).join("\n")}`,
-      ];
+/** The verified identity, in the shape every tool expects. */
+function toolContext(input: CommandInput): ToolContext {
+  return {
+    userId: input.userId,
+    sessionWallet: input.sessionWallet,
+    solanaAddress: input.solanaAddress ?? null,
+  };
 }
 
 /** Already-HTML text, chunked without going through the markdown pass. */
@@ -285,7 +284,7 @@ export async function handleUnlinked(options: {
 }
 
 /** Everything a linked chat can ask for. */
-export async function handleCommand(input: CommandInput): Promise<string[]> {
+export async function handleCommand(input: CommandInput): Promise<CommandReply | string[]> {
   const { command, argument } = parseCommand(input.text);
 
   switch (command) {
@@ -302,59 +301,183 @@ export async function handleCommand(input: CommandInput): Promise<string[]> {
       return ["This chat is already linked. Use /unlink to disconnect it."];
 
     case "positions":
-      return positions(input);
+      return formatChunks(await positionsView(toolContext(input)));
+
+    case "portfolio":
+      return formatChunks(await portfolioView(toolContext(input)));
+
+    case "wallet":
+      return formatChunks(await walletView(toolContext(input)));
+
+    case "defi":
+      return formatChunks(await defiView(toolContext(input)));
+
+    case "markets":
+    case "market":
+      return formatChunks(
+        await marketsView(
+          toolContext(input),
+          argument.length > 0 ? normaliseSymbol(argument) : null,
+        ),
+      );
+
+    case "orders":
+      return formatChunks(await ordersView(toolContext(input)));
+
+    case "activity":
+    case "fills":
+      return formatChunks(await activityView(toolContext(input)));
+
+    case "alerts":
+      return [await alertsSummary(input)];
+
+    case "alert":
+      return formatChunks(
+        await alertView({ userId: input.userId, argument }),
+      );
+
+    case "price":
+      return formatChunks(
+        await priceView(argument.length > 0 ? normaliseSymbol(argument) : ""),
+      );
+
+    case "swap": {
+      const result = await swapView({
+        argument,
+        solanaAddress: input.solanaAddress ?? null,
+      });
+
+      /* A quote that cannot execute gets NO confirm button. Offering one for
+         something nothing can carry out is a promise the product will not
+         keep — the link goes to Elyra instead, where the work continues. */
+      return { chunks: formatChunks(result.html) };
+    }
+
+    case "settings":
+      return [
+        `<b>Settings</b>\n\nAlerts, memory and connected venues live in Elyra:\n${escapeText(appUrl())}`,
+      ];
 
     case "watch":
     case "watchlist":
-      return watchlist(input);
+      return formatChunks(
+        await watchView({ userId: input.userId, argument }),
+      );
 
     default:
       break;
   }
 
-  /* Everything else goes to the model. */
-  const question =
-    command === "report"
-      ? reportPrompt(argument.length > 0 ? normaliseSymbol(argument) : null)
-      : command === "ask"
-        ? argument
-        : input.text.trim();
+  /* ---- Everything else goes to the agent ----
 
+     `/report` keeps the old tool-loop agent: it is a market write-up about a
+     symbol, needs the tool registry, and is not a question about the
+     operator's own capital.
+
+     Everything else — plain language, and `/ask` — goes to the SAME
+     Personalized runtime the dashboard uses. That is the unification: one
+     context builder, one orchestrator, one memory table, one conversation
+     store. A limit saved on the web applies here, and "what changed since
+     then?" works across the two because they share a transcript. */
+
+  if (command === "report") {
+    const question = reportPrompt(
+      argument.length > 0 ? normaliseSymbol(argument) : null,
+    );
+    const conversationId = await ensureConversation({
+      userId: input.userId,
+      surface: "telegram",
+      telegramChatId: input.chatId,
+    });
+    try {
+      const { reply } = await runAgent({
+        userId: input.userId,
+        conversationId,
+        message: question,
+        surface: "telegram",
+        sessionWallet: input.sessionWallet,
+        solanaAddress: input.solanaAddress ?? null,
+      });
+      return formatForTelegram(reply);
+    } catch (error) {
+      if (error instanceof UsageLimitError) return [escapeText(error.message)];
+      throw error;
+    }
+  }
+
+  const question = command === "ask" ? argument : input.text.trim();
   if (question.length === 0) {
     return ["Ask me something — or send /help for what I can do."];
   }
 
-  const conversationId = await ensureConversation({
+  const reply = await answerFromTelegram({
     userId: input.userId,
-    surface: "telegram",
-    telegramChatId: input.chatId,
+    chatId: input.chatId,
+    message: question,
+    solanaAddress: input.solanaAddress ?? null,
+    sessionWallet: input.sessionWallet,
+    /* Equal in a private chat, different in a group — Telegram's own shape,
+       so no extra lookup is needed to enforce §41. */
+    isPrivateChat: input.chatId === input.telegramUserId,
   });
 
-  try {
-    const { reply } = await runAgent({
+  /* A prepared action gets a button carrying an OPAQUE handle. The amounts
+     live in the stored row, not in the 64 bytes Telegram hands back — see
+     lib/telegram/actions.ts for why that distinction is the whole design.
+
+     Only a `ready` action gets one. Offering a button for something nothing
+     can execute is a promise the product cannot keep. */
+  if (reply.preparedAction !== undefined && reply.preparedAction.readiness === "ready") {
+    const stored = await storePreparedAction({
       userId: input.userId,
-      conversationId,
-      message: question,
+      action: reply.preparedAction,
       surface: "telegram",
-      sessionWallet: input.sessionWallet,
     });
-    return formatForTelegram(reply);
-  } catch (error) {
-    if (error instanceof UsageLimitError) {
-      return [escapeText(error.message)];
+
+    /* No button at all when the store is unreachable. A button that cannot
+       resolve is worse than none, because the user waits for it. */
+    if (stored !== null) {
+      return {
+        chunks: [reply.html],
+        buttons: [[{ text: "Review in Elyra", callbackData: callbackDataFor(stored.token) }]],
+      };
     }
-    throw error;
   }
+
+  return { chunks: [reply.html] };
 }
 
-/** Runs a command and sends the reply, with the typing indicator held open. */
+/**
+ * Runs a command and sends the reply, with the typing indicator held open.
+ *
+ * Buttons ride on the LAST chunk. Attaching them to the first would leave the
+ * keyboard scrolled off screen above the text it applies to.
+ */
 export async function respond(
   chatId: number,
-  produce: () => Promise<string[]>,
+  produce: () => Promise<string[] | CommandReply>,
 ): Promise<void> {
   const stopTyping = startTypingHeartbeat(chatId);
   try {
-    await sendChunks(chatId, await produce());
+    const produced = await produce();
+    const reply: CommandReply = Array.isArray(produced)
+      ? { chunks: produced }
+      : produced;
+
+    const buttons = reply.buttons ?? [];
+    if (buttons.length === 0) {
+      await sendChunks(chatId, reply.chunks);
+      return;
+    }
+
+    const last = reply.chunks.length - 1;
+    for (let index = 0; index < reply.chunks.length; index += 1) {
+      if (index === last) {
+        await sendMessageWithButtons(chatId, reply.chunks[index], buttons);
+      } else {
+        await sendMessage(chatId, reply.chunks[index]);
+      }
+    }
   } catch (error) {
     console.error("[telegram] command failed", error);
     await sendChunks(chatId, [
@@ -363,4 +486,64 @@ export async function respond(
   } finally {
     stopTyping();
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Callback queries — a tapped button
+--------------------------------------------------------------------------- */
+
+/**
+ * Handles a tap on an inline button.
+ *
+ * The ONLY thing a tap can do is acknowledge. Telegram authenticates a chat
+ * account; it does not establish custody of a wallet, and an inline button is
+ * not a consent mechanism for moving money. So this resolves the opaque token
+ * against the caller's own rows, records that they asked to proceed, and
+ * hands back a link to a surface that can actually verify them.
+ *
+ * `userId` is resolved by the webhook from `from.id`. It is passed in rather
+ * than read from the callback payload, and it scopes the lookup: a token that
+ * leaked out of one chat does not resolve in another.
+ */
+export async function handleCallback(input: {
+  userId: string;
+  data: string;
+}): Promise<string> {
+  const token = tokenFromCallback(input.data);
+  if (token === null) {
+    return "That button is no longer valid. Ask again for a fresh preview.";
+  }
+
+  const record = await resolvePreparedAction(token, input.userId);
+
+  if (record === null) {
+    /* Same answer for "no such token" and "someone else's token". Telling the
+       two apart would confirm which handles exist. */
+    return "That action is no longer available. Ask again for a fresh preview.";
+  }
+
+  if (record.status === "expired") {
+    return (
+      "<b>That preview has expired.</b>\n\nPrices and balances move, so a " +
+      "prepared action is only good for a few minutes. Ask again and I will " +
+      "re-read your positions."
+    );
+  }
+
+  if (record.status !== "prepared") {
+    /* Idempotent: a double tap, or Telegram redelivering the callback, says
+       the same thing rather than acknowledging twice. */
+    return `Already noted. Open Elyra to confirm it: ${escapeText(appUrl())}`;
+  }
+
+  await acknowledgePreparedAction(token, input.userId);
+
+  return [
+    `<b>Noted — ${escapeText(record.action.summary)}</b>`,
+    "",
+    "Nothing has been sent. Confirming a transaction needs your wallet, which",
+    "Telegram cannot authorise — a chat account is not a signature.",
+    "",
+    `Open Elyra to confirm: ${escapeText(appUrl())}`,
+  ].join("\n");
 }

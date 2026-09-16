@@ -134,6 +134,84 @@ export function startTypingHeartbeat(chatId: number): () => void {
   return () => clearInterval(timer);
 }
 
+/* ---------------------------------------------------------------------------
+   Inline keyboards
+--------------------------------------------------------------------------- */
+
+export interface InlineButton {
+  text: string;
+  /** Opaque handle only — never an action or an amount. See lib/telegram/actions.ts. */
+  callbackData?: string;
+  url?: string;
+}
+
+/**
+ * A message with buttons under it.
+ *
+ * Telegram caps `callback_data` at 64 bytes and rejects the whole keyboard
+ * past it — silently, meaning the message arrives with no buttons and nobody
+ * finds out until a user reports that nothing is tappable. Checked here, and
+ * an over-long button is dropped rather than taking its whole row with it.
+ */
+export function sendMessageWithButtons(
+  chatId: number,
+  html: string,
+  rows: InlineButton[][],
+): Promise<unknown> {
+  const keyboard = rows
+    .map((row) =>
+      row
+        .filter((button) => {
+          if (button.callbackData === undefined) return true;
+          return Buffer.byteLength(button.callbackData, "utf8") <= 64;
+        })
+        .map((button) => ({
+          text: button.text,
+          ...(button.url === undefined ? {} : { url: button.url }),
+          ...(button.callbackData === undefined
+            ? {}
+            : { callback_data: button.callbackData }),
+        })),
+    )
+    .filter((row) => row.length > 0);
+
+  return enqueue(chatId, () =>
+    call("sendMessage", {
+      chat_id: chatId,
+      text: html,
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+      ...(keyboard.length > 0 ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+    }),
+  );
+}
+
+/**
+ * Clears the spinner on a tapped button.
+ *
+ * Telegram shows a loading state until this is answered, and leaves it
+ * spinning for a while if it never is. Not queued — it is a UI
+ * acknowledgement with its own short deadline, and it must not wait behind a
+ * message. Failing is not worth aborting the work it acknowledges.
+ */
+export async function answerCallbackQuery(
+  callbackQueryId: string,
+  text?: string,
+): Promise<void> {
+  try {
+    await call(
+      "answerCallbackQuery",
+      {
+        callback_query_id: callbackQueryId,
+        ...(text === undefined ? {} : { text, show_alert: false }),
+      },
+      5_000,
+    );
+  } catch {
+    /* The spinner clears on its own eventually. */
+  }
+}
+
 export interface TelegramUser {
   id: number;
   username?: string;
@@ -147,8 +225,17 @@ export interface TelegramMessage {
   text?: string;
 }
 
+export interface TelegramCallbackQuery {
+  id: string;
+  from: TelegramUser;
+  message?: TelegramMessage;
+  /** Opaque. Whatever we put in the button, handed back verbatim. */
+  data?: string;
+}
+
 export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 }

@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "telegram:webhook": "node --experimental-strip-types scripts/set-telegram-webhook.mts",
-    "supabase:setup": "node --experimental-strip-types scripts/supabase-setup.mts"
+    "supabase:setup": "node --experimental-strip-types scripts/supabase-setup.mts",
+    "supabase:bundle": "node --experimental-strip-types scripts/bundle-migrations.mts"
   },
   "dependencies": {
     "@privy-io/node": "^0.34.0",

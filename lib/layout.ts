@@ -91,6 +91,27 @@ export function isFullBleedRoute(pathname: string): boolean {
 }
 
 /**
+ * Routes that render with NO shell at all — not even a status bar.
+ *
+ * Distinct from `FULL_BLEED_ROUTES`, which still live inside the workspace
+ * and keep its chrome. These do not: the Telegram Mini App runs in a webview
+ * roughly 380px wide, inside an app that draws its own header and back
+ * button, and every piece of Elyra's shell there is a second navigation
+ * fighting the first for a screen that has room for neither.
+ *
+ * Adding to this list is a deliberate decision, like the full-bleed one. A
+ * route here gives up the rail, the palette, the chart and the assistant, so
+ * it has to be somewhere those genuinely do not belong.
+ */
+export const STANDALONE_ROUTES: readonly string[] = ["/telegram"];
+
+export function isStandaloneRoute(pathname: string): boolean {
+  return STANDALONE_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
+
+/**
  * Which column gives up width first when the row does not fit.
  *
  * The rail leads because it loses the least: at its minimum it is still a

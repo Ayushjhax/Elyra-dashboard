@@ -50,6 +50,8 @@ export interface RunAgentInput {
   surface: Surface;
   /** The Privy wallet, for the address-keyed Hyperliquid read. */
   sessionWallet?: string | null;
+  /** The Solana address, for the wallet and DeFi reads. */
+  solanaAddress?: string | null;
 }
 
 export interface RunAgentResult {
@@ -204,6 +206,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const context: ToolContext = {
     userId: input.userId,
     sessionWallet: input.sessionWallet ?? null,
+    solanaAddress: input.solanaAddress ?? null,
   };
 
   const [history, system] = await Promise.all([

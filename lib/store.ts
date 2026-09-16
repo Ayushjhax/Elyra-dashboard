@@ -22,7 +22,12 @@ import type {
 export type MobilePanel = "activity" | "watchlist" | "signals" | "chat" | null;
 
 /** What column two holds before the operator has moved anything. */
-export const DEFAULT_STACK: PanelKey[] = ["activity", "watchlist", "automation"];
+export const DEFAULT_STACK: PanelKey[] = [
+  "activity",
+  "watchlist",
+  "signals",
+  "automation",
+];
 
 interface ElyraState {
   /* ---- the spine ---- */
@@ -46,6 +51,21 @@ interface ElyraState {
   removeFromWatchlist: (id: number) => void;
   favorites: number[];
   toggleFavorite: (id: number) => void;
+
+  /* ---- portfolio ---- */
+  /**
+   * Balances rendered as ▒▒▒▒ rather than figures.
+   *
+   * Persisted, because the reason to turn it on — a shared screen, a desk in
+   * an open office, a recording — outlives the tab it was turned on in. A
+   * privacy control that forgets on reload is not one.
+   *
+   * Only the figures are masked. Percentages, allocation shares and health
+   * tones stay visible: they disclose nothing about the size of the account
+   * and they are most of why the page is worth looking at.
+   */
+  balancesHidden: boolean;
+  setBalancesHidden: (hidden: boolean) => void;
 
   /* ---- automation ---- */
   disabledRules: string[];
@@ -184,6 +204,9 @@ export const useElyraStore = create<ElyraState>()(
       composerDraft: "",
       setComposerDraft: (value) => set({ composerDraft: value }),
       composerFocusNonce: 0,
+      balancesHidden: false,
+      setBalancesHidden: (hidden) => set({ balancesHidden: hidden }),
+
       askElyra: (prompt) =>
         set((state) => ({
           composerDraft: prompt,
@@ -289,6 +312,35 @@ export const useElyraStore = create<ElyraState>()(
     {
       name: "elyra-terminal",
       storage: createJSONStorage(() => localStorage),
+      /* ---------------------------------------------------------------------
+         Why this has a version now.
+
+         `stack` is persisted, so it is read from localStorage in preference to
+         DEFAULT_STACK on every visit an operator has ever made. Adding a panel
+         to that default therefore reaches nobody who has already used the app
+         — which is everybody whose workspace is worth preserving. The signals
+         panel shipped, was reachable only by dragging it out of the palette,
+         and so was never seen.
+
+         The migration below adds it once. It does not reorder, remove or
+         reset anything: an arrangement is the operator's, and a new component
+         appearing in it is the most this may do on their behalf. Someone who
+         then drags it out keeps it out — `stack` is written back without it,
+         and `version` has already advanced, so this never runs again.
+      --------------------------------------------------------------------- */
+      version: 1,
+      migrate: (persisted: unknown, from: number) => {
+        const state = persisted as { stack?: PanelKey[] } | null;
+        if (state === null || from >= 1) return state;
+        if (!Array.isArray(state.stack)) return state;
+        if (state.stack.includes("signals")) return state;
+        /* Below the watchlist if there is one, so the market column keeps its
+           shape and the new panel is not the first thing that moved. */
+        const after = state.stack.indexOf("watchlist");
+        const stack = [...state.stack];
+        stack.splice(after === -1 ? stack.length : after + 1, 0, "signals");
+        return { ...state, stack };
+      },
       /* The watchlist and the selection are the user's, so they persist.
          Prices deliberately do not: a price restored from localStorage is a
          stale number wearing a live one's clothes. They come from Pyth on
@@ -299,6 +351,7 @@ export const useElyraStore = create<ElyraState>()(
         watchlist: state.watchlist,
         favorites: state.favorites,
         selectedAssetId: state.selectedAssetId,
+        balancesHidden: state.balancesHidden,
         /* The composed column is the operator's own arrangement, so it comes
            back on the next visit. paletteOpen does not: edit mode is a thing
            you are doing now, not a preference. */

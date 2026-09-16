@@ -1,7 +1,10 @@
 import "server-only";
 
+import { NextResponse } from "next/server";
 import type { LinkedAccount } from "@privy-io/node";
 import { PRIVY_TIMEOUT_MS, privyClient } from "@/lib/auth/privy";
+import { bindReferral, readAttributionCookie } from "@/lib/referrals/attribution";
+import { unreachableReason } from "@/lib/supabase/reachability";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
 
@@ -13,7 +16,17 @@ import type { Profile } from "@/lib/supabase/types";
  * API; it is never a foreign key.
  */
 export interface SessionUser {
-  userId: string;
+  /**
+   * Null when `profileStore` is "unreachable" — there is no row, so there is
+   * no id, and inventing one would put a fabricated foreign key into a table
+   * the moment the database came back.
+   *
+   * Nullable rather than absent so the type checker walks every caller that
+   * scopes a query by it. A route that cannot proceed without one answers
+   * through `profileUnavailable()` below, rather than letting `undefined`
+   * reach an `.eq("user_id", ...)` that would then match every row.
+   */
+  userId: string | null;
   privyDid: string;
   /** EVM, for the Hyperliquid portfolio read. Null on a Solana-only account. */
   walletAddress: string | null;
@@ -30,6 +43,23 @@ export interface SessionUser {
    * flattened.
    */
   addressesUnresolved: boolean;
+  /**
+   * Whether the `profiles` row behind `userId` was actually read or written.
+   *
+   * "unreachable" is a working session against a database that did not
+   * answer. Identity is still verified — the Privy token was checked, and the
+   * wallet addresses came from Privy, which is their record and not this
+   * database's — so every surface that needs only an address keeps working.
+   * Only the surfaces that store or read rows are lost, and each reports that
+   * specifically instead of failing the whole request.
+   *
+   * This exists because the alternative was observed: with the Supabase
+   * project gone, the transport error thrown out of `selectProfile` escaped
+   * `getSessionUser` entirely and every wallet read answered 500, over a
+   * wallet whose address this server could have resolved from Privy without
+   * touching the database at all.
+   */
+  profileStore: "ready" | "unreachable";
 }
 
 export class UnauthenticatedError extends Error {
@@ -248,7 +278,10 @@ async function selectProfile(
 }
 
 /** The `profiles` row for a verified DID, creating it on first sign-in. */
-async function resolveProfile(privyDid: string): Promise<SessionUser> {
+async function resolveStoredProfile(
+  privyDid: string,
+  referralCode: string | null,
+): Promise<SessionUser> {
   const db = serviceClient();
 
   const existing = await selectProfile(db, privyDid);
@@ -278,6 +311,7 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
         walletAddress: currentEvm,
         solanaAddress: currentSolana,
         addressesUnresolved: false,
+        profileStore: "ready",
       };
     }
 
@@ -291,6 +325,7 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
         walletAddress: currentEvm,
         solanaAddress: currentSolana,
         addressesUnresolved: true,
+        profileStore: "ready",
       };
     }
 
@@ -313,6 +348,7 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
       walletAddress: evm,
       solanaAddress: solana,
       addressesUnresolved: false,
+      profileStore: "ready",
     };
   }
 
@@ -336,7 +372,7 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
        absent and retry without it. */
     if (created.error.code === UNDEFINED_COLUMN) {
       noteMissingColumn();
-      return resolveProfile(privyDid);
+      return resolveStoredProfile(privyDid, referralCode);
     }
 
     /* Lost the race against a concurrent first request. The other one won and
@@ -350,6 +386,7 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
         walletAddress: raced.wallet_address,
         solanaAddress: raced.solana_address ?? (found.ok ? found.solana : null),
         addressesUnresolved: !found.ok,
+        profileStore: "ready",
       };
     }
 
@@ -357,13 +394,94 @@ async function resolveProfile(privyDid: string): Promise<SessionUser> {
   }
 
   const row = created.data as unknown as ProfileRow;
+
+  /* The account is new as of this statement, which is the only unambiguous
+     moment to attribute a referral: binding later would need a rule for
+     accounts that already existed, and every version of that rule is a way to
+     retro-attribute an established user to whoever last sent them a link.
+
+     Deliberately not awaited and never allowed to throw. A referral that
+     cannot be attributed must not keep someone out of the product, and the
+     unique index on `referred_user_id` makes a lost race harmless. */
+  if (referralCode != null) {
+    void bindReferral(row.id, referralCode).catch(() => {});
+  }
+
   return {
     userId: row.id,
     privyDid,
     walletAddress: row.wallet_address,
     solanaAddress: row.solana_address ?? (found.ok ? found.solana : null),
     addressesUnresolved: !found.ok,
+    profileStore: "ready",
   };
+}
+
+/* ---------------------------------------------------------------------------
+   The database is not the identity.
+
+   `profiles` caches what Privy already knows. A verified token names the
+   account, and Privy names its wallets; the row exists so that other tables
+   have a stable foreign key to hang off, and so the addresses can be read
+   without a Privy call on every request.
+
+   That ordering is what makes the degraded session correct rather than a
+   guess. When the project cannot be reached there is no row and no `userId`,
+   but the account is no less verified and its Solana address is no less
+   known — so the wallet, which needs nothing else, is answered in full.
+--------------------------------------------------------------------------- */
+
+/** Reported once per distinct reason, for the same reason as every other
+    first-failure log in this file: the second occurrence teaches nobody
+    anything and the thousandth buries the line that mattered. */
+const seenStoreFailures = new Set<string>();
+
+function noteStoreUnreachable(reason: string): void {
+  const key = reason.slice(0, 120);
+  if (seenStoreFailures.has(key)) return;
+  seenStoreFailures.add(key);
+  console.error(
+    `\n[elyra] The profile store is unreachable: ${reason}\n` +
+      "  Sign-in, the wallet panel and market data continue — they do not need it.\n" +
+      "  Exchange connections, agent chat and Telegram linking do not, and each " +
+      "will say so.\n",
+  );
+}
+
+/** A verified account with no row behind it. Addresses come from Privy. */
+async function degradedProfile(privyDid: string): Promise<SessionUser> {
+  const found = await fetchAddresses(privyDid);
+  return {
+    userId: null,
+    privyDid,
+    walletAddress: found.ok ? found.evm : null,
+    solanaAddress: found.ok ? found.solana : null,
+    addressesUnresolved: !found.ok,
+    profileStore: "unreachable",
+  };
+}
+
+/**
+ * The `profiles` row for a verified DID, or a Privy-only session when the
+ * database could not be reached.
+ *
+ * Only transport failures degrade. A constraint violation, a missing table or
+ * any other query error still throws: those are bugs in this codebase, and
+ * swallowing them would turn a loud, fixable fault into a silent one where
+ * nothing is ever written and no one is told.
+ */
+async function resolveProfile(
+  privyDid: string,
+  referralCode: string | null,
+): Promise<SessionUser> {
+  try {
+    return await resolveStoredProfile(privyDid, referralCode);
+  } catch (error: unknown) {
+    const reason = unreachableReason(error);
+    if (reason === null) throw error;
+    noteStoreUnreachable(reason);
+    return degradedProfile(privyDid);
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -430,7 +548,9 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
     return null;
   }
 
-  return resolveProfile(privyDid);
+  /* Only consulted when a profile is created below; an established account
+     ignores it entirely. See lib/referrals/attribution.ts. */
+  return resolveProfile(privyDid, readAttributionCookie(req));
 }
 
 /** As `getSessionUser`, but throws instead of returning null. */
@@ -438,4 +558,55 @@ export async function requireSessionUser(req: Request): Promise<SessionUser> {
   const user = await getSessionUser(req);
   if (user === null) throw new UnauthenticatedError();
   return user;
+}
+
+/* ---------------------------------------------------------------------------
+   Routes that need a row
+
+   Everything below is for the surfaces that genuinely cannot work without the
+   database — exchange connections, agent history, Telegram links. They are a
+   minority: the wallet, the market data and the chart need none of it.
+--------------------------------------------------------------------------- */
+
+/** A session whose `profiles` row was read or created. */
+export interface StoredSessionUser extends SessionUser {
+  userId: string;
+  profileStore: "ready";
+}
+
+/**
+ * Narrows a session to one with a row behind it.
+ *
+ * Written as a guard rather than a non-null assertion at each call site so
+ * that the check and the narrowing are the same act — an assertion would
+ * compile just as happily against the degraded session it is meant to
+ * exclude.
+ */
+export function hasProfile(user: SessionUser): user is StoredSessionUser {
+  return user.userId !== null && user.profileStore === "ready";
+}
+
+/**
+ * The answer a route owes when it needs a row and the database is unreachable.
+ *
+ * 503 rather than 500: nothing here is broken and the request was not wrong.
+ * A dependency is down, the condition is temporary, and that is the code that
+ * says so — to a client, to a proxy, and to whoever is reading the logs.
+ *
+ * `feature` names what is unavailable, so the message is useful in a panel
+ * that has no other context.
+ */
+export function profileUnavailable(feature: string): NextResponse {
+  return NextResponse.json(
+    {
+      error:
+        `${feature} needs the database, which could not be reached. ` +
+        "Signing in, the wallet and market data are unaffected.",
+      /* Distinguishes "the service is not set up" from "the request failed",
+         which the panels render differently — one is an instruction to the
+         operator, the other an error at the user. */
+      unconfigured: true,
+    },
+    { status: 503 },
+  );
 }

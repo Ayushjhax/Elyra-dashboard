@@ -58,6 +58,39 @@ export const MAIN_MIN = 360;
 export const RAIL_LABEL_MIN = 132;
 
 /**
+ * The routes that take the whole main column instead of opening beside the
+ * chart — an allowlist, currently of one.
+ *
+ * Every other route is a column next to the market, and MAIN_MIN above is the
+ * rule that protects it. These are deliberate exceptions to that rule, not a
+ * loosening of it. Assets is a treasury console — a full page of accounts,
+ * balances and movement — and Personalized is a conversation beside a context
+ * rail; both were unreadable three hundred pixels wide next to a candlestick
+ * chart, which is what they were redesigned away from.
+ *
+ * A route named here gets the layout the shell already gives every route
+ * below 900px — the chart, the composed panel column and the assistant stand
+ * down, and the page takes the middle track. Nothing new had to be invented
+ * for it; `shellLayout` simply receives those columns as closed.
+ *
+ * The store flags behind those columns are NOT written when this happens. An
+ * operator who had the assistant open returns to it open on the next route,
+ * because what is suppressed here is the rendering, not the preference.
+ *
+ * Keep this list short. Each entry is a page that has earned the whole screen.
+ */
+export const FULL_BLEED_ROUTES: readonly string[] = [
+  "/assets",
+  "/personalized",
+  "/referrals",
+];
+
+/** Whether `pathname` is one of them. */
+export function isFullBleedRoute(pathname: string): boolean {
+  return FULL_BLEED_ROUTES.includes(pathname);
+}
+
+/**
  * Which column gives up width first when the row does not fit.
  *
  * The rail leads because it loses the least: at its minimum it is still a

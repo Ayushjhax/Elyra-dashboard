@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/session";
 import { appUrl, optional } from "@/lib/env";
 import { serviceClient } from "@/lib/supabase/server";
 
@@ -38,6 +38,11 @@ export async function POST(request: Request) {
   if (user === null) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+
+  /* The code IS a row — it is issued by writing it, and redeemed by reading
+     it back from the other surface. There is no version of this that works
+     without the table. */
+  if (!hasProfile(user)) return profileUnavailable("Telegram linking");
 
   const botUsername = optional("TELEGRAM_BOT_USERNAME");
   if (optional("TELEGRAM_BOT_TOKEN") === undefined) {
@@ -94,6 +99,20 @@ export async function GET(request: Request) {
   const user = await getSessionUser(request);
   if (user === null) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+
+  /* A status read, not an action. With no row to consult, the honest answer
+     is "not linked, and here is why we cannot tell" — reported at 200 with a
+     reason rather than as an error, because the status bar renders this on
+     every page and a 503 there would read as the app being down. */
+  if (!hasProfile(user)) {
+    return NextResponse.json({
+      linked: false,
+      username: null,
+      linkedAt: null,
+      botUsername: optional("TELEGRAM_BOT_USERNAME") ?? null,
+      unavailable: "Link status could not be read: the database is unreachable.",
+    });
   }
 
   const { data } = await serviceClient()

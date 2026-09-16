@@ -20,7 +20,7 @@ import { ColumnResizer } from "@/components/shell/Resizer";
 import { TerminalRuntime } from "@/components/shell/TerminalRuntime";
 import { ShellAtmosphere } from "@/components/ui/Glow";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { shellLayout, type ShellColumnId } from "@/lib/layout";
+import { isFullBleedRoute, shellLayout, type ShellColumnId } from "@/lib/layout";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +54,12 @@ import { cn } from "@/lib/utils";
  * pays. Opening the palette, or dragging a neighbour wider, takes width from
  * the other side columns in a fixed order and stops at MAIN_MIN — the chart is
  * always open, whatever else is.
+ *
+ * One exception, by name: a route in FULL_BLEED_ROUTES takes the middle track
+ * for itself and the chart, palette, panel column and assistant all stand
+ * down. Assets is the only one. It is an allowlist rather than a per-route
+ * opt-in so that the invariant above stays the default and each departure from
+ * it is a deliberate, visible decision — see the note in lib/layout.ts.
  *
  * `children` is the current route's panel, and is empty on Home.
  */
@@ -99,6 +105,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const onRoute = pathname !== "/";
 
+  /* A route that takes the whole main column — see FULL_BLEED_ROUTES. The
+     chart, the composed panel column, the palette and the assistant all
+     stand down for it, which is what turns Assets from a 360px strip beside
+     a candlestick chart into the treasury console it is meant to be.
+
+     Only the RENDERING is suppressed. `paletteOpen`, `stackOpen` and
+     `assistOpen` are left exactly as the operator set them, so navigating
+     away restores the workspace they had rather than one this route decided
+     for them. */
+  const fullBleed = isFullBleedRoute(pathname);
+
   /* Null until the first measurement — on the server and for the first paint,
      where the stored widths stand on their own and nothing has to be fitted.
      window.innerWidth rather than an observed element, because that is exactly
@@ -120,14 +137,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
      its effects and its fetches twice over. Before the first measurement this
      assumes the wide layout, which is what the server renders and what the
      first client render therefore has to agree with. */
-  const routeAside = onRoute && (viewport === null || viewport >= 900);
+  const routeAside =
+    onRoute && !fullBleed && (viewport === null || viewport >= 900);
 
+  /* The tracks have to agree with what is rendered, so the fitter is told
+     these columns are closed rather than being left to reserve width for
+     panels this route does not mount. */
   const layout = shellLayout({
     viewport,
     widths: columnWidths,
-    paletteOpen,
-    stackOpen,
-    assistOpen,
+    paletteOpen: paletteOpen && !fullBleed,
+    stackOpen: stackOpen && !fullBleed,
+    assistOpen: assistOpen && !fullBleed,
     routeOpen: routeAside,
     railCollapsed,
   });
@@ -165,14 +186,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NavRail icons={layout.railIcons} />
           </ShellColumn>
 
-          {paletteOpen && (
+          {paletteOpen && !fullBleed && (
             <ShellColumn id="palette" className="hidden mid:flex">
               <ComponentPalette />
             </ShellColumn>
           )}
 
           {/* Column 2 — whatever the operator has composed. */}
-          {stackOpen && (
+          {stackOpen && !fullBleed && (
             <ShellColumn id="stack" className="hidden mid:flex">
               <PanelStack className="flex min-h-0 flex-1" />
             </ShellColumn>
@@ -201,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Column 4 — chat and signals, one at a time behind a tab. Its handle
               is on its left edge, being the one column right of the chart. */}
-          {assistOpen && (
+          {assistOpen && !fullBleed && (
             <ShellColumn id="assist" side="start" className="hidden full:flex">
               <AssistPanel />
             </ShellColumn>

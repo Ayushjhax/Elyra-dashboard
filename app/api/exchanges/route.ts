@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/session";
 import { encryptSecret, lastFour } from "@/lib/crypto/credentials";
 import { listConnections } from "@/lib/exchange/accounts";
 import { serviceClient } from "@/lib/supabase/server";
@@ -28,6 +28,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
+  /* Half of this answer does not come from the database. `sessionWallet` is
+     the Privy EVM address, and it is already a readable Hyperliquid account
+     — the panel uses it to offer a portfolio read with nothing connected at
+     all. Refusing the whole request would withdraw a working feature over a
+     stored list that happens to sit beside it, so the stored half is reported
+     as empty-and-unknown and the rest is answered. */
+  if (!hasProfile(user)) {
+    return NextResponse.json({
+      connections: [],
+      sessionWallet: user.walletAddress,
+      supported: SUPPORTED,
+      unavailable:
+        "Saved connections could not be read: the database is unreachable. " +
+        "Your session wallet still works.",
+    });
+  }
+
   return NextResponse.json({
     connections: await listConnections(user.userId),
     /* The EVM address, which is already a readable Hyperliquid account — so
@@ -44,6 +61,8 @@ export async function POST(request: Request) {
   if (user === null) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+
+  if (!hasProfile(user)) return profileUnavailable("Saving an exchange connection");
 
   let body: Record<string, unknown>;
   try {
@@ -123,6 +142,8 @@ export async function DELETE(request: Request) {
   if (user === null) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+
+  if (!hasProfile(user)) return profileUnavailable("Removing an exchange connection");
 
   const requested = new URL(request.url).searchParams.get("exchange");
   /* Checked against the known set rather than passed through: the value goes

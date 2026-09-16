@@ -11,6 +11,11 @@ export const trackerSignalSchema = z.object({
   window: z.string().min(1), walletCount: z.number().int().nonnegative(), weightedScore: z.number(), archetypeCount: z.number().int().nonnegative(),
   vwapEntryUsd: z.string().nullable(), currentPxUsd: z.string().nullable(), participants: z.array(participantSchema),
   qualifies: z.boolean(), rejectionReasons: z.array(z.string()), createdAt: z.string(), status: z.string(), supersededBy: z.string().nullable(), confirmation: z.unknown().nullable(),
+  /* Which rule set produced this. A `seed-` prefix means the row was
+     inserted as demo data rather than observed — the panel labels those,
+     because a fabricated consensus signal that looks real is worse than
+     an empty feed. */
+  configVersion: z.string().nullish(),
 }).passthrough();
 export type TrackerSignal = z.infer<typeof trackerSignalSchema>;
 /* `error` is how /api/tracker/signals reports that the tracker service could

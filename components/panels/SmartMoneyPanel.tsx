@@ -29,6 +29,8 @@ interface FeedState {
   findings: SmartMoneyFinding[];
   error: string | null;
   needsMigration: boolean;
+  /** The project did not answer at all — see the route's own note. */
+  unreachable: boolean;
   rejected: string[];
   lastScanAt: string | null;
   loading: boolean;
@@ -38,6 +40,7 @@ const INITIAL: FeedState = {
   findings: [],
   error: null,
   needsMigration: false,
+  unreachable: false,
   rejected: [],
   lastScanAt: null,
   loading: true,
@@ -217,7 +220,8 @@ export function SmartMoneyPanel() {
     } catch (error: unknown) {
       return {
         findings: [], error: error instanceof Error ? error.message : "request failed",
-        needsMigration: false, rejected: [], lastScanAt: null, loading: false,
+        needsMigration: false, unreachable: false, rejected: [], lastScanAt: null,
+        loading: false,
       };
     }
   }, []);
@@ -242,7 +246,12 @@ export function SmartMoneyPanel() {
       <PanelHeader>
         <Eyebrow>Smart money</Eyebrow>
         <span className="type-label ml-auto text-text-muted">
-          {state.findings.length} findings
+          {/* "0 findings" is a statement about the filings. It must not be
+              shown when no filing was ever consulted — that is precisely
+              what this panel read during the outage, beside an error. */}
+          {state.error === null
+            ? `${state.findings.length} findings`
+            : "unavailable"}
         </span>
         <button
           type="button"
@@ -283,7 +292,23 @@ export function SmartMoneyPanel() {
           </div>
         )}
 
-        {state.error !== null && !state.needsMigration && (
+        {state.unreachable && (
+          <div
+            role="alert"
+            className="m-3 rounded-card border border-negative/40 bg-negative-bg px-2.5 py-2"
+          >
+            <p className="type-label text-negative">Database unreachable</p>
+            <p className="type-label mt-0.5 break-words text-text-muted">
+              {state.error}
+            </p>
+            <p className="type-label mt-1 text-text-muted">
+              Findings are read from Supabase, so none can be shown. The chart,
+              the wallet and market data do not use it and are unaffected.
+            </p>
+          </div>
+        )}
+
+        {state.error !== null && !state.needsMigration && !state.unreachable && (
           <div
             role="alert"
             className="m-3 flex items-start gap-2 rounded-card border border-negative/40 bg-negative-bg px-2.5 py-2"

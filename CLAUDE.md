@@ -47,7 +47,10 @@ on it.
   mounted by `AppShell` for the life of the session and every route opens
   beside it; a new column takes its width from the other side columns, in
   `SQUEEZE_ORDER`, and stops at `MAIN_MIN`. Nothing may put a page in the
-  middle column above 900px.
+  middle column above 900px. The one exception is an allowlist:
+  a route named in `FULL_BLEED_ROUTES` (currently `/assets` alone) takes the
+  middle track and stands the chart, palette, panel column and assistant down.
+  Adding to that list is a deliberate decision, not a convenience.
 - The media queries in `.shell-grid` decide which columns are on screen, and
   `shellLayout` returns a track string per breakpoint rather than resolving one
   itself. Never resolve the breakpoint in JS to build the grid — the tracks and

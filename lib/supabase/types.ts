@@ -14,6 +14,8 @@ export type ExchangeId = "binance" | "okx" | "hyperliquid";
 export interface Profile {
   id: string;
   privy_did: string;
+  /** Permanent, unique, generated server-side. Null until first issued. */
+  referral_code: string | null;
   /** EVM. Hyperliquid's portfolio endpoint is keyed by one of these. */
   wallet_address: string | null;
   /** This app's native chain, and what the UI shows. */
@@ -95,6 +97,123 @@ export interface AgentRun {
   tool_iterations: number | null;
   total_latency_ms: number | null;
   error: string | null;
+  created_at: string;
+}
+
+/**
+ * One reading of a user's portfolio value, kept so the performance chart has
+ * a real series to draw rather than a reconstruction.
+ *
+ * Written on read, bucketed — see lib/portfolio/history.ts. Deliberately
+ * narrow: this records what the portfolio was WORTH, not what it held. A
+ * position-level history is a much larger table and answers a question the
+ * chart does not ask.
+ */
+export interface PortfolioSnapshotRow {
+  user_id: string;
+  at: string;
+  total_value_usd: number;
+}
+
+/* ---------------------------------------------------------------------------
+   Referrals — see supabase/migrations/0006_referrals.sql for why the ledger
+   is append-only and why pools are rows rather than a derived count.
+--------------------------------------------------------------------------- */
+
+export type PointsEventType = "REFERRAL_ACTIVATED" | "REFERRAL_POOL_BONUS";
+
+export interface PointsLedgerRow {
+  id: string;
+  user_id: string;
+  event_type: PointsEventType;
+  /** Signed: a correction is a negative row, never a delete. */
+  points: number;
+  /** The idempotency key. Unique across the table. */
+  source_id: string;
+  metadata: unknown;
+  created_at: string;
+}
+
+export type ReferralStatus = "pending" | "activated" | "not_eligible";
+
+export interface ReferralRow {
+  id: string;
+  referrer_user_id: string;
+  /** Unique — the database's "one referrer per user" rule. */
+  referred_user_id: string;
+  referral_code: string;
+  status: ReferralStatus;
+  attributed_at: string;
+  signed_up_at: string;
+  activated_at: string | null;
+  rewarded_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReferralPoolRow {
+  id: string;
+  user_id: string;
+  pool_number: number;
+  /** The target in force when this pool completed, not today's. */
+  target: number;
+  bonus_points: number;
+  bonus_ledger_id: string | null;
+  completed_at: string;
+  created_at: string;
+}
+
+/* ---------------------------------------------------------------------------
+   Personalized — see supabase/migrations/0005_personalized.sql for why memory
+   and conversation are separate tables rather than one history.
+--------------------------------------------------------------------------- */
+
+export type MemoryTypeRow =
+  | "concentration_limit"
+  | "stablecoin_buffer"
+  | "preferred_venue"
+  | "leverage_limit"
+  | "watch_symbol"
+  | "note";
+
+export interface PersonalizedMemoryRow {
+  id: string;
+  user_id: string;
+  type: MemoryTypeRow;
+  key: string;
+  /** jsonb. Shape depends on `type`; the service validates before writing. */
+  value: unknown;
+  confidence: number;
+  source: "explicit" | "inferred";
+  label: string;
+  created_at: string;
+  updated_at: string;
+  confirmed_at: string | null;
+}
+
+export interface PersonalizedConversationRow {
+  id: string;
+  user_id: string;
+  title: string;
+  /** Rolling summary of everything older than the recent window. */
+  summary: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalizedMessageRow {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  role: "user" | "assistant";
+  content: string;
+  /** The validated PersonalizedAnswer. Null on a user turn. */
+  structured: unknown | null;
+  provider: string | null;
+  model: string | null;
+  latency_ms: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   created_at: string;
 }
 
@@ -192,6 +311,42 @@ export interface Database {
       messages: Table<MessageRow, "id" | "created_at">;
       agent_runs: Table<AgentRun, "id" | "created_at" | "fell_back">;
       market_cache: Table<MarketCacheRow, "fetched_at">;
+      portfolio_snapshots: Table<PortfolioSnapshotRow, "at">;
+      points_ledger: Table<PointsLedgerRow, "id" | "created_at" | "metadata">;
+      referrals: Table<
+        ReferralRow,
+        | "id"
+        | "status"
+        | "attributed_at"
+        | "signed_up_at"
+        | "activated_at"
+        | "rewarded_at"
+        | "created_at"
+        | "updated_at"
+      >;
+      referral_pools: Table<
+        ReferralPoolRow,
+        "id" | "bonus_points" | "bonus_ledger_id" | "completed_at" | "created_at"
+      >;
+      personalized_memories: Table<
+        PersonalizedMemoryRow,
+        "id" | "created_at" | "updated_at" | "confidence" | "source" | "confirmed_at"
+      >;
+      personalized_conversations: Table<
+        PersonalizedConversationRow,
+        "id" | "created_at" | "updated_at" | "title" | "summary"
+      >;
+      personalized_messages: Table<
+        PersonalizedMessageRow,
+        | "id"
+        | "created_at"
+        | "structured"
+        | "provider"
+        | "model"
+        | "latency_ms"
+        | "input_tokens"
+        | "output_tokens"
+      >;
       usage_counters: Table<
         { user_id: string; day: string; runs: number },
         "runs"

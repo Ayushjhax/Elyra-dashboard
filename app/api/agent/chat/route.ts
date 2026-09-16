@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { UsageLimitError, ensureConversation, runAgent } from "@/lib/agent";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/session";
 
 /* ---------------------------------------------------------------------------
    The web surface.
@@ -24,6 +24,12 @@ export async function POST(request: Request) {
   if (user === null) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+
+  /* Chat is stored: every turn is written to `messages` and read back as
+     history, and the run counter that caps usage lives in the same database.
+     Without a row there is nowhere to put any of it, and answering anyway
+     would produce a conversation that forgets itself between requests. */
+  if (!hasProfile(user)) return profileUnavailable("Agent chat");
 
   let body: unknown;
   try {

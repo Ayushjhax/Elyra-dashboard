@@ -9,6 +9,15 @@ export interface Column<T> {
   /** Applied to the <col> so widths never shift as values tick. */
   width?: string;
   headerSrOnly?: boolean;
+  /**
+   * Applied to this column's header cell and every body cell in it.
+   *
+   * Exists for responsive column priority: a container query class such as
+   * `hidden @[34rem]:table-cell` drops a lower-priority column when the panel
+   * is narrow, rather than letting every column squeeze until none of them
+   * are readable. Purely additive — a column without one is unaffected.
+   */
+  className?: string;
   render: (row: T) => React.ReactNode;
 }
 
@@ -58,6 +67,7 @@ export function DataTable<T>({
                 "type-label sticky top-0 z-10 h-8 whitespace-nowrap bg-surface-panel px-2",
                 "border-b border-border-subtle font-medium text-text-secondary",
                 column.align === "right" ? "text-right" : "text-left",
+                column.className,
               )}
             >
               <span className={cn(column.headerSrOnly && "sr-only")}>
@@ -83,6 +93,7 @@ export function DataTable<T>({
                 className={cn(
                   "type-data h-[var(--row-h)] truncate px-2 text-text-primary",
                   column.align === "right" ? "text-right" : "text-left",
+                  column.className,
                 )}
               >
                 {column.render(row)}

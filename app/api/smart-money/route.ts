@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { describe, isUnreachable } from "@/lib/supabase/reachability";
 import { serviceClient } from "@/lib/supabase/server";
 import { assertFinding, fromRow, type SmartMoneyFinding } from "@/lib/smartmoney/types";
 
@@ -30,14 +31,25 @@ export interface SmartMoneyResponse {
   lastScanAt: string | null;
   /** True when the table does not exist yet — the migration has not been run. */
   needsMigration: boolean;
+  /**
+   * True when the project itself did not answer, as opposed to the query
+   * failing.
+   *
+   * Separate from `needsMigration` because the two look identical from here —
+   * both are an empty feed with a message — and call for opposite actions.
+   * One is a SQL file to run against a database that exists. The other is a
+   * database that does not.
+   */
+  unreachable: boolean;
 }
 
 function empty(
   error: string,
-  needsMigration = false,
+  { needsMigration = false, unreachable = false } = {},
 ): NextResponse<SmartMoneyResponse> {
   return NextResponse.json({
-    findings: [], count: 0, error, rejected: [], lastScanAt: null, needsMigration,
+    findings: [], count: 0, error, rejected: [], lastScanAt: null,
+    needsMigration, unreachable,
   });
 }
 
@@ -75,12 +87,20 @@ export async function GET(request: Request): Promise<NextResponse<SmartMoneyResp
        matched nothing against a real Supabase project — the user saw
        "Could not find the table ... in the schema cache" and no instruction. */
     const needsMigration = error.code === "42P01" || error.code === "PGRST205";
-    return empty(
-      needsMigration
-        ? "smart_money_findings does not exist — run migrations/0002_smart_money.sql"
-        : `${error.code ?? "error"}: ${error.message}`,
-      needsMigration,
-    );
+    if (needsMigration) {
+      return empty(
+        "smart_money_findings does not exist — run migrations/0002_smart_money.sql",
+        { needsMigration: true },
+      );
+    }
+
+    /* `describe` rather than `${error.code ?? "error"}: ${error.message}`.
+       A transport failure arrives with `code: ""` — an empty string, which
+       `??` does not treat as absent — so that template rendered the whole
+       condition as ": TypeError: fetch failed": a leading colon, no host, no
+       cause, and nothing anyone could act on. It is what this panel showed
+       for a Supabase project that had been deleted. */
+    return empty(describe(error), { unreachable: isUnreachable(error) });
   }
 
   const findings: SmartMoneyFinding[] = [];
@@ -108,5 +128,6 @@ export async function GET(request: Request): Promise<NextResponse<SmartMoneyResp
     rejected,
     lastScanAt,
     needsMigration: false,
+    unreachable: false,
   });
 }

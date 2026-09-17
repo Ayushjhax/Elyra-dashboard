@@ -7,15 +7,6 @@ import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { ActionButton } from "@/components/assets/primitives";
 import { SwapDialog } from "@/components/assets/SwapDialog";
 import { TransferDialog } from "@/components/assets/TransferDialog";
-import { Button } from "@/components/ui/Button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Eyebrow } from "@/components/ui/Eyebrow";
-import { truncateMiddle } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -33,35 +24,30 @@ import { cn } from "@/lib/utils";
    two files for the reasoning specific to each: a swap re-quotes before it
    signs, a transfer shows the recipient in full before it sends.
 
-   WITHDRAW still does not, and this file does not pretend it does. Venue
-   connections are read-only by construction, which is a design decision
-   rather than an unfinished one. §"NO FAKE DATA": a dialog with a Confirm
-   button that cannot confirm is worse than no dialog, because it looks like
-   a bug in something real rather than a feature that does not exist.
+   WITHDRAW works now, and it is the same flow as Transfer under the name
+   people actually look for.
 
-   It therefore opens the same modal SHELL §31 describes — title, the route
-   the capital would take, what is missing — with no fabricated quote, no
-   fee, and no Confirm. That shell is where the working flows grew from.
+   It used to open an honest but useless dialog saying venue withdrawals do
+   not exist — which is still true, and was still the wrong answer. On a
+   screen showing a Privy embedded wallet, "Withdraw" does not read as "move
+   capital off Kraken". It reads as "get my money out of here", and that is a
+   real, reachable thing: paste an address you control, send the balance to
+   it. Answering that question with a paragraph about read-only exchange
+   connections left the operator with funds in a wallet they cannot open in
+   Phantom and no visible way to reach them.
+
+   So Withdraw opens `TransferDialog` with `intent="withdraw"`. One code
+   path, not two: the careful handling of the recipient address — validated
+   as you type, shown in full before it sends — is the part that must not
+   exist in one dialog and not the other.
+
+   Venue withdrawals remain out of scope and unbuilt. Nothing in Elyra
+   places, modifies or cancels anything at an exchange; that is a design
+   decision, and when there is a venue balance to move it will need a write
+   path that does not exist. It is simply not what this button is for.
 --------------------------------------------------------------------------- */
 
 export type AssetAction = "deposit" | "swap" | "transfer" | "withdraw";
-
-interface Unavailable {
-  title: string;
-  /** What this action would do, so the dialog is not just a refusal. */
-  purpose: string;
-  /** Precisely what is missing. Named, not hand-waved. */
-  missing: string;
-}
-
-const UNAVAILABLE: Record<Exclude<AssetAction, "deposit" | "swap" | "transfer">, Unavailable> = {
-  withdraw: {
-    title: "Withdraw",
-    purpose: "Move capital off a connected venue and back into your wallet.",
-    missing:
-      "Venue connections are read-only by design — nothing in Elyra places, modifies or cancels anything at an exchange. Withdrawals need a write path that does not exist yet.",
-  },
-};
 
 /**
  * Split out because it calls a Privy hook.
@@ -94,82 +80,6 @@ function DepositAction({ address }: { address: string }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 py-1.5">
-      <span className="type-label text-text-muted">{label}</span>
-      <span className="type-data-sm min-w-0 truncate text-text-primary">{value}</span>
-    </div>
-  );
-}
-
-function UnavailableDialog({
-  action,
-  address,
-  onClose,
-}: {
-  action: Exclude<AssetAction, "deposit" | "swap" | "transfer">;
-  address: string | null;
-  onClose: () => void;
-}) {
-  const content = UNAVAILABLE[action];
-
-  return (
-    <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent side="center" surface="glass" className="flex flex-col gap-0 p-0">
-        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
-          <DialogTitle asChild>
-            <Eyebrow>{content.title}</Eyebrow>
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            {content.title} is not available yet. {content.missing}
-          </DialogDescription>
-        </header>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-          <p className="type-body-sm text-text-secondary">{content.purpose}</p>
-
-          <div className="flex flex-col divide-y divide-border-subtle rounded-card border border-border-subtle bg-surface-raised px-3 py-1">
-            <Row
-              label="From"
-              value={
-                address === null ? (
-                  <span className="text-text-muted">No wallet</span>
-                ) : (
-                  <span className="type-mono-addr">{truncateMiddle(address, 4, 4)}</span>
-                )
-              }
-            />
-            <Row label="Asset" value={<span className="text-text-muted">—</span>} />
-            <Row label="Amount" value={<span className="text-text-muted">—</span>} />
-            <Row label="Network fee" value={<span className="text-text-muted">—</span>} />
-          </div>
-
-          {/* The honest part. Clay, because this is a capability gap the
-              operator needs to register, not a neutral notice. */}
-          <div className="rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
-            <p className="type-label text-negative">Not available yet</p>
-            <p className="type-label mt-1 text-text-secondary">{content.missing}</p>
-          </div>
-        </div>
-
-        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-4 py-3">
-          <Button size="sm" variant="quiet" onClick={onClose}>
-            Close
-          </Button>
-          {/* Present and permanently disabled rather than absent: the shape
-              of the flow is real, only its execution is missing, and §31's
-              "confirmation only activates once inputs are valid" is exactly
-              what a disabled Confirm expresses here. */}
-          <Button size="sm" variant="accent" disabled title="This flow is not connected yet">
-            Confirm
-          </Button>
-        </footer>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 /**
  * The action bar, and whatever dialog it has open.
  *
@@ -180,9 +90,18 @@ function UnavailableDialog({
 export function AssetActionBar({ address }: { address: string | null }) {
   const auth = useElyraAuth();
   const [open, setOpen] = useState<Exclude<AssetAction, "deposit"> | null>(null);
-  const unavailable = open === "withdraw" ? open : null;
 
   const canFund = auth.available && address !== null;
+
+  /* Swap, Transfer and Withdraw all sign in this browser, so all three call
+     Privy hooks — which THROW when `PrivyClientProvider` did not mount a
+     provider, as it does not when the app id is malformed. Opening one of
+     those dialogs in that state replaces the page with an error boundary
+     rather than telling anyone what is wrong, so the buttons carry the same
+     guard Deposit already had: disabled, with a title that says why. */
+  const canSign = auth.available && address !== null;
+  const signHint =
+    address === null ? "Connect a Solana wallet first" : "Wallet signing is unavailable";
 
   return (
     <>
@@ -208,34 +127,40 @@ export function AssetActionBar({ address }: { address: string | null }) {
           icon={ArrowLeftRight}
           label="Swap"
           tone="secondary"
+          disabled={!canSign}
+          title={canSign ? undefined : signHint}
           onClick={() => setOpen("swap")}
         />
         <ActionButton
           icon={Send}
           label="Transfer"
           tone="secondary"
+          disabled={!canSign}
+          title={canSign ? undefined : signHint}
           onClick={() => setOpen("transfer")}
         />
         <ActionButton
           icon={ArrowUpRight}
           label="Withdraw"
           tone="subtle"
+          disabled={!canSign}
+          title={canSign ? undefined : signHint}
           onClick={() => setOpen("withdraw")}
         />
       </div>
 
-      {open === "swap" && (
+      {canSign && open === "swap" && (
         <SwapDialog address={address} onClose={() => setOpen(null)} />
       )}
 
-      {open === "transfer" && (
-        <TransferDialog address={address} onClose={() => setOpen(null)} />
-      )}
-
-      {unavailable !== null && (
-        <UnavailableDialog
-          action={unavailable}
+      {/* One component, two names. `intent` changes the wording; the address
+          handling, the confirm step and the build/sign/submit path are the
+          same, because a second implementation of "send money somewhere" is a
+          second place for the careful parts to be missing. */}
+      {canSign && (open === "transfer" || open === "withdraw") && (
+        <TransferDialog
           address={address}
+          intent={open}
           onClose={() => setOpen(null)}
         />
       )}

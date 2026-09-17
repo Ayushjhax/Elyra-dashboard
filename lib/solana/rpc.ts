@@ -129,7 +129,32 @@ export function getBalance(address: string): Promise<GetBalanceResult> {
   return rpcCall<GetBalanceResult>("getBalance", [address, { commitment: "confirmed" }]);
 }
 
+/**
+ * Lamports an account of `dataLength` bytes needs to be exempt from rent.
+ *
+ * Queried rather than hardcoded, unlike `SOL_DECIMALS`: this is a cluster
+ * parameter the runtime could in principle change, not a fact fixed by the
+ * protocol. It has been stable for years, but the whole reason to read it
+ * live is that "stable so far" and "fixed forever" are not the same claim,
+ * and the runtime enforces it hard enough — see `readSolHolding` — that a
+ * stale constant would fail transactions rather than merely display a wrong
+ * number. Unwrapped, unlike `getBalance`: this method returns a plain
+ * lamport figure, not one behind `{context, value}`.
+ */
+export function getMinimumBalanceForRentExemption(dataLength: number): Promise<number> {
+  return rpcCall<number>("getMinimumBalanceForRentExemption", [dataLength]);
+}
+
 export interface ParsedTokenAccount {
+  /**
+   * The token account's own address.
+   *
+   * Needed by anything that SPENDS rather than displays. One owner can hold
+   * several accounts for the same mint, their balances sum for display, and
+   * only the associated one is what a transfer is built against — so the
+   * spending path has to be able to tell them apart. See lib/solana/holdings.ts.
+   */
+  pubkey: string;
   account: {
     data: {
       parsed: {
@@ -199,14 +224,62 @@ export function getLatestBlockhash(): Promise<RpcContext & { value: LatestBlockh
  *
  * `skipPreflight: false` keeps the simulation, which is what turns "the
  * transaction failed on chain" into an error before any fee is paid.
- * `maxRetries: 0` because this app decides whether to resend, not the node:
- * a retry is a second attempt at moving someone's money.
+ * `maxRetries: 0` because this app decides whether to resend, not the node —
+ * see `resendTransaction` below, which is that decision actually being
+ * made. Without it, a single dropped broadcast (a leader miss, ordinary
+ * network congestion — not rare) landed nowhere, forever, while this route
+ * had already told the operator it was sent.
  */
 export function sendTransaction(base64Transaction: string): Promise<string> {
   return rpcCall<string>("sendTransaction", [
     base64Transaction,
     { encoding: "base64", skipPreflight: false, preflightCommitment: "confirmed", maxRetries: 0 },
   ]);
+}
+
+/**
+ * Re-broadcasts an ALREADY-SUBMITTED transaction, byte for byte.
+ *
+ * Solana de-duplicates by signature, so resending one that already landed is
+ * a harmless no-op — not a second transfer. This is the retry `maxRetries: 0`
+ * on the first `sendTransaction` call deliberately gives up on the node
+ * doing automatically, done instead by `/api/transfer/submit` and
+ * `/api/transfer/status` on a schedule this app controls.
+ *
+ * `skipPreflight: true`, unlike the first send: the transaction was already
+ * simulated once, its validity does not change between resends of the exact
+ * same bytes within the same blockhash, and re-simulating on every retry
+ * would spend an RPC call re-checking something that has not changed.
+ */
+export function resendTransaction(base64Transaction: string): Promise<string> {
+  return rpcCall<string>("sendTransaction", [
+    base64Transaction,
+    { encoding: "base64", skipPreflight: true, preflightCommitment: "confirmed", maxRetries: 0 },
+  ]);
+}
+
+export interface SignatureStatusInfo {
+  slot: number;
+  confirmations: number | null;
+  err: unknown;
+  confirmationStatus: string | null;
+}
+
+/**
+ * Whether an already-submitted signature has landed.
+ *
+ * `searchTransactionHistory: true` so a signature already aged out of the
+ * node's short-lived default cache is still found — this app's confirmation
+ * loop polls for up to the ~60-90s a blockhash stays valid, which can outlast
+ * that cache under load.
+ */
+export function getSignatureStatuses(
+  signatures: string[],
+): Promise<RpcContext & { value: Array<SignatureStatusInfo | null> }> {
+  return rpcCall<RpcContext & { value: Array<SignatureStatusInfo | null> }>(
+    "getSignatureStatuses",
+    [signatures, { searchTransactionHistory: true }],
+  );
 }
 
 /**

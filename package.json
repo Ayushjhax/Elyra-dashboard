@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "telegram:webhook": "node --experimental-strip-types scripts/set-telegram-webhook.mts",
     "supabase:setup": "node --experimental-strip-types scripts/supabase-setup.mts",
-    "supabase:bundle": "node --experimental-strip-types scripts/bundle-migrations.mts"
+    "supabase:bundle": "node --experimental-strip-types scripts/bundle-migrations.mts",
+    "telegram:dev": "node --experimental-strip-types scripts/telegram-dev.mts"
   },
   "dependencies": {
     "@polymarket/sdk": "^8.0.1",

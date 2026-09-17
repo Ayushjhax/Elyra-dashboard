@@ -137,6 +137,15 @@ export async function buildSolTransfer(input: {
  *
  * `decimals` is the mint's own figure and is passed to the chain to be
  * verified, not to be trusted — see the note above.
+ *
+ * `tokenProgram` defaults to the original SPL Token program, but must be
+ * passed for anything issued under Token-2022. It is not cosmetic: the
+ * associated token account is derived from the program id, so deriving a
+ * Token-2022 holding under the original program produces an address that
+ * holds nothing. The transfer then fails, or — worse, if the recipient
+ * happens to have an account there — moves the wrong asset. `/api/wallet`
+ * already reads both programs, so a wallet can hold either, and a transfer
+ * path that only understood one would leave those balances stranded.
  */
 export async function buildTokenTransfer(input: {
   from: string;
@@ -144,20 +153,25 @@ export async function buildTokenTransfer(input: {
   mint: string;
   amount: string;
   decimals: number;
+  tokenProgram?: string;
 }): Promise<BuiltTransfer> {
   const owner = address(input.from);
   const recipient = address(input.to);
   const mint = address(input.mint);
+  const tokenProgram =
+    input.tokenProgram === undefined
+      ? TOKEN_PROGRAM_ADDRESS
+      : address(input.tokenProgram);
 
   const [source] = await findAssociatedTokenPda({
     owner,
     mint,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    tokenProgram,
   });
   const [destination] = await findAssociatedTokenPda({
     owner: recipient,
     mint,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    tokenProgram,
   });
 
   const { value: blockhash } = await getLatestBlockhash();
@@ -172,16 +186,20 @@ export async function buildTokenTransfer(input: {
     owner: recipient,
     mint,
     ata: destination,
+    tokenProgram,
   });
 
-  const transfer = getTransferCheckedInstruction({
-    source,
-    mint,
-    destination,
-    authority: signer,
-    amount: BigInt(input.amount),
-    decimals: input.decimals,
-  });
+  const transfer = getTransferCheckedInstruction(
+    {
+      source,
+      mint,
+      destination,
+      authority: signer,
+      amount: BigInt(input.amount),
+      decimals: input.decimals,
+    },
+    { programAddress: tokenProgram },
+  );
 
   const message = pipe(
     createTransactionMessage({ version: 0 }),

@@ -6,8 +6,8 @@
    the shape check, and it makes it impossible to audit what the server needs.
 
    Nothing in this file may be imported from a client component. The only
-   client-safe values are the two `NEXT_PUBLIC_` reads, which live in
-   `publicEnv` at the bottom and are deliberately kept apart from the rest.
+   client-safe values are the `NEXT_PUBLIC_` reads, which live in `publicEnv`
+   at the bottom and are deliberately kept apart from the rest.
 --------------------------------------------------------------------------- */
 
 /** Thrown by the startup check with every missing variable at once. */
@@ -179,12 +179,34 @@ export function appUrl(): string {
 /* ---------------------------------------------------------------------------
    Client-safe values.
 
-   These two are the only environment reads that may cross into the browser.
-   They are `NEXT_PUBLIC_` and inlined at build time, so they must be written
-   as full literal property accesses — `process.env[key]` is not substituted.
+   These are the only environment reads that may cross into the browser. They
+   are `NEXT_PUBLIC_` and inlined at build time, so they must be written as
+   full literal property accesses — `process.env[key]` is not substituted.
 --------------------------------------------------------------------------- */
 
 export const publicEnv = {
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "",
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+  /**
+   * NOT `SOLANA_RPC_URL`, and not a smaller version of the same mistake.
+   *
+   * That one is server-only for a stated reason: it is a paid endpoint, and
+   * a URL in client code is a URL anyone can drain the quota with. This is a
+   * different variable entirely, for a need that is genuinely the browser's —
+   * `PrivyClientProvider` hands it to Privy's Solana wallet-standard hooks
+   * (`useSignTransaction` and the rest), which reach an RPC directly from the
+   * browser for their own signing/simulation flow and throw
+   * "No RPC configuration found for chain solana:mainnet" with nothing
+   * configured at all, paid or not.
+   *
+   * Defaults to Solana's public mainnet endpoint, which is exactly the
+   * degraded-but-free tier the `SOLANA_RPC_URL` comment warns against for
+   * this app's OWN polling reads — a fine default here, because Privy calls
+   * it rarely (once per sign, not once per 30-second poll) and a slow public
+   * endpoint is a better default than a client crash. Set this to a
+   * browser-safe (public-tier) key of your own if the default's rate limit
+   * becomes a problem.
+   */
+  solanaRpcUrl:
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
 } as const;

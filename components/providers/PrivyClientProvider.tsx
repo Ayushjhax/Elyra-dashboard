@@ -6,12 +6,64 @@ import {
   toSolanaWalletConnectors,
   useSolanaFundingPlugin,
 } from "@privy-io/react-auth/solana";
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { PRIVY_MODAL_ACCENT, PRIVY_MODAL_THEME } from "@/lib/brand";
 import { PRIVY_APP_ID_LENGTH, publicEnv } from "@/lib/env";
 
 /* Built once at module scope: rebuilding it per render would hand
    PrivyProvider a new config object every time and remount the connectors. */
 const solanaConnectors = toSolanaWalletConnectors();
+
+/**
+ * The RPC Privy's own Solana wallet-standard hooks reach for.
+ *
+ * `useSignTransaction` and the rest of `@privy-io/react-auth/solana` need an
+ * RPC directly from the browser for their own signing/simulation flow —
+ * unrelated to and unreachable from this app's server-side `SOLANA_RPC_URL`.
+ * With nothing configured here they throw "No RPC configuration found for
+ * chain solana:mainnet" the first time a dialog tries to sign, which is a
+ * hard crash rather than a degraded feature: React has no component to
+ * blame it on, so it takes down the tree above it.
+ *
+ * `publicEnv.solanaRpcUrl` is `NEXT_PUBLIC_`, which `SOLANA_RPC_URL` — the
+ * paid endpoint this app's own balance reads use — deliberately is not; see
+ * the note on that field for why exposing this one is the correct call.
+ *
+ * Devnet and testnet are filled in with Solana's standard public endpoints
+ * rather than left out. This app only ever expects mainnet — `EXPECTED_CLUSTER`
+ * in lib/solana/cluster.ts — but Privy's own hook throws the same way for
+ * ANY chain with no entry, and a wallet that ever reports a different chain
+ * should hit that as a warning banner elsewhere in the app, not this crash.
+ *
+ * Deliberately NOT branded with kit's `mainnet()`/`devnet()`/`testnet()`
+ * helpers. Branding narrows `createSolanaRpc`'s return type to exactly that
+ * cluster's method set — which for mainnet EXCLUDES `requestAirdrop`, since
+ * airdrops only exist on a test cluster — but Privy's own declared type for
+ * this config wants the same, broader shape (including `requestAirdrop`) for
+ * every entry. A plain, unbranded URL string keeps the return type at that
+ * broader shape, which costs nothing at runtime since nothing here ever
+ * calls `requestAirdrop` against the mainnet entry.
+ *
+ * Built once at module scope, for the same reason `solanaConnectors` is: a
+ * fresh object on every render is a fresh `PrivyProvider` config every
+ * render.
+ */
+const solanaRpcs = {
+  "solana:mainnet": {
+    rpc: createSolanaRpc(publicEnv.solanaRpcUrl),
+    rpcSubscriptions: createSolanaRpcSubscriptions(
+      publicEnv.solanaRpcUrl.replace(/^http/, "ws"),
+    ),
+  },
+  "solana:devnet": {
+    rpc: createSolanaRpc("https://api.devnet.solana.com"),
+    rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.devnet.solana.com"),
+  },
+  "solana:testnet": {
+    rpc: createSolanaRpc("https://api.testnet.solana.com"),
+    rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.testnet.solana.com"),
+  },
+} as const;
 
 /* ---------------------------------------------------------------------------
    Authentication, as the rest of the app sees it.
@@ -279,6 +331,10 @@ export function PrivyClientProvider({
           ethereum: { createOnLogin: "users-without-wallets" },
           solana: { createOnLogin: "users-without-wallets" },
         },
+
+        /* Without this, every Solana wallet-standard hook — signing a
+           transfer or a swap included — throws the moment it is called. */
+        solana: { rpcs: solanaRpcs },
       }}
     >
       <PrivyBridge>{children}</PrivyBridge>

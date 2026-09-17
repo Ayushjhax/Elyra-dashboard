@@ -4,6 +4,7 @@
  *   npm run telegram:webhook            register APP_URL/api/telegram/webhook
  *   npm run telegram:webhook -- --info  show what Telegram currently has
  *   npm run telegram:webhook -- --delete
+ *   npm run telegram:webhook -- --force register without the reachability check
  *
  * Also registers the bot's command menu, so the typed "/" list matches what
  * the bot actually answers.
@@ -14,6 +15,21 @@
  * Run this whenever the tunnel URL changes. It is deliberately self-contained
  * — no `@/` imports — so `node --experimental-strip-types` can run it without
  * a bundler resolving path aliases.
+ *
+ * ── Why this checks the URL before registering ─────────────────────────
+ *
+ * A quick tunnel gets a NEW random hostname every time it starts, and dies
+ * with the process. Telegram keeps posting to whatever it was last told,
+ * forever, and reports the failure only inside `getWebhookInfo` — nowhere
+ * the operator is looking. So the bot goes quiet with no error anywhere in
+ * the app's own logs, because the requests never arrive to be logged.
+ *
+ * That is not hypothetical: the webhook was found registered to a
+ * `trycloudflare.com` host that no longer resolved, with Telegram logging
+ * "Wrong response from the webhook: 530" against it and the bot appearing
+ * simply broken. Registering is the one moment this script can catch that,
+ * so it refuses a URL nothing answers rather than writing it and reporting
+ * success.
  */
 
 /* Makes this a module, so the top-level awaits below are legal. */
@@ -76,6 +92,42 @@ if (mode === "info") {
   for (const [key, value] of Object.entries(info)) {
     console.log(`  ${key.padEnd(26)} ${JSON.stringify(value)}`);
   }
+
+  /* The fields above are the raw truth, and are still printed. This is the
+     reading of them, because the failure that matters is legible only if you
+     already know which field to look at — a bot that has gone silent shows
+     up here as a `last_error_message` from seconds ago, next to a `url` that
+     no longer exists, and neither line announces itself. */
+  const lastError =
+    typeof info.last_error_message === "string" ? info.last_error_message : null;
+  const lastErrorAt =
+    typeof info.last_error_date === "number" ? info.last_error_date : null;
+  const pending =
+    typeof info.pending_update_count === "number" ? info.pending_update_count : 0;
+
+  console.log("");
+  if (lastError !== null) {
+    const agoSeconds =
+      lastErrorAt === null ? null : Math.max(0, Math.round(Date.now() / 1000 - lastErrorAt));
+    const ago =
+      agoSeconds === null
+        ? "at an unknown time"
+        : agoSeconds < 120
+          ? `${agoSeconds}s ago`
+          : agoSeconds < 7200
+            ? `${Math.round(agoSeconds / 60)}m ago`
+            : `${Math.round(agoSeconds / 3600)}h ago`;
+
+    console.log(`  Telegram could not deliver ${ago}: ${lastError}`);
+    console.log(
+      "  Updates are not reaching the app. If that url is a tunnel, it is\n" +
+        "  down or has a new hostname — set APP_URL and re-run without --info.",
+    );
+  } else if (pending > 0) {
+    console.log(`  ${pending} update(s) queued and no delivery error — the app is slow, not unreachable.`);
+  } else {
+    console.log("  No delivery errors reported.");
+  }
   console.log("");
   process.exit(0);
 }
@@ -110,6 +162,77 @@ if (!url.startsWith("https://")) {
       "    For local development, expose the port with a tunnel and set\n" +
       "    APP_URL to the https URL it gives you.",
   );
+}
+
+/* ---------------------------------------------------------------------------
+   Can anything actually be reached at that URL?
+
+   Posted WITHOUT the secret header on purpose. A correctly deployed webhook
+   answers 401 to that — it is the one response that proves both "something
+   is listening" and "it is this app, with its secret configured". Every other
+   answer means something specific and fixable, so each is named rather than
+   collapsed into "could not reach it".
+--------------------------------------------------------------------------- */
+
+async function preflight(target: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(target, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    fail(
+      `Nothing answered at ${target}\n` +
+        `    (${reason})\n\n` +
+        "    Telegram would post every update into that void and report the\n" +
+        "    failure only in getWebhookInfo, so this refuses to register it.\n\n" +
+        "    If this is a tunnel URL, the tunnel is down or has been given a\n" +
+        "    new hostname — quick tunnels get a fresh one every start. Bring\n" +
+        "    it up, put the https URL it prints into APP_URL, and re-run.\n\n" +
+        "    Registering anyway: --force",
+    );
+  }
+
+  if (response.status === 401) return; /* The healthy answer. */
+
+  if (response.status === 404) {
+    fail(
+      `${target} answered 404.\n\n` +
+        "    Something is serving that host, but it is not this app — a\n" +
+        "    different deployment, or a marketing site on the same domain.\n" +
+        "    Point APP_URL at wherever my-app is actually served.\n\n" +
+        "    Registering anyway: --force",
+    );
+  }
+
+  if (response.status === 200) {
+    fail(
+      `${target} answered 200 to a request carrying no secret header.\n\n` +
+        "    The route acknowledges an unauthenticated update, which means\n" +
+        "    TELEGRAM_WEBHOOK_SECRET is not set where the app is running.\n" +
+        "    Anyone who finds the URL could drive the bot. Set it there and\n" +
+        "    re-run.\n\n" +
+        "    Registering anyway: --force",
+    );
+  }
+
+  fail(
+    `${target} answered ${response.status}, where 401 was expected.\n\n` +
+      "    A healthy webhook rejects an update with no secret header. This\n" +
+      "    is something else — a proxy, an error page, or the app failing to\n" +
+      "    boot.\n\n" +
+      "    Registering anyway: --force",
+  );
+}
+
+if (process.argv.includes("--force")) {
+  console.log("\n  --force · skipping the reachability check\n");
+} else {
+  await preflight(url);
 }
 
 await call("setWebhook", {

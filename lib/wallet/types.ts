@@ -120,3 +120,36 @@ export function activityStatus(
      landed, so treating an absent status as confirmed is the safe reading. */
   return "confirmed";
 }
+
+/**
+ * A human-readable reason for an on-chain failure, from `err`'s unspecified
+ * shape.
+ *
+ * The common case is `{ InstructionError: [index, reason] }`, which names
+ * which instruction failed and why — worth surfacing directly, since "the
+ * transaction confirmed with an error" is otherwise an unhelpful thing to
+ * tell someone about money that did not move. Anything else is stringified,
+ * bounded, rather than swallowed: an imperfect reason beats none.
+ */
+export function describeChainError(err: unknown): string {
+  if (err !== null && typeof err === "object" && "InstructionError" in err) {
+    const detail = (err as { InstructionError: unknown }).InstructionError;
+    if (Array.isArray(detail) && detail.length === 2) {
+      const [index, reason] = detail;
+      const reasonText =
+        typeof reason === "string"
+          ? reason
+          : reason !== null && typeof reason === "object"
+            ? Object.entries(reason as Record<string, unknown>)
+                .map(([key, value]) => `${key}(${JSON.stringify(value)})`)
+                .join(", ")
+            : JSON.stringify(reason);
+      return `Instruction ${String(index)} failed: ${reasonText}`;
+    }
+  }
+  try {
+    return JSON.stringify(err).slice(0, 300);
+  } catch {
+    return "The transaction failed on-chain.";
+  }
+}

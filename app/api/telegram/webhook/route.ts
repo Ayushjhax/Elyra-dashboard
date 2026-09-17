@@ -230,6 +230,7 @@ async function process(input: {
       sessionWallet: link.walletAddress,
       solanaAddress: link.solanaAddress,
       polymarketAddress: link.polymarketAddress,
+      telegramUsername: input.telegramUsername,
     }),
   );
 }

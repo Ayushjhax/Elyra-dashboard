@@ -147,8 +147,24 @@ type AddressLookup =
  *
  * Failures are deliberately not cached: a five-minute outage must not become
  * a five-minute lie about the user's wallet after Privy recovers.
+ *
+ * A NULL address is cached far more briefly than a real one, for a reason
+ * specific to this app's config: `PrivyClientProvider` sets
+ * `createOnLogin: "users-without-wallets"` for both chains, so every account
+ * ends up with a Solana embedded wallet — a null result here is therefore
+ * never a durable fact about the account, only a lookup that landed in the
+ * gap between sign-in and that wallet finishing provisioning. Caching it for
+ * the same five minutes as a real address was observed doing exactly the
+ * failure case above already guards against, from the other direction: the
+ * BROWSER sees the new wallet immediately, straight from Privy's client SDK,
+ * while this server-side cache kept insisting for up to five minutes that
+ * "This account has no Solana wallet" — true for a moment, and stale ever
+ * after. A short TTL on a null result costs at most a few extra Privy calls
+ * right after signup, which is cheap next to a wallet panel that contradicts
+ * itself.
  */
 const ADDRESS_TTL_MS = 5 * 60_000;
+const ADDRESS_UNRESOLVED_TTL_MS = 5_000;
 
 const addressCache = new Map<
   string,
@@ -191,7 +207,10 @@ async function fetchAddresses(privyDid: string): Promise<AddressLookup> {
       ._get(privyDid, { timeout: PRIVY_TIMEOUT_MS });
     const evm = firstAddress(user.linked_accounts, "ethereum");
     const solana = firstAddress(user.linked_accounts, "solana");
-    addressCache.set(privyDid, { evm, solana, expiresAt: Date.now() + ADDRESS_TTL_MS });
+    /* Either coming back null is provisional here — see the note on
+       `ADDRESS_TTL_MS` — so it is trusted for seconds, not minutes. */
+    const ttl = evm === null || solana === null ? ADDRESS_UNRESOLVED_TTL_MS : ADDRESS_TTL_MS;
+    addressCache.set(privyDid, { evm, solana, expiresAt: Date.now() + ttl });
     return { ok: true, evm, solana };
   } catch (error: unknown) {
     noteAddressLookupFailure(privyDid, error);

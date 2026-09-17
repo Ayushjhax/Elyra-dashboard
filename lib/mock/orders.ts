@@ -79,7 +79,7 @@ export const ORDERS: Order[] = [
     placedAt: ago(63 * 60),
     kind: "limit",
     side: "buy",
-    price: 174.2,
+    price: 100.2,
     size: 40,
     filled: 0,
     status: "open",

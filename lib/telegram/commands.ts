@@ -154,6 +154,10 @@ export interface CommandInput {
   solanaAddress?: string | null;
   /** The prediction-market account, resolved by the webhook from the profile. */
   polymarketAddress?: string | null;
+  /** For `linkChat`, when /link or /start carries a code from THIS chat while
+      it is already linked to some account — switching accounts, not merely
+      creating the first link, is a state `handleCommand` can reach too. */
+  telegramUsername?: string | null;
 }
 
 /** Splits "/report SOL" into its parts, ignoring an @botname suffix. */
@@ -362,6 +366,30 @@ export async function linkChat(options: {
   if (row.consumed_at !== null) return LINK_FAILED;
   if (Date.parse(row.expires_at) <= Date.now()) return LINK_FAILED;
 
+  /* Read before the upsert below overwrites it — the only way to tell a
+     SWITCH from a fresh link, which matters because a switch is the case
+     that used to go wrong silently. See the note on `onConflict` below. */
+  const { data: existing } = await db
+    .from("telegram_links")
+    .select("user_id")
+    .eq("telegram_user_id", options.telegramUserId)
+    .maybeSingle();
+
+  /* `onConflict: "telegram_user_id"` on purpose: this UPSERTS rather than
+     inserts, so redeeming a fresh code from a DIFFERENT account re-points an
+     already-linked chat instead of being refused. A code is issued only to
+     an authenticated session and is exactly as strong a proof of ownership
+     the second time as the first — a chat that already has a link is not a
+     reason to trust a valid code any less, and requiring a separate /unlink
+     first before a switch would work is one more step to fail to notice.
+
+     This is not a hypothetical: the dispatch that reaches this function used
+     to special-case "already linked" as a flat refusal ("already linked,
+     use /unlink") for /link, and as silently ignoring the code entirely for
+     /start — which is what the web app's own "Connect Telegram" deep link
+     sends. Clicking it from a second account while already linked to a
+     first therefore looked like nothing happened, and the bot went on
+     answering out of the FIRST account's data with no error anywhere. */
   const linked = await db.from("telegram_links").upsert(
     {
       user_id: row.user_id,
@@ -380,6 +408,10 @@ export async function linkChat(options: {
     .update({ consumed_at: new Date().toISOString() })
     .eq("code", code)
     .is("consumed_at", null);
+
+  if (existing !== null && existing !== undefined && existing.user_id !== row.user_id) {
+    return "<b>Switched.</b> This chat now answers for a different Elyra account. Ask me anything, or send /help.";
+  }
 
   return "<b>Linked.</b> Ask me anything, or send /help.";
 }
@@ -439,13 +471,41 @@ export async function handleCommand(input: CommandInput): Promise<CommandReply |
       return [HELP];
 
     case "start":
+      /* Carries a code when this chat opened the web app's own "Connect
+         Telegram" deep link — which happens on a SWITCH too: nothing stops
+         someone opening it from a second account while a first is still
+         linked here, and that used to be silently ignored, landing on this
+         same branch and answering [HELP] with no sign the code did nothing. */
+      if (/^[A-Za-z0-9]{6}$/.test(argument)) {
+        return [
+          await linkChat({
+            code: argument,
+            telegramUserId: input.telegramUserId,
+            telegramChatId: input.chatId,
+            telegramUsername: input.telegramUsername ?? null,
+          }),
+        ];
+      }
       return [HELP];
 
     case "unlink":
       return [await unlink(input.telegramUserId)];
 
     case "link":
-      return ["This chat is already linked. Use /unlink to disconnect it."];
+      if (argument.length === 0) {
+        return [
+          "This chat is already linked. Send /link with a fresh code to " +
+            "switch it to a different account, or /unlink to disconnect it.",
+        ];
+      }
+      return [
+        await linkChat({
+          code: argument,
+          telegramUserId: input.telegramUserId,
+          telegramChatId: input.chatId,
+          telegramUsername: input.telegramUsername ?? null,
+        }),
+      ];
 
     case "positions":
       return formatChunks(await positionsView(toolContext(input)));

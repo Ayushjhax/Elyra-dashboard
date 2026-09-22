@@ -1,4 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CompiledTransactionMessage } from "@solana/kit";
+import {
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+  parseSetComputeUnitLimitInstruction,
+  parseSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
+import {
+  COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+  SOL_TRANSFER_COMPUTE_UNITS,
+  TOKEN_TRANSFER_COMPUTE_UNITS,
+} from "@/lib/solana/fees";
 import { isValidRecipient, solToLamports } from "@/lib/solana/transfer";
 
 const SENDER = "AxqtG9SHDkZTLSWg81Sp7VqAzQpRqXtR9ziJ3VQAS8As";
@@ -94,6 +105,32 @@ describe("solToLamports", () => {
    instruction ahead of the transfer.
 --------------------------------------------------------------------------- */
 
+/**
+ * The first two instructions declare the budget: the unit limit this
+ * transfer was built for, then the fixed price per unit. Decoded through the
+ * program's own parsers rather than by eyeballing bytes, so a change to the
+ * instruction layout upstream fails here instead of on-chain.
+ */
+function expectComputeBudget(message: CompiledTransactionMessage, units: number) {
+  const [limit, price] = message.instructions;
+  const budget = message.staticAccounts.indexOf(COMPUTE_BUDGET_PROGRAM_ADDRESS);
+  expect(budget).toBeGreaterThanOrEqual(0);
+  expect(limit.programAddressIndex).toBe(budget);
+  expect(price.programAddressIndex).toBe(budget);
+
+  const parsedLimit = parseSetComputeUnitLimitInstruction({
+    programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
+    data: limit.data ?? new Uint8Array(),
+  });
+  expect(parsedLimit.data.units).toBe(units);
+
+  const parsedPrice = parseSetComputeUnitPriceInstruction({
+    programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
+    data: price.data ?? new Uint8Array(),
+  });
+  expect(parsedPrice.data.microLamports).toBe(BigInt(COMPUTE_UNIT_PRICE_MICROLAMPORTS));
+}
+
 describe("built transactions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -128,6 +165,12 @@ describe("built transactions", () => {
     expect(signatures).toHaveLength(1);
     expect(signatures[0]).toBeNull();
 
+    /* Compute budget first — limit, then price — and the transfer last. A
+       transfer with no declared budget carries no priority, which is what
+       "broadcast but never confirmed" looked like; see lib/solana/fees.ts. */
+    expect(message.instructions).toHaveLength(3);
+    expectComputeBudget(message, SOL_TRANSFER_COMPUTE_UNITS);
+
     expect(built.lastValidBlockHeight).toBe(350_000_000);
   });
 
@@ -150,10 +193,12 @@ describe("built transactions", () => {
     );
     const message = getCompiledTransactionMessageDecoder().decode(decoded.messageBytes);
 
-    /* Two instructions, in this order: create the destination account if it
-       is missing, then transfer. Reversing them fails for any recipient who
-       has never held the token. */
-    expect(message.instructions).toHaveLength(2);
+    /* Four instructions, in this order: the compute budget (limit, price),
+       then create the destination account if it is missing, then transfer.
+       Reversing the last two fails for any recipient who has never held the
+       token. */
+    expect(message.instructions).toHaveLength(4);
+    expectComputeBudget(message, TOKEN_TRANSFER_COMPUTE_UNITS);
 
     /* The mint rides along so the chain can verify decimals — this is what
        makes it `transfer_checked` rather than a raw `transfer`. */

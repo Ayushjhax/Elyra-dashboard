@@ -88,10 +88,10 @@ export function WalletBalances({ wallet }: { wallet: WalletDashboard }) {
         <div className="rounded-card border border-negative/40 bg-negative-bg px-2.5 py-2">
           <p className="type-label text-negative">Solana RPC not configured</p>
           <p className="type-label mt-0.5 text-text-muted">
-            Set <code>SOLANA_RPC_URL</code> to a Helius, QuickNode or Triton
-            endpoint. There is deliberately no public fallback: an endpoint
-            that rate-limits under a polling dashboard would show intermittent
-            empty balances with nothing to point at.
+            Set <code>SOLANA_RPC_URL</code> in the environment to a
+            dedicated RPC endpoint. There is deliberately no public fallback:
+            an endpoint that rate-limits under a polling dashboard would show
+            intermittent empty balances with nothing to point at.
           </p>
         </div>
       </section>

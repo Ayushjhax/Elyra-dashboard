@@ -199,14 +199,22 @@ export const publicEnv = {
    * "No RPC configuration found for chain solana:mainnet" with nothing
    * configured at all, paid or not.
    *
-   * Defaults to Solana's public mainnet endpoint, which is exactly the
-   * degraded-but-free tier the `SOLANA_RPC_URL` comment warns against for
-   * this app's OWN polling reads — a fine default here, because Privy calls
-   * it rarely (once per sign, not once per 30-second poll) and a slow public
-   * endpoint is a better default than a client crash. Set this to a
-   * browser-safe (public-tier) key of your own if the default's rate limit
-   * becomes a problem.
+   * Falls back to Solana's public mainnet endpoint, but only so that the
+   * hooks have SOMETHING to construct and the app does not crash on mount.
+   * That endpoint is not usable for the flow this variable exists for: it
+   * answers HTTP 403 to any request carrying a browser `Origin` header (plain
+   * curl gets 200 — this was checked, not assumed), so with this unset every
+   * transfer reaches Privy's confirm modal and dies there with "There was an
+   * error preparing your transaction" and a `SolanaError: HTTP error (403)`
+   * in the console. Treat it as required for signing. Point it at a
+   * browser-safe key of your own — a SEPARATE, domain-restricted key from the
+   * same provider, never the paid `SOLANA_RPC_URL` itself.
+   *
+   * `||` rather than `??`, matching `read()` above: a `NEXT_PUBLIC_SOLANA_RPC_URL=`
+   * left empty (which is how `.env.example` ships it) must fall back, not
+   * build an RPC client against "".
    */
   solanaRpcUrl:
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
+    "https://api.mainnet-beta.solana.com",
 } as const;

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { resolve } from "@/lib/personalized/session";
-import { getSignatureStatuses, resendTransaction } from "@/lib/solana/rpc";
+import {
+  getBlockHeight,
+  getSignatureStatuses,
+  resendTransaction,
+} from "@/lib/solana/rpc";
 import { activityStatus, describeChainError } from "@/lib/wallet/types";
 
 /* ---------------------------------------------------------------------------
@@ -19,6 +23,18 @@ import { activityStatus, describeChainError } from "@/lib/wallet/types";
    instead — on a schedule this app controls, stopping the moment a
    definitive answer arrives, rather than the node quietly retrying (or not)
    with no way for anyone to ask it what happened.
+
+   ── When "pending" becomes an answer ───────────────────────────────────
+
+   A signature the node has never seen is not, on its own, a failure: the
+   transaction may still be in flight. It IS a failure once the chain has
+   moved past the transaction's `lastValidBlockHeight`, because at that point
+   no validator will accept those bytes again — the blockhash inside them has
+   expired. When the client supplies that height (it comes back from
+   `/api/transfer/build`), an unseen signature past it is reported as
+   `expired`: definitive, nothing moved, safe to try again. Without it the
+   client falls back to its own wall-clock give-up, which can only ever say
+   "unknown".
 --------------------------------------------------------------------------- */
 
 export const runtime = "nodejs";
@@ -41,6 +57,12 @@ export async function POST(request: Request) {
   const signature = typeof body.signature === "string" ? body.signature : "";
   const signedTransaction =
     typeof body.signedTransaction === "string" ? body.signedTransaction : "";
+  const lastValidBlockHeight =
+    typeof body.lastValidBlockHeight === "number" &&
+    Number.isSafeInteger(body.lastValidBlockHeight) &&
+    body.lastValidBlockHeight > 0
+      ? body.lastValidBlockHeight
+      : null;
 
   if (signature.length === 0) {
     return NextResponse.json({ error: "A signature is required." }, { status: 400 });
@@ -65,6 +87,25 @@ export async function POST(request: Request) {
     const found = value[0] ?? null;
 
     if (found === null) {
+      /* Unseen. Pending — unless the bytes can no longer land at all. The
+         height is read AFTER the status, deliberately: the other order could
+         see a fresh height, then a status from a moment before the
+         transaction landed, and call a success "expired". */
+      if (lastValidBlockHeight !== null) {
+        const height = await getBlockHeight().catch(() => null);
+        if (height !== null && height > lastValidBlockHeight) {
+          return NextResponse.json(
+            {
+              status: "failed",
+              signature,
+              error:
+                "The network never confirmed this transfer and the transaction has now expired. " +
+                "Nothing was sent — try again.",
+            },
+            { status: 502 },
+          );
+        }
+      }
       return NextResponse.json({ status: "pending", signature });
     }
 

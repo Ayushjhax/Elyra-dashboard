@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSignTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { AlertTriangle, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -83,6 +83,20 @@ import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
       takes over watching — polling `/api/transfer/status`, which
       re-broadcasts the same signed bytes on each check, until the chain
       gives a definite answer or the blockhash's window closes.
+
+   4. THE WATCH RESTARTED EVERY TIME THE WALLET REFRESHED.
+
+      The polling effect listed the wallet hook's return value among its
+      dependencies, and that value is a new object every time the wallet
+      store emits — every thirty seconds, by design. Each emit tore the
+      effect down and started it again with a fresh clock, so the
+      ninety-second give-up could never arrive: a transfer that had quietly
+      expired spun forever as "waiting for the network". The effect now
+      depends only on the transfer being watched; the fetcher and the
+      refetch it calls are read through refs, and the clock belongs to the
+      signature. It also hands `/api/transfer/status` the transaction's
+      `lastValidBlockHeight`, so an expiry comes back as a definite answer
+      — "nothing was sent, try again" — rather than a wall-clock guess.
 --------------------------------------------------------------------------- */
 
 /** One thing that can be sent, as the wallet snapshot describes it. */
@@ -100,6 +114,8 @@ interface Sendable {
 
 interface BuiltTransfer {
   unsignedTransaction?: string;
+  /** The block height past which the unsigned bytes are dead. */
+  lastValidBlockHeight?: number;
   summary?: string;
   to?: string;
   amount?: string;
@@ -177,14 +193,39 @@ export function TransferDialog({
      to make, and it needs the original bytes to make it. */
   const [pendingSignature, setPendingSignature] = useState<string | null>(null);
   const [pendingSignedBytes, setPendingSignedBytes] = useState<string | null>(null);
+  /* From the build step, kept with the rest of the pending transfer so the
+     status route can tell "not yet" from "never" — see lesson 4 above. */
+  const [pendingLastValidBlockHeight, setPendingLastValidBlockHeight] = useState<
+    number | null
+  >(null);
   const [pendingTimedOut, setPendingTimedOut] = useState(false);
+
+  /* Read by the polling effect through refs rather than listed as its
+     dependencies — see lesson 4 above. `authedFetch` is rebuilt whenever
+     Privy's context changes and `wallet` whenever the store emits; neither
+     is a reason to restart a watch that is already under way. Synced in
+     effects, not during render, the same way `useWalletDashboard` hands its
+     store a fetcher. */
+  const authedFetchRef = useRef(authedFetch);
+  const refetchWalletRef = useRef(wallet.refetch);
+  useEffect(() => {
+    authedFetchRef.current = authedFetch;
+  }, [authedFetch]);
+  useEffect(() => {
+    refetchWalletRef.current = wallet.refetch;
+  }, [wallet.refetch]);
 
   const title = intent === "withdraw" ? "Withdraw" : "Transfer";
 
   /* Watches a pending broadcast until the chain gives a definite answer.
-     Polls every three seconds; gives up after ninety, which comfortably
-     covers a blockhash's ~60-90 second validity window without polling
-     forever over a transaction that has genuinely expired unlanded. */
+     Polls every three seconds. Normally the answer is `/api/transfer/status`
+     reporting the transaction expired — it knows the block height the bytes
+     died at — but a wall-clock give-up stays as the backstop, at ninety
+     seconds: comfortably past a blockhash's ~60-90 second validity, so it
+     only fires when the definitive check could not be made.
+
+     Keyed on the transfer alone. The clock starts when the signature is
+     handed over and is not reset by anything else re-rendering. */
   useEffect(() => {
     if (pendingSignature === null) return;
 
@@ -198,11 +239,12 @@ export function TransferDialog({
         if (cancelled) return;
 
         try {
-          const response = await authedFetch("/api/transfer/status", {
+          const response = await authedFetchRef.current("/api/transfer/status", {
             method: "POST",
             body: JSON.stringify({
               signature: pendingSignature,
               signedTransaction: pendingSignedBytes,
+              lastValidBlockHeight: pendingLastValidBlockHeight,
             }),
           });
           const payload = (await response.json()) as {
@@ -215,7 +257,7 @@ export function TransferDialog({
           if (payload.status === "confirmed") {
             setSignature(pendingSignature);
             setPendingSignature(null);
-            wallet.refetch();
+            refetchWalletRef.current();
             return;
           }
           if (payload.status === "failed") {
@@ -242,7 +284,7 @@ export function TransferDialog({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [pendingSignature, pendingSignedBytes, authedFetch, wallet]);
+  }, [pendingSignature, pendingSignedBytes, pendingLastValidBlockHeight]);
 
   /* What this wallet can send, native balance first. Built from the snapshot
      the rest of the page is already reading, so the dropdown and the balance
@@ -349,6 +391,7 @@ export function TransferDialog({
              than shown as either success or failure, because it is
              genuinely neither yet. */
           setPendingSignedBytes(encoded);
+          setPendingLastValidBlockHeight(built?.lastValidBlockHeight ?? null);
           setPendingSignature(payload.signature);
           return;
         }

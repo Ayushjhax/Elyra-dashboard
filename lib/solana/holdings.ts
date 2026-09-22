@@ -2,6 +2,7 @@ import "server-only";
 
 import { address, isAddress } from "@solana/kit";
 import { findAssociatedTokenPda } from "@solana-program/token";
+import { SOL_TRANSFER_FEE_LAMPORTS } from "@/lib/solana/fees";
 import {
   getBalance,
   getMinimumBalanceForRentExemption,
@@ -48,13 +49,17 @@ import {
 --------------------------------------------------------------------------- */
 
 /**
- * The fixed cost of every transaction this app builds: one signature, no
- * priority fee. Lamports-per-signature has been 5,000 since genesis and does
- * not depend on the amount being moved, so it is a constant here rather than
- * a round trip to `getFeeForMessage` — revisit if a priority fee or a
- * multi-signer flow is ever added.
+ * What a SOL transfer costs, and so what the native balance must hold back.
+ *
+ * Defined in lib/solana/fees.ts alongside the compute budget the transfer
+ * declares, because the two are one piece of arithmetic: the priority fee
+ * is `limit × price`, both fixed, and this figure is the base fee plus
+ * exactly that. A constant rather than a `getFeeForMessage` round trip for
+ * the same reason it always was — nothing in it depends on the amount.
+ * Re-exported so the callers and tests that read the fee from here still
+ * can.
  */
-export const BASE_TRANSACTION_FEE_LAMPORTS = 5_000;
+export { SOL_TRANSFER_FEE_LAMPORTS } from "@/lib/solana/fees";
 
 export interface Holding {
   /** The mint address, or "SOL" for the native balance. */
@@ -106,7 +111,7 @@ export async function readSolHolding(owner: string): Promise<Holding> {
     getMinimumBalanceForRentExemption(0),
   ]);
   const balance = BigInt(lamports);
-  const fee = BigInt(BASE_TRANSACTION_FEE_LAMPORTS);
+  const fee = BigInt(SOL_TRANSFER_FEE_LAMPORTS);
   const sendable = balance > fee ? balance - fee : ZERO;
 
   return {
@@ -230,7 +235,7 @@ async function readTokenHolding(
 export function leavesSendableBalance(holding: Holding, lamports: string): boolean {
   if (holding.rentExemptLamports === null) return true;
   const remainder =
-    BigInt(holding.amount) - BigInt(lamports) - BigInt(BASE_TRANSACTION_FEE_LAMPORTS);
+    BigInt(holding.amount) - BigInt(lamports) - BigInt(SOL_TRANSFER_FEE_LAMPORTS);
   return remainder <= ZERO || remainder >= BigInt(holding.rentExemptLamports);
 }
 

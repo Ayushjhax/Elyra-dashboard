@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { resolve } from "@/lib/personalized/session";
 import {
-  BASE_TRANSACTION_FEE_LAMPORTS,
   fromBaseUnits,
   leavesSendableBalance,
   readHolding,
+  SOL_TRANSFER_FEE_LAMPORTS,
 } from "@/lib/solana/holdings";
 import {
   buildSolTransfer,
@@ -254,6 +254,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       unsignedTransaction: built.unsignedTransaction,
+      /* The block height past which these bytes are dead. The client hands
+         it back to `/api/transfer/status`, which is how "still pending"
+         becomes "expired" rather than a spinner with no end. */
+      lastValidBlockHeight: built.lastValidBlockHeight,
       summary: `Send ${sending} ${ticker}`,
       to,
       amount: sending,
@@ -263,7 +267,7 @@ export async function POST(request: Request) {
          is the part of the balance that does not reach the recipient. */
       networkFee:
         mint === "SOL" && max
-          ? fromBaseUnits(String(BASE_TRANSACTION_FEE_LAMPORTS), 9)
+          ? fromBaseUnits(String(SOL_TRANSFER_FEE_LAMPORTS), 9)
           : null,
     });
   } catch (error: unknown) {

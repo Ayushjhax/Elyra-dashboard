@@ -26,6 +26,10 @@ import { fetchJson, UpstreamError } from "@/lib/market/http";
    any real load is worse than an error that says what is wrong: the caller
    would see intermittent empty balances and have nothing to point at. Absent
    config raises `RpcUnconfiguredError`, which the route reports as such.
+
+   Which provider serves that URL is a deployment choice and is named
+   nowhere in this codebase — only in the environment. Nothing here assumes
+   a vendor's extensions: every method called is standard JSON-RPC.
 --------------------------------------------------------------------------- */
 
 /** SPL Token. The original, and what almost every balance still lives in. */
@@ -45,7 +49,7 @@ export class RpcUnconfiguredError extends Error {
   constructor() {
     super(
       "SOLANA_RPC_URL is not set, so on-chain balances are unavailable. " +
-        "Set it to a Helius, QuickNode or Triton endpoint.",
+        "Set it in the environment to a dedicated RPC endpoint.",
     );
     this.name = "RpcUnconfiguredError";
   }
@@ -280,6 +284,19 @@ export function getSignatureStatuses(
     "getSignatureStatuses",
     [signatures, { searchTransactionHistory: true }],
   );
+}
+
+/**
+ * The current block height, at `confirmed`.
+ *
+ * The other half of a blockhash's lifetime: a transaction is dead once this
+ * passes its `lastValidBlockHeight`. Read at `confirmed` — the same level
+ * `getSignatureStatuses` is answered at — so "the height has passed AND the
+ * signature is not there" is one consistent view rather than two nodes'
+ * worth of skew.
+ */
+export function getBlockHeight(): Promise<number> {
+  return rpcCall<number>("getBlockHeight", [{ commitment: "confirmed" }]);
 }
 
 /**

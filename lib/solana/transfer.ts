@@ -12,6 +12,10 @@ import {
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
 } from "@solana/kit";
+import {
+  getSetComputeUnitLimitInstruction,
+  getSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
 import { getTransferSolInstruction } from "@solana-program/system";
 import {
   findAssociatedTokenPda,
@@ -19,6 +23,11 @@ import {
   getTransferCheckedInstruction,
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
+import {
+  COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+  SOL_TRANSFER_COMPUTE_UNITS,
+  TOKEN_TRANSFER_COMPUTE_UNITS,
+} from "@/lib/solana/fees";
 import { getLatestBlockhash } from "@/lib/solana/rpc";
 
 /* ---------------------------------------------------------------------------
@@ -63,6 +72,17 @@ import { getLatestBlockhash } from "@/lib/solana/rpc";
    these is in the operator's browser. A noop signer marks the account as a
    signer in the compiled message and leaves the signature slot empty, which
    is precisely the shape a wallet expects to be handed.
+
+   4. Every transfer DECLARES A COMPUTE BUDGET and pays a priority fee.
+
+      Two instructions ahead of the transfer itself: the compute-unit limit
+      and the price per unit. Without them a transaction carries no
+      priority at all, and validators — which rank by fee per unit — take
+      it last and drop it first. That is what "broadcast, but never
+      confirmed" looked like from the dialog. The figures are fixed in
+      lib/solana/fees.ts, where the reason they cannot be estimated live is
+      explained: `readSolHolding` reserves exactly this fee, and a max send
+      has to land on exactly zero.
 --------------------------------------------------------------------------- */
 
 /** Native SOL is nine decimals, always. */
@@ -71,6 +91,22 @@ const SOL_DECIMALS = 9;
 /* `BigInt(...)` rather than a `0n` literal: the project targets below ES2020,
    where the literal syntax is a compile error but the constructor is not. */
 const ZERO = BigInt(0);
+
+/**
+ * The compute budget, as the two instructions that declare it.
+ *
+ * First in the instruction list, by convention rather than requirement —
+ * the runtime finds them anywhere, but every explorer and wallet renders
+ * them at the top, and the transfer tests pin the order.
+ */
+function computeBudgetInstructions(units: number) {
+  return [
+    getSetComputeUnitLimitInstruction({ units }),
+    getSetComputeUnitPriceInstruction({
+      microLamports: BigInt(COMPUTE_UNIT_PRICE_MICROLAMPORTS),
+    }),
+  ];
+}
 
 /**
  * Whether a string is a usable Solana address.
@@ -123,7 +159,11 @@ export async function buildSolTransfer(input: {
         },
         draft,
       ),
-    (draft) => appendTransactionMessageInstructions([instruction], draft),
+    (draft) =>
+      appendTransactionMessageInstructions(
+        [...computeBudgetInstructions(SOL_TRANSFER_COMPUTE_UNITS), instruction],
+        draft,
+      ),
   );
 
   return {
@@ -212,7 +252,15 @@ export async function buildTokenTransfer(input: {
         },
         draft,
       ),
-    (draft) => appendTransactionMessageInstructions([ensureDestination, transfer], draft),
+    (draft) =>
+      appendTransactionMessageInstructions(
+        [
+          ...computeBudgetInstructions(TOKEN_TRANSFER_COMPUTE_UNITS),
+          ensureDestination,
+          transfer,
+        ],
+        draft,
+      ),
   );
 
   return {

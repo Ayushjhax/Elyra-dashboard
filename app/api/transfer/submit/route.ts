@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { resolve } from "@/lib/personalized/session";
-import { getSignatureStatuses, sendTransaction } from "@/lib/solana/rpc";
+import {
+  getSignatureStatuses,
+  resendTransaction,
+  sendTransaction,
+} from "@/lib/solana/rpc";
 import { activityStatus, describeChainError } from "@/lib/wallet/types";
 
 /* ---------------------------------------------------------------------------
@@ -102,8 +106,18 @@ export async function POST(request: Request) {
   /* Broadcast succeeded; now find out whether it actually landed, rather
      than reporting the broadcast itself as the outcome. */
   const deadline = Date.now() + SERVER_POLL_BUDGET_MS;
+  let attempts = 0;
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
+
+    /* Every check after the first is preceded by a re-broadcast of the same
+       bytes — the retry `maxRetries: 0` reserved for this app to make, and
+       the same thing `/api/transfer/status` does once the wait moves to the
+       client. A single forward that missed its leader otherwise sits idle
+       for this whole window before anyone tries again. Harmless if it has
+       already landed: the network de-duplicates by signature. */
+    if (attempts > 0) await resendTransaction(signedTransaction).catch(() => {});
+    attempts += 1;
 
     const outcome = await getSignatureStatuses([signature]).catch(() => null);
     const found = outcome?.value[0] ?? null;

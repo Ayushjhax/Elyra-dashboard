@@ -13,7 +13,7 @@ vi.mock("@/lib/solana/rpc", () => ({
 }));
 
 const {
-  BASE_TRANSACTION_FEE_LAMPORTS,
+  SOL_TRANSFER_FEE_LAMPORTS,
   fromBaseUnits,
   leavesSendableBalance,
   readSolHolding,
@@ -94,7 +94,7 @@ describe("readSolHolding", () => {
 
     const holding = await readSolHolding(OWNER);
     expect(holding.amount).toBe("1000000000");
-    expect(holding.sendable).toBe(String(1_000_000_000 - BASE_TRANSACTION_FEE_LAMPORTS));
+    expect(holding.sendable).toBe(String(1_000_000_000 - SOL_TRANSFER_FEE_LAMPORTS));
     expect(holding.decimals).toBe(9);
     expect(holding.tokenProgram).toBeNull();
     expect(holding.rentExemptLamports).toBe(String(RENT_EXEMPT_LAMPORTS));
@@ -132,7 +132,7 @@ describe("leavesSendableBalance", () => {
     mint: "SOL",
     decimals: 9,
     amount,
-    sendable: (BigInt(amount) - BigInt(BASE_TRANSACTION_FEE_LAMPORTS)).toString(),
+    sendable: (BigInt(amount) - BigInt(SOL_TRANSFER_FEE_LAMPORTS)).toString(),
     tokenProgram: null,
     rentExemptLamports,
   });

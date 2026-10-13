@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { UsageLimitError, ensureConversation, runAgent } from "@/lib/agent";
+import { UsageLimitError, ensureConversation, runAgent, type AgentEvent } from "@/lib/agent";
 import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/session";
 
 /* ---------------------------------------------------------------------------
@@ -12,7 +12,18 @@ import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/sessi
    The request body carries a message and nothing else that matters. `userId`
    comes from the verified Privy token; a userId in the body is ignored, and
    there is no code path that would read one.
+
+   With `stream: true` the answer comes back as newline-delimited JSON while
+   it is written: `text` deltas, `tools` when the model goes to read
+   something, then one `done` with the finished reply and its sources (or
+   one `error`). Everything that can be refused — no session, no database,
+   a bad message — is refused before the stream opens, with a status code.
 --------------------------------------------------------------------------- */
+
+export type ChatStreamEvent =
+  | AgentEvent
+  | { type: "done"; reply: string; runId: string; sources: string[] }
+  | { type: "error"; message: string };
 
 /* node:crypto and the exchange signing path need the Node runtime. */
 export const runtime = "nodejs";
@@ -42,6 +53,8 @@ export async function POST(request: Request) {
     typeof body === "object" && body !== null && "message" in body
       ? String((body as { message: unknown }).message ?? "")
       : "";
+  const stream =
+    typeof body === "object" && body !== null && (body as { stream?: unknown }).stream === true;
 
   const trimmed = message.trim();
   if (trimmed.length === 0) {
@@ -54,13 +67,64 @@ export async function POST(request: Request) {
     );
   }
 
+  if (stream) {
+    const userId = user.userId;
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (event: ChatStreamEvent) => {
+          try {
+            controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+          } catch {
+            /* The reader went away; the run still finishes and is saved. */
+          }
+        };
+        try {
+          const conversationId = await ensureConversation({ userId, surface: "web" });
+          const { reply, runId, sources } = await runAgent({
+            userId,
+            conversationId,
+            message: trimmed,
+            surface: "web",
+            sessionWallet: user.walletAddress,
+            solanaAddress: user.solanaAddress,
+            onEvent: send,
+          });
+          send({ type: "done", reply, runId, sources });
+        } catch (error) {
+          if (error instanceof UsageLimitError) {
+            send({ type: "error", message: error.message });
+          } else {
+            console.error("[agent/chat]", error);
+            send({ type: "error", message: "The agent could not complete that request." });
+          }
+        } finally {
+          try {
+            controller.close();
+          } catch {
+            /* Already closed by a disconnect. */
+          }
+        }
+      },
+    });
+
+    return new Response(body, {
+      headers: {
+        "content-type": "application/x-ndjson; charset=utf-8",
+        "cache-control": "no-store",
+        /* Proxies that buffer would hold every delta until the end. */
+        "x-accel-buffering": "no",
+      },
+    });
+  }
+
   try {
     const conversationId = await ensureConversation({
       userId: user.userId,
       surface: "web",
     });
 
-    const { reply, runId } = await runAgent({
+    const { reply, runId, sources } = await runAgent({
       userId: user.userId,
       conversationId,
       message: trimmed,
@@ -69,7 +133,7 @@ export async function POST(request: Request) {
       solanaAddress: user.solanaAddress,
     });
 
-    return NextResponse.json({ reply, runId, conversationId });
+    return NextResponse.json({ reply, runId, conversationId, sources });
   } catch (error) {
     if (error instanceof UsageLimitError) {
       return NextResponse.json({ error: error.message }, { status: 429 });

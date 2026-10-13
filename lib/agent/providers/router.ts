@@ -22,6 +22,11 @@ import { optional } from "@/lib/env";
    - A refusal is not retried. The model declined on policy grounds; a second
      provider will decline too, and quietly shopping for a provider that says
      yes is not something this should do on its own.
+
+   With `onText`, the primary is streamed. A third rule follows from that:
+   once any text has reached the caller, a failure is not retried either.
+   The person has already read the start of one answer, and a second
+   provider's answer spliced after it would be two half-answers.
 --------------------------------------------------------------------------- */
 
 export interface RoutedResult extends ProviderResult {
@@ -109,10 +114,21 @@ export async function route(
   request: ProviderRequest,
   /** Injectable for tests; production always uses the real pair. */
   providers?: { primary: Provider; fallback: Provider | null },
+  /** Streams the primary's text as it is generated, where it can stream. */
+  onText?: (delta: string) => void,
 ): Promise<RoutedResult> {
   const primary = providers?.primary ?? anthropicProvider();
   const fallback =
     providers === undefined ? fallbackProvider() : providers.fallback;
+
+  let emitted = false;
+  const callPrimary = (): Promise<ProviderResult> =>
+    onText !== undefined && primary.stream !== undefined
+      ? primary.stream(request, (delta) => {
+          emitted = true;
+          onText(delta);
+        })
+      : primary.complete(request);
 
   const now = Date.now();
   const state = breakerState(now);
@@ -147,7 +163,7 @@ export async function route(
   }
 
   try {
-    const result = await primary.complete(request);
+    const result = await callPrimary();
     recordSuccess();
     return {
       ...result,
@@ -170,7 +186,7 @@ export async function route(
       breaker.trialInFlight = false;
     }
 
-    if (!providerError.shouldFallBack || fallback === null) throw providerError;
+    if (!providerError.shouldFallBack || fallback === null || emitted) throw providerError;
 
     const result = await fallback.complete(request);
     return {

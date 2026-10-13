@@ -3,6 +3,7 @@ import "server-only";
 import type { SystemPrompt } from "@/lib/agent/providers/types";
 import type { ToolContext } from "@/lib/agent/tools/registry";
 import { getPortfolio, summarise } from "@/lib/exchange/portfolio";
+import { formatPriceUsd } from "@/lib/format";
 import { serviceClient } from "@/lib/supabase/server";
 
 /* ---------------------------------------------------------------------------
@@ -166,7 +167,7 @@ export async function buildUserContext(
             : ` · PnL ${currency(position.unrealizedPnl)}`;
         lines.push(
           `- ${position.label} ${position.side} ${position.size} @ ` +
-            `${position.markPrice} (${currency(position.notional)})${pnl}`,
+            `${formatPriceUsd(position.markPrice)} (${currency(position.notional)})${pnl}`,
         );
       }
       if (portfolio.value.positions.length > 10) {

@@ -13,6 +13,7 @@ import {
   toolDefinitions,
   type ToolContext,
 } from "@/lib/agent/tools/registry";
+import { sourcesFrom, toolLabel } from "@/lib/agent/sources";
 import { maxRunsPerDay } from "@/lib/env";
 import { predictionAccount } from "@/lib/prediction/account";
 import { serviceClient } from "@/lib/supabase/server";
@@ -53,11 +54,31 @@ export interface RunAgentInput {
   sessionWallet?: string | null;
   /** The Solana address, for the wallet and DeFi reads. */
   solanaAddress?: string | null;
+  /**
+   * Progress, for a surface that can show it as it happens. The web streams
+   * these; Telegram passes nothing and gets the finished reply as before.
+   */
+  onEvent?: (event: AgentEvent) => void;
 }
+
+/**
+ * What a run reports while it works.
+ *
+ * `text` is the model's words as it writes them. `tools` means the turn so
+ * far was the model deciding what to look up, not its answer: the surface
+ * should set that text aside and show what is being read. The finished
+ * reply — which may differ, on a timeout or a failure — comes back from
+ * `runAgent` itself and is the one to keep.
+ */
+export type AgentEvent =
+  | { type: "text"; delta: string }
+  | { type: "tools"; labels: string[] };
 
 export interface RunAgentResult {
   reply: string;
   runId: string;
+  /** Where the figures in the reply came from, read from the tool results. */
+  sources: string[];
 }
 
 export class UsageLimitError extends Error {
@@ -232,6 +253,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
   const tools = toolDefinitions();
 
+  const emit = input.onEvent;
+  const toolResults: Array<{ name: string; result: unknown }> = [];
+
   let iterations = 0;
   let ranLong = false;
   let last: RoutedResult | null = null;
@@ -248,14 +272,18 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
       iterations += 1;
 
-      const result = await route({
-        system,
-        messages,
-        tools,
-        maxTokens: DEFAULT_MAX_TOKENS,
-        /* Never let one provider call outlive the run's own budget. */
-        timeoutMs: Math.min(remaining, 30_000),
-      });
+      const result = await route(
+        {
+          system,
+          messages,
+          tools,
+          maxTokens: DEFAULT_MAX_TOKENS,
+          /* Never let one provider call outlive the run's own budget. */
+          timeoutMs: Math.min(remaining, 30_000),
+        },
+        undefined,
+        emit === undefined ? undefined : (delta) => emit({ type: "text", delta }),
+      );
       last = result;
 
       if (result.refused) {
@@ -267,13 +295,20 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
       if (result.toolCalls.length === 0) {
         replyText = result.text;
+        /* A fallback provider answers whole; the surface still gets it. */
+        if (!result.streamed && result.text) emit?.({ type: "text", delta: result.text });
         break;
       }
+
+      emit?.({ type: "tools", labels: [...new Set(result.toolCalls.map((call) => toolLabel(call.name)))] });
 
       messages.push({
         role: "assistant",
         content: result.text ?? "",
         toolCalls: result.toolCalls,
+        ...(result.rawContent !== undefined
+          ? { providerContent: { provider: result.provider, blocks: result.rawContent } }
+          : {}),
       });
 
       const { messages: toolMessages, results } = await runTools(
@@ -281,6 +316,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         context,
       );
       messages.push(...toolMessages);
+      toolResults.push(...(results as Array<{ name: string; result: unknown }>));
 
       await persistMessage({
         conversationId: input.conversationId,
@@ -366,7 +402,12 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     .eq("id", input.conversationId)
     .eq("user_id", input.userId);
 
-  return { reply, runId: run.data?.id ?? "" };
+  return {
+    reply,
+    runId: run.data?.id ?? "",
+    /* No sources on a failed run: the reply says nothing was answered. */
+    sources: failure === null ? sourcesFrom(toolResults) : [],
+  };
 }
 
 /* ------------------------------------------------------------------------- */

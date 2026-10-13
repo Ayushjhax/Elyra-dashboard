@@ -66,37 +66,52 @@ async function nonCryptoChanges(assets: PythAsset[]): Promise<Map<number, number
   return byId;
 }
 
+/** One feed's 24h window. Only the change is known for non-crypto. */
+export interface DayStats {
+  change24hPct: number;
+  high24h: number | null;
+  low24h: number | null;
+  /** Quote currency, as the exchange reports it. */
+  volume24h: number | null;
+}
+
 /**
- * 24h change per feed id. Never throws: a source outage costs the change
- * column, not the prices beside it.
+ * 24h change per feed id — plus, for crypto, the range and volume from the
+ * same exchange ticker, which used to be fetched and then dropped. Never
+ * throws: a source outage costs these columns, not the prices beside them.
  */
-export async function changesForAssets(
+export async function dayStatsForAssets(
   assets: PythAsset[],
-): Promise<Map<number, number>> {
+): Promise<Map<number, DayStats>> {
   const crypto = assets.filter(isCrypto);
   const rest = assets.filter((asset) => !isCrypto(asset));
 
-  const cryptoChanges = (async () => {
-    if (crypto.length === 0) return new Map<number, number>();
+  const cryptoChanges = (async (): Promise<Map<number, DayStats>> => {
+    if (crypto.length === 0) return new Map<number, DayStats>();
     const symbols = [...new Set(crypto.map((asset) => asset.symbol))].sort();
 
     try {
       const result = await cached(`change24h:${symbols.join(",")}`, TTL.price, () =>
         router.snapshots(symbols),
       );
-      const bySymbol = new Map<string, number>();
-      for (const row of result.value) bySymbol.set(row.symbol, row.change24hPct);
+      const bySymbol = new Map(result.value.map((row) => [row.symbol, row]));
 
-      const byId = new Map<number, number>();
+      const byId = new Map<number, DayStats>();
       for (const asset of crypto) {
-        const change = bySymbol.get(asset.symbol);
-        if (change !== undefined) byId.set(asset.id, change);
+        const row = bySymbol.get(asset.symbol);
+        if (row === undefined) continue;
+        byId.set(asset.id, {
+          change24hPct: row.change24hPct,
+          high24h: positive(row.high24h),
+          low24h: positive(row.low24h),
+          volume24h: positive(row.volume24h),
+        });
       }
       return byId;
     } catch {
       /* Every exchange refused. Prices still render; the change column shows
          a dash, which is accurate — this app does not know the figure. */
-      return new Map<number, number>();
+      return new Map<number, DayStats>();
     }
   })();
 
@@ -107,5 +122,14 @@ export async function changesForAssets(
     nonCryptoChanges(rest).catch(() => new Map<number, number>()),
   ]);
 
-  return new Map([...fromExchanges, ...fromYahoo]);
+  const out = new Map<number, DayStats>(fromExchanges);
+  for (const [id, change24hPct] of fromYahoo) {
+    out.set(id, { change24hPct, high24h: null, low24h: null, volume24h: null });
+  }
+  return out;
+}
+
+/** A source that has no figure reports 0; that is "unknown", not zero. */
+function positive(value: number): number | null {
+  return Number.isFinite(value) && value > 0 ? value : null;
 }

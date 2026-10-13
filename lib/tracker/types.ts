@@ -24,7 +24,10 @@ export type TrackerSignal = z.infer<typeof trackerSignalSchema>;
    `.passthrough()` because a caller that does not read it renders an empty
    feed as "nothing has fired yet", which is a claim about the market made on
    the strength of a connection failure. */
-export const trackerSignalListSchema = z.object({ signals: z.array(trackerSignalSchema), count: z.number(), disclaimer: z.string(), generatedAt: z.string(), error: z.string().nullish() }).passthrough();
+/* `origin` says who produced the list: the tracker service, or Elyra's own
+   read of Hyperliquid when the service is not running. `notice` explains a
+   fallback in a sentence the panel can show as it is. */
+export const trackerSignalListSchema = z.object({ signals: z.array(trackerSignalSchema), count: z.number(), disclaimer: z.string(), generatedAt: z.string(), error: z.string().nullish(), origin: z.enum(["tracker", "hyperliquid"]).nullish(), notice: z.string().nullish() }).passthrough();
 export type TrackerSignalList = z.infer<typeof trackerSignalListSchema>;
 
 export function parseTrackerSignalList(value: unknown): TrackerSignalList {

@@ -50,7 +50,6 @@ export default function PersonalizedPage() {
         <div className="min-h-0 flex-1" />
       ) : !context.signedIn ? (
         <EmptyState
-          mark="agent"
           title="Sign in to personalize"
           body="Elyra grounds every answer in your own balances, positions and preferences. None of that is readable until you connect a wallet."
           action={

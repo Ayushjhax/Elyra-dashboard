@@ -118,7 +118,7 @@ const EXECUTABLE: ReadonlySet<PreparedActionKind> = new Set(["swap"]);
  * nothing, and an engineer reading it learns less.
  */
 const NO_EXECUTOR: Record<PreparedActionKind, string> = {
-  swap: "Elyra has no swap route or transaction signing path yet, so this cannot be executed.",
+  swap: "Review it in Elyra on the web: the swap is quoted by Jupiter and signed in your own wallet there.",
   transfer:
     "A transfer needs a destination address, which this cannot carry. Start it " +
     "from Transfer in Elyra and the send will be built and signed there.",
@@ -260,6 +260,11 @@ export function prepareAction(
       reason: executable ? null : NO_EXECUTOR[proposal.kind],
       warnings,
       preparedAt,
+      params: {
+        symbol,
+        ...(proposal.kind === "swap" ? { toSymbol } : {}),
+        quantity,
+      },
     };
   }
 

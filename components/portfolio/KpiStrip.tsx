@@ -48,7 +48,7 @@ function Metric({
 
 export function KpiStripSkeleton() {
   return (
-    <div className="rim rounded-card border border-border-subtle bg-surface-panel">
+    <div className="rounded-card border border-border-subtle bg-surface-panel">
       <div className="flex flex-col gap-1.5 border-b border-border-subtle px-3 py-3">
         <Skeleton className="h-2.5 w-28" />
         <Skeleton className="h-6 w-40" />
@@ -73,18 +73,8 @@ export function KpiStrip({ snapshot }: { snapshot: PortfolioSnapshot }) {
   return (
     <section
       aria-label="Portfolio summary"
-      className="rim relative isolate overflow-hidden rounded-card border border-border-subtle bg-surface-panel"
+      className="overflow-hidden rounded-card border border-border-subtle bg-surface-panel"
     >
-      {/* §7: a faint lime bloom behind the total, as ambient depth only. It
-          sits on its own layer behind the text and lightens the surface by a
-          few percent at its core — far below where --text-muted stops
-          clearing 4.5:1 on this panel. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-16 left-0 -z-10 h-40 w-64 rounded-full opacity-[0.07] blur-3xl"
-        style={{ background: "var(--accent)" }}
-      />
-
       <div className="flex flex-col gap-0.5 border-b border-border-subtle px-3 py-3">
         <span className="type-label flex items-center gap-1 uppercase tracking-[0.08em] text-text-muted">
           Net portfolio value

@@ -842,7 +842,7 @@ export function ConnectionsPanel() {
   const auth = useElyraAuth();
 
   return (
-    <Panel label="Agent" glow="agent" className="min-h-0 flex-1">
+    <Panel label="Agent" className="min-h-0 flex-1">
       <PanelHeader>
         <Eyebrow>Agent</Eyebrow>
         <RouteClose />

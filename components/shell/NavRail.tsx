@@ -1,49 +1,44 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot,
-  LogIn,
+  ChevronsLeft,
+  ChevronsRight,
   Coins,
+  FileSearch,
   Gift,
   LayoutDashboard,
-  PanelLeft,
-  PanelRight,
+  LogIn,
   PieChart,
+  RotateCcw,
+  Settings,
   Sparkles,
   Wallet,
-  FileSearch,
   type LucideIcon,
 } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Popover } from "@/components/ui/Popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-type NavItem = {
+export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
 };
 
 /**
- * The routes, in the order the operator asked for them.
- *
- * Home is first and stands apart from the rest — see `NavRail` — so the ones
- * below it are what share the scrolling list.
+ * Every destination in the terminal, in the order the operator asked for
+ * them. Home is the workspace itself; every other route opens beside the
+ * chart or, for the full-bleed ones, in the workspace's place.
  */
-export const HOME_ITEM: NavItem = {
-  href: "/",
-  label: "Home",
-  icon: LayoutDashboard,
-};
-
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
+  { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/dashboard", label: "Dashboard", icon: Wallet },
   { href: "/portfolio", label: "Portfolio", icon: PieChart },
   { href: "/personalized", label: "Personalized", icon: Sparkles },
@@ -53,148 +48,30 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/referrals", label: "Referrals", icon: Gift },
 ];
 
-/** Home included, for the sheet, where there is no palette to sit between. */
-export const ALL_NAV_ITEMS: NavItem[] = [HOME_ITEM, ...NAV_ITEMS];
-
-function truncateAddress(address: string) {
-  return `${address.slice(0, 4)}…${address.slice(-4)}`;
-}
-
-/**
- * Identity, from the Privy session.
- *
- * Read-only: the address is shown and used to read Hyperliquid, never to
- * sign anything. When Privy is not configured the rail simply says so — the
- * dashboard runs on mock data and does not need a session.
- */
-function Identity() {
-  const auth = useElyraAuth();
-
-  if (!auth.available) {
-    return (
-      <div
-        className={cn(
-          "flex flex-col items-center gap-1 rounded-card border border-border-subtle",
-          "bg-surface-raised px-2.5 py-2 mid:items-start",
-          "group-data-[icons=true]/rail:items-center",
-        )}
-      >
-        <span className="type-label text-text-muted group-data-[icons=true]/rail:hidden">
-          No auth configured
-        </span>
-        <Wallet
-          size={16}
-          strokeWidth={1.5}
-          aria-label="No auth configured"
-          className="hidden text-text-muted group-data-[icons=true]/rail:block"
-        />
-      </div>
-    );
-  }
-
-  if (!auth.ready) {
-    return (
-      <div
-        className={cn(
-          "flex flex-col items-center gap-1 rounded-card border border-border-subtle",
-          "bg-surface-raised px-2.5 py-2 mid:items-start",
-          "group-data-[icons=true]/rail:items-center",
-        )}
-      >
-        <span className="type-label text-text-muted">…</span>
-      </div>
-    );
-  }
-
-  if (!auth.authenticated) {
-    return (
-      <button
-        type="button"
-        onClick={auth.login}
-        className={cn(
-          "flex w-full min-w-0 flex-col items-center gap-1 rounded-card border border-border-strong",
-          "bg-surface-raised px-2.5 py-2 mid:items-start",
-          "group-data-[icons=true]/rail:items-center",
-          "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
-        )}
-      >
-        <span className="type-label text-text-primary group-data-[icons=true]/rail:hidden">
-          Sign in
-        </span>
-        <LogIn
-          size={16}
-          strokeWidth={1.5}
-          aria-hidden
-          className="hidden text-text-primary group-data-[icons=true]/rail:block"
-        />
-        <span className="sr-only hidden group-data-[icons=true]/rail:inline">Sign in</span>
-      </button>
-    );
-  }
-
-  /* Solana first: it is this app's chain, and on most accounts the EVM
-     address is an embedded wallet the user never chose and would not
-     recognise. The EVM one is still there for Hyperliquid. */
-  const address = auth.solanaAddress ?? auth.walletAddress;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={() => void auth.logout()}
-          aria-label={address === null ? "Sign out" : `Wallet ${address}`}
-          className={cn(
-            "flex w-full min-w-0 flex-col items-center gap-1 rounded-card border border-border-subtle",
-            "bg-surface-raised px-2.5 py-2 mid:items-start",
-            "group-data-[icons=true]/rail:items-center",
-            "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
-          )}
-        >
-          <span className="type-mono-addr max-w-full truncate text-text-secondary group-data-[icons=true]/rail:hidden">
-            {address === null ? "Signed in" : truncateAddress(address)}
-          </span>
-          <Wallet
-            size={16}
-            strokeWidth={1.5}
-            aria-hidden
-            className="hidden text-text-secondary group-data-[icons=true]/rail:block"
-          />
-          <span className="type-label hidden text-text-muted mid:inline group-data-[icons=true]/rail:hidden">
-            Sign out
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right">
-        <span className="type-mono-addr block break-all">
-          {address ?? "No wallet on this account"}
-        </span>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+const ITEM = cn(
+  "relative flex h-11 w-full min-w-0 items-center gap-3 rounded-card px-[13px]",
+  "transition-colors duration-[var(--dur-fast)] ease-brand",
+);
 
 /**
  * A run of routes. `showLabels` forces labels on in the sheet, where there is
- * room for them regardless of the viewport.
- *
- * `items` defaults to the five that sit below the palette; the rail draws Home
- * as a list of its own above it, and the sheet passes all six.
+ * room for them regardless of the rail's width.
  */
 export function NavList({
-  items = NAV_ITEMS,
   showLabels = false,
+  icons = false,
   onNavigate,
 }: {
-  items?: NavItem[];
   showLabels?: boolean;
+  /** The rail is showing icons only, so each one needs a tooltip. */
+  icons?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
 
   return (
-    <ul className="list-none space-y-1">
-      {items.map(({ href, label, icon: Icon }) => {
+    <ul className="flex list-none flex-col gap-1">
+      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname === href;
         const link = (
           <Link
@@ -202,32 +79,22 @@ export function NavList({
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative isolate flex h-[var(--control-h)] items-center gap-2.5 overflow-hidden rounded-control pl-3 pr-2",
-              "transition-colors duration-[var(--dur-fast)] ease-brand",
+              ITEM,
               active
-                ? "fill-active bg-surface-active text-text-primary"
+                ? "bg-surface-active text-accent"
                 : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
             )}
           >
-            {/* The active route is the one lit item in the rail: 1.7's forest
-                gradient for the fill, and the bar it already had with 1.6's
-                bloom spilling off it. */}
+            <Icon size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
+            {/* Collapses to zero width rather than being swapped out, so the
+                rail glides between its two widths. It stays in the
+                accessibility tree at zero width: the icon has no text. */}
             <span
-              aria-hidden
               className={cn(
-                "absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-pill",
-                "fill-accent bg-accent",
-                "transition-opacity duration-[var(--dur-fast)] ease-brand",
-                active ? "opacity-100 shadow-lift-accent" : "opacity-0",
+                "type-label",
+                active ? "text-text-primary" : undefined,
+                showLabels ? "inline" : "rail-label",
               )}
-            />
-            <Icon size={18} strokeWidth={1.5} className="shrink-0" />
-            {/* `rail-label` rather than a swap: it collapses to zero width
-                with the rail instead of disappearing at a breakpoint, which is
-                what lets the whole rail glide. It stays in the accessibility
-                tree at zero width, because the icon has no text of its own. */}
-            <span
-              className={cn("type-label", showLabels ? "inline" : "rail-label")}
             >
               {label}
             </span>
@@ -236,16 +103,15 @@ export function NavList({
 
         return (
           <li key={href}>
-            {showLabels ? (
-              link
-            ) : (
-              /* The label is hidden below 900px, so name the icon there. */
+            {/* A tooltip only while the labels are hidden — one repeating a
+                visible label is noise. */}
+            {icons && !showLabels ? (
               <Tooltip>
                 <TooltipTrigger asChild>{link}</TooltipTrigger>
-                <TooltipContent side="right" className="mid:hidden">
-                  {label}
-                </TooltipContent>
+                <TooltipContent side="right">{label}</TooltipContent>
               </Tooltip>
+            ) : (
+              link
             )}
           </li>
         );
@@ -254,129 +120,236 @@ export function NavList({
   );
 }
 
-/**
- * The switches for the two columns that can be closed outright.
- *
- * They belong here rather than on the columns themselves for the obvious
- * reason: a closed column has nowhere to put its own way back. Icon buttons
- * whatever the rail's width, because the rail is the one thing that has to
- * survive being dragged down to 56px.
- */
-function ColumnToggles() {
-  const stackOpen = useElyraStore((state) => state.stackOpen);
-  const setStackOpen = useElyraStore((state) => state.setStackOpen);
-  const assistOpen = useElyraStore((state) => state.assistOpen);
-  const setAssistOpen = useElyraStore((state) => state.setAssistOpen);
+/** Labels on and off. Only from 900px: below that the rail is always icons. */
+function ExpandToggle({ icons }: { icons: boolean }) {
+  const expanded = useElyraStore((state) => state.railExpanded);
+  const setExpanded = useElyraStore((state) => state.setRailExpanded);
+  const label = expanded ? "Collapse navigation" : "Expand navigation";
 
-  const toggles: Array<{
-    open: boolean;
-    set: (open: boolean) => void;
-    icon: LucideIcon;
-    label: string;
-    hint: string;
-    className?: string;
-  }> = [
-    {
-      open: stackOpen,
-      set: setStackOpen,
-      icon: PanelLeft,
-      label: "panel column",
-      hint: "The composed column beside the chart",
-    },
-    {
-      open: assistOpen,
-      set: setAssistOpen,
-      icon: PanelRight,
-      label: "assistant column",
-      hint: "Chat and signals, on the right",
-      /* Below 1280 the assistant is a drawer, and a drawer has its own way in
-         from the market header. Nothing to switch. */
-      className: "hidden full:inline-flex",
-    },
-  ];
+  const button = (
+        <button
+          type="button"
+          aria-pressed={expanded}
+          aria-label={label}
+          onClick={() => setExpanded(!expanded)}
+          className={cn(
+            ITEM,
+            "hidden text-text-muted hover:bg-surface-hover hover:text-text-primary mid:flex",
+          )}
+        >
+          {expanded ? (
+            <ChevronsLeft size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
+          ) : (
+            <ChevronsRight size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
+          )}
+          <span className="rail-label type-label">Collapse</span>
+        </button>
+  );
 
-  return (
-    <div className="hidden shrink-0 gap-1 border-t border-border-subtle p-2 mid:flex">
-      {toggles.map(({ open, set, icon: Icon, label, hint, className }) => (
-        <Tooltip key={label}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-pressed={open}
-              aria-label={open ? `Close the ${label}` : `Open the ${label}`}
-              onClick={() => set(!open)}
-              className={cn(
-                "inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-control",
-                "border transition-colors duration-[var(--dur-fast)] ease-brand",
-                open
-                  ? "border-border-strong bg-surface-raised text-accent"
-                  : "border-border-subtle text-text-muted hover:bg-surface-hover hover:text-text-primary",
-                className,
-              )}
-            >
-              <Icon size={16} strokeWidth={1.5} aria-hidden />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            {open ? `Hide ${label} — ${hint}` : `Show ${label} — ${hint}`}
-          </TooltipContent>
-        </Tooltip>
-      ))}
-    </div>
+  return icons ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  ) : (
+    button
   );
 }
 
-export function NavRail({ icons = false }: { icons?: boolean }) {
-  const setLeftSheetOpen = useElyraStore((state) => state.setLeftSheetOpen);
+function SettingsMenu() {
+  const [open, setOpen] = useState(false);
+  const resetLayout = useElyraStore((state) => state.resetLayout);
+  const setCommandOpen = useElyraStore((state) => state.setCommandOpen);
+  const balancesHidden = useElyraStore((state) => state.balancesHidden);
+  const setBalancesHidden = useElyraStore((state) => state.setBalancesHidden);
 
+  const row = cn(
+    "flex h-9 w-full items-center gap-2 rounded-control px-2.5 text-left",
+    "type-label text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand",
+    "hover:bg-surface-hover hover:text-text-primary",
+  );
+
+  return (
+    <Popover
+      id="rail-settings"
+      label="Workspace settings"
+      open={open}
+      onOpenChange={setOpen}
+      side="right"
+      align="end"
+      className="w-60 p-1.5"
+      trigger={
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="rail-settings"
+          aria-haspopup="dialog"
+          aria-label="Workspace settings"
+          onClick={() => setOpen(!open)}
+          className={cn(
+            ITEM,
+            open
+              ? "bg-surface-hover text-text-primary"
+              : "text-text-muted hover:bg-surface-hover hover:text-text-primary",
+          )}
+        >
+          <Settings size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
+          <span className="rail-label type-label">Settings</span>
+        </button>
+      }
+    >
+      <p className="type-eyebrow px-2.5 pb-1 pt-1.5 text-text-muted">Workspace</p>
+      <button
+        type="button"
+        className={row}
+        onClick={() => {
+          setBalancesHidden(!balancesHidden);
+          setOpen(false);
+        }}
+      >
+        <Wallet size={16} strokeWidth={1.5} aria-hidden />
+        {balancesHidden ? "Show balances" : "Hide balances"}
+      </button>
+      <button
+        type="button"
+        className={row}
+        onClick={() => {
+          setOpen(false);
+          setCommandOpen(true);
+        }}
+      >
+        <FileSearch size={16} strokeWidth={1.5} aria-hidden />
+        <span className="flex-1">Search</span>
+        <kbd className="type-data-sm rounded-chip border border-border-strong px-1.5 text-text-muted">
+          ⌘K
+        </kbd>
+      </button>
+      <button
+        type="button"
+        className={row}
+        onClick={() => {
+          resetLayout();
+          setOpen(false);
+        }}
+      >
+        <RotateCcw size={16} strokeWidth={1.5} aria-hidden />
+        Reset layout
+      </button>
+    </Popover>
+  );
+}
+
+function truncateAddress(address: string) {
+  return `${address.slice(0, 4)}…${address.slice(-4)}`;
+}
+
+/**
+ * Identity, from the Privy session. Signing in from here, and the wallet one
+ * click away once signed in. Signing out lives in the account menu in the
+ * header, behind its confirmation.
+ */
+function Profile() {
+  const auth = useElyraAuth();
+  const setWalletSheetOpen = useElyraStore((state) => state.setWalletSheetOpen);
+
+  if (!auth.available) return null;
+
+  const address = auth.solanaAddress ?? auth.walletAddress;
+  const signedIn = auth.ready && auth.authenticated;
+  const label = !auth.ready
+    ? "Restoring session"
+    : !signedIn
+      ? "Sign in"
+      : address === null
+        ? "Signed in"
+        : `Wallet ${truncateAddress(address)}`;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          disabled={!auth.ready}
+          aria-label={signedIn ? `${label}. Open wallet` : label}
+          onClick={() => (signedIn ? setWalletSheetOpen(true) : auth.login())}
+          className={cn(
+            ITEM,
+            "px-[9px] text-text-secondary hover:bg-surface-hover hover:text-text-primary",
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "inline-flex size-[26px] shrink-0 items-center justify-center rounded-pill border",
+              signedIn
+                ? "type-data-sm border-accent-quiet bg-surface-active text-text-primary"
+                : "border-border-strong bg-surface-raised",
+            )}
+          >
+            {signedIn ? (
+              (address ?? "E").slice(0, 2)
+            ) : (
+              <LogIn size={14} strokeWidth={1.5} />
+            )}
+          </span>
+          <span className="rail-label type-label">
+            {signedIn && address !== null ? truncateAddress(address) : label}
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        {signedIn && address !== null ? (
+          <span className="type-mono-addr block break-all">{address}</span>
+        ) : (
+          label
+        )}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function NavRail({
+  icons,
+  className,
+}: {
+  /** Labels hidden — decided by the fitter in AppShell, see `railIcons`. */
+  icons: boolean;
+  className?: string;
+}) {
   return (
     <nav
       aria-label="Primary"
-      /* Icons only once the rail is too narrow for its labels — which is where
-         opening the palette puts it, and where dragging the rail's own handle
-         in can put it too. AppShell decides, because only the fitter knows how
-         wide the rail actually ended up. Every label below answers to this
-         attribute rather than taking a prop of its own. */
-      data-icons={icons ? "true" : undefined}
+      data-icons={icons ? "true" : "false"}
       className={cn(
-        "group/rail relative isolate flex min-h-0 flex-1 flex-col overflow-hidden",
-        "rim rounded-panel border border-border-subtle bg-surface-panel",
+        "group/rail relative z-20 min-h-0 flex-col border-r border-border-subtle bg-surface-base",
+        className,
       )}
     >
-      {/* Home is first: the one route that is always the way back, and now
-          the top of the rail itself — the mark and the collapse control live
-          in the top navbar instead, see `StatusBar`. */}
-      <div className="shrink-0 px-2 pt-2 pb-1">
-        <NavList items={[HOME_ITEM]} />
-      </div>
-
-      {/* Below 900px column 2 lives in a sheet, so it needs a way in. */}
-      <div className="shrink-0 px-2 pb-1 mid:hidden">
-        <button
-          type="button"
-          onClick={() => setLeftSheetOpen(true)}
-          aria-haspopup="dialog"
-          title="Activity, watchlist and automation"
-          className={cn(
-            "flex h-[var(--control-h)] w-full items-center justify-center rounded-control",
-            "border border-border-subtle text-text-secondary",
-            "transition-colors duration-[var(--dur-fast)] ease-brand",
-            "hover:bg-surface-hover hover:text-text-primary",
-          )}
+      <div className="flex h-[var(--header-h)] shrink-0 items-center px-[11px]">
+        <Link
+          href="/"
+          aria-label="Elyra home"
+          className="relative inline-flex size-[42px] shrink-0 items-center justify-center overflow-hidden rounded-pill border border-border-subtle"
         >
-          <PanelLeft size={18} strokeWidth={1.5} aria-hidden />
-          <span className="sr-only">Open activity, watchlist and automation</span>
-        </button>
+          <Image
+            src="/logo.png"
+            alt=""
+            width={42}
+            height={42}
+            priority
+            className="size-full scale-[1.14] object-cover"
+          />
+        </Link>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
-        <NavList />
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3">
+        <NavList icons={icons} />
       </div>
 
-      <ColumnToggles />
-
-      <div className="shrink-0 border-t border-border-subtle p-2">
-        <Identity />
+      <div className="flex shrink-0 flex-col gap-1 border-t border-border-subtle px-2.5 py-3">
+        <ExpandToggle icons={icons} />
+        <SettingsMenu />
+        <Profile />
       </div>
     </nav>
   );

@@ -46,7 +46,7 @@ function AccountCard({
       disabled={!selectable}
       onClick={onSelect}
       className={cn(
-        "rim group relative isolate flex min-w-0 flex-col gap-2 overflow-hidden",
+        "group relative isolate flex min-w-0 flex-col gap-2 overflow-hidden",
         "rounded-card border p-3.5 text-left",
         "transition-[background-color,border-color] duration-[var(--dur-fast)] ease-brand",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
@@ -149,7 +149,7 @@ export function AssetAccountsGridSkeleton() {
       {Array.from({ length: 4 }, (_, index) => (
         <div
           key={index}
-          className="rim flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-panel p-3.5"
+          className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-panel p-3.5"
         >
           <Skeleton className="h-2.5 w-20" />
           <Skeleton className="h-5 w-24" />

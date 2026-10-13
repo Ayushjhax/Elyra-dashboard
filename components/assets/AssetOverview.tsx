@@ -45,24 +45,10 @@ export function TotalEquityCard({
     <section
       aria-label="Total equity"
       className={cn(
-        "rim relative isolate flex min-w-0 flex-col overflow-hidden rounded-card",
-        "border border-border-subtle",
+        "relative flex min-w-0 flex-col overflow-hidden rounded-card",
+        "border border-border-subtle bg-surface-panel",
       )}
-      style={{
-        background:
-          "radial-gradient(120% 140% at 0% 0%, rgba(46,81,41,0.34), transparent 58%)," +
-          "linear-gradient(125deg, rgba(27,49,24,0.55), rgba(9,12,8,0.98))",
-      }}
     >
-      {/* The one lime accent on the card, as a hairline rather than a glow. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, rgba(228,235,157,0.45), transparent)",
-        }}
-      />
 
       <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
         <div className="flex flex-col gap-1">
@@ -129,7 +115,7 @@ export function TotalEquityCard({
 
 export function TotalEquityCardSkeleton() {
   return (
-    <section className="rim flex min-w-0 flex-col gap-3 rounded-card border border-border-subtle bg-surface-panel p-4">
+    <section className="flex min-w-0 flex-col gap-3 rounded-card border border-border-subtle bg-surface-panel p-4">
       <Skeleton className="h-2.5 w-24" />
       <Skeleton className="h-8 w-44" />
       <Skeleton className="h-2.5 w-36" />

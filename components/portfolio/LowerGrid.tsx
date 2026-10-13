@@ -71,7 +71,6 @@ export function CapitalHealthCard({ snapshot }: { snapshot: PortfolioSnapshot })
 export function ElyraBriefCard({ snapshot }: { snapshot: PortfolioSnapshot }) {
   const observations = brief(snapshot);
   const askElyra = useElyraStore((state) => state.askElyra);
-  const setAssistOpen = useElyraStore((state) => state.setAssistOpen);
 
   /* The prompt carries the figures already on screen rather than asking the
      model to go and find them. It prefills the existing composer — this does
@@ -130,7 +129,6 @@ export function ElyraBriefCard({ snapshot }: { snapshot: PortfolioSnapshot }) {
       <button
         type="button"
         onClick={() => {
-          setAssistOpen(true);
           askElyra(prompt);
         }}
         className={cn(

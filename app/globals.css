@@ -29,42 +29,26 @@
   --ink: #15170f;
   --clay: #c4633a;
 
-  /* 1.3 Surfaces — black, and near-black above it.
+  /* 1.3 Surfaces — dark forest, as the brand doc now sets them.
 
-     The ground is true black and the surfaces over it are lifts off black
-     rather than shades of Ink. Two reasons. Light is only as vibrant as the
-     dark it falls on, and nothing is darker than black — the bloom, the lime
-     accent and every gradient in 1.7 all read at full strength against this.
-     And the doc's surfaces are olive (#1a1d14 runs its green nine points above
-     its blue), which meant green light on a green surface: a flat wash rather
-     than light. These carry a single point of green and no more.
-
-     Colour has not left the product, it has moved. It used to be spread thinly
-     across every surface; it now sits on the elements that mean something — see
-     1.7 — with black between them.
-
-     Every step stays monotonic, and dropping the surfaces while the text tokens
-     hold still *raises* contrast: --text-muted on --surface-panel goes 5.02:1 ->
-     5.90:1, on --surface-raised 4.60:1 -> 5.52:1, on --surface-hover 4.26:1 ->
-     5.15:1.
-
-     --ink is untouched: it is the palette's colour and still what
-     --text-on-accent puts on a lime fill. */
-  --surface-base: #000000;
-  --surface-panel: #070807;
-  --surface-raised: #101210;
-  --surface-hover: #181a17;
+     Elevation is surface value plus a 1px border (section 3), never light or
+     shadow. --text-muted on --surface-hover is the lowest text pairing in the
+     product (4.67:1). lib/brand.ts tracks --surface-base. */
+  --surface-base: #101710;
+  --surface-panel: #182117;
+  --surface-raised: #1e281c;
+  --surface-hover: #243022;
   --surface-active: #2e5129;
 
   /* 1.3 Borders */
-  --border-subtle: #2a2e20;
-  --border-strong: #3a3f2c;
+  --border-subtle: #33402d;
+  --border-strong: #44543c;
   --border-accent: #7c8535;
 
   /* 1.3 Text */
   --text-primary: #f7f8ea;
   --text-secondary: #b8baa8;
-  --text-muted: #8a8d7b;
+  --text-muted: #959884;
   --text-on-accent: #15170f;
 
   /* 1.3 Interactive */
@@ -73,10 +57,12 @@
   --accent-quiet: #7c8535;
   --focus-ring: #e4eb9d;
 
-  /* 1.3 Market semantics */
-  --positive: #7a9e70;
+  /* 1.3 Market semantics. Text tokens: Sage and Clay lifted toward Ivory so
+     every gain and loss clears 4.5:1 on the forest surfaces and inside its
+     own badge. Fills without text (candles, dots) use raw --sage / --clay. */
+  --positive: #91ae86;
   --positive-bg: rgba(122, 158, 112, 0.14);
-  --negative: #c4633a;
+  --negative: #d3906f;
   --negative-bg: rgba(196, 99, 58, 0.14);
   --neutral-flat: #b8baa8;
 
@@ -84,146 +70,12 @@
   --agent-accent: #e4eb9d;
   --agent-rail: rgba(228, 235, 157, 0.6);
   --agent-glow: 0 0 0 1px rgba(228, 235, 157, 0.18);
-  /* -------------------------------------------------------------------------
-     1.6 Luminance layer — an extension of 1.3, documented in README.md.
-
-     The brand marks agent output with Elyra Lime. These tokens give that mark
-     a light source: a bloom the machine casts on the surface behind it, a rim
-     on the edge it lights, and a frosted plane for anything that floats. No
-     new hues — every value is a raw palette colour at low alpha, so the 70/20/
-     8/2 distribution is unchanged. Light is not a fifth colour, it is how the
-     four already here fall on a surface.
-     ------------------------------------------------------------------------- */
-
-  /* Bloom cores and halos. Forest is ambient — the room the terminal sits in.
-     Agent is Elyra Lime — the machine. Clay stays reserved for loss and alert
-     and is never used for atmosphere. */
-  --glow-forest-core: rgba(69, 112, 61, 0.18); /* Moss */
-  --glow-forest-halo: rgba(46, 81, 41, 0.06); /* Elyra Green */
-  --glow-agent-core: rgba(228, 235, 157, 0.16); /* Elyra Lime */
-  --glow-agent-halo: rgba(228, 235, 157, 0.045);
-  --glow-clay-core: rgba(196, 99, 58, 0.18); /* Clay */
-  --glow-clay-halo: rgba(196, 99, 58, 0.05);
-
-  /* Rim — the 1px top edge a surface catches from the light above it. */
-  --rim-neutral: rgba(247, 248, 234, 0.1); /* Ivory */
-  --rim-agent: rgba(228, 235, 157, 0.24); /* Elyra Lime */
-
-  /* Frosted plane, for layers that float over the grid rather than sit in it. */
-  --glass-tint: rgba(26, 29, 20, 0.72); /* --surface-panel */
-  --glass-tint-raised: rgba(33, 37, 24, 0.78); /* --surface-raised */
-  --glass-border: rgba(247, 248, 234, 0.1);
-  --glass-blur: 14px;
-
-  /* Lift — an outer bloom with no offset and no black. It is light spilling
-     off a lit element, not the drop shadow 3 forbids. --shadow-pop remains
-     the only true elevation shadow. */
-  --lift-agent: 0 0 24px -4px rgba(228, 235, 157, 0.3);
-  --lift-accent: 0 0 20px -4px rgba(210, 220, 118, 0.38);
-  --lift-forest: 0 0 28px -6px rgba(69, 112, 61, 0.5);
-  --lift-negative: 0 0 20px -4px rgba(196, 99, 58, 0.32);
-
-
-  /* 1.7 Element gradients.
-
-     1.4 allows gradients on large empty surfaces. These are the opposite: small
-     filled elements, and they are where the product's colour now lives. On a
-     black ground a flat fill reads as a sticker; a fill that shades reads as an
-     object with a light on it, which is the whole point of putting the ground
-     at black in the first place.
-
-     Every stop is a raw palette value, and the meanings are 1.3's: lime is
-     interactive, forest is selected, and the agent bar is the one horizontal
-     one because it is a meter and reads left to right. Contrast is measured
-     against the *darkest* stop of each, since that is the worst a glyph on it
-     ever sits on — --text-on-accent on --grad-accent's olive end is 7.9:1, and
-     --text-primary on --grad-active's deep-forest end is 12.9:1. */
-  --grad-accent: linear-gradient(
-    180deg,
-    var(--elyra-lime) 0%,
-    var(--citron) 55%,
-    var(--olive) 100%
-  );
-  --grad-accent-bright: linear-gradient(
-    180deg,
-    var(--cream-lime) 0%,
-    var(--elyra-lime) 55%,
-    var(--citron) 100%
-  );
-  --grad-active: linear-gradient(
-    180deg,
-    var(--elyra-green) 0%,
-    var(--deep-forest) 100%
-  );
-  --grad-agent: linear-gradient(90deg, var(--khaki) 0%, var(--elyra-lime) 100%);
 
   /* 1.4 Gradients — large empty surfaces only, never behind text */
   --grad-lime: linear-gradient(180deg, #a8b44e 0%, #7a9e70 100%);
   --grad-forest: linear-gradient(180deg, #2e5129 0%, #15170f 100%);
   --grad-neutral: linear-gradient(180deg, #0c1810 0%, #45805c 100%);
   --grad-clay: linear-gradient(180deg, #2a1008 0%, #e0a24b 100%);
-  /* 1.6 Bloom fields. Painted on a decorative layer behind content — see
-     components/ui/Glow.tsx — never on the plane the text sits on. `closest-side`
-     keeps the falloff circular whatever the element's aspect ratio. */
-  --bloom-forest: radial-gradient(
-    closest-side,
-    var(--glow-forest-core) 0%,
-    var(--glow-forest-halo) 46%,
-    transparent 100%
-  );
-  --bloom-agent: radial-gradient(
-    closest-side,
-    var(--glow-agent-core) 0%,
-    var(--glow-agent-halo) 44%,
-    transparent 100%
-  );
-  --bloom-clay: radial-gradient(
-    closest-side,
-    var(--glow-clay-core) 0%,
-    var(--glow-clay-halo) 44%,
-    transparent 100%
-  );
-
-  /* 1.6 Bloom fields, ambient strength.
-
-     Two strengths exist because two very different surfaces are being lit. A
-     bloom crossing a panel has to answer to 1.5 — --text-muted sits on that
-     panel, and light under a glyph eats its contrast. A bloom on
-     --surface-base answers to nothing, because nothing is written there: the
-     shell paints no text on it and every panel is opaque. So the atmosphere
-     gets to be as vibrant as it should be, and the fields above stay at the
-     strength the contrast floor allows. */
-  --bloom-forest-ambient: radial-gradient(
-    closest-side,
-    rgba(69, 112, 61, 0.3) 0%,
-    rgba(46, 81, 41, 0.1) 46%,
-    transparent 100%
-  );
-  --bloom-agent-ambient: radial-gradient(
-    closest-side,
-    rgba(228, 235, 157, 0.14) 0%,
-    rgba(228, 235, 157, 0.035) 44%,
-    transparent 100%
-  );
-
-  /* 1.6 Rim sweep. A hairline that is brightest across the middle of an edge
-     and gone by its corners, so a panel reads as lit from above rather than
-     outlined twice. */
-  --rim-sweep: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--rim-neutral) 24%,
-    var(--rim-neutral) 76%,
-    transparent 100%
-  );
-  --rim-sweep-agent: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--rim-agent) 20%,
-    var(--rim-agent) 80%,
-    transparent 100%
-  );
-
 
   /* 3. Space */
   --gap-shell: 12px;
@@ -232,6 +84,13 @@
   --row-h: 36px;
   --row-h-sm: 32px;
   --control-h: 34px;
+
+  /* 3. Space — the workspace. Both are steps of section 3's 4px scale; the
+     shell's geometry in lib/layout.ts holds the same numbers in px, because a
+     fitter that does arithmetic cannot read a custom property. */
+  --header-h: 64px;
+  --gap-workspace: 16px;
+  --pad-workspace: 20px;
 
   /* 4. Motion */
   --dur-fast: 120ms;
@@ -248,7 +107,7 @@
   --breakpoint-mid: 900px;
   --breakpoint-full: 1280px;
 
-  --radius-panel: 14px;
+  --radius-panel: 12px;
   --radius-card: 10px;
   --radius-control: 8px;
   --radius-chip: 6px;
@@ -297,13 +156,6 @@
   --font-mono: ui-monospace, "SF Mono", "Menlo", monospace;
 
   --ease-brand: var(--ease);
-  /* 1.6 Lift — bloom, not elevation. Aliased here so Tailwind emits
-     shadow-lift-* alongside shadow-pop. */
-  --shadow-lift-agent: var(--lift-agent);
-  --shadow-lift-accent: var(--lift-accent);
-  --shadow-lift-forest: var(--lift-forest);
-  --shadow-lift-negative: var(--lift-negative);
-
 }
 
 /* ===========================================================================
@@ -412,173 +264,108 @@
 @utility agent-rail {
   border-left: 2px solid var(--agent-rail);
 }
-/* ===========================================================================
-   1.6 Luminance utilities.
-
-   Three ideas, applied identically everywhere so the effect reads as one
-   system rather than a set of one-off decorations:
-
-     rim    the lit top edge of a surface
-     glass  the frosted plane a floating layer sits on
-     bloom  the light a surface throws behind itself
-
-   All three are decorative. None of them carries meaning on its own — the
-   meaning is in which tone is used, and the tones are the brand's: forest is
-   ambient, agent is Elyra Lime and marks machine output, clay is loss.
-   =========================================================================== */
-
-/* The lit edge. Drawn as a pseudo-element gradient rather than a border-top so
-   it fades at the corners and never doubles the panel's own 1px border. The
-   host needs a positioning context; every surface using it already has one.
-   z-index 20 clears the z-10 sticky panel headers that would otherwise sit on
-   top of the hairline. */
-@utility rim {
-  &::before {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    top: 0;
-    z-index: 20;
-    height: 1px;
-    background-image: var(--rim-sweep);
-    pointer-events: none;
-  }
-}
-
-/* Same edge in Elyra Lime — the machine lighting its own surface. Pairs with
-   agent-rail: the rail says who made it, the rim says it is lit. */
-@utility rim-agent {
-  &::before {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    top: 0;
-    z-index: 20;
-    height: 1px;
-    background-image: var(--rim-sweep-agent);
-    pointer-events: none;
-  }
-}
-
-/* Frosted plane. Floating layers only — tooltips, sheets, drawers, the hover
-   label. A panel in the grid is opaque, because a translucent panel over a
-   scrolling neighbour makes numbers hard to read. */
-@utility glass {
-  background-color: var(--glass-tint);
-  border-color: var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
-}
-
-@utility glass-raised {
-  background-color: var(--glass-tint-raised);
-  border-color: var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
-}
-
-/* The bloom fields themselves. Applied to an aria-hidden layer, never to an
-   element that holds text. */
-@utility bloom-forest {
-  background-image: var(--bloom-forest);
-}
-
-@utility bloom-agent {
-  background-image: var(--bloom-agent);
-}
-
-@utility bloom-clay {
-  background-image: var(--bloom-clay);
-}
-
-/* 1.7 Element fills. background-image over the element's own background-color,
-   so the flat colour is still there as the fallback and nothing needs a second
-   token to stay legible if the gradient is ever removed. */
-@utility fill-accent {
-  background-image: var(--grad-accent);
-}
-
-@utility fill-accent-bright {
-  background-image: var(--grad-accent-bright);
-}
-
-@utility fill-active {
-  background-image: var(--grad-active);
-}
-
-@utility fill-agent {
-  background-image: var(--grad-agent);
-}
-
-/* Ambient strength — ShellAtmosphere only. Never on a panel: these are above
-   what 1.5 allows over --surface-panel. */
-@utility bloom-forest-ambient {
-  background-image: var(--bloom-forest-ambient);
-}
-
-@utility bloom-agent-ambient {
-  background-image: var(--bloom-agent-ambient);
-}
-
 
 /* ===========================================================================
-   The shell grid.
+   The shell.
 
-   The three track strings arrive as custom properties from AppShell, already
-   fitted to the measured viewport by lib/layout.ts. All this does is pick the
-   one belonging to the breakpoint that is live — which is the point: the same
-   media queries that hide a column's element choose its track, so the tracks
-   and the items can never fall out of step. A column that is closed is not
-   rendered at all, so it takes neither a track nor a gap.
+   Two grids, and lib/layout.ts computes the tracks for both: the FRAME (the
+   rail, then everything else) and the WORKSPACE (widgets or the open route,
+   the centre column, the agent). AppShell publishes one track string per
+   breakpoint as custom properties, and the media queries below pick between
+   them — the same queries that show and hide the items, so the tracks and the
+   items can never disagree. Nothing in JS resolves a breakpoint to build a
+   grid.
 
-   Written as plain CSS rather than utilities because the value is dynamic; the
-   breakpoints are still the three in @theme, transcribed once here.
+   Written as plain CSS rather than utilities because the values are dynamic;
+   the breakpoints are still the three in @theme, transcribed once here.
    =========================================================================== */
 
-.shell-grid {
+/* Below 640px there is no rail — navigation is a sheet. */
+.shell-frame {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
-  /* Collapsing the rail, or opening a column, glides instead of snapping.
-     Interpolation only works between track lists of the same length, so a
-     column being added or removed still cuts — which is right: that is a
-     different layout, not the same one at a different width. */
+  /* Expanding the rail glides instead of snapping. A drag turns it off. */
   transition: grid-template-columns var(--dur-slow) var(--ease);
 }
 
-/* Nothing may lag the pointer. A drag sets this for its duration. */
-.shell-grid[data-resizing="true"] {
+.shell-frame[data-resizing="true"],
+.shell-frame[data-resizing="true"] .workspace-grid {
   transition: none;
 }
 
-/* A column arriving.
-
-   The grid can animate a width but not a track appearing, so a column that
-   opens has to introduce itself. It comes in from the side it opened on rather
-   than fading in place, which is what makes it read as having been pushed in
-   beside the chart instead of having replaced something. */
-@keyframes elyra-column-in {
-  from {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+@media (width >= 640px) {
+  .shell-frame {
+    grid-template-columns: var(--frame-compact);
   }
 }
 
-.column-enter {
-  animation: elyra-column-in var(--dur-slow) var(--ease);
+@media (width >= 900px) {
+  .shell-frame {
+    grid-template-columns: var(--frame-mid);
+  }
+}
+
+@media (width >= 1280px) {
+  .shell-frame {
+    grid-template-columns: var(--frame-full);
+  }
+}
+
+/* Below 900px the workspace is one column: the centre first, the widgets
+   stacked under it (see `order` on the items), the agent in a drawer. */
+.workspace-grid {
+  grid-template-columns: minmax(0, 1fr);
+  transition: grid-template-columns var(--dur-slow) var(--ease);
+}
+
+@media (width >= 900px) {
+  .workspace-grid {
+    grid-template-columns: var(--ws-mid);
+  }
+}
+
+@media (width >= 1280px) {
+  .workspace-grid {
+    grid-template-columns: var(--ws-full);
+  }
+}
+
+/* The one scroll container. Programmatic and keyboard scrolls glide, and a
+   scroll that reaches either end stops there rather than rubber-banding the
+   whole shell. Native wheel and trackpad scrolling are left alone: they are
+   already as smooth as the device makes them. */
+[data-workspace-scroll] {
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+}
+
+/* The chart's own height. Large enough to dominate the first screen, small
+   enough that the overview above it stays in view on a laptop — section 6 of
+   the redesign asks for roughly 500–620px on a typical desktop. Focus mode
+   gives it everything below the heading instead. */
+.chart-plot {
+  /* Header, overview strip, the chart card's own header, toolbar and footer
+     come to about 340px; the plot takes the rest, between a floor that keeps
+     candles readable and a ceiling that leaves the trading table in reach. */
+  height: clamp(380px, calc(100dvh - 340px), 560px);
+}
+
+@media (width < 640px) {
+  .chart-plot {
+    height: clamp(300px, 56dvh, 440px);
+  }
+}
+
+/* Everything below the header, less the strip and the card's own chrome, so
+   the whole card fits the screen it was focused on. */
+.chart-plot[data-focus="true"] {
+  height: max(360px, calc(100dvh - var(--header-h) - 250px));
 }
 
 /* A label in the nav rail.
 
    It collapses to nothing rather than being swapped out, so the rail glides
    between its two widths and the text goes with it. Still in the accessibility
-   tree at zero width, because the icon beside it carries no text of its own —
-   which is what the `sr-only` swap this replaces was for.
-
-   The negative margin cancels the flex gap the icon leaves behind, so a
-   collapsed label takes no space at all and the icon lands centred in the
-   56px rail without anything having to switch to `justify-center`. */
+   tree at zero width, because the icon beside it carries no text of its own. */
 .rail-label {
   display: inline-block;
   max-width: 12rem;
@@ -588,44 +375,12 @@
   opacity: 1;
   transition:
     max-width var(--dur-slow) var(--ease),
-    opacity var(--dur-fast) var(--ease),
-    margin-inline-start var(--dur-slow) var(--ease);
+    opacity var(--dur-fast) var(--ease);
 }
 
-.rail-collapsed .rail-label,
 [data-icons="true"] .rail-label {
   max-width: 0;
   opacity: 0;
-  /* The rail's own gap-2.5. */
-  margin-inline-start: -0.625rem;
-}
-
-/* Below 900px the rail is the icon rail whatever the operator set. */
-@media (width < 900px) {
-  .rail-label {
-    max-width: 0;
-    opacity: 0;
-    margin-inline-start: -0.625rem;
-  }
-}
-
-@media (width >= 640px) {
-  .shell-grid {
-    grid-template-columns: var(--cols-compact);
-    grid-template-rows: minmax(0, 1fr);
-  }
-}
-
-@media (width >= 900px) {
-  .shell-grid {
-    grid-template-columns: var(--cols-mid);
-  }
-}
-
-@media (width >= 1280px) {
-  .shell-grid {
-    grid-template-columns: var(--cols-full);
-  }
 }
 
 /* ===========================================================================
@@ -644,7 +399,8 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 20px;
-  /* One fixed-height screen: the page itself never scrolls. */
+  /* The document never scrolls. The workspace is its own scroll container
+     under a fixed header, which is what lets the agent panel stick. */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -671,7 +427,7 @@ td {
   color: var(--text-primary);
 }
 
-/* Panels scroll internally; keep the scrollbars quiet and on-brand. */
+/* Keep the scrollbars quiet and on-brand. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -747,154 +503,11 @@ td {
   animation: elyra-caret 900ms steps(1) infinite;
 }
 
-/* ---------------------------------------------------------------------------
-   1.6 Luminance motion.
-
-   Two animations, both on decorative layers only — no number, label or control
-   ever moves. A light source that is perfectly static reads as a printed
-   gradient, so the bloom breathes at a rate slower than the eye tracks (12s,
-   +-8% opacity) and the mark's highlight travels its own path once on mount.
-   Both stop dead under prefers-reduced-motion, where the bloom becomes a plain
-   static field.
-   --------------------------------------------------------------------------- */
-
-@keyframes elyra-breathe {
-  0%,
-  100% {
-    opacity: 0.72;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-}
-
-.bloom-breathe {
-  animation: elyra-breathe 12s ease-in-out infinite;
-  will-change: opacity, transform;
-}
-
-/* Offset copies so two blooms over one surface never pulse in lockstep. */
-.bloom-breathe-slow {
-  animation: elyra-breathe 18s ease-in-out infinite;
-  animation-delay: -6s;
-  will-change: opacity, transform;
-}
-
-/* 1.6 The thinking orb — see components/ui/IridescentOrb.tsx.
-
-   Three rotations at rates that share no common multiple, so the interference
-   never repeats visibly, plus a wobble on the silhouette. Nothing here changes
-   opacity or colour on the film itself: the turning is what moves the bands,
-   because the displacement field they pass through is fixed. */
-
-@keyframes elyra-orb-turn {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes elyra-orb-counter {
-  from {
-    transform: rotate(360deg);
-  }
-  to {
-    transform: rotate(0deg);
-  }
-}
-
-/* A film drains and refills; it does not pulse. The scale is deliberately
-   under 4% and the two axes are out of phase, so the edge reads as liquid
-   rather than as something breathing. */
-@keyframes elyra-orb-wobble {
-  0%,
-  100% {
-    transform: scale(1, 1);
-  }
-  27% {
-    transform: scale(1.035, 0.975);
-  }
-  53% {
-    transform: scale(0.972, 1.03);
-  }
-  76% {
-    transform: scale(1.018, 1.012);
-  }
-}
-
-.orb-turn {
-  animation: elyra-orb-turn 19s linear infinite;
-  will-change: transform;
-}
-
-.orb-turn-slow {
-  animation: elyra-orb-turn 31s linear infinite;
-  will-change: transform;
-}
-
-.orb-counter {
-  animation: elyra-orb-counter 13s linear infinite;
-  will-change: transform;
-}
-
-.orb-wobble {
-  animation: elyra-orb-wobble 11s ease-in-out infinite;
-  will-change: transform;
-}
-
-/* The halo is the one part that breathes, at the same 12s as every other
-   bloom, so the orb sits in the same light as the rest of the terminal. */
-.orb-halo {
-  animation: elyra-breathe 12s ease-in-out infinite;
-  transform-origin: 50px 50px;
-  will-change: opacity, transform;
-}
-
-/* The mark draws itself in. pathLength="1" on the path normalises the dash
-   units, so this works whatever the geometry. */
-@keyframes elyra-mark-draw {
-  from {
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.mark-draw {
-  stroke-dasharray: 1;
-  animation: elyra-mark-draw 1600ms var(--ease) forwards;
-}
-
-/* A short bright segment running the path, one lap every 9s. */
-@keyframes elyra-mark-travel {
-  from {
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dashoffset: -1;
-  }
-}
-
-.mark-travel {
-  stroke-dasharray: 0.1 0.9;
-  animation: elyra-mark-travel 9s linear infinite;
-}
-
 /* A value that is loading.
 
    Occupies the width its content will occupy, so nothing shifts when the
-   number lands — the whole point of a skeleton rather than a spinner. The
-   surface is --surface-hover, which is the lightest of the four and reads as
-   "something goes here" against a panel without claiming to be content.
-
-   Only opacity moves. A travelling highlight would be a second bloom on the
-   luminance layer and would have to answer to 1.5's contrast floor; a value
-   that has not arrived does not need one. */
+   number lands — the whole point of a skeleton rather than a spinner. Only
+   opacity moves, and it stops under reduced motion. */
 @keyframes elyra-skeleton {
   0%,
   100% {
@@ -927,50 +540,17 @@ td {
   .stream-caret::after {
     animation: none;
   }
-  /* Luminance: the light stays, the movement goes. The bloom holds at full
-     strength and the mark stays fully drawn — neither carries information, so
-     freezing them costs nothing. */
-  .bloom-breathe,
-  .bloom-breathe-slow {
-    animation: none;
-    opacity: 1;
-  }
 
-  .mark-draw {
-    animation: none;
-    stroke-dasharray: none;
-    stroke-dashoffset: 0;
-  }
-
-  .mark-travel {
-    animation: none;
-    opacity: 0;
-  }
-
-  /* The orb holds still. It is a status, not a spinner — the message beside it
-     is what says the agent is working — so a frozen film costs nothing and the
-     interference is just as legible standing still. */
-  .orb-turn,
-  .orb-turn-slow,
-  .orb-counter,
-  .orb-wobble,
-  .orb-halo {
-    animation: none;
-  }
-
-  /* A column simply is there. Where it came from was never information. */
-  .column-enter {
-    animation: none;
+  [data-workspace-scroll] {
+    scroll-behavior: auto;
   }
 
   /* The skeleton stops breathing and stays at its brighter value, which is
-     still legible as a placeholder. Its job is to hold the space, and it
-     does that standing still. */
+     still legible as a placeholder. */
   .skeleton {
     animation: none;
     opacity: 0.85;
   }
-
 
   *,
   *::before,

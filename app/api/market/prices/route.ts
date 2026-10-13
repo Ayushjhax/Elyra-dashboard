@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { changesForAssets } from "@/lib/market/pyth/change";
+import { dayStatsForAssets, type DayStats } from "@/lib/market/pyth/change";
 import { assetsByIds, pythConfigured } from "@/lib/market/pyth/catalog";
 import { pricesForIds } from "@/lib/market/pyth/client";
 import { PythError, type PriceRow } from "@/lib/market/pyth/types";
@@ -55,14 +55,17 @@ export async function GET(request: NextRequest) {
        settled separately so an exchange outage costs one column, not the row. */
     const [prices, changes] = await Promise.all([
       pricesForIds(ids),
-      changesForAssets(assets).catch(() => new Map<number, number>()),
+      dayStatsForAssets(assets).catch(() => new Map<number, DayStats>()),
     ]);
 
     const rows: PriceRow[] = prices.map((price) => ({
       id: price.id,
       symbol: price.symbol,
       price: price.price,
-      change24hPct: changes.get(price.id) ?? null,
+      change24hPct: changes.get(price.id)?.change24hPct ?? null,
+      high24h: changes.get(price.id)?.high24h ?? null,
+      low24h: changes.get(price.id)?.low24h ?? null,
+      volume24h: changes.get(price.id)?.volume24h ?? null,
       confidence: price.confidence,
       emaPrice: price.emaPrice,
       publisherCount: price.publisherCount,

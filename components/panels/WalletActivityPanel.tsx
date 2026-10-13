@@ -18,10 +18,8 @@ import { cn } from "@/lib/utils";
    feed that guessed at amounts from partial data would be wrong on exactly
    the transactions worth reading — the unusual ones.
 
-   Timestamps are relative to the real clock. `formatRelativeTime` in this
-   codebase defaults its `now` to MOCK_NOW, a frozen instant used by the
-   seeded panels, so passing the live time is required rather than optional:
-   without it every transaction here would be dated months out.
+   Timestamps are relative to the shared minute clock, which is null until
+   hydration so the server and the first client render agree.
 --------------------------------------------------------------------------- */
 
 const STATUS: Record<ActivityStatus, { label: string; className: string }> = {

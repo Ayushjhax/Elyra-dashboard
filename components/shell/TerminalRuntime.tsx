@@ -8,7 +8,9 @@ import { useElyraStore } from "@/lib/store";
  *
  *  - rehydrates persisted settings after mount, so the server render and the
  *    first client render agree,
- *  - closes any collapsed surface when the viewport grows past its breakpoint.
+ *  - closes the drawers when the viewport grows past their breakpoint,
+ *  - ⌘K / Ctrl+K opens search from anywhere,
+ *  - Escape leaves focus mode, unless a dialog is open and wants it first.
  */
 export function TerminalRuntime() {
   useEffect(() => {
@@ -26,6 +28,26 @@ export function TerminalRuntime() {
     return () => {
       for (const query of queries) query.removeEventListener("change", onChange);
     };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const store = useElyraStore.getState();
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        store.setCommandOpen(!store.commandOpen);
+        return;
+      }
+      if (
+        event.key === "Escape" &&
+        store.focusMode &&
+        document.querySelector("[role='dialog']") === null
+      ) {
+        store.setFocusMode(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   return null;

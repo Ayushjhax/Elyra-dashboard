@@ -160,7 +160,7 @@ export function Delta({
  *
  * `--surface-panel` on `--border-subtle` at `--radius-card`, which is the
  * shell's own card and not a new one. No shadow: §34 asks for almost none,
- * and the rim hairline already separates a card from the ground.
+ * and the hairline already separates a card from the ground.
  */
 export function Card({
   className,
@@ -170,7 +170,7 @@ export function Card({
   return (
     <section
       className={cn(
-        "rim flex min-w-0 flex-col rounded-card border border-border-subtle bg-surface-panel",
+        "flex min-w-0 flex-col rounded-card border border-border-subtle bg-surface-panel",
         className,
       )}
       {...props}

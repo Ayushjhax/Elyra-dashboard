@@ -114,7 +114,6 @@ export default function AssetsPage() {
           </div>
         ) : !feed.signedIn ? (
           <EmptyState
-            mark="forest"
             title="No wallet connected"
             body="Connect or create a wallet to view your assets."
             action={

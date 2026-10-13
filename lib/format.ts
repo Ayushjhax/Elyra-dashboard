@@ -3,20 +3,7 @@
    and sign conventions stay identical across panels.
 --------------------------------------------------------------------------- */
 
-/**
- * The reference "now" for the whole mock data set.
- *
- * Relative timestamps are measured against this constant rather than
- * `Date.now()` on purpose: it makes server and client render byte-identical,
- * so there is no hydration mismatch and no console warning. A real API would
- * pass a live `now` into `formatRelativeTime`.
- */
-export const MOCK_NOW = Date.parse("2026-08-30T14:30:00.000Z");
-
-/** ISO string for a point `seconds` before the mock reference time. */
-export function ago(seconds: number): string {
-  return new Date(MOCK_NOW - seconds * 1000).toISOString();
-}
+import { priceDecimals } from "@/lib/market/precision";
 
 export function formatUsd(
   value: number,
@@ -63,6 +50,16 @@ export function formatQty(value: number, decimals = 2): string {
   });
 }
 
+/**
+ * A market price in dollars at the instrument's own precision — $107.7439,
+ * $0.00000421. Every price shown with a currency sign goes through here, so a
+ * small token can never round to $0.00 or print in exponent notation.
+ */
+export function formatPriceUsd(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  return `${value < 0 ? "-" : ""}$${formatPrice(Math.abs(value), priceDecimals(value))}`;
+}
+
 /** Price with the asset's own precision, no currency symbol. */
 export function formatPrice(value: number, decimals = 2): string {
   return value.toLocaleString("en-US", {
@@ -71,8 +68,14 @@ export function formatPrice(value: number, decimals = 2): string {
   });
 }
 
-/** "just now", "4m ago", "2h ago", "3d ago". */
-export function formatRelativeTime(iso: string, now: number = MOCK_NOW): string {
+/**
+ * "just now", "4m ago", "2h ago", "3d ago".
+ *
+ * `now` is required. There is no instant the server and the client agree on,
+ * so a caller passes the shared clock from lib/useClock.ts — null until
+ * hydration — and renders nothing relative until it has one.
+ */
+export function formatRelativeTime(iso: string, now: number): string {
   const seconds = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
   if (seconds < 45) return "just now";
   const minutes = Math.round(seconds / 60);
@@ -106,7 +109,7 @@ export function formatTimestamp(iso: string): string {
 }
 
 /** Today / Yesterday / 28 Aug — the Activity feed's group headers. */
-export function formatDayGroup(iso: string, now: number = MOCK_NOW): string {
+export function formatDayGroup(iso: string, now: number): string {
   const startOfDay = (ms: number) => {
     const d = new Date(ms);
     return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());

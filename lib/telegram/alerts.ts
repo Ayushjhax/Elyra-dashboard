@@ -26,6 +26,9 @@ export interface PriceAlert {
   target: number;
   createdPrice: number | null;
   triggeredAt: string | null;
+  /** The price the delivery worker saw when it fired. */
+  triggeredPrice?: number | null;
+  createdAt?: string;
 }
 
 /** `SOL > 120`, `SOL above 120`, `sol under 80`, `SOL 120`. */
@@ -99,7 +102,7 @@ export async function createAlert(input: {
 export async function listAlerts(userId: string): Promise<PriceAlert[]> {
   const { data, error } = await serviceClient()
     .from("price_alerts")
-    .select("id, symbol, direction, target, created_price, triggered_at")
+    .select("id, symbol, direction, target, created_price, triggered_at, triggered_price, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -113,6 +116,8 @@ export async function listAlerts(userId: string): Promise<PriceAlert[]> {
     target: Number(row.target),
     createdPrice: row.created_price === null ? null : Number(row.created_price),
     triggeredAt: row.triggered_at,
+    triggeredPrice: row.triggered_price === null ? null : Number(row.triggered_price),
+    createdAt: row.created_at,
   }));
 }
 
@@ -126,6 +131,17 @@ export async function clearAlerts(
 
   const { data } = await query.select("id");
   return (data ?? []).length;
+}
+
+/** Removes one alert, scoped to its owner. True when something was removed. */
+export async function deleteAlert(userId: string, id: string): Promise<boolean> {
+  const { data } = await serviceClient()
+    .from("price_alerts")
+    .delete()
+    .eq("user_id", userId)
+    .eq("id", id)
+    .select("id");
+  return (data ?? []).length > 0;
 }
 
 /* ---------------------------------------------------------------------------

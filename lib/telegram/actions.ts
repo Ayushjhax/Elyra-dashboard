@@ -226,3 +226,64 @@ export async function cancelPreparedAction(
 
   return (data ?? []).length > 0;
 }
+
+/* ---------------------------------------------------------------------------
+   The web's side of the same record.
+
+   Telegram prepares and acknowledges; the dashboard is the surface that can
+   verify a wallet, so it is where an open action is finished or set aside.
+   Both are addressed by row id rather than token — the token is Telegram's
+   handle, and there is no reason to put it in a browser.
+--------------------------------------------------------------------------- */
+
+/** An action still waiting on the person: prepared or acknowledged, unexpired. */
+export async function listOpenActions(userId: string): Promise<PreparedActionRecord[]> {
+  const { data, error } = await serviceClient()
+    .from("prepared_actions")
+    .select("id, user_id, token, kind, payload, surface, status, expires_at")
+    .eq("user_id", userId)
+    .in("status", ["prepared", "acknowledged"])
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    token: row.token,
+    kind: row.kind,
+    action: row.payload as PreparedAction,
+    surface: row.surface,
+    status: row.status as PreparedActionStatus,
+    expiresAt: row.expires_at,
+  }));
+}
+
+/**
+ * Closes an open action from the web.
+ *
+ * `cancelled` is the person setting it aside. `confirmed` is written only
+ * after their wallet signed and the swap landed — the caller holds the
+ * signature, and this route never produced it. Both are filtered on
+ * `user_id` and on an open status, so a stale or foreign id changes nothing.
+ */
+export async function settleOpenAction(
+  id: string,
+  userId: string,
+  outcome: "cancelled" | "confirmed",
+): Promise<boolean> {
+  const { data, error } = await serviceClient()
+    .from("prepared_actions")
+    .update({ status: outcome, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .in("status", ["prepared", "acknowledged"])
+    .select("id");
+
+  if (error) {
+    console.error("[actions] could not settle action", error.code);
+    return false;
+  }
+  return (data ?? []).length > 0;
+}

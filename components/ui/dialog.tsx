@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils";
  * --border-strong, and the one permitted shadow. Also does duty as the
  * responsive drawer and sheet, via the `side` prop on DialogContent.
  *
- * `surface` picks what the content sits on. A real dialog takes `glass` — the
- * luminance layer's frosted plane, since it floats over the grid rather than
- * being part of it. `bare` is for the drawers and sheets that mount whole
- * Panels inside themselves and would otherwise draw a second border around a
- * surface that already has one.
+ * `surface` picks what the content sits on. A real dialog takes `panel` —
+ * --surface-panel, a strong border and --shadow-pop, the one shadow section 3
+ * permits, because it floats. `bare` is for the drawers and sheets that mount
+ * whole Panels inside themselves and would otherwise draw a second border
+ * around a surface that already has one.
  */
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -28,7 +28,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-surface-base/70 backdrop-blur-[2px]",
+        "fixed inset-0 z-50 bg-surface-base/75",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         className,
       )}
@@ -38,7 +38,7 @@ function DialogOverlay({
 }
 
 type DialogSide = "center" | "right" | "left" | "bottom";
-type DialogSurface = "glass" | "panel" | "bare";
+type DialogSurface = "panel" | "bare";
 
 const SIDE_CLASSES: Record<DialogSide, string> = {
   center:
@@ -51,7 +51,6 @@ const SIDE_CLASSES: Record<DialogSide, string> = {
 };
 
 const SURFACE_CLASSES: Record<DialogSurface, string> = {
-  glass: "glass shadow-pop",
   panel: "border-border-strong bg-surface-panel shadow-pop",
   bare: "border-0 bg-transparent p-0 shadow-none",
 };
@@ -60,7 +59,7 @@ function DialogContent({
   className,
   children,
   side = "center",
-  surface = "glass",
+  surface = "panel",
   showClose = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {

@@ -170,6 +170,14 @@ export interface PriceRow {
   price: number;
   /** From the exchange sources, null when none of them list the asset. */
   change24hPct: number | null;
+  /**
+   * The exchange sources' rolling 24h range and quote volume, for crypto
+   * only. Equities, metals and FX get a change from Yahoo but no range, so
+   * these are null there — and rendered as a dash, never as a guess.
+   */
+  high24h: number | null;
+  low24h: number | null;
+  volume24h: number | null;
   confidence: number;
   emaPrice: number;
   publisherCount: number;

@@ -118,7 +118,6 @@ export default function ReferralsPage() {
           </div>
         ) : !signedIn ? (
           <EmptyState
-            mark="forest"
             title="Sign in to get your referral link"
             body="Your referral code is tied to your Elyra account. Connect a wallet to claim yours."
             action={
@@ -135,7 +134,7 @@ export default function ReferralsPage() {
               tone={data?.unconfigured === true ? "neutral" : "warning"}
               title={
                 data?.unconfigured === true
-                  ? "Referrals are not set up yet"
+                  ? "The referral database can't be reached"
                   : "We couldn't load your referral data."
               }
               body={data?.error ?? "Something went wrong reading your referrals."}

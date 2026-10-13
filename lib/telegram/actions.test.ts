@@ -294,3 +294,44 @@ describe("notification preferences", () => {
     expect(preferences.dailySummary).toBe(true);
   });
 });
+
+describe("the web's side: open actions", () => {
+  it("lists only this user's prepared or acknowledged, unexpired actions", async () => {
+    const { acknowledgePreparedAction, cancelPreparedAction, listOpenActions } = await import(
+      "@/lib/telegram/actions"
+    );
+    const prepared = await store(USER_A);
+    const acknowledged = await store(USER_A);
+    const cancelled = await store(USER_A);
+    await store(USER_B);
+    await acknowledgePreparedAction(acknowledged!.token, USER_A);
+    await cancelPreparedAction(cancelled!.token, USER_A);
+
+    const open = await listOpenActions(USER_A);
+    expect(open.map((entry) => entry.id).sort()).toEqual([prepared!.id, acknowledged!.id].sort());
+    expect(open.every((entry) => entry.userId === USER_A)).toBe(true);
+  });
+
+  it("leaves out an action whose window has passed", async () => {
+    const { listOpenActions } = await import("@/lib/telegram/actions");
+    const record = await store(USER_A);
+    state.db.rows("prepared_actions")[0].expires_at = new Date(Date.now() - 1000).toISOString();
+    expect(record).not.toBeNull();
+    expect(await listOpenActions(USER_A)).toEqual([]);
+  });
+
+  it("settles an open action once, and never another user's", async () => {
+    const { settleOpenAction } = await import("@/lib/telegram/actions");
+    const record = await store(USER_A);
+
+    expect(await settleOpenAction(record!.id, USER_B, "cancelled")).toBe(false);
+    expect(state.db.rows("prepared_actions")[0].status).toBe("prepared");
+
+    expect(await settleOpenAction(record!.id, USER_A, "confirmed")).toBe(true);
+    expect(state.db.rows("prepared_actions")[0].status).toBe("confirmed");
+
+    /* Settled rows are closed: a second write changes nothing. */
+    expect(await settleOpenAction(record!.id, USER_A, "cancelled")).toBe(false);
+    expect(state.db.rows("prepared_actions")[0].status).toBe("confirmed");
+  });
+});

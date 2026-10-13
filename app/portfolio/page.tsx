@@ -83,7 +83,7 @@ export default function PortfolioPage() {
     view !== null && view.spot.length === 0 && view.perps.length === 0 && !view.partial;
 
   return (
-    <Panel label="Portfolio" glow="forest" className="min-h-0 flex-1">
+    <Panel label="Portfolio" className="min-h-0 flex-1">
       <PanelHeader>
         <Eyebrow>Portfolio</Eyebrow>
         <RouteClose />
@@ -97,7 +97,6 @@ export default function PortfolioPage() {
           </div>
         ) : !feed.signedIn ? (
           <EmptyState
-            mark="forest"
             title="No wallet connected"
             body="Connect or create a wallet to view your portfolio."
             action={

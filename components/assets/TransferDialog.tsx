@@ -420,7 +420,7 @@ export function TransferDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent side="center" surface="glass" className="flex flex-col gap-0 p-0">
+      <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
             <Eyebrow>{title}</Eyebrow>

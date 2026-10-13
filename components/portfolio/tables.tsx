@@ -65,9 +65,7 @@ function SortableHeader({
 /** Prefills the existing agent composer. Never sends, never executes. */
 function useAskElyra(): (prompt: string) => void {
   const askElyra = useElyraStore((state) => state.askElyra);
-  const setAssistOpen = useElyraStore((state) => state.setAssistOpen);
   return (prompt: string) => {
-    setAssistOpen(true);
     askElyra(prompt);
   };
 }

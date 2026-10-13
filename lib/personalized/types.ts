@@ -157,6 +157,17 @@ export interface PreparedAction {
   warnings: string[];
   /** When the underlying quote or balance was read. */
   preparedAt: string;
+  /**
+   * The resolved inputs, for a surface that can carry the action on — the
+   * web's swap dialog prefills from these. Absent on actions stored before
+   * they were recorded; `fields` still describes those for a person.
+   */
+  params?: {
+    symbol?: string;
+    toSymbol?: string;
+    quantity?: number;
+    market?: string;
+  };
 }
 
 /* ---------------------------------------------------------------------------

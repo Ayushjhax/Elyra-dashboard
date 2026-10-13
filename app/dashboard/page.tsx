@@ -168,7 +168,7 @@ function Holdings() {
 
 export default function DashboardPage() {
   return (
-    <Panel label="Dashboard" glow="forest" className="min-h-0 flex-1">
+    <Panel label="Dashboard" className="min-h-0 flex-1">
       <PanelHeader>
         <Eyebrow>Dashboard</Eyebrow>
         <RouteClose />

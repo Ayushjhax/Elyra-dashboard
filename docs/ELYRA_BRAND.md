@@ -199,6 +199,12 @@ border, not shadow. The only shadow permitted is on floating layers:
 **Borders.** 1px `--border-subtle`. Hairline dividers inside tables, full borders on
 panels. Never double-border adjacent panels — use the shell gap instead.
 
+**Glass — the search palette only.** The ⌘K palette floats over the whole
+workspace and is drawn as glass rather than a card: a pane at 30% Ink over an
+18px blur, a 1px rim and a top sheen in Ivory (`#F7F8EA`) at 6–75% alpha, a
+28px radius. Nothing else is glass, and it falls back to `--surface-panel`
+when the reader asks for reduced transparency.
+
 ---
 
 ## 4. Motion

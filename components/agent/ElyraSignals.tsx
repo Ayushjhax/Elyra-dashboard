@@ -5,7 +5,9 @@ import { ArrowDownRight, ArrowUpRight, ChevronRight, Minus, RefreshCw, Sparkles 
 import type { MarketSignalsResponse } from "@/app/api/market/signals/route";
 import { Button } from "@/components/ui/Button";
 import { CoinMark } from "@/components/ui/CoinMark";
-import { formatRelativeTime } from "@/lib/format";
+import { DeltaText } from "@/components/ui/DeltaText";
+import { PulseBoard, WatchlistPulse } from "@/components/agent/MarketPulse";
+import { formatCompactUsd, formatPriceUsd, formatRelativeTime } from "@/lib/format";
 import { useTickerLogos, type TickerLogo } from "@/lib/market/tickerLogos";
 import { useAssets } from "@/lib/market/usePrices";
 import type { MarketSignal } from "@/lib/research/signals";
@@ -33,7 +35,7 @@ import { cn } from "@/lib/utils";
 
 const REFRESH_MS = 60_000;
 const MAX_SYMBOLS = 6;
-const CONSENSUS_SHOWN = 4;
+const CONSENSUS_SHOWN = 12;
 
 const STRENGTH: Record<MarketSignal["strength"], { label: string; tone: string }> = {
   high: { label: "High", tone: "border-accent-quiet bg-surface-active text-text-primary" },
@@ -131,10 +133,29 @@ function SignalCard({
   );
 }
 
-function ConsensusRow({ signal, mark }: { signal: TrackerSignal; mark: TickerLogo }) {
+function ConsensusRow({
+  signal,
+  mark,
+  onAsk,
+}: {
+  signal: TrackerSignal;
+  mark: TickerLogo;
+  onAsk: (prompt: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
   const long = signal.side === "LONG";
+  const price = Number(signal.currentPxUsd);
+  const entry = Number(signal.vwapEntryUsd);
+  const fromEntry =
+    Number.isFinite(price) && Number.isFinite(entry) && entry > 0 ? ((price - entry) / entry) * 100 * (long ? 1 : -1) : null;
   return (
-    <li className="flex items-center gap-2.5 border-t border-border-subtle px-1 py-2 first:border-t-0">
+    <li className="border-t border-border-subtle first:border-t-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center gap-2.5 px-1 py-2 text-left transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover"
+      >
       <CoinMark symbol={signal.symbol} logo={mark.logo} fallbackLogo={mark.fallbackLogo} size={22} />
       <span className="type-data w-14 shrink-0 truncate text-text-primary">{signal.symbol}</span>
       <span
@@ -147,6 +168,53 @@ function ConsensusRow({ signal, mark }: { signal: TrackerSignal; mark: TickerLog
       </span>
       <span className="type-label min-w-0 flex-1 truncate text-text-secondary">{signal.status}</span>
       <span className="type-data-sm shrink-0 text-text-muted">{signal.weightedScore}% of value</span>
+      <ChevronRight
+        size={13}
+        strokeWidth={1.5}
+        aria-hidden
+        className={cn("shrink-0 text-text-muted transition-transform duration-[var(--dur-base)] ease-brand", open && "rotate-90")}
+      />
+      </button>
+      {open && (
+        <div className="pb-3 pl-9 pr-1">
+          <dl className="grid grid-cols-3 gap-2 rounded-control border border-border-subtle bg-surface-raised p-2">
+            <div>
+              <dt className="type-label text-text-muted">Mark</dt>
+              <dd className="type-data-sm text-text-primary">{Number.isFinite(price) ? formatPriceUsd(price) : "—"}</dd>
+            </div>
+            <div>
+              <dt className="type-label text-text-muted">Their avg. entry</dt>
+              <dd className="type-data-sm text-text-primary">{Number.isFinite(entry) ? formatPriceUsd(entry) : "—"}</dd>
+            </div>
+            <div>
+              <dt className="type-label text-text-muted">Since entry</dt>
+              <dd className="type-data-sm">
+                {fromEntry === null ? <span className="text-text-muted">—</span> : <DeltaText value={fromEntry} decimals={1} />}
+              </dd>
+            </div>
+          </dl>
+          <ul className="mt-2 list-none space-y-1" aria-label={`${signal.symbol} wallets`}>
+            {signal.participants.slice(0, 5).map((participant) => (
+              <li key={participant.wallet} className="type-label flex items-baseline gap-2">
+                <span className="type-mono-addr min-w-0 flex-1 truncate text-text-secondary">{participant.wallet}</span>
+                <span className="shrink-0 text-text-muted">
+                  {participant.performance.roiPct}% 30d · {formatCompactUsd(Number(participant.magnitudeUsd) || 0)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() =>
+              onAsk(`${signal.walletCount} top Hyperliquid wallets are ${long ? "long" : "short"} ${signal.symbol}. What is the case for and against following them?`)
+            }
+            className="type-label mt-2 inline-flex items-center gap-1 rounded-control px-1 py-1 text-text-secondary hover:text-text-primary"
+          >
+            <Sparkles size={12} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+            Ask Elyra about this
+          </button>
+        </div>
+      )}
     </li>
   );
 }
@@ -299,6 +367,9 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
         </>
       )}
 
+      <WatchlistPulse />
+      <PulseBoard onAsk={onAsk} />
+
       <div className="mt-5 flex items-center justify-between gap-2">
         <p className="type-eyebrow text-text-muted">Smart-money consensus</p>
         {consensus.note && <span className="type-label truncate text-text-muted">{consensus.note}</span>}
@@ -308,7 +379,7 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
       ) : consensus.signals.length > 0 ? (
         <ul className="mt-1 list-none">
           {consensus.signals.map((signal) => (
-            <ConsensusRow key={signal.id} signal={signal} mark={logoFor(signal.symbol)} />
+            <ConsensusRow key={signal.id} signal={signal} mark={logoFor(signal.symbol)} onAsk={onAsk} />
           ))}
         </ul>
       ) : (

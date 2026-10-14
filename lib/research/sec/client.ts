@@ -80,21 +80,18 @@ let lastStartedAt = 0;
 function schedule<T>(task: () => Promise<T>): Promise<T> {
   const spacingMs = 1000 / maxRps();
 
-  const result = queue.then(async () => {
+  /* The chain orders START times, not completions. The SEC's ceiling is on
+     how often requests begin; waiting for each response before starting the
+     next held eight feed reads to one at a time — a minute of wall clock
+     for what the limit allows in one second. */
+  const started = queue.then(async () => {
     const wait = Math.max(0, lastStartedAt + spacingMs - Date.now());
     if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     lastStartedAt = Date.now();
-    return task();
   });
+  queue = started;
 
-  /* The queue advances whether or not the task succeeded — a failed request
-     must not wedge every subsequent one. */
-  queue = result.then(
-    () => undefined,
-    () => undefined,
-  );
-
-  return result;
+  return started.then(task);
 }
 
 /* ---------------------------------------------------------------------------

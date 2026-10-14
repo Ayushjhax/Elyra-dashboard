@@ -238,9 +238,9 @@ says so at more length.
   boundaries: why a tap is not a signature, why `callback_data` carries an
   opaque handle, and why `initDataUnsafe` is never trusted.
 
-## Two deliberate deviations from the brand doc
+## Three deliberate deviations from the brand doc
 
-Both are noted where they happen, in the file that makes the choice.
+Each is noted where it happens, in the file that makes the choice.
 
 1. **Figures.** The doc asks for General Sans on data *and* for tabular figures
    on every changing number. General Sans ships no `tnum` feature in any build,
@@ -254,6 +254,11 @@ Both are noted where they happen, in the file that makes the choice.
    of the brand's market semantics. `ChartPanel` uses the `tv.js` widget, which
    honours the required colours: background, grid, Sage up, Clay down, and the
    EMA in `--accent-quiet` through its `ema.ma.color` override.
+3. **Search palette glass.** Section 3 makes the product flat. The ⌘K palette
+   alone is a sheet of glass (`.command-glass` in `app/globals.css`): a barely
+   tinted pane over a light blur, a 1px Ivory rim brightest at the top-left,
+   and a sheen across the top. Light only — every highlight is Ivory at low
+   alpha — and a solid panel under `prefers-reduced-transparency`.
 
 The black surfaces and the luminance layer (blooms, rims, frosted planes,
 gradient-filled controls) that used to be a third deviation are gone: the

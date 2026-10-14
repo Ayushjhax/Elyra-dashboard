@@ -206,7 +206,15 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
   );
 }
 
-export function SmartMoneyPanel({ bare = false }: { bare?: boolean }) {
+export function SmartMoneyPanel({
+  bare = false,
+  findingsOnly = false,
+}: {
+  bare?: boolean;
+  /** Render only when the scan has findings — for a view that already shows
+      the live filings itself, where this panel's fallback would repeat them. */
+  findingsOnly?: boolean;
+}) {
   const [state, setState] = useState<FeedState>(INITIAL);
   const now = useMinute();
 
@@ -252,6 +260,8 @@ export function SmartMoneyPanel({ bare = false }: { bare?: boolean }) {
   /* `bare` drops the panel's own frame, for when it is one view inside the
      agent panel and a second border would sit inside the first. */
   const Frame = bare ? BareFrame : Panel;
+
+  if (findingsOnly && state.findings.length === 0) return null;
 
   return (
     <Frame label="Smart money">

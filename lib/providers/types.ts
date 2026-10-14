@@ -348,6 +348,10 @@ export interface PerpMarket {
   openInterest: number | null;
   volume24hUsd: number | null;
   maxLeverage: number | null;
+  /** The price 24 hours ago, where the venue publishes it. */
+  prevDayPrice?: number | null;
+  /** Listed but no longer trading. */
+  delisted?: boolean;
 }
 
 /* ---------------------------------------------------------------------------

@@ -434,28 +434,67 @@ td {
   outline: none;
 }
 
+/* ---------------------------------------------------------------------------
+   The search palette, as glass.
+
+   The one deliberate exception to the flat product (CLAUDE.md, README): a
+   floating layer that sits over the whole workspace reads as a sheet of
+   glass rather than another card. Light, never colour — every highlight is
+   Ivory (1.3's lightest neutral) at low alpha, and the pane takes almost no
+   tint of its own, so the workspace behind it shows through, softened.
+
+   Legibility comes first: the pane keeps a thin Ink veil and the blur is
+   strong enough that a bright candle behind it never sits under a letter.
+   Reduced transparency gets a solid panel.
+--------------------------------------------------------------------------- */
+
 .command-glass-overlay {
-  background: color-mix(in srgb, var(--surface-base) 20%, transparent);
+  /* A light veil: the workspace stays visible behind the glass. */
+  background: color-mix(in srgb, var(--surface-base) 10%, transparent);
 }
 
 .command-glass {
-  /* Neutral reflections mimic clear glass without tinting the brand palette. */
-  --glass-light: 255 255 255;
+  --glass-light: 247 248 234; /* Ivory, as channels for alpha */
+  position: fixed;
+  isolation: isolate;
   border-radius: 28px;
-  border-color: rgb(var(--glass-light) / 24%);
+  border-color: rgb(var(--glass-light) / 30%);
   background:
-    radial-gradient(ellipse at 0% 0%, rgb(var(--glass-light) / 16%), transparent 55%),
-    linear-gradient(135deg, rgb(var(--glass-light) / 7%), transparent 45%, rgb(var(--glass-light) / 4%)),
-    color-mix(in srgb, var(--surface-panel) 58%, transparent);
-  -webkit-backdrop-filter: blur(32px) saturate(165%) brightness(1.12);
-  backdrop-filter: blur(32px) saturate(165%) brightness(1.12);
+    /* Sheen across the top, as light catches a curved edge. */
+    linear-gradient(180deg, rgb(var(--glass-light) / 10%), rgb(var(--glass-light) / 2%) 28%, transparent 60%),
+    /* The pane: barely tinted, just enough Ink to hold text. */
+    color-mix(in srgb, var(--surface-base) 30%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(185%) brightness(1.06);
+  backdrop-filter: blur(18px) saturate(185%) brightness(1.06);
   box-shadow:
-    inset 0 1px 0 rgb(var(--glass-light) / 46%),
-    inset 1px 0 0 rgb(var(--glass-light) / 14%),
-    inset 0 -1px 0 rgb(var(--glass-light) / 16%),
-    0 0 0 1px color-mix(in srgb, var(--surface-base) 12%, transparent),
-    0 16px 48px color-mix(in srgb, var(--surface-base) 32%, transparent),
-    0 40px 100px color-mix(in srgb, var(--surface-base) 25%, transparent);
+    inset 0 1px 0 rgb(var(--glass-light) / 55%),
+    inset 0 -1px 0 rgb(var(--glass-light) / 14%),
+    0 24px 64px color-mix(in srgb, var(--surface-base) 28%, transparent);
+}
+
+/* The rim: brightest at the top-left where the light enters, fading round
+   the sides and catching again at the bottom-right — drawn as a 1px ring so
+   it never fills the pane. */
+.command-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    140deg,
+    rgb(var(--glass-light) / 75%),
+    rgb(var(--glass-light) / 18%) 30%,
+    rgb(var(--glass-light) / 6%) 60%,
+    rgb(var(--glass-light) / 38%)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .command-glass .text-text-muted {
@@ -464,15 +503,14 @@ td {
 
 .command-search {
   border-radius: 18px;
-  border-color: rgb(var(--glass-light) / 12%);
-  background: color-mix(in srgb, var(--surface-base) 18%, transparent);
-  box-shadow: inset 0 1px 4px color-mix(in srgb, var(--surface-base) 12%, transparent);
+  border-color: rgb(var(--glass-light) / 16%);
+  background: rgb(var(--glass-light) / 6%);
+  box-shadow: inset 0 1px 0 rgb(var(--glass-light) / 10%);
 }
 
 .command-search:focus-within {
-  border-color: color-mix(in srgb, var(--focus-ring) 55%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus-ring) 12%, transparent),
-    inset 0 1px 0 rgb(var(--glass-light) / 10%);
+  border-color: rgb(var(--glass-light) / 38%);
+  background: rgb(var(--glass-light) / 9%);
 }
 
 .command-result {
@@ -480,13 +518,17 @@ td {
 }
 
 .command-result-selected {
-  background: linear-gradient(110deg, rgb(var(--glass-light) / 17%), rgb(var(--glass-light) / 8%));
-  box-shadow: inset 0 1px 0 rgb(var(--glass-light) / 24%),
-    inset 0 0 0 1px rgb(var(--glass-light) / 10%),
-    0 2px 6px color-mix(in srgb, var(--surface-base) 8%, transparent);
+  background: rgb(var(--glass-light) / 13%);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--glass-light) / 30%),
+    inset 0 0 0 1px rgb(var(--glass-light) / 10%);
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  .command-glass-overlay {
+    background: color-mix(in srgb, var(--surface-base) 60%, transparent);
+  }
+
   .command-glass {
     background: var(--surface-panel);
     -webkit-backdrop-filter: none;

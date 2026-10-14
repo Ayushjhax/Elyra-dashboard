@@ -170,3 +170,63 @@ export async function resolveEntity(query: string): Promise<ToolResult<ResolveOu
     `No SEC registrant matches "${raw}".`,
   );
 }
+
+/* ---------------------------------------------------------------------------
+   Lookups for the market-wide feed and the company search.
+
+   The live feed names a filer by CIK only, so the ticker beside it comes
+   from the same mapping — never from the filing's text. A filer the mapping
+   does not list (a private company, a fund, an individual) has no ticker,
+   and is shown by name.
+--------------------------------------------------------------------------- */
+
+/** Every listed registrant by CIK. A CIK with several share classes keeps its first ticker. */
+export async function entitiesByCik(): Promise<Map<string, SecEntity>> {
+  const map = await tickerMap();
+  const byCik = new Map<string, SecEntity>();
+  for (const row of map.data ?? []) {
+    if (!byCik.has(row.cik)) byCik.set(row.cik, row);
+  }
+  return byCik;
+}
+
+/**
+ * Registrants matching what someone typed: an exact ticker first, then
+ * tickers starting with it, then names starting with it, then names with a
+ * word starting with it. One row per company.
+ */
+export async function searchEntities(query: string, limit = 8): Promise<SecEntity[]> {
+  const raw = query.trim();
+  if (raw.length === 0) return [];
+  const map = await tickerMap();
+  const rows = map.data ?? [];
+  const upper = raw.toUpperCase();
+  const needle = normalise(raw);
+
+  const ranked: Array<{ row: SecEntity; rank: number }> = [];
+  for (const row of rows) {
+    const name = normalise(row.companyName);
+    const rank =
+      row.ticker === upper
+        ? 0
+        : row.ticker.startsWith(upper)
+          ? 1
+          : needle.length >= 2 && name.startsWith(needle)
+            ? 2
+            : needle.length >= 3 && name.split(" ").some((word) => word.startsWith(needle))
+              ? 3
+              : -1;
+    if (rank >= 0) ranked.push({ row, rank });
+  }
+
+  ranked.sort((a, b) => a.rank - b.rank || a.row.ticker.length - b.row.ticker.length);
+  const seen = new Set<string>();
+  const results: SecEntity[] = [];
+  for (const { row } of ranked) {
+    if (seen.has(row.cik)) continue;
+    seen.add(row.cik);
+    results.push(row);
+    if (results.length >= limit) break;
+  }
+  return results;
+}

@@ -18,9 +18,14 @@ glow, bloom, rim or gradient-filled control — the luminance layer that did
 those was removed in the workspace redesign. `lib/brand.ts` tracks
 `--surface-base`.
 
-Two deliberate deviations are documented in `README.md` and commented at the
-point where they happen: the figures font in `app/layout.tsx`, and the chart
-embed in `components/panels/ChartPanel.tsx`.
+The one exception is the search palette (`.command-glass` in
+`app/globals.css`): a sheet of glass over the whole workspace, its rim and
+sheen in Ivory at low alpha, solid under `prefers-reduced-transparency`. It
+does not spread — a new floating layer is a flat panel with `--shadow-pop`.
+
+Three deliberate deviations are documented in `README.md` and commented at the
+point where they happen: the figures font in `app/layout.tsx`, the chart
+embed in `components/panels/ChartPanel.tsx`, and the search palette's glass.
 
 The shell's geometry has one authority: `lib/layout.ts`. Every column bound,
 the centre's floor and the order columns give up width in are there and

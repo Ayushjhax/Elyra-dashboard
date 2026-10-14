@@ -26,6 +26,7 @@ import { DecisionBrief } from "@/components/agent/DecisionBrief";
 import { ElyraSignals } from "@/components/agent/ElyraSignals";
 import { PendingActions } from "@/components/agent/PendingActions";
 import { SmartMoneyPanel } from "@/components/panels/SmartMoneyPanel";
+import { SecResearch } from "@/components/agent/SecResearch";
 import { sendToAgent } from "@/lib/agentChat";
 import { ACCEPT, ATTACHMENT_LIMITS, type ComposerAttachment } from "@/lib/attachments";
 import { describeSize, readAttachments } from "@/lib/attachments-read";
@@ -806,7 +807,8 @@ export function AgentPanel({
         hidden={tab !== "research"}
         className={cn("min-h-0 flex-1 flex-col", tab === "research" ? "flex" : "hidden")}
       >
-        <SmartMoneyPanel bare />
+        <SecResearch onAsk={ask} />
+        <SmartMoneyPanel bare findingsOnly />
         <Link
           href="/research"
           className="type-label flex shrink-0 items-center justify-between border-t border-border-subtle px-4 py-2.5 text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"

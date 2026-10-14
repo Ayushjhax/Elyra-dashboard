@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, ChevronRight, Minus, RefreshCw, Sparkles } from "lucide-react";
 import type { MarketSignalsResponse } from "@/app/api/market/signals/route";
 import { Button } from "@/components/ui/Button";
+import { CoinMark } from "@/components/ui/CoinMark";
 import { formatRelativeTime } from "@/lib/format";
+import { useTickerLogos, type TickerLogo } from "@/lib/market/tickerLogos";
 import { useAssets } from "@/lib/market/usePrices";
 import type { MarketSignal } from "@/lib/research/signals";
 import { useElyraStore } from "@/lib/store";
@@ -53,10 +55,12 @@ function SignalCard({
   signal,
   now,
   onAsk,
+  mark,
 }: {
   signal: MarketSignal;
   now: number | null;
   onAsk: (prompt: string) => void;
+  mark: TickerLogo;
 }) {
   const [open, setOpen] = useState(false);
   const strength = STRENGTH[signal.strength];
@@ -64,6 +68,7 @@ function SignalCard({
   return (
     <li className="agent-rail rounded-r-card bg-surface-raised px-3 py-3">
       <div className="flex items-center gap-2">
+        <CoinMark symbol={signal.symbol} logo={mark.logo} fallbackLogo={mark.fallbackLogo} size={24} />
         <span className="type-data text-text-primary">{signal.symbol}</span>
         <DirectionIcon direction={signal.direction} />
         <span className={cn("type-label rounded-chip border px-1.5", strength.tone)}>
@@ -126,11 +131,12 @@ function SignalCard({
   );
 }
 
-function ConsensusRow({ signal }: { signal: TrackerSignal }) {
+function ConsensusRow({ signal, mark }: { signal: TrackerSignal; mark: TickerLogo }) {
   const long = signal.side === "LONG";
   return (
     <li className="flex items-center gap-2.5 border-t border-border-subtle px-1 py-2 first:border-t-0">
-      <span className="type-data w-14 shrink-0 text-text-primary">{signal.symbol}</span>
+      <CoinMark symbol={signal.symbol} logo={mark.logo} fallbackLogo={mark.fallbackLogo} size={22} />
+      <span className="type-data w-14 shrink-0 truncate text-text-primary">{signal.symbol}</span>
       <span
         className={cn(
           "type-label rounded-chip px-1.5",
@@ -227,6 +233,11 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
   }, [loadConsensus, loadMarket]);
 
   const signals = (market.data?.results ?? []).flatMap((result) => result.signals);
+  const tickers = useMemo(
+    () => [...(market.data?.results ?? []).map((result) => result.symbol), ...consensus.signals.map((signal) => signal.symbol)],
+    [market.data, consensus.signals],
+  );
+  const logoFor = useTickerLogos(tickers);
   const quiet = (market.data?.results ?? [])
     .filter((result) => result.signals.length === 0 && result.warnings.length === 0)
     .map((result) => result.symbol);
@@ -269,6 +280,7 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
                   signal={signal}
                   now={now}
                   onAsk={onAsk}
+                  mark={logoFor(signal.symbol)}
                 />
               ))}
             </ul>
@@ -296,7 +308,7 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
       ) : consensus.signals.length > 0 ? (
         <ul className="mt-1 list-none">
           {consensus.signals.map((signal) => (
-            <ConsensusRow key={signal.id} signal={signal} />
+            <ConsensusRow key={signal.id} signal={signal} mark={logoFor(signal.symbol)} />
           ))}
         </ul>
       ) : (

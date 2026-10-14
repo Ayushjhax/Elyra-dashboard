@@ -9,6 +9,7 @@ import { Section, SectionControl } from "@/components/ui/Section";
 import type { WidgetProps } from "@/components/workspace/WidgetColumn";
 import { formatCompactUsd, formatPrice, formatPriceUsd, formatRelativeTime } from "@/lib/format";
 import { priceDecimals } from "@/lib/market/precision";
+import { useTickerLogos, type TickerLogo } from "@/lib/market/tickerLogos";
 import { refreshPrices, useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
 import type { PriceRow, PythAsset } from "@/lib/market/pyth/types";
 import { parseTrackerSignalList, type TrackerSignal } from "@/lib/tracker/types";
@@ -17,7 +18,9 @@ import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
-   Smart money and market signals — two feeds, kept apart.
+   Market and smart-money signals — two feeds, kept apart. Market opens
+   first: it is live for every market on the watchlist, while smart money
+   speaks only when wallets agree.
 
    Smart money is wallet consensus from the tracker service: what tracked
    wallets are doing together, streamed when the service is up and polled
@@ -267,7 +270,15 @@ function MarketSignals({
 
 /* --- smart money --------------------------------------------------------- */
 
-function SmartMoneyCard({ signal, now }: { signal: TrackerSignal; now: number | null }) {
+function SmartMoneyCard({
+  signal,
+  now,
+  mark,
+}: {
+  signal: TrackerSignal;
+  now: number | null;
+  mark: TickerLogo;
+}) {
   const [open, setOpen] = useState(false);
   const positive = signal.side === "LONG" || signal.side === "ACCUMULATING";
   /* Elyra's own Hyperliquid read rather than the tracker: its score is a
@@ -280,6 +291,7 @@ function SmartMoneyCard({ signal, now }: { signal: TrackerSignal; now: number | 
   return (
     <li className="border-b border-border-subtle px-3 py-3 last:border-b-0">
       <div className="flex items-center gap-2">
+        <CoinMark symbol={signal.symbol} logo={mark.logo} fallbackLogo={mark.fallbackLogo} size={28} />
         <span className="type-data text-text-primary">{signal.symbol}</span>
         <span
           className={cn(
@@ -386,6 +398,8 @@ function SmartMoney({
   reload: () => void;
 }) {
   const seeded = state.signals.filter(isSeeded).length;
+  const symbols = useMemo(() => state.signals.map((signal) => signal.symbol), [state.signals]);
+  const logoFor = useTickerLogos(symbols);
 
   return (
     <>
@@ -423,7 +437,7 @@ function SmartMoney({
       ) : state.signals.length > 0 ? (
         <ul className="list-none">
           {state.signals.map((signal) => (
-            <SmartMoneyCard key={signal.id} signal={signal} now={now} />
+            <SmartMoneyCard key={signal.id} signal={signal} now={now} mark={logoFor(signal.symbol)} />
           ))}
         </ul>
       ) : (
@@ -486,7 +500,7 @@ function FeedLine({
 /* --- the widget ----------------------------------------------------------- */
 
 export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
-  const [view, setView] = useState<View>("smart");
+  const [view, setView] = useState<View>("market");
   const [state, setState] = useState<FeedState>(INITIAL);
   const now = useMinute();
   const market = useMarketSignals();
@@ -603,11 +617,12 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
       title="Live signals"
       icon={<Radio size={16} strokeWidth={1.5} />}
       /* A dot rather than a word: the column is narrow, the title must not
-         truncate, and the tabs below spell each feed's state out. */
+         truncate, and the tabs below spell each feed's state out. It follows
+         the feed on screen. */
       meta={
         <span className="flex items-center">
-          <Dot tone={smartTone} />
-          <span className="sr-only">{smartState}</span>
+          <Dot tone={view === "market" ? marketTone : smartTone} />
+          <span className="sr-only">{view === "market" ? marketState : smartState}</span>
         </span>
       }
       open={open}
@@ -618,8 +633,8 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
       <div role="tablist" aria-label="Signal feed" className="flex min-w-0 flex-1 gap-1">
         {(
           [
-            ["smart", "Smart money", smartTone, smartState],
             ["market", "Market", marketTone, marketLabel],
+            ["smart", "Smart money", smartTone, smartState],
           ] as const
         ).map(([value, label, tone, status]) => {
           const active = view === value;
@@ -669,21 +684,21 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
       <div className="max-h-[440px] overflow-y-auto">
         <div
           role="tabpanel"
-          id="signals-panel-smart"
-          aria-labelledby="signals-tab-smart"
-          hidden={view !== "smart"}
-        >
-          <FeedLine state={smartState} at={state.fetchedAt} now={now} source={state.origin === "hyperliquid" ? "Elyra's Hyperliquid read" : state.origin === "tracker" ? "Smart-money tracker" : null} />
-          <SmartMoney state={state} now={now} reload={reload} />
-        </div>
-        <div
-          role="tabpanel"
           id="signals-panel-market"
           aria-labelledby="signals-tab-market"
           hidden={view !== "market"}
         >
           <FeedLine state={marketState} at={market.feed.fetchedAt} now={now} source="Pyth" />
           <MarketSignals {...market} now={now} />
+        </div>
+        <div
+          role="tabpanel"
+          id="signals-panel-smart"
+          aria-labelledby="signals-tab-smart"
+          hidden={view !== "smart"}
+        >
+          <FeedLine state={smartState} at={state.fetchedAt} now={now} source={state.origin === "hyperliquid" ? "Elyra's Hyperliquid read" : state.origin === "tracker" ? "Smart-money tracker" : null} />
+          <SmartMoney state={state} now={now} reload={reload} />
         </div>
       </div>
     </Section>

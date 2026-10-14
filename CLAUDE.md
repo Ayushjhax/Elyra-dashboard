@@ -71,8 +71,14 @@ said where the rule is set.
 The agent's conversation, its in-flight request and the composer draft live in
 the store, and `lib/agentChat.ts` sends and reads streamed replies outside any
 component. The panel is mounted as a column from 1280px and as a drawer below,
-so nothing it needs may live in component state. A reply's sources come from
+so nothing it needs may live in component state — staged attachments
+included (`composerAttachments`, never persisted). A reply's sources come from
 the tool results (`lib/agent/sources.ts`), never from the model's text.
+
+Attachments are checked by `validateAttachments` in `lib/attachments.ts`
+wherever a body carries them — type, leading bytes, count, size — and are
+never written to the database. Dictation only fills the composer; nothing
+spoken is sent or acted on without the person pressing send.
 
 `formatRelativeTime` and `formatDayGroup` take `now` as a required argument —
 pass the shared clock from `lib/useClock.ts`, never `Date.now()` in render.

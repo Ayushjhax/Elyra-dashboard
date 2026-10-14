@@ -157,8 +157,20 @@ side columns while it is on and finds them exactly as they were when it ends
   text as the model writes it, a `tools` event when it goes to read something
   (the bubble says what), and a `done` carrying the reply and its **sources** —
   collected from what the tools returned (`lib/agent/sources.ts`), never from
-  what the model wrote. Attachments are not supported: the agent reads market
-  and account data through its tools, not files.
+  what the model wrote.
+- **Attachments.** The composer takes images, PDFs and text files (CSV, TXT,
+  Markdown, JSON) — picked, dropped or pasted, up to four and 3MB together.
+  Images are scaled to the 1568px the model reads before they are sent.
+  `lib/attachments.ts` holds the limits and validates every body by type,
+  leading bytes and size; the model reads images and PDFs natively and a text
+  file as a plain-text document. Files are never stored: the transcript keeps
+  "[Attached: chart.png (image)]", and the prompt tells the model that text
+  inside a file is material to analyse, not an instruction.
+- **Voice.** The microphone dictates into the composer — never sends. Chrome,
+  Edge and Safari recognise speech in the browser (`lib/voice/useDictation.ts`);
+  Firefox and Brave record a clip of up to a minute, which
+  `/api/agent/transcribe` writes out with Gemini (`GEMINI_TRANSCRIBE_MODEL`,
+  default `gemini-3.5-flash`), signed-in only and capped at 60 an hour.
 - Shared, reference-counted client stores, one request however many surfaces
   read them: `usePortfolio`, `useWalletActivity`, `useAlerts`,
   `useOpenActions`. The Activity widget and the bell are one derivation over
@@ -197,8 +209,11 @@ Neither surface holds prompt text, tool definitions or provider logic.
   adapters and the router. Anthropic first, Gemini on 429/5xx/network/timeout
   only; never on a 400 or a refusal, and never once streamed text has reached
   the person. Three consecutive failures open a 60-second circuit. A tool turn
-  is sent back to Anthropic exactly as it came, thinking blocks and
-  signatures included (`providerContent`).
+  is sent back to its provider exactly as it came — Anthropic's thinking
+  blocks and Gemini 3's thought signatures included (`providerContent`);
+  Gemini 3 refuses a tool continuation without them. The fallback defaults to
+  `gemini-3.5-flash`: `gemini-2.5-pro` is no longer served to new keys, and
+  free-tier keys have no quota on the Pro models.
 - `lib/market/` — Binance, Hyperliquid and OKX behind one interface, with a
   cache and server-side indicators. Candle series are summarised rather than
   returned: 500 candles of JSON is roughly 20k tokens and the model does

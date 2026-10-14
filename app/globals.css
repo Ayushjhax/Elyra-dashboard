@@ -422,6 +422,13 @@ td {
   border-radius: var(--radius-chip);
 }
 
+/* The agent's composer marks focus on its whole frame (focus-within), so
+   its textarea does not draw a second ring inside it. Unlayered, like the
+   rule above, which a utility class cannot override. */
+[data-composer-input]:focus-visible {
+  outline: none;
+}
+
 ::selection {
   background-color: var(--surface-active);
   color: var(--text-primary);
@@ -524,6 +531,17 @@ td {
   animation: elyra-skeleton 1400ms ease-in-out infinite;
 }
 
+/* The composer is hearing you. A solid Citron dot whose opacity breathes —
+   no ring, no glow — and holds still under reduced motion. */
+@utility listening-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent);
+  animation: elyra-skeleton 1100ms ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Flashes become a static color change; the class is removed on a timer
      either way, so the cell still returns to rest. */
@@ -550,6 +568,10 @@ td {
   .skeleton {
     animation: none;
     opacity: 0.85;
+  }
+
+  .listening-dot {
+    animation: none;
   }
 
   *,

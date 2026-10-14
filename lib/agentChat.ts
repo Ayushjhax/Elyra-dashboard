@@ -12,6 +12,10 @@ import { nextMessageId, useElyraStore } from "@/lib/store";
    to the end whatever is or is not mounted, and any panel that opens later
    reads the finished message from the store.
 
+   Files staged in the composer travel with the question as `attachments`
+   and are cleared from it; the conversation keeps only their names and an
+   image's thumbnail, for this session.
+
    The reply streams. The route sends newline-delimited events as the model
    writes: text as it is generated, a `tools` event when the model goes to
    read something — the words before it were the model deciding what to look
@@ -66,15 +70,22 @@ async function* events(body: ReadableStream<Uint8Array>): AsyncGenerator<ChatStr
 export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<void> {
   const text = raw.trim();
   const store = useElyraStore.getState();
-  if (text.length === 0 || store.agentPending) return;
+  /* Whatever is staged in the composer goes with the question, however it
+     was asked — the files are on screen beside it. */
+  const files = store.composerAttachments;
+  if ((text.length === 0 && files.length === 0) || store.agentPending) return;
 
   store.appendMessage({
     id: nextMessageId("user"),
     role: "user",
     text,
     at: new Date().toISOString(),
+    ...(files.length > 0
+      ? { attachments: files.map((file) => ({ name: file.name, kind: file.kind, previewUrl: file.previewUrl })) }
+      : {}),
   });
   store.setComposerDraft("");
+  store.clearComposerAttachments();
 
   const replyId = nextMessageId("agent");
   store.appendMessage({ id: replyId, role: "agent", text: "", at: new Date().toISOString() });
@@ -106,7 +117,13 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
            regardless of how cookies are configured for the app. */
         ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ message: text, stream: true }),
+      body: JSON.stringify({
+        message: text,
+        stream: true,
+        ...(files.length > 0
+          ? { attachments: files.map((file) => ({ name: file.name, mediaType: file.mediaType, data: file.data })) }
+          : {}),
+      }),
     });
 
     const streamed = (response.headers.get("content-type") ?? "").includes("ndjson");

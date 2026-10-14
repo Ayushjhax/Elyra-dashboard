@@ -7,6 +7,7 @@ import {
   DEFAULT_FAVORITE_IDS,
   DEFAULT_WATCHLIST_IDS,
 } from "@/lib/market/defaults";
+import type { ComposerAttachment } from "@/lib/attachments";
 import { clampColumn, type ColumnWidths, type ShellColumnId } from "@/lib/layout";
 import type {
   AgentTab,
@@ -82,6 +83,15 @@ interface ElyraState {
   setStreamingId: (id: string | null) => void;
   composerDraft: string;
   setComposerDraft: (value: string) => void;
+  /**
+   * Files staged for the next question. In the store for the draft's
+   * reason — the composer can unmount between column and drawer — and never
+   * persisted: a file's bytes do not belong in localStorage.
+   */
+  composerAttachments: ComposerAttachment[];
+  addComposerAttachments: (files: ComposerAttachment[]) => void;
+  removeComposerAttachment: (id: string) => void;
+  clearComposerAttachments: () => void;
   /** Bumped when another surface wants the composer focused. */
   composerFocusNonce: number;
   /** Prefill the composer and bring the agent into view. */
@@ -314,6 +324,12 @@ export const useElyraStore = create<ElyraState>()(
       setStreamingId: (streamingId) => set({ streamingId }),
       composerDraft: "",
       setComposerDraft: (value) => set({ composerDraft: value }),
+      composerAttachments: [],
+      addComposerAttachments: (files) =>
+        set((state) => ({ composerAttachments: [...state.composerAttachments, ...files] })),
+      removeComposerAttachment: (id) =>
+        set((state) => ({ composerAttachments: state.composerAttachments.filter((file) => file.id !== id) })),
+      clearComposerAttachments: () => set({ composerAttachments: [] }),
       composerFocusNonce: 0,
       askElyra: (prompt) =>
         set((state) => ({

@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { Attachment } from "@/lib/attachments";
+
 /* ---------------------------------------------------------------------------
    The neutral surface between the agent loop and a model provider.
 
@@ -23,7 +25,13 @@ export interface ToolCall {
 }
 
 export type AgentMessage =
-  | { role: "user"; content: string }
+  | {
+      role: "user";
+      content: string;
+      /** Files sent with this turn. Only ever on the newest user message:
+          history is replayed as text, with a note of what was attached. */
+      attachments?: Attachment[];
+    }
   | {
       role: "assistant";
       content: string;

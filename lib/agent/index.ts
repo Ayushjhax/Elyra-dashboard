@@ -14,6 +14,7 @@ import {
   type ToolContext,
 } from "@/lib/agent/tools/registry";
 import { sourcesFrom, toolLabel } from "@/lib/agent/sources";
+import { describeAttachments, type Attachment } from "@/lib/attachments";
 import { maxRunsPerDay } from "@/lib/env";
 import { predictionAccount } from "@/lib/prediction/account";
 import { serviceClient } from "@/lib/supabase/server";
@@ -30,6 +31,13 @@ import type { Surface } from "@/lib/supabase/types";
 /** Iterations, not tool calls: one iteration may run several tools at once. */
 const MAX_ITERATIONS = 6;
 const WALL_CLOCK_MS = 45_000;
+/**
+ * A run that reads a PDF or a screenshot spends longer before its first
+ * token and writes longer answers, so it gets more room — still well inside
+ * the function's own limit.
+ */
+const ATTACHMENT_WALL_CLOCK_MS = 90_000;
+const ATTACHMENT_CALL_TIMEOUT_MS = 75_000;
 /** Enough recent turns for continuity without resending an entire history. */
 const HISTORY_LIMIT = 20;
 /**
@@ -54,6 +62,8 @@ export interface RunAgentInput {
   sessionWallet?: string | null;
   /** The Solana address, for the wallet and DeFi reads. */
   solanaAddress?: string | null;
+  /** Files sent with this message, already validated by the surface. */
+  attachments?: Attachment[];
   /**
    * Progress, for a surface that can show it as it happens. The web streams
    * these; Telegram passes nothing and gets the finished reply as before.
@@ -239,17 +249,24 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     buildSystemPrompt(context),
   ]);
 
+  const attachments = input.attachments ?? [];
   const messages: AgentMessage[] = [
     ...history,
-    { role: "user", content: input.message },
+    { role: "user", content: input.message, ...(attachments.length > 0 ? { attachments } : {}) },
   ];
 
+  /* The files are not stored — only that they were sent, so a later turn
+     knows something was attached and does not pretend to still see it. */
+  const noted = describeAttachments(attachments);
   await persistMessage({
     conversationId: input.conversationId,
     userId: input.userId,
     role: "user",
-    content: input.message,
+    content: noted.length === 0 ? input.message : `${input.message}\n\n${noted}`.trim(),
   });
+
+  const wallClockMs = attachments.length > 0 ? ATTACHMENT_WALL_CLOCK_MS : WALL_CLOCK_MS;
+  const callTimeoutMs = attachments.length > 0 ? ATTACHMENT_CALL_TIMEOUT_MS : 30_000;
 
   const tools = toolDefinitions();
 
@@ -264,7 +281,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
   try {
     while (iterations < MAX_ITERATIONS) {
-      const remaining = WALL_CLOCK_MS - (Date.now() - startedAt);
+      const remaining = wallClockMs - (Date.now() - startedAt);
       if (remaining <= 0) {
         ranLong = true;
         break;
@@ -279,7 +296,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
           tools,
           maxTokens: DEFAULT_MAX_TOKENS,
           /* Never let one provider call outlive the run's own budget. */
-          timeoutMs: Math.min(remaining, 30_000),
+          timeoutMs: Math.min(remaining, callTimeoutMs),
         },
         undefined,
         emit === undefined ? undefined : (delta) => emit({ type: "text", delta }),
@@ -358,9 +375,15 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   }
 
   if (failure !== null) {
+    /* A 400 on a turn with files is almost always the file: too many PDF
+       pages, an image too large. Saying so is the difference between the
+       person fixing it and retrying the same thing. */
     replyText =
-      "Something went wrong reaching the model, so I have no answer for that " +
-      "one. Nothing was changed.";
+      attachments.length > 0 && failure.startsWith("bad_request")
+        ? "The model could not read that attachment. PDFs can be up to 100 pages " +
+          "and images up to 8000 pixels on a side. Nothing was changed."
+        : "Something went wrong reaching the model, so I have no answer for that " +
+          "one. Nothing was changed.";
   }
 
   const reply = (replyText ?? "").trim() || "I have no answer for that one.";

@@ -6,6 +6,8 @@
    lib/portfolio/types.ts; market data in lib/market/.
 --------------------------------------------------------------------------- */
 
+import type { SentAttachment } from "@/lib/attachments";
+
 /** The four venues the ledger filters by. */
 export type MarketType = "spot" | "perps" | "prediction" | "defi";
 
@@ -62,4 +64,6 @@ export interface ChatMessage {
   activity?: string;
   /** Where the reply's figures came from, from the tools that ran. */
   sources?: string[];
+  /** Files sent with a question. Held for this session only, never stored. */
+  attachments?: SentAttachment[];
 }

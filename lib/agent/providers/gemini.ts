@@ -26,10 +26,17 @@ import { optional, requireFor } from "@/lib/env";
       There is no call id on the wire — see collapseDuplicateToolCalls.
    3. The schema parser rejects most of JSON Schema — see
       sanitizeSchemaForGemini.
+   4. Gemini 3 signs its function calls (`thoughtSignature`) and refuses a
+      continuation that comes back without them, so a model turn is sent
+      back from the parts it was returned as — see `modelParts`.
 --------------------------------------------------------------------------- */
 
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const DEFAULT_MODEL = "gemini-2.5-pro";
+/* gemini-2.5-pro was withdrawn from new keys, and a fallback that 404s is no
+   fallback. Flash has free-tier quota, which the Pro models do not; pinned
+   rather than `gemini-flash-latest`, which was answering 503 under load when
+   this was chosen. Override with GEMINI_MODEL. */
+const DEFAULT_MODEL = "gemini-3.5-flash";
 
 interface FunctionCallPart {
   functionCall: { name: string; args: Record<string, unknown> };
@@ -49,8 +56,9 @@ interface GenerateContentResponse {
 }
 
 type RequestPart =
-  | { text: string }
-  | { functionCall: { name: string; args: Record<string, unknown> } }
+  | { text: string; thoughtSignature?: string }
+  | { inlineData: { mimeType: string; data: string } }
+  | { functionCall: { name: string; args: Record<string, unknown> }; thoughtSignature?: string }
   | { functionResponse: { name: string; response: Record<string, unknown> } };
 
 interface Content {
@@ -70,16 +78,65 @@ function asObject(value: unknown): Record<string, unknown> {
   return { result: value };
 }
 
-function toContents(messages: AgentMessage[]): Content[] {
+/**
+ * A model turn as Gemini returned it, signatures intact.
+ *
+ * Calls are collapsed to one per name before they run (Gemini matches a
+ * response to its call by name), so the returned parts keep the first call
+ * of each name — which, for parallel calls, is the one carrying the
+ * signature — and every text part. Null when the turn has no parts of its
+ * own to send back, and the caller rebuilds it.
+ */
+function modelParts(message: Extract<AgentMessage, { role: "assistant" }>): RequestPart[] | null {
+  if (message.providerContent?.provider !== "gemini") return null;
+  const wanted = new Set((message.toolCalls ?? []).map((call) => call.name));
+  const seen = new Set<string>();
+  const parts: RequestPart[] = [];
+  for (const raw of message.providerContent.blocks as Array<Record<string, unknown>>) {
+    if (typeof raw.text === "string") {
+      parts.push(raw as RequestPart);
+    } else if (raw.functionCall && typeof raw.functionCall === "object") {
+      const name = (raw.functionCall as { name?: string }).name ?? "";
+      if (wanted.has(name) && !seen.has(name)) {
+        seen.add(name);
+        parts.push(raw as RequestPart);
+      }
+    }
+  }
+  return parts.length > 0 ? parts : null;
+}
+
+export function toContents(messages: AgentMessage[]): Content[] {
   const contents: Content[] = [];
 
   for (const message of messages) {
     if (message.role === "user") {
-      contents.push({ role: "user", parts: [{ text: message.content }] });
+      /* Images and PDFs inline; a text file as text with its name, so the
+         fallback reads the same files the primary would have. */
+      const parts: RequestPart[] = [];
+      for (const file of message.attachments ?? []) {
+        parts.push(
+          file.kind === "text"
+            ? { text: `Attached file "${file.name}":\n\n${file.data}` }
+            : { inlineData: { mimeType: file.mediaType, data: file.data } },
+        );
+      }
+      parts.push({
+        text:
+          message.content.trim().length > 0 || parts.length === 0
+            ? message.content
+            : "Take a look at the attached file.",
+      });
+      contents.push({ role: "user", parts });
       continue;
     }
 
     if (message.role === "assistant") {
+      const own = modelParts(message);
+      if (own !== null) {
+        contents.push({ role: "model", parts: own });
+        continue;
+      }
       const parts: RequestPart[] = [];
       if (message.content.length > 0) parts.push({ text: message.content });
       for (const call of message.toolCalls ?? []) {
@@ -240,6 +297,7 @@ export function geminiProvider(): Provider {
           input: payload.usageMetadata?.promptTokenCount ?? 0,
           output: payload.usageMetadata?.candidatesTokenCount ?? 0,
         },
+        rawContent: candidate?.content?.parts ?? [],
         refused: blocked,
         refusalReason: blocked
           ? (payload.promptFeedback?.blockReason ??

@@ -6,12 +6,19 @@ import {
   ArrowDown,
   ArrowUpRight,
   ChevronRight,
+  FileText,
+  Loader2,
   Maximize2,
+  Mic,
+  MicOff,
   Minimize2,
   Minus,
+  Paperclip,
   SendHorizontal,
   Sparkles,
+  Square,
   Wrench,
+  X,
 } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { DecisionBrief } from "@/components/agent/DecisionBrief";
@@ -19,12 +26,15 @@ import { ElyraSignals } from "@/components/agent/ElyraSignals";
 import { PendingActions } from "@/components/agent/PendingActions";
 import { SmartMoneyPanel } from "@/components/panels/SmartMoneyPanel";
 import { sendToAgent } from "@/lib/agentChat";
+import { ACCEPT, ATTACHMENT_LIMITS, type ComposerAttachment } from "@/lib/attachments";
+import { describeSize, readAttachments } from "@/lib/attachments-read";
 import { formatClock } from "@/lib/format";
 import { useAssets } from "@/lib/market/usePrices";
 import { suggestionChips } from "@/lib/agent/suggestions";
 import { useElyraStore } from "@/lib/store";
 import type { AgentTab, ChatMessage, ToolCall } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useDictation } from "@/lib/voice/useDictation";
 
 /* ---------------------------------------------------------------------------
    Elyra — the agent panel.
@@ -149,13 +159,38 @@ function MessageBubble({
       >
         {isAgent && message.toolCall && <ToolCallBlock call={message.toolCall} />}
 
+        {message.attachments && message.attachments.length > 0 && (
+          <ul aria-label="Attached files" className="flex list-none flex-wrap justify-end gap-1.5">
+            {message.attachments.map((file, index) =>
+              file.previewUrl ? (
+                <li key={`${file.name}-${index}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a local data URL */}
+                  <img
+                    src={file.previewUrl}
+                    alt={file.name}
+                    className="max-h-32 max-w-full rounded-control border border-border-subtle object-contain"
+                  />
+                </li>
+              ) : (
+                <li
+                  key={`${file.name}-${index}`}
+                  className="type-label inline-flex max-w-full items-center gap-1.5 rounded-control border border-border-subtle bg-surface-panel px-2 py-1 text-text-secondary"
+                >
+                  <FileText size={13} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
+                  <span className="truncate">{file.name}</span>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
+
         {thinking ? (
           /* The line that reports the state, and what a screen reader gets. */
           <p aria-live="polite" className="type-body-sm flex items-center gap-2 text-text-secondary">
             <Sparkles size={14} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
             {message.activity ? `Reading ${message.activity}…` : "Elyra is working…"}
           </p>
-        ) : (
+        ) : message.text.length > 0 || isAgent ? (
           <p
             className={cn(
               "type-body-sm whitespace-pre-wrap break-words text-text-primary",
@@ -164,7 +199,7 @@ function MessageBubble({
           >
             {message.text}
           </p>
-        )}
+        ) : null}
 
         {!thinking && isAgent && !streaming && message.sources && message.sources.length > 0 && (
           <p className="type-data-sm text-text-muted">
@@ -299,6 +334,36 @@ function Conversation({
   );
 }
 
+/** A staged file: thumbnail or icon, name, size, and a way to take it back. */
+function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove: () => void }) {
+  return (
+    <li className="flex max-w-full items-center gap-2 rounded-control border border-border-subtle bg-surface-panel py-1 pl-1 pr-1.5">
+      {file.previewUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a local data URL; next/image has nothing to optimise
+        <img src={file.previewUrl} alt="" className="size-8 shrink-0 rounded-chip object-cover" />
+      ) : (
+        <span aria-hidden className="inline-flex size-8 shrink-0 items-center justify-center rounded-chip bg-surface-hover text-text-muted">
+          <FileText size={15} strokeWidth={1.5} />
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="type-label block max-w-[11rem] truncate text-text-primary" title={file.name}>
+          {file.name}
+        </span>
+        <span className="type-data-sm block text-text-muted">{describeSize(file)}</span>
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${file.name}`}
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded-chip text-text-muted hover:bg-surface-hover hover:text-text-primary"
+      >
+        <X size={13} strokeWidth={1.5} aria-hidden />
+      </button>
+    </li>
+  );
+}
+
 function Composer({
   symbol,
   onAsk,
@@ -313,10 +378,19 @@ function Composer({
   const auth = useElyraAuth();
   const draft = useElyraStore((state) => state.composerDraft);
   const setDraft = useElyraStore((state) => state.setComposerDraft);
+  const attachments = useElyraStore((state) => state.composerAttachments);
+  const addAttachments = useElyraStore((state) => state.addComposerAttachments);
+  const removeAttachment = useElyraStore((state) => state.removeComposerAttachment);
   const focusNonce = useElyraStore((state) => state.composerFocusNonce);
   const pending = useElyraStore((state) => state.agentPending);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const composerId = useId();
+  const hintId = useId();
+  const [reading, setReading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const dictation = useDictation();
 
   /* Another surface asked for the composer. */
   useEffect(() => {
@@ -331,9 +405,55 @@ function Composer({
     node.style.height = `${Math.min(node.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
   }, [draft]);
 
+  const addFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    setReading(true);
+    setNotice(null);
+    const { added, errors } = await readAttachments(files, useElyraStore.getState().composerAttachments);
+    if (added.length > 0) addAttachments(added);
+    setNotice(errors.length > 0 ? errors.join(" ") : null);
+    setReading(false);
+    inputRef.current?.focus();
+  };
+
+  const listening = dictation.status === "listening" || dictation.status === "recording";
+  const busyVoice = dictation.status !== "idle";
   const signedOut = auth.available && auth.ready && !auth.authenticated;
-  const canSend = draft.trim().length > 0 && !pending;
+  const canSend =
+    (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && dictation.status !== "transcribing";
   const chips = symbol && showChips ? suggestionChips(symbol) : [];
+
+  const send = () => {
+    if (!canSend) return;
+    /* What was heard is already in the draft; anything still arriving
+       belongs to a question that has now been asked. */
+    if (busyVoice) dictation.cancel();
+    setNotice(null);
+    onAsk(draft);
+  };
+
+  /* Recording needs the transcription route, which needs a session. */
+  const voiceBlocked = dictation.mode === "record" && signedOut;
+  const voiceLabel =
+    dictation.mode === null
+      ? "Voice input is not available in this browser"
+      : voiceBlocked
+        ? "Sign in to use voice input"
+        : listening
+          ? "Stop voice input"
+          : dictation.status === "transcribing"
+            ? "Transcribing"
+            : "Speak your question";
+
+  const voiceLine =
+    dictation.status === "listening"
+      ? "Listening — speak, then press the microphone to stop."
+      : dictation.status === "recording"
+        ? `Recording ${Math.floor(dictation.elapsed / 60)}:${String(dictation.elapsed % 60).padStart(2, "0")} — press the microphone to stop.`
+        : dictation.status === "transcribing"
+          ? "Transcribing your recording…"
+          : null;
+  const error = dictation.error ?? notice;
 
   return (
     <div className="shrink-0 border-t border-border-subtle p-4">
@@ -362,48 +482,178 @@ function Composer({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          onAsk(draft);
+          send();
+        }}
+        onDragEnter={(event) => {
+          if (event.dataTransfer.types.includes("Files")) setDragging(true);
+        }}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+        }}
+        onDrop={(event) => {
+          if (event.dataTransfer.files.length === 0) return;
+          event.preventDefault();
+          setDragging(false);
+          void addFiles(Array.from(event.dataTransfer.files));
         }}
         className={cn(
-          "flex items-end gap-2 rounded-card border border-border-strong bg-surface-raised p-2",
-          "focus-within:border-accent-quiet",
+          "flex flex-col gap-2 rounded-card border bg-surface-raised p-2",
+          "transition-colors duration-[var(--dur-fast)] ease-brand",
+          dragging ? "border-accent-quiet bg-surface-hover" : "border-border-strong focus-within:border-accent-quiet",
         )}
       >
-        <label htmlFor={composerId} className="sr-only">
-          Ask Elyra
-        </label>
-        <textarea
-          id={composerId}
-          ref={inputRef}
-          rows={1}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+        {attachments.length > 0 && (
+          <ul aria-label="Attached files" className="flex list-none flex-wrap gap-1.5">
+            {attachments.map((file) => (
+              <AttachmentChip key={file.id} file={file} onRemove={() => removeAttachment(file.id)} />
+            ))}
+          </ul>
+        )}
+
+        <div className="flex items-end gap-1">
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept={ACCEPT}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              void addFiles(files);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={reading || attachments.length >= ATTACHMENT_LIMITS.maxFiles}
+            aria-label="Attach files"
+            title="Attach an image, PDF or text file"
+            className={cn(
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-control text-text-muted",
+              "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary",
+              "disabled:pointer-events-none disabled:opacity-50",
+            )}
+          >
+            {reading ? (
+              <Loader2 size={15} strokeWidth={1.5} aria-hidden className="animate-spin" />
+            ) : (
+              <Paperclip size={15} strokeWidth={1.5} aria-hidden />
+            )}
+          </button>
+
+          <label htmlFor={composerId} className="sr-only">
+            Ask Elyra
+          </label>
+          <textarea
+            id={composerId}
+            ref={inputRef}
+            rows={1}
+            value={draft}
+            readOnly={listening}
+            aria-describedby={hintId}
+            data-composer-input
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && busyVoice) {
+                event.preventDefault();
+                dictation.stop();
+                return;
+              }
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                send();
+              }
+            }}
+            onPaste={(event) => {
+              /* A screenshot pasted from the clipboard. Text with an image
+                 beside it — a spreadsheet cell — pastes as text. */
+              const files = Array.from(event.clipboardData.files);
+              if (files.length === 0 || event.clipboardData.types.includes("text/plain")) return;
               event.preventDefault();
-              onAsk(draft);
+              void addFiles(files);
+            }}
+            placeholder={
+              signedOut
+                ? "Sign in to ask Elyra…"
+                : pending
+                  ? "Elyra is working…"
+                  : listening
+                    ? "Listening…"
+                    : "Ask Elyra anything…"
             }
-          }}
-          placeholder={signedOut ? "Sign in to ask Elyra…" : pending ? "Elyra is working…" : "Ask Elyra anything…"}
-          className={cn(
-            "type-body-sm min-h-8 flex-1 resize-none bg-transparent px-2 py-1.5",
-            "text-text-primary placeholder:text-text-muted focus:outline-none",
-          )}
-        />
-        <button
-          type="submit"
-          aria-label="Send message"
-          disabled={!canSend}
-          className={cn(
-            "inline-flex size-8 shrink-0 items-center justify-center rounded-control",
-            "transition-colors duration-[var(--dur-fast)] ease-brand",
-            canSend ? "bg-accent text-text-on-accent hover:bg-accent-hover" : "text-text-muted",
-          )}
-        >
-          <SendHorizontal size={15} strokeWidth={1.5} aria-hidden />
-        </button>
+            className={cn(
+              "type-body-sm min-h-8 flex-1 resize-none bg-transparent px-1.5 py-1.5",
+              "text-text-primary placeholder:text-text-muted focus:outline-none",
+            )}
+          />
+
+          <button
+            type="button"
+            onClick={() => (listening ? dictation.stop() : dictation.start())}
+            disabled={dictation.mode === null || voiceBlocked || dictation.status === "transcribing"}
+            aria-pressed={listening}
+            aria-label={voiceLabel}
+            title={voiceLabel}
+            className={cn(
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-control",
+              "transition-colors duration-[var(--dur-fast)] ease-brand",
+              "disabled:pointer-events-none disabled:opacity-50",
+              listening
+                ? "bg-accent text-text-on-accent hover:bg-accent-hover"
+                : "text-text-muted hover:bg-surface-hover hover:text-text-primary",
+            )}
+          >
+            {dictation.status === "transcribing" ? (
+              <Loader2 size={15} strokeWidth={1.5} aria-hidden className="animate-spin" />
+            ) : listening ? (
+              <Square size={12} strokeWidth={2} aria-hidden className="fill-current" />
+            ) : dictation.mode === null ? (
+              <MicOff size={15} strokeWidth={1.5} aria-hidden />
+            ) : (
+              <Mic size={15} strokeWidth={1.5} aria-hidden />
+            )}
+          </button>
+
+          <button
+            type="submit"
+            aria-label="Send message"
+            disabled={!canSend}
+            className={cn(
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-control",
+              "transition-colors duration-[var(--dur-fast)] ease-brand",
+              canSend ? "bg-accent text-text-on-accent hover:bg-accent-hover" : "text-text-muted",
+            )}
+          >
+            <SendHorizontal size={15} strokeWidth={1.5} aria-hidden />
+          </button>
+        </div>
       </form>
-      <p className="type-label mt-2 text-text-muted">Enter to send · Shift+Enter for a new line</p>
+
+      {error !== null && (
+        <p role="alert" className="type-label mt-2 text-negative">
+          {error}
+        </p>
+      )}
+      <p id={hintId} aria-live="polite" className="type-label mt-2 flex items-center gap-2 text-text-muted">
+        {voiceLine !== null ? (
+          <>
+            {listening && <span aria-hidden className="listening-dot" />}
+            <span className="text-text-secondary">{voiceLine}</span>
+          </>
+        ) : dragging ? (
+          "Drop to attach — images, PDFs and text files."
+        ) : (
+          "Enter to send · Shift+Enter for a new line · Attach, drop or paste files"
+        )}
+      </p>
     </div>
   );
 }
@@ -434,7 +684,7 @@ export function AgentPanel({
   /* Every way of asking — the composer, a suggestion, the empty state, a
      signal card — goes through here, and lands on the conversation. */
   const ask = (prompt: string) => {
-    if (prompt.trim().length === 0) return;
+    if (prompt.trim().length === 0 && useElyraStore.getState().composerAttachments.length === 0) return;
     setTab("ask");
     if (!auth.authenticated) {
       useElyraStore.getState().setComposerDraft(prompt);

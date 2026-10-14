@@ -61,6 +61,14 @@ interface MessagesResponse {
 
 type ContentBlock =
   | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+  | {
+      type: "document";
+      source:
+        | { type: "base64"; media_type: "application/pdf"; data: string }
+        | { type: "text"; media_type: "text/plain"; data: string };
+      title: string;
+    }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; tool_use_id: string; content: string };
 
@@ -78,12 +86,37 @@ interface WireMessage {
  * teaches the model to stop making parallel calls, which quietly halves the
  * throughput of every multi-tool turn afterwards.
  */
-function toWireMessages(messages: AgentMessage[]): WireMessage[] {
+/**
+ * A user turn with files: images first, then documents, then the question —
+ * the order the model reads best. A text file goes as a plain-text document
+ * so its name travels with it and it is not mistaken for the question.
+ */
+function userContent(message: Extract<AgentMessage, { role: "user" }>): string | ContentBlock[] {
+  const attachments = message.attachments ?? [];
+  if (attachments.length === 0) return message.content;
+
+  const blocks: ContentBlock[] = [];
+  for (const file of attachments.filter((entry) => entry.kind === "image")) {
+    blocks.push({ type: "image", source: { type: "base64", media_type: file.mediaType, data: file.data } });
+  }
+  for (const file of attachments.filter((entry) => entry.kind !== "image")) {
+    blocks.push(
+      file.kind === "pdf"
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: file.data }, title: file.name }
+        : { type: "document", source: { type: "text", media_type: "text/plain", data: file.data }, title: file.name },
+    );
+  }
+  /* A text block must not be empty. */
+  blocks.push({ type: "text", text: message.content.trim().length > 0 ? message.content : "Take a look at the attached file." });
+  return blocks;
+}
+
+export function toWireMessages(messages: AgentMessage[]): WireMessage[] {
   const wire: WireMessage[] = [];
 
   for (const message of messages) {
     if (message.role === "user") {
-      wire.push({ role: "user", content: message.content });
+      wire.push({ role: "user", content: userContent(message) });
       continue;
     }
 

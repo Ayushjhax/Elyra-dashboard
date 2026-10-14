@@ -429,6 +429,71 @@ td {
   outline: none;
 }
 
+/* The search frame owns focus, so the input never clips a second outline. */
+[data-command-input]:focus-visible {
+  outline: none;
+}
+
+.command-glass-overlay {
+  background: color-mix(in srgb, var(--surface-base) 20%, transparent);
+}
+
+.command-glass {
+  /* Neutral reflections mimic clear glass without tinting the brand palette. */
+  --glass-light: 255 255 255;
+  border-radius: 28px;
+  border-color: rgb(var(--glass-light) / 24%);
+  background:
+    radial-gradient(ellipse at 0% 0%, rgb(var(--glass-light) / 16%), transparent 55%),
+    linear-gradient(135deg, rgb(var(--glass-light) / 7%), transparent 45%, rgb(var(--glass-light) / 4%)),
+    color-mix(in srgb, var(--surface-panel) 58%, transparent);
+  -webkit-backdrop-filter: blur(32px) saturate(165%) brightness(1.12);
+  backdrop-filter: blur(32px) saturate(165%) brightness(1.12);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--glass-light) / 46%),
+    inset 1px 0 0 rgb(var(--glass-light) / 14%),
+    inset 0 -1px 0 rgb(var(--glass-light) / 16%),
+    0 0 0 1px color-mix(in srgb, var(--surface-base) 12%, transparent),
+    0 16px 48px color-mix(in srgb, var(--surface-base) 32%, transparent),
+    0 40px 100px color-mix(in srgb, var(--surface-base) 25%, transparent);
+}
+
+.command-glass .text-text-muted {
+  color: var(--text-secondary);
+}
+
+.command-search {
+  border-radius: 18px;
+  border-color: rgb(var(--glass-light) / 12%);
+  background: color-mix(in srgb, var(--surface-base) 18%, transparent);
+  box-shadow: inset 0 1px 4px color-mix(in srgb, var(--surface-base) 12%, transparent);
+}
+
+.command-search:focus-within {
+  border-color: color-mix(in srgb, var(--focus-ring) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus-ring) 12%, transparent),
+    inset 0 1px 0 rgb(var(--glass-light) / 10%);
+}
+
+.command-result {
+  border-radius: 12px;
+}
+
+.command-result-selected {
+  background: linear-gradient(110deg, rgb(var(--glass-light) / 17%), rgb(var(--glass-light) / 8%));
+  box-shadow: inset 0 1px 0 rgb(var(--glass-light) / 24%),
+    inset 0 0 0 1px rgb(var(--glass-light) / 10%),
+    0 2px 6px color-mix(in srgb, var(--surface-base) 8%, transparent);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .command-glass {
+    background: var(--surface-panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 ::selection {
   background-color: var(--surface-active);
   color: var(--text-primary);

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ExternalLink, RefreshCw } from "lucide-react";
 import { LiveFilings } from "@/components/agent/LiveFilings";
-import { CoinMark } from "@/components/ui/CoinMark";
+import { CompanyMark } from "@/components/ui/CompanyMark";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
 import { formatRelativeTime } from "@/lib/format";
@@ -85,7 +85,7 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
         <div className="flex items-center gap-2">
           {/* Ticker-keyed logo. A 404 falls back to the lettered chip, which
               is the same place an unknown symbol lands. */}
-          <CoinMark symbol={finding.ticker} logo={finding.logo} size={18} />
+          <CompanyMark ticker={finding.ticker} logo={finding.logo} size={24} />
           <span className="type-data truncate text-text-primary">{finding.ticker}</span>
           <span className="type-label min-w-0 flex-1 truncate text-text-muted">
             {finding.company}

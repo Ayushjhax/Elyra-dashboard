@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, FileText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CompanyMark } from "@/components/ui/CompanyMark";
 import { useAssets } from "@/lib/market/usePrices";
 import type { FilingsFeed } from "@/lib/smartmoney/filings";
 import { useElyraStore } from "@/lib/store";
@@ -71,10 +72,17 @@ export function LiveFilings() {
 
   return (
     <section aria-label="Latest SEC filings">
-      <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-3">
+      <div className="flex flex-col gap-2 px-4 pb-3 pt-3">
         <p className="type-eyebrow text-text-muted">Latest filings · SEC EDGAR</p>
         {feed && feed.companies.length > 0 && (
-          <span className="type-label truncate text-text-muted">{feed.companies.join(" · ")}</span>
+          <ul aria-label="Companies in this feed" className="flex list-none flex-wrap gap-1.5">
+            {feed.companies.map((company) => (
+              <li key={company} className="flex items-center gap-1.5 rounded-pill border border-border-subtle bg-surface-raised py-1 pl-1 pr-2">
+                <CompanyMark ticker={company} size={18} />
+                <span className="type-data-sm text-text-secondary">{company}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -106,11 +114,12 @@ export function LiveFilings() {
                 rel="noopener noreferrer"
                 className={cn(
                   "group flex items-start gap-3 border-t border-border-subtle px-4 py-2.5",
-                  "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
+                  "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-agent-accent",
                 )}
               >
-                <span className="type-data-sm mt-0.5 w-12 shrink-0 rounded-chip border border-border-subtle px-1 text-center text-text-secondary">
-                  {filing.ticker}
+                <span className="mt-0.5 flex w-12 shrink-0 flex-col items-center gap-1">
+                  <CompanyMark ticker={filing.ticker} size={28} />
+                  <span className="type-data-sm text-text-secondary">{filing.ticker}</span>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="type-body-sm block text-text-primary">

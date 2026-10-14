@@ -2,18 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   Maximize2,
   PanelLeft,
   PanelRight,
   RotateCcw,
-  Search,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { NAV_ITEMS } from "@/components/shell/NavRail";
 import { CoinMark } from "@/components/ui/CoinMark";
+import { ElyraMark } from "@/components/ui/ElyraMark";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +62,8 @@ export function CommandPalette() {
       <DialogContent
         showClose={false}
         aria-describedby="command-help"
-        className="top-[12dvh] w-[min(600px,calc(100vw-32px))] max-h-[min(560px,calc(100dvh-24dvh))] -translate-y-0"
+        overlayClassName="command-glass-overlay"
+        className="command-glass top-[12dvh] w-[min(600px,calc(100vw-32px))] max-h-[min(640px,calc(100dvh-24dvh))] -translate-y-0"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Search</DialogTitle>
@@ -221,9 +223,11 @@ function CommandBody({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-4">
-        <Search size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
+      <div className="shrink-0 p-3 pb-2">
+      <div className="command-search flex items-center gap-3 rounded-card border px-3">
+        <Image src="/logo.png" alt="" aria-hidden width={28} height={28} className="shrink-0 rounded-pill" />
         <input
+          data-command-input
           autoFocus
           role="combobox"
           aria-expanded="true"
@@ -248,11 +252,12 @@ function CommandBody({ onDone }: { onDone: () => void }) {
             }
           }}
           placeholder="Search markets, pages, or ask Elyra…"
-          className="type-body h-14 min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-muted focus:outline-none"
+          className="type-body h-12 min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-muted"
         />
-        <kbd className="type-data-sm shrink-0 rounded-chip border border-border-strong px-1.5 text-text-muted">
-          Esc
-        </kbd>
+        <button type="button" aria-label="Close search" onClick={onDone} className="flex size-10 shrink-0 items-center justify-center rounded-control text-text-secondary hover:bg-surface-hover">
+          <kbd className="type-data-sm rounded-chip border border-border-strong px-1.5 py-0.5">Esc</kbd>
+        </button>
+      </div>
       </div>
 
       <ul
@@ -260,7 +265,7 @@ function CommandBody({ onDone }: { onDone: () => void }) {
         id="command-list"
         role="listbox"
         aria-label="Results"
-        className="min-h-0 flex-1 list-none overflow-y-auto p-2"
+        className="min-h-0 flex-1 list-none overflow-y-auto px-3 pb-3"
       >
         {commands.length === 0 && (
           <li className="type-body-sm px-3 py-6 text-center text-text-secondary">
@@ -289,15 +294,19 @@ function CommandBody({ onDone }: { onDone: () => void }) {
                       onPointerMove={() => setActive(index)}
                       onClick={() => run(command)}
                       className={cn(
-                        "flex h-10 cursor-pointer items-center gap-3 rounded-control px-3",
-                        selected ? "bg-surface-hover text-text-primary" : "text-text-secondary",
+                        "command-result flex h-11 cursor-pointer items-center gap-3 rounded-control px-3",
+                        selected ? "command-result-selected text-text-primary" : "text-text-secondary",
                       )}
                     >
-                      {command.asset ? (
+                      <span className="flex size-7 shrink-0 items-center justify-center">
+                      {command.id === "action-ask" || command.id === "action-agent" ? (
+                        <ElyraMark size={24} />
+                      ) : command.asset ? (
                         <CoinMark symbol={command.asset.symbol} logo={command.asset.logo} size={20} />
                       ) : Icon ? (
                         <Icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
                       ) : null}
+                      </span>
                       <span className="type-body-sm min-w-0 truncate text-text-primary">
                         {command.label}
                       </span>
@@ -314,6 +323,10 @@ function CommandBody({ onDone }: { onDone: () => void }) {
           );
         })}
       </ul>
+      <div aria-hidden className="type-label flex shrink-0 items-center justify-between gap-3 border-t border-border-subtle px-6 py-3 text-text-muted">
+        <span>↑ ↓ Navigate <span className="ml-3">↵ Open</span></span>
+        <span>Elyra search</span>
+      </div>
     </div>
   );
 }

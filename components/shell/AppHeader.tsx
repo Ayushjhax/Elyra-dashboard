@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, Search, Sparkles } from "lucide-react";
+import { Menu, Search } from "lucide-react";
+import { ElyraMark } from "@/components/ui/ElyraMark";
 import { AccountMenu } from "@/components/shell/status/AccountMenu";
 import { ConnectionStatus } from "@/components/shell/status/ConnectionStatus";
 import { NotificationsMenu } from "@/components/shell/status/NotificationsMenu";
@@ -117,7 +118,7 @@ export function AppHeader() {
           aria-label={agentPending ? "Open Elyra, working on a request" : "Open Elyra"}
           className={cn(ICON_BUTTON, "relative full:hidden")}
         >
-          <Sparkles size={18} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+          <ElyraMark size={28} />
           {agentPending && (
             <span aria-hidden className="absolute right-2 top-2 size-1.5 rounded-pill bg-agent-accent" />
           )}

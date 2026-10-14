@@ -61,15 +61,17 @@ function DialogContent({
   side = "center",
   surface = "panel",
   showClose = true,
+  overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   side?: DialogSide;
   surface?: DialogSurface;
   showClose?: boolean;
+  overlayClassName?: string;
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(

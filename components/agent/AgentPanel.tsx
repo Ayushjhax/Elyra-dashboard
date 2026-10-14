@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ElyraMark } from "@/components/ui/ElyraMark";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -277,9 +278,7 @@ function Conversation({
         {lead && <div className="mb-4 flex flex-col gap-3">{lead}</div>}
         {messages.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <span className="inline-flex size-11 items-center justify-center rounded-card bg-surface-active text-agent-accent">
-              <Sparkles size={20} strokeWidth={1.5} aria-hidden />
-            </span>
+            <ElyraMark size={44} />
             <div>
               <p className="type-panel-title text-text-primary">Ask about {symbol || "a market"}</p>
               <p className="type-body-sm mx-auto mt-1 max-w-[30ch] text-text-secondary">
@@ -714,9 +713,7 @@ export function AgentPanel({
       )}
     >
       <header className="flex shrink-0 items-center gap-3 px-4 pt-3.5">
-        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-card bg-surface-active text-agent-accent">
-          <Sparkles size={17} strokeWidth={1.5} aria-hidden />
-        </span>
+        <ElyraMark />
         <div className="min-w-0 flex-1">
           <h2 className="type-h2 truncate text-text-primary">Elyra intelligence</h2>
           <p aria-live="polite" className="type-label flex min-w-0 items-center gap-1.5 text-text-secondary">

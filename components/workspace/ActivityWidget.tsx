@@ -1,437 +1,630 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Activity,
   ArrowDownLeft,
   ArrowLeftRight,
+  ArrowRight,
   ArrowUpRight,
   BellRing,
-  ChevronRight,
-  ClipboardList,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
   Coins,
   ExternalLink,
-  Image as ImageIcon,
   KeyRound,
+  MoreHorizontal,
+  RefreshCw,
+  Search,
   Sparkles,
-  TriangleAlert,
+  X,
+  XCircle,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Button } from "@/components/ui/Button";
-import { CoinMark } from "@/components/ui/CoinMark";
-import { Section } from "@/components/ui/Section";
+import { Popover } from "@/components/ui/Popover";
+import { Section, SectionControl } from "@/components/ui/Section";
 import type { WidgetProps } from "@/components/workspace/WidgetColumn";
 import type { AccountEvent } from "@/lib/activity/events";
+import {
+  DEFAULT_FILTERS,
+  RANGE_LABEL,
+  directionOf,
+  filterEvents,
+  formatTokenAmount,
+  type ActivityFilters,
+  type DateRange,
+  type Direction,
+  type Network,
+} from "@/lib/activity/filter";
 import { useAccountEvents } from "@/lib/activity/useAccountEvents";
-import { formatDayGroup, formatRelativeTime, formatTimestamp } from "@/lib/format";
+import { formatClock, formatDayGroup, formatRelativeTime, formatTimestamp } from "@/lib/format";
+import { accountExplorerUrl } from "@/lib/solana/address";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
-import { assetName, formatAmount, shortAddress, type TxAmount, type TxKind } from "@/lib/wallet/summarise";
+import { assetName, type TxAmount } from "@/lib/wallet/summarise";
 
 /* ---------------------------------------------------------------------------
-   Activity: what happened on the account, newest first.
+   Activity: the account's transactions, filterable, newest first.
 
-   Wallet transactions say what they did — "Swapped 2 SOL for 290 USDC",
-   "Sent 1 SOL to 7xKX…9fGh" — read from their net effect on the wallet
-   (lib/wallet/summarise.ts), led by the token's own mark and a badge for
-   the direction. Fired alerts and actions awaiting review sit in the same
-   feed. A strip at the top shows the last three weeks at a glance.
+   Header: count of what the filters show, search, and a menu. Filters: All /
+   Received / Sent, a date range and the network. Rows: a direction mark,
+   what happened ("Sent SOL"), its real status and time, and the full signed
+   amount on the right in figures — never cut short. A row opens its details
+   in place; the explorer link beside it opens the explorer and nothing else.
+   Footer: the full history on Assets, when the feed last updated, refresh.
 
-   A row expands in place to the rest: the fee, the route, the counterparty,
-   the exact time and the explorer.
+   Everything is the wallet's own data (lib/wallet/summarise.ts decodes
+   what each transaction did). Fired alerts and actions awaiting review sit
+   in the same list under All.
 --------------------------------------------------------------------------- */
 
-const STRIP_DAYS = 21;
-const DAY = 86_400_000;
-/** SOL's mark, from the same CoinMarketCap artwork as the watchlist. */
-const SOL_LOGO = "https://s2.coinmarketcap.com/static/img/coins/64x64/5426.png";
+const DIRECTIONS: Array<{ id: Direction; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "received", label: "Received" },
+  { id: "sent", label: "Sent" },
+];
 
-const KIND_ICON: Record<TxKind, LucideIcon> = {
-  receive: ArrowDownLeft,
-  send: ArrowUpRight,
-  swap: ArrowLeftRight,
-  stake: Coins,
-  unstake: Coins,
-  nft: ImageIcon,
-  account: KeyRound,
-  other: Zap,
-};
+/* ---- What a row says ---- */
 
-const KIND_WORD: Record<TxKind, string> = {
-  receive: "Received",
-  send: "Sent",
-  swap: "Swap",
-  stake: "Staked",
-  unstake: "Withdrawn",
-  nft: "NFT",
-  account: "Account",
-  other: "Interaction",
-};
-
-/** The asset the row is about: what came in, else what went out. */
-function headline(event: AccountEvent): TxAmount | null {
-  const amounts = event.summary?.amounts ?? [];
-  return amounts.find((entry) => entry.amount > 0) ?? amounts.find((entry) => entry.amount < 0) ?? null;
+function primarySymbol(amounts: TxAmount[], sign: 1 | -1): string | null {
+  const entry = amounts.find((amount) => Math.sign(amount.amount) === sign);
+  return entry ? assetName(entry) : null;
 }
 
-/* ---- The mark at the start of a row ---- */
-
-function Avatar({ event }: { event: AccountEvent }) {
-  const failed = event.status === "failed";
-  const summary = event.summary ?? null;
-
-  if (event.kind === "transaction" && summary !== null && !failed) {
-    const lead = headline(event);
-    const Badge = KIND_ICON[summary.kind];
-    const logo = lead === null ? null : lead.symbol === "SOL" && lead.mint === null ? SOL_LOGO : lead.icon;
-    return (
-      <span className="relative mt-0.5 shrink-0">
-        {lead !== null ? (
-          <CoinMark symbol={assetName(lead)} logo={logo} size={32} className={cn(summary.unverifiedOnly && "opacity-60")} />
-        ) : (
-          <span className="inline-flex size-8 items-center justify-center rounded-pill border border-border-subtle bg-surface-raised text-text-secondary">
-            <Badge size={15} strokeWidth={1.5} aria-hidden />
-          </span>
-        )}
-        {lead !== null && (
-          <span
-            aria-hidden
-            className={cn(
-              "absolute -bottom-1 -right-1 inline-flex size-[18px] items-center justify-center rounded-pill border-2 border-surface-panel",
-              summary.kind === "receive" || summary.kind === "unstake"
-                ? "bg-sage text-surface-base"
-                : "bg-surface-active text-text-primary",
-            )}
-          >
-            <Badge size={10} strokeWidth={2.25} />
-          </span>
-        )}
-      </span>
-    );
+/** "Sent SOL", "Received USDC", "Swapped SOL → USDC" — the amount lives in the right column. */
+function actionLabel(event: AccountEvent): string {
+  const summary = event.summary;
+  if (event.kind !== "transaction" || !summary) return event.text;
+  const incoming = primarySymbol(summary.amounts, 1);
+  const outgoing = primarySymbol(summary.amounts, -1);
+  switch (summary.kind) {
+    case "receive":
+      return summary.unverifiedOnly ? "Received unverified token" : `Received ${incoming ?? ""}`.trim();
+    case "send":
+      return `Sent ${outgoing ?? ""}`.trim();
+    case "swap":
+      return `Swapped ${outgoing ?? "?"} → ${incoming ?? "?"}`;
+    case "stake":
+      return `Staked ${outgoing ?? ""}`.trim();
+    case "unstake":
+      return `Withdrew ${incoming ?? ""}`.trim();
+    default:
+      return summary.title;
   }
+}
 
-  const Icon: LucideIcon = failed
-    ? TriangleAlert
-    : event.kind === "alert"
-      ? BellRing
-      : event.kind === "action"
-        ? Sparkles
-        : event.kind === "venue"
-          ? ClipboardList
-          : ArrowLeftRight;
+const STATUS: Record<AccountEvent["status"], { label: string; icon: LucideIcon; tone: string }> = {
+  confirmed: { label: "Confirmed", icon: CheckCircle2, tone: "text-text-secondary" },
+  pending: { label: "Pending", icon: Clock3, tone: "text-text-primary" },
+  failed: { label: "Failed", icon: XCircle, tone: "text-negative" },
+};
+
+function statusOf(event: AccountEvent): { label: string; icon: LucideIcon; tone: string } {
+  if (event.kind === "alert") return { label: "Alert fired", icon: BellRing, tone: "text-text-secondary" };
+  if (event.kind === "action") return { label: "Awaiting review", icon: Sparkles, tone: "text-text-primary" };
+  return STATUS[event.status];
+}
+
+function DirectionMark({ event }: { event: AccountEvent }) {
+  const direction = directionOf(event);
+  const kind = event.summary?.kind;
+  const Icon: LucideIcon =
+    event.status === "failed"
+      ? XCircle
+      : event.status === "pending"
+        ? Clock3
+        : event.kind === "alert"
+          ? BellRing
+          : event.kind === "action"
+            ? Sparkles
+            : direction === "received"
+              ? ArrowDownLeft
+              : direction === "sent"
+                ? ArrowUpRight
+                : kind === "swap"
+                  ? ArrowLeftRight
+                  : kind === "account"
+                    ? KeyRound
+                    : kind === "stake" || kind === "unstake"
+                      ? Coins
+                      : Zap;
   return (
     <span
       aria-hidden
       className={cn(
-        "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-pill border",
-        failed
+        "inline-flex size-7 shrink-0 items-center justify-center rounded-pill border",
+        event.status === "failed"
           ? "border-negative/40 bg-negative-bg text-negative"
-          : event.agent
-            ? "border-border-subtle bg-surface-active text-agent-accent"
-            : "border-border-subtle bg-surface-raised text-text-secondary",
+          : direction === "received"
+            ? "border-border-subtle bg-positive-bg text-positive"
+            : event.agent
+              ? "border-border-subtle bg-surface-active text-agent-accent"
+              : "border-border-subtle bg-surface-raised text-text-secondary",
       )}
     >
-      <Icon size={15} strokeWidth={1.5} />
+      <Icon size={13} strokeWidth={2} />
     </span>
   );
 }
 
-/* ---- One row ---- */
-
+/** The signed amounts, in full. Wraps rather than cutting a digit. */
 function Amounts({ event }: { event: AccountEvent }) {
   const amounts = event.summary?.amounts ?? [];
-  if (event.status === "failed") {
-    return <span className="type-label rounded-chip bg-negative-bg px-1.5 text-negative">Failed</span>;
-  }
   const incoming = amounts.filter((entry) => entry.amount > 0);
   const outgoing = amounts.filter((entry) => entry.amount < 0);
   if (incoming.length === 0 && outgoing.length === 0) return null;
+  const line = (entry: TxAmount, sign: "+" | "−") => (
+    <span
+      key={`${sign}${entry.mint ?? "sol"}`}
+      className={cn(
+        "type-mono-addr block break-all text-right",
+        sign === "+" && !event.summary?.unverifiedOnly ? "text-positive" : "text-text-primary",
+        event.status === "failed" && "text-text-muted line-through",
+      )}
+    >
+      {sign}
+      {formatTokenAmount(entry.amount)} {assetName(entry)}
+    </span>
+  );
   return (
-    <span className="flex flex-col items-end leading-tight">
-      {incoming.slice(0, 1).map((entry) => (
-        <span key={`in-${entry.mint ?? "sol"}`} className={cn("type-data-sm", event.summary?.unverifiedOnly ? "text-text-muted" : "text-positive")}>
-          +{formatAmount(entry.amount)} {assetName(entry)}
-        </span>
-      ))}
-      {outgoing.slice(0, 1).map((entry) => (
-        <span key={`out-${entry.mint ?? "sol"}`} className="type-data-sm text-text-secondary">
-          −{formatAmount(entry.amount)} {assetName(entry)}
-        </span>
-      ))}
+    <span className="flex min-w-0 max-w-[58%] flex-col items-end gap-0.5">
+      {incoming.slice(0, 1).map((entry) => line(entry, "+"))}
+      {outgoing.slice(0, 1).map((entry) => line(entry, "−"))}
     </span>
   );
 }
 
-function ActivityRow({ event, now }: { event: AccountEvent; now: number }) {
-  const [open, setOpen] = useState(false);
-  const detailId = useId();
+function Details({ event }: { event: AccountEvent }) {
   const summary = event.summary ?? null;
-  const spam = summary?.unverifiedOnly === true;
-
-  const context = [
-    summary?.via,
-    summary?.counterparty && summary.kind === "receive" ? `from ${shortAddress(summary.counterparty)}` : null,
-    event.at ? formatRelativeTime(event.at, now) : "Processing",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const signature = event.id.startsWith("tx:") ? event.id.slice(3) : null;
+  const rows: Array<[string, React.ReactNode]> = [];
+  if (summary) {
+    for (const entry of summary.amounts) {
+      rows.push([
+        entry.amount > 0 ? "In" : "Out",
+        <span key="a" className={cn("type-mono-addr break-all", entry.amount > 0 ? "text-positive" : "text-text-primary")}>
+          {entry.amount > 0 ? "+" : "−"}
+          {formatTokenAmount(entry.amount)} {assetName(entry)}
+          {entry.symbol === null && <span className="text-text-muted"> (unverified)</span>}
+        </span>,
+      ]);
+    }
+    if (summary.counterparty) {
+      rows.push([
+        summary.kind === "receive" ? "From" : "To",
+        <span key="c" className="type-mono-addr break-all text-text-secondary">{summary.counterparty}</span>,
+      ]);
+    }
+    if (summary.via) rows.push(["Via", summary.via]);
+    if (summary.feeSol !== null) rows.push(["Network fee", `${formatTokenAmount(summary.feeSol)} SOL`]);
+  }
+  rows.push(["Status", statusOf(event).label]);
+  rows.push(["Time", event.at === null ? "Not yet in a block" : `${formatTimestamp(event.at)} UTC`]);
+  if (signature) rows.push(["Signature", <span key="s" className="type-mono-addr break-all text-text-secondary">{signature}</span>]);
+  if (event.kind === "transaction" && !summary) {
+    rows.push(["Details", "This transaction could not be decoded; the explorer has the full record."]);
+  }
 
   return (
-    <li className={cn("border-b border-border-subtle last:border-b-0", event.agent && "agent-rail")}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={detailId}
-        onClick={() => setOpen((value) => !value)}
-        className={cn(
-          "flex w-full items-start gap-3 py-2.5 pr-3 text-left",
-          event.agent ? "pl-[10px]" : "pl-3",
-          "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
-        )}
-      >
-        <Avatar event={event} />
-        <span className="min-w-0 flex-1">
-          <span
-            className={cn(
-              "type-body-sm block",
-              !open && "line-clamp-1",
-              spam ? "text-text-secondary" : "text-text-primary",
-            )}
-          >
-            {event.text}
-          </span>
-          <span className="type-label mt-0.5 flex items-center gap-1.5 text-text-muted">
-            {spam && <span className="rounded-chip border border-border-subtle px-1 text-text-secondary">Possible spam</span>}
-            <span className="truncate">{context}</span>
-          </span>
-        </span>
-        <span className="mt-0.5 flex shrink-0 items-start gap-1.5">
-          <Amounts event={event} />
-          <ChevronRight
-            size={14}
-            strokeWidth={1.5}
-            aria-hidden
-            className={cn(
-              "mt-0.5 text-text-muted transition-transform duration-[var(--dur-base)] ease-brand",
-              open && "rotate-90",
-            )}
-          />
-        </span>
-      </button>
+    <dl className="mx-3 mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-control border border-border-subtle bg-surface-raised p-2.5">
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="type-label text-text-muted">{label}</dt>
+          <dd className="type-label min-w-0 text-text-secondary">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
-      <div id={detailId} hidden={!open} className={cn("pb-3 pr-3", event.agent ? "pl-[54px]" : "pl-14")}>
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-control border border-border-subtle bg-surface-raised p-2.5">
-          {summary && (
-            <>
-              <dt className="type-label text-text-muted">Kind</dt>
-              <dd className="type-label text-text-secondary">{KIND_WORD[summary.kind]}</dd>
-              {summary.amounts.map((entry) => (
-                <FragmentRow key={`${entry.mint ?? "sol"}-${entry.amount}`} entry={entry} />
-              ))}
-              {summary.via && (
-                <>
-                  <dt className="type-label text-text-muted">Via</dt>
-                  <dd className="type-label text-text-secondary">{summary.via}</dd>
-                </>
-              )}
-              {summary.counterparty && (
-                <>
-                  <dt className="type-label text-text-muted">{summary.kind === "receive" ? "From" : "To"}</dt>
-                  <dd className="type-mono-addr truncate text-text-secondary" title={summary.counterparty}>
-                    {shortAddress(summary.counterparty)}
-                  </dd>
-                </>
-              )}
-              {summary.feeSol !== null && (
-                <>
-                  <dt className="type-label text-text-muted">Network fee</dt>
-                  <dd className="type-data-sm text-text-secondary">{formatAmount(summary.feeSol)} SOL</dd>
-                </>
-              )}
-            </>
+function Row({ event }: { event: AccountEvent }) {
+  const [open, setOpen] = useState(false);
+  const detailId = useId();
+  const status = statusOf(event);
+  const StatusIcon = status.icon;
+
+  return (
+    <li className={cn("border-b border-border-subtle last:border-b-0", open && "bg-surface-raised/40")}>
+      <div className="flex items-start">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={detailId}
+          onClick={() => setOpen((value) => !value)}
+          className={cn(
+            "flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 pr-1.5 text-left",
+            "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
           )}
-          <dt className="type-label text-text-muted">Status</dt>
-          <dd className={cn("type-label capitalize", event.status === "failed" ? "text-negative" : "text-text-secondary")}>
-            {event.status}
-          </dd>
-          <dt className="type-label text-text-muted">Time</dt>
-          <dd className="type-data-sm text-text-secondary">
-            {event.at === null ? "Not yet in a block" : `${formatTimestamp(event.at)} UTC`}
-          </dd>
-        </dl>
-        {event.href !== null && (
+        >
+          <DirectionMark event={event} />
+          <span className="min-w-0 flex-1">
+            <span className="type-body-sm block break-words font-medium leading-5 text-text-primary">{actionLabel(event)}</span>
+            <span className={cn("type-label mt-0.5 flex items-center gap-1", status.tone)}>
+              <StatusIcon size={11} strokeWidth={2} aria-hidden className="shrink-0" />
+              {status.label}
+              {event.at && <span className="text-text-muted">· {formatClock(event.at)}</span>}
+            </span>
+          </span>
+          <Amounts event={event} />
+        </button>
+        {event.href ? (
           <a
             href={event.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="type-label mt-2 inline-flex items-center gap-1 text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
+            aria-label="Open in Solscan"
+            title="Open in Solscan"
+            className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
           >
-            View on explorer
-            <ExternalLink size={11} strokeWidth={1.5} aria-hidden />
+            <ExternalLink size={13} strokeWidth={1.5} aria-hidden />
           </a>
+        ) : (
+          <span aria-hidden className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center text-text-muted">
+            <ChevronDown size={13} strokeWidth={1.5} className={cn("transition-transform", open && "rotate-180")} />
+          </span>
         )}
+      </div>
+      <div id={detailId} hidden={!open}>
+        <Details event={event} />
       </div>
     </li>
   );
 }
 
-function FragmentRow({ entry }: { entry: TxAmount }) {
+/* ---- Filters ---- */
+
+function Segmented({ value, onChange }: { value: Direction; onChange: (value: Direction) => void }) {
   return (
-    <>
-      <dt className="type-label text-text-muted">{entry.amount > 0 ? "In" : "Out"}</dt>
-      <dd className={cn("type-data-sm", entry.amount > 0 ? "text-positive" : "text-text-secondary")}>
-        {entry.amount > 0 ? "+" : "−"}
-        {formatAmount(entry.amount)} {assetName(entry)}
-        {entry.symbol === null && <span className="text-text-muted"> · unverified</span>}
-      </dd>
-    </>
+    <div role="radiogroup" aria-label="Direction" className="grid grid-cols-3 gap-0.5 rounded-control border border-border-subtle bg-surface-base p-0.5">
+      {DIRECTIONS.map((option, index) => {
+        const active = value === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            tabIndex={active ? 0 : -1}
+            onClick={() => onChange(option.id)}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+              event.preventDefault();
+              const next = DIRECTIONS[(index + (event.key === "ArrowRight" ? 1 : DIRECTIONS.length - 1)) % DIRECTIONS.length];
+              onChange(next.id);
+              (event.currentTarget.parentElement?.children[DIRECTIONS.indexOf(next)] as HTMLElement | undefined)?.focus();
+            }}
+            className={cn(
+              "type-label h-7 rounded-chip transition-colors duration-[var(--dur-fast)] ease-brand",
+              "focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]",
+              active ? "bg-surface-active text-text-primary" : "text-text-secondary hover:text-text-primary",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-/* ---- Three weeks at a glance ---- */
-
-function ActivityStrip({ events, now }: { events: AccountEvent[]; now: number }) {
-  const { days, total, counts, last } = useMemo(() => {
-    const startOfToday = Math.floor(now / DAY) * DAY;
-    const buckets = new Array<number>(STRIP_DAYS).fill(0);
-    const tally: Record<string, number> = {};
-    let latest: string | null = null;
-    for (const event of events) {
-      if (event.at === null) continue;
-      const at = Date.parse(event.at);
-      const index = STRIP_DAYS - 1 - Math.floor((startOfToday - Math.floor(at / DAY) * DAY) / DAY);
-      if (index < 0 || index >= STRIP_DAYS) continue;
-      buckets[index] += 1;
-      const key = event.status === "failed" ? "failed" : event.summary?.kind ?? event.kind;
-      tally[key] = (tally[key] ?? 0) + 1;
-      if (latest === null || at > Date.parse(latest)) latest = event.at;
-    }
-    return { days: buckets, total: buckets.reduce((sum, count) => sum + count, 0), counts: tally, last: latest };
-  }, [events, now]);
-
-  const max = Math.max(1, ...days);
-  const chips: Array<[string, string]> = [
-    ["swap", "swaps"],
-    ["receive", "received"],
-    ["send", "sent"],
-    ["alert", "alerts"],
-    ["action", "to review"],
-    ["failed", "failed"],
-  ];
-
+function Select<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Array<[T, string]>;
+  onChange: (value: T) => void;
+}) {
   return (
-    <div className="border-b border-border-subtle px-3 pb-3 pt-2.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="type-label text-text-secondary">
-          <span className="type-data text-text-primary">{total}</span> in the last {STRIP_DAYS} days
-        </p>
-        {last && <p className="type-label text-text-muted">last {formatRelativeTime(last, now)}</p>}
-      </div>
-      <div
-        role="img"
-        aria-label={`Activity per day over the last ${STRIP_DAYS} days, ${total} in all`}
-        className="mt-2 flex h-9 items-end gap-[3px]"
+    <label className="relative min-w-0 flex-1">
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className={cn(
+          "type-label h-7 w-full appearance-none truncate rounded-control border border-border-subtle bg-surface-base pl-2 pr-6 text-text-secondary",
+          "hover:border-border-strong focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]",
+        )}
       >
-        {days.map((count, index) => (
-          <span
-            key={index}
-            className={cn(
-              "flex-1 rounded-[2px]",
-              count === 0 ? "bg-surface-hover" : index === STRIP_DAYS - 1 ? "bg-accent" : "bg-accent-quiet",
-            )}
-            style={{ height: count === 0 ? 3 : `${Math.max(18, (count / max) * 100)}%` }}
-          />
+        {options.map(([option, text]) => (
+          <option key={option} value={option}>
+            {text}
+          </option>
         ))}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {chips
-          .filter(([key]) => (counts[key] ?? 0) > 0)
-          .map(([key, word]) => (
-            <span
-              key={key}
-              className={cn(
-                "type-label rounded-chip px-1.5",
-                key === "failed" ? "bg-negative-bg text-negative" : "bg-surface-hover text-text-secondary",
-              )}
-            >
-              {counts[key]} {word}
-            </span>
-          ))}
-      </div>
-    </div>
+      </select>
+      <ChevronDown size={12} strokeWidth={1.5} aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-text-muted" />
+    </label>
   );
 }
 
 /* ---- The widget ---- */
 
+function emptyMessage(filters: ActivityFilters): string {
+  const what = filters.direction === "received" ? "received transactions" : filters.direction === "sent" ? "sent transactions" : "activity";
+  const when = filters.range === "all" ? "" : ` ${RANGE_LABEL[filters.range].toLowerCase()}`;
+  const query = filters.query.trim() ? ` matching “${filters.query.trim()}”` : "";
+  return `No ${what}${when}${query}.`;
+}
+
 export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
   const auth = useElyraAuth();
-  const { events, signedIn, loading, error } = useAccountEvents();
+  const feed = useAccountEvents();
   const now = useMinute();
+  const [filters, setFilters] = useState<ActivityFilters>(DEFAULT_FILTERS);
+  const [searching, setSearching] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const menuId = useId();
+
+  const set = <K extends keyof ActivityFilters>(key: K, value: ActivityFilters[K]) =>
+    setFilters((current) => ({ ...current, [key]: value }));
+
+  const shown = useMemo(
+    () => (now === null ? feed.events : filterEvents(feed.events, filters, now)),
+    [feed.events, filters, now],
+  );
 
   const groups = useMemo(() => {
     if (now === null) return [];
     const out: Array<{ label: string; items: AccountEvent[] }> = [];
-    for (const event of events) {
+    for (const event of shown) {
       const label = event.at === null ? "Processing" : formatDayGroup(event.at, now);
       const last = out.at(-1);
       if (last && last.label === label) last.items.push(event);
       else out.push({ label, items: [event] });
     }
     return out;
-  }, [events, now]);
+  }, [shown, now]);
+
+  const filtered =
+    filters.direction !== "all" || filters.range !== "all" || filters.network !== "all" || filters.query.trim() !== "";
+  const refresh = () => void feed.refetch();
+
+  const header = (
+    <>
+      <SectionControl
+        label={searching ? "Close search" : "Search activity"}
+        onClick={() => {
+          const next = !searching;
+          setSearching(next);
+          if (!next) set("query", "");
+          else requestAnimationFrame(() => searchRef.current?.focus());
+        }}
+        className={cn("size-7", searching && "bg-surface-hover text-text-primary")}
+      >
+        <Search size={14} strokeWidth={1.5} aria-hidden />
+      </SectionControl>
+      <Popover
+        id={menuId}
+        label="Activity options"
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        className="w-52 p-1"
+        trigger={
+          <SectionControl
+            label="More activity options"
+            className="size-7"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-expanded={menuOpen}
+            aria-controls={menuId}
+          >
+            <MoreHorizontal size={14} strokeWidth={1.5} aria-hidden />
+          </SectionControl>
+        }
+      >
+        <ul className="list-none">
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                refresh();
+                setMenuOpen(false);
+              }}
+              className="type-label flex h-8 w-full items-center gap-2 rounded-control px-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            >
+              <RefreshCw size={13} strokeWidth={1.5} aria-hidden /> Refresh now
+            </button>
+          </li>
+          {filtered && (
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters(DEFAULT_FILTERS);
+                  setSearching(false);
+                  setMenuOpen(false);
+                }}
+                className="type-label flex h-8 w-full items-center gap-2 rounded-control px-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              >
+                <X size={13} strokeWidth={1.5} aria-hidden /> Clear filters
+              </button>
+            </li>
+          )}
+          <li>
+            <Link
+              href="/assets"
+              onClick={() => setMenuOpen(false)}
+              className="type-label flex h-8 items-center gap-2 rounded-control px-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            >
+              <Activity size={13} strokeWidth={1.5} aria-hidden /> Full history
+            </Link>
+          </li>
+          {auth.solanaAddress && (
+            <li>
+              <a
+                href={accountExplorerUrl(auth.solanaAddress)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="type-label flex h-8 items-center gap-2 rounded-control px-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+              >
+                <ExternalLink size={13} strokeWidth={1.5} aria-hidden /> Wallet on Solscan
+              </a>
+            </li>
+          )}
+        </ul>
+      </Popover>
+      {controls}
+    </>
+  );
+
+  const ready = auth.available && feed.signedIn && !feed.loading && now !== null;
 
   return (
     <Section
       title="Activity"
       icon={<Activity size={16} strokeWidth={1.5} />}
-      meta={signedIn && events.length > 0 ? events.length : undefined}
+      meta={
+        ready && feed.events.length > 0 ? (
+          <span
+            aria-label={`${shown.length} ${filtered ? "matching" : "items"}`}
+            className="type-data-sm rounded-pill bg-surface-active px-1.5 text-text-primary"
+          >
+            {shown.length}
+          </span>
+        ) : undefined
+      }
       open={open}
       onOpenChange={onOpenChange}
-      actions={controls}
+      actions={ready ? header : controls}
     >
       {!auth.available ? (
         <p className="type-body-sm px-3 py-4 text-text-secondary">Sign-in is not configured, so there is no account to follow.</p>
-      ) : loading || now === null ? (
-        <div className="flex flex-col gap-2.5 px-3 py-4" aria-label="Loading activity">
-          {[0, 1, 2].map((row) => (
-            <span key={row} className="flex items-center gap-3">
-              <span className="skeleton size-8 rounded-pill" />
-              <span className="skeleton h-4 flex-1" />
-            </span>
-          ))}
-        </div>
-      ) : !signedIn ? (
+      ) : !feed.signedIn && !feed.loading ? (
         <div className="px-3 py-4">
-          <p className="type-body-sm text-text-secondary">
-            Connect a wallet to follow its swaps, transfers, fired alerts and actions awaiting review.
-          </p>
+          <p className="type-body-sm text-text-secondary">Connect a wallet to follow its transfers, swaps, fired alerts and actions awaiting review.</p>
           <Button className="mt-3" size="sm" variant="accent" onClick={auth.login}>
             Connect wallet
           </Button>
         </div>
-      ) : events.length === 0 ? (
-        <p className="type-body-sm px-3 py-4 text-text-secondary">
-          {error ?? "Nothing yet. Swaps, transfers, fired alerts and actions awaiting review land here."}
-        </p>
       ) : (
         <>
-          <ActivityStrip events={events} now={now} />
-          <div className="max-h-[360px] overflow-y-auto">
-            {groups.map((group) => (
-              <section key={group.label} aria-label={group.label}>
-                <h3 className="type-eyebrow sticky top-0 z-[1] border-b border-border-subtle bg-surface-panel px-3 py-1.5 text-text-muted">
-                  {group.label}
-                </h3>
-                <ul className="list-none">
-                  {group.items.map((item) => (
-                    <ActivityRow key={item.id} event={item} now={now} />
-                  ))}
-                </ul>
-              </section>
-            ))}
+          {/* Filters */}
+          <div className="flex flex-col gap-2 border-b border-border-subtle px-3 pb-2.5 pt-2.5">
+            {searching && (
+              <label className="flex h-8 items-center gap-2 rounded-control border border-border-strong bg-surface-base px-2 focus-within:border-accent-quiet">
+                <Search size={13} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
+                <span className="sr-only">Search by token, address or signature</span>
+                <input
+                  ref={searchRef}
+                  value={filters.query}
+                  onChange={(event) => set("query", event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      set("query", "");
+                      setSearching(false);
+                    }
+                  }}
+                  placeholder="Token, address or signature"
+                  className="type-label min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-muted focus:outline-none"
+                />
+                {filters.query && (
+                  <button type="button" aria-label="Clear search" onClick={() => set("query", "")} className="text-text-muted hover:text-text-primary">
+                    <X size={12} strokeWidth={1.5} aria-hidden />
+                  </button>
+                )}
+              </label>
+            )}
+            <Segmented value={filters.direction} onChange={(value) => set("direction", value)} />
+            <div className="flex gap-2">
+              <Select<DateRange>
+                label="Date range"
+                value={filters.range}
+                onChange={(value) => set("range", value)}
+                options={(Object.keys(RANGE_LABEL) as DateRange[]).map((range) => [range, RANGE_LABEL[range]])}
+              />
+              <Select<Network>
+                label="Network"
+                value={filters.network}
+                onChange={(value) => set("network", value)}
+                options={[
+                  ["all", "All networks"],
+                  ["solana", "Solana"],
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* List */}
+          <div aria-busy={feed.loading || feed.refreshing} className="max-h-[340px] overflow-y-auto overscroll-contain">
+            {feed.loading || now === null ? (
+              <ul aria-label="Loading activity" className="list-none">
+                {[0, 1, 2, 3].map((row) => (
+                  <li key={row} className="flex items-center gap-2.5 border-b border-border-subtle px-3 py-2.5 last:border-b-0">
+                    <span className="skeleton size-7 rounded-pill" />
+                    <span className="flex flex-1 flex-col gap-1.5">
+                      <span className="skeleton h-3.5 w-24" />
+                      <span className="skeleton h-3 w-16" />
+                    </span>
+                    <span className="skeleton h-3.5 w-20" />
+                  </li>
+                ))}
+              </ul>
+            ) : feed.error !== null && feed.events.length === 0 ? (
+              <div role="alert" className="px-3 py-5 text-center">
+                <p className="type-body-sm text-text-secondary">Activity could not be loaded.</p>
+                <p className="type-label mt-1 break-words text-text-muted">{feed.error}</p>
+                <Button className="mt-3" size="sm" variant="quiet" onClick={refresh} disabled={feed.refreshing}>
+                  {feed.refreshing ? "Retrying…" : "Retry"}
+                </Button>
+              </div>
+            ) : shown.length === 0 ? (
+              <div className="px-3 py-5 text-center">
+                <p className="type-body-sm text-text-secondary">
+                  {feed.events.length === 0 ? "No activity yet. Transfers and swaps from this wallet land here." : emptyMessage(filters)}
+                </p>
+                {filtered && feed.events.length > 0 && (
+                  <Button className="mt-3" size="sm" variant="quiet" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            ) : (
+              groups.map((group) => (
+                <section key={group.label} aria-label={group.label}>
+                  <h3 className="type-eyebrow sticky top-0 z-[1] flex items-center gap-2 bg-surface-panel px-3 pb-1 pt-2 text-text-muted">
+                    <span className="shrink-0">{group.label}</span>
+                    <span aria-hidden className="h-px flex-1 bg-border-subtle" />
+                  </h3>
+                  <ul className="list-none">
+                    {group.items.map((event) => (
+                      <Row key={event.id} event={event} />
+                    ))}
+                  </ul>
+                </section>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center gap-2 border-t border-border-subtle px-3 py-2">
+            <Link
+              href="/assets"
+              className="type-label inline-flex min-w-0 items-center gap-1 rounded-control px-1 py-1 text-text-primary hover:text-accent focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
+            >
+              View all activity
+              <ArrowRight size={12} strokeWidth={1.75} aria-hidden />
+            </Link>
+            <span className="type-label ml-auto truncate text-text-muted" aria-live="polite">
+              {feed.refreshing
+                ? "Updating…"
+                : feed.fetchedAt !== null && now !== null
+                  ? `Updated ${formatRelativeTime(new Date(feed.fetchedAt).toISOString(), Math.max(now, feed.fetchedAt))}`
+                  : feed.error
+                    ? "Not updated"
+                    : ""}
+            </span>
+            <SectionControl label="Refresh activity" onClick={refresh} disabled={feed.refreshing} className="size-7 shrink-0">
+              <RefreshCw size={13} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "animate-spin")} />
+            </SectionControl>
           </div>
         </>
       )}

@@ -18,6 +18,10 @@ export function useAccountEvents(): {
   signedIn: boolean;
   loading: boolean;
   error: string | null;
+  /** The wallet feed's own fetch state, for refresh and "updated" labels. */
+  fetchedAt: number | null;
+  refreshing: boolean;
+  refetch: () => Promise<void>;
 } {
   const portfolio = usePortfolio();
   const wallet = useWalletActivity(25);
@@ -41,5 +45,8 @@ export function useAccountEvents(): {
     signedIn: portfolio.signedIn,
     loading: !portfolio.authReady || (portfolio.signedIn && wallet.isLoading && events.length === 0),
     error: wallet.error,
+    fetchedAt: wallet.fetchedAt,
+    refreshing: wallet.refreshing,
+    refetch: wallet.refetch,
   };
 }

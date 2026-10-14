@@ -26,7 +26,11 @@ export interface ActivityFeed {
   isLoading: boolean;
   error: string | null;
   unconfigured: boolean;
-  refetch: () => void;
+  /** When the last read succeeded, epoch ms. Null before the first. */
+  fetchedAt: number | null;
+  /** A read is in flight — the first, a poll, or a refetch. */
+  refreshing: boolean;
+  refetch: () => Promise<void>;
 }
 
 interface StoreState {
@@ -34,9 +38,18 @@ interface StoreState {
   error: string | null;
   unconfigured: boolean;
   loading: boolean;
+  fetchedAt: number | null;
+  refreshing: boolean;
 }
 
-const INITIAL: StoreState = { items: [], error: null, unconfigured: false, loading: true };
+const INITIAL: StoreState = {
+  items: [],
+  error: null,
+  unconfigured: false,
+  loading: true,
+  fetchedAt: null,
+  refreshing: false,
+};
 const SIGNED_OUT: StoreState = { ...INITIAL, loading: false };
 
 let state: StoreState = INITIAL;
@@ -74,6 +87,7 @@ const getServerSnapshot = (): StoreState => INITIAL;
 async function poll(): Promise<void> {
   if (inFlight || !enabled || fetcher === null) return;
   inFlight = true;
+  emit({ refreshing: true });
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
@@ -83,7 +97,13 @@ async function poll(): Promise<void> {
     const response = await fetcher(`/api/wallet/activity?limit=${FETCH_LIMIT}`, { cache: "no-store" });
     const body = (await response.json()) as ActivityResponse;
     if (body.error !== null) delay = RETRY_MS;
-    emit({ items: body.items, error: body.error, unconfigured: body.unconfigured, loading: false });
+    emit({
+      items: body.error === null ? body.items : state.items,
+      error: body.error,
+      unconfigured: body.unconfigured,
+      loading: false,
+      fetchedAt: body.error === null ? Date.now() : state.fetchedAt,
+    });
   } catch (error: unknown) {
     delay = RETRY_MS;
     emit({
@@ -92,6 +112,7 @@ async function poll(): Promise<void> {
     });
   } finally {
     inFlight = false;
+    emit({ refreshing: false });
     if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), delay);
   }
 }
@@ -142,9 +163,7 @@ export function useWalletActivity(limit = 20): ActivityFeed {
     };
   }, [signedIn]);
 
-  const refetch = useCallback(() => {
-    void poll();
-  }, []);
+  const refetch = useCallback(() => poll(), []);
 
   return useMemo(
     () => ({
@@ -153,6 +172,8 @@ export function useWalletActivity(limit = 20): ActivityFeed {
       isLoading: !auth.ready || (signedIn && store.loading),
       error: signedIn ? store.error : null,
       unconfigured: store.unconfigured,
+      fetchedAt: signedIn ? store.fetchedAt : null,
+      refreshing: signedIn && store.refreshing,
       refetch,
     }),
     [store, signedIn, auth.ready, limit, refetch],

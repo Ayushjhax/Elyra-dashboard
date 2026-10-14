@@ -118,7 +118,7 @@ export function LiveFilings() {
                 )}
               >
                 <span className="mt-0.5 flex w-12 shrink-0 flex-col items-center gap-1">
-                  <CompanyMark ticker={filing.ticker} size={28} />
+                  <CompanyMark ticker={filing.ticker} name={filing.company} size={28} />
                   <span className="type-data-sm text-text-secondary">{filing.ticker}</span>
                 </span>
                 <span className="min-w-0 flex-1">

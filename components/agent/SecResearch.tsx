@@ -363,7 +363,7 @@ function CompanyView({
       ) : (
         <>
           <div className="flex items-start gap-3 px-4 pt-2">
-            <CompanyMark ticker={company.ticker} size={44} />
+            <CompanyMark ticker={company.ticker} name={company.name} size={44} />
             <div className="min-w-0 flex-1">
               <h3 className="type-panel-title text-text-primary">{company.name}</h3>
               <p className="type-data-sm text-text-secondary">
@@ -553,7 +553,7 @@ function CompanySearch({ onOpen }: { onOpen: (query: string) => void }) {
                 index === active ? "bg-surface-hover" : "",
               )}
             >
-              <CompanyMark ticker={row.ticker} size={22} />
+              <CompanyMark ticker={row.ticker} name={row.companyName} size={22} />
               <span className="type-data w-14 shrink-0 text-text-primary">{row.ticker}</span>
               <span className="type-label min-w-0 truncate text-text-secondary">{row.companyName}</span>
             </li>

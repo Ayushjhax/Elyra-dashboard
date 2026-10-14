@@ -1,5 +1,6 @@
 import { Briefcase, Building2, Landmark, Rocket, University, type LucideIcon } from "lucide-react";
 import { CoinMark } from "@/components/ui/CoinMark";
+import { Monogram } from "@/components/ui/Monogram";
 import { cn } from "@/lib/utils";
 
 /**
@@ -46,9 +47,10 @@ export function filerKind(name: string): { icon: LucideIcon; label: string } {
 }
 
 /**
- * A filer with no exchange listing — a fund, a private company, a SPAC
- * before it lists. There is no logo to find, so it is marked by what it is
- * rather than by a lone initial.
+ * A filer with no logo to find — a fund, a private company, a SPAC before
+ * it lists, or a listed company no logo source carries. Its own monogram,
+ * with a small badge saying what kind of filer it is when that is more than
+ * "a company".
  */
 export function FilerMark({
   name,
@@ -63,16 +65,25 @@ export function FilerMark({
   listed?: boolean;
 }) {
   const { icon: Icon, label } = filerKind(name);
+  const badge = Icon !== Building2 && size >= 22;
   return (
     <span
-      title={listed ? label : `${label} · not listed on a US exchange`}
+      title={listed ? `${name} · ${label}` : `${name} · ${label}, not listed on a US exchange`}
       style={{ width: size, height: size }}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-pill border border-border-strong bg-surface-active text-text-secondary",
-        className,
-      )}
+      className={cn("relative inline-flex shrink-0", className)}
     >
-      <Icon size={Math.round(size * 0.5)} strokeWidth={1.5} aria-hidden />
+      <span className="inline-flex size-full overflow-hidden rounded-pill border border-border-subtle">
+        <Monogram name={name} size={size} />
+      </span>
+      {badge && (
+        <span
+          aria-hidden
+          className="absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center rounded-pill border-2 border-surface-panel bg-surface-raised text-text-secondary"
+          style={{ width: Math.round(size * 0.5), height: Math.round(size * 0.5) }}
+        >
+          <Icon size={Math.max(8, Math.round(size * 0.28))} strokeWidth={2} />
+        </span>
+      )}
       <span className="sr-only">{label}</span>
     </span>
   );

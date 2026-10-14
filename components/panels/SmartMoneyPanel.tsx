@@ -85,7 +85,7 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
         <div className="flex items-center gap-2">
           {/* Ticker-keyed logo. A 404 falls back to the lettered chip, which
               is the same place an unknown symbol lands. */}
-          <CompanyMark ticker={finding.ticker} logo={finding.logo} size={24} />
+          <CompanyMark ticker={finding.ticker} name={finding.company} logo={finding.logo} size={24} />
           <span className="type-data truncate text-text-primary">{finding.ticker}</span>
           <span className="type-label min-w-0 flex-1 truncate text-text-muted">
             {finding.company}

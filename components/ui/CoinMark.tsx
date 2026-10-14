@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Monogram } from "@/components/ui/Monogram";
 import { cn } from "@/lib/utils";
 
 /**
@@ -75,12 +76,7 @@ export function CoinMark({
           className="size-full object-contain"
         />
       ) : (
-        <span
-          className="type-label font-semibold leading-none text-text-secondary"
-          style={{ fontSize: Math.max(9, Math.round(size * 0.44)) }}
-        >
-          {symbol.slice(0, 1)}
-        </span>
+        <Monogram name={symbol} size={size} />
       )}
     </span>
   );

@@ -5,8 +5,7 @@ import { ArrowLeft, ExternalLink, Landmark, RefreshCw, Search, Sparkles } from "
 import type { CompanyResponse } from "@/app/api/sec/company/route";
 import type { LatestResponse } from "@/app/api/sec/latest/route";
 import { Button } from "@/components/ui/Button";
-import { CoinMark } from "@/components/ui/CoinMark";
-import { CompanyMark } from "@/components/ui/CompanyMark";
+import { CompanyMark, FilerMark } from "@/components/ui/CompanyMark";
 import { DeltaText } from "@/components/ui/DeltaText";
 import { formatCompactUsd, formatDayGroup, formatRelativeTime } from "@/lib/format";
 import { useAssets } from "@/lib/market/usePrices";
@@ -42,7 +41,7 @@ const QUICK_PICKS = ["NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "META", "GOOGL", "C
 --------------------------------------------------------------------------- */
 
 function Mark({ ticker, name, size }: { ticker: string | null; name: string; size: number }) {
-  return ticker ? <CompanyMark ticker={ticker} size={size} /> : <CoinMark symbol={name} size={size} />;
+  return ticker ? <CompanyMark ticker={ticker} name={name} size={size} /> : <FilerMark name={name} size={size} />;
 }
 
 function CategoryChips({

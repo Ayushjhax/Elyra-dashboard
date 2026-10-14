@@ -13,6 +13,7 @@
 --------------------------------------------------------------------------- */
 
 import type { Cluster } from "@/lib/solana/cluster";
+import type { TxSummary } from "@/lib/wallet/summarise";
 
 /** Lamports per SOL. Nine decimals, fixed by the protocol. */
 export const LAMPORTS_PER_SOL = 1_000_000_000;
@@ -96,6 +97,8 @@ export interface WalletActivity {
   /** ISO. Null while the block is too new to carry a time. */
   at: string | null;
   memo: string | null;
+  /** What it did, where the RPC can say (lib/wallet/helius.ts). */
+  summary?: TxSummary | null;
 }
 
 export interface ActivityResponse {

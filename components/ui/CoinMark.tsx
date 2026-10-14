@@ -29,12 +29,15 @@ export function CoinMark({
   symbol,
   logo = null,
   fallbackLogo = null,
+  fallback,
   size = 20,
   className,
 }: {
   symbol: string;
   logo?: string | null;
   fallbackLogo?: string | null;
+  /** Drawn instead of the lettered chip once every source has failed. */
+  fallback?: React.ReactNode;
   size?: number;
   className?: string;
 }) {
@@ -43,6 +46,7 @@ export function CoinMark({
   const sources = [logo, fallbackLogo].filter((source): source is string => source !== null);
   const source = sources[failures] ?? null;
   const showImage = source !== null;
+  if (!showImage && fallback !== undefined) return <>{fallback}</>;
 
   return (
     <span

@@ -2,6 +2,7 @@ import type { OpenAction } from "@/app/api/actions/route";
 import { formatPriceUsd } from "@/lib/format";
 import type { PortfolioActivity } from "@/lib/portfolio/types";
 import type { PriceAlert } from "@/lib/telegram/alerts";
+import type { TxSummary } from "@/lib/wallet/summarise";
 import type { WalletActivity } from "@/lib/wallet/types";
 
 /* ---------------------------------------------------------------------------
@@ -35,6 +36,8 @@ export interface AccountEvent {
   agent: boolean;
   /** Worth ringing the bell for. */
   attention: boolean;
+  /** For a wallet transaction the RPC could read: what moved, and how. */
+  summary?: TxSummary | null;
 }
 
 export function accountEvents(input: {
@@ -47,13 +50,18 @@ export function accountEvents(input: {
   const events: AccountEvent[] = [];
 
   for (const tx of input.wallet) {
+    const summary = tx.summary ?? null;
     events.push({
       id: `tx:${tx.signature}`,
       kind: "transaction",
+      summary,
       text:
+        (summary !== null && tx.status !== "failed" ? summary.title : null) ??
         tx.memo ??
         (tx.status === "failed"
-          ? "Wallet transaction failed on-chain"
+          ? summary !== null
+            ? `Failed: ${summary.title.charAt(0).toLowerCase()}${summary.title.slice(1)}`
+            : "Wallet transaction failed on-chain"
           : tx.status === "pending"
             ? "Wallet transaction processing"
             : "Wallet transaction confirmed"),

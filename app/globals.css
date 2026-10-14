@@ -140,6 +140,8 @@
   --color-focus-ring: var(--focus-ring);
 
   --color-positive: var(--positive);
+  /* Raw Sage, for fills only — a received-funds badge. Text uses --positive. */
+  --color-sage: var(--sage);
   --color-positive-bg: var(--positive-bg);
   --color-negative: var(--negative);
   --color-negative-bg: var(--negative-bg);
@@ -449,8 +451,12 @@ td {
 --------------------------------------------------------------------------- */
 
 .command-glass-overlay {
-  /* A light veil: the workspace stays visible behind the glass. */
-  background: color-mix(in srgb, var(--surface-base) 10%, transparent);
+  /* The workspace steps back: softly blurred and a shade darker, still
+     recognisable, so the eye goes to the palette. The palette's own blur
+     then samples this already-softened scene. */
+  background: color-mix(in srgb, var(--surface-base) 26%, transparent);
+  -webkit-backdrop-filter: blur(6px) saturate(115%);
+  backdrop-filter: blur(6px) saturate(115%);
 }
 
 .command-glass {
@@ -527,6 +533,8 @@ td {
 @media (prefers-reduced-transparency: reduce) {
   .command-glass-overlay {
     background: color-mix(in srgb, var(--surface-base) 60%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   .command-glass {

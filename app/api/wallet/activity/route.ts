@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { UpstreamError } from "@/lib/market/http";
 import { isSolanaAddress } from "@/lib/solana/address";
+import { describeSignatures } from "@/lib/wallet/helius";
 import {
   RpcUnconfiguredError,
   getSignaturesForAddress,
@@ -81,6 +82,13 @@ export async function GET(request: Request): Promise<NextResponse<ActivityRespon
     );
   }
 
+  /* What each one did, where the RPC is Helius. Best effort: a row without
+     a summary still says whether it landed, when, and links to the explorer. */
+  const summaries = await describeSignatures(
+    address,
+    signatures.map((entry) => entry.signature),
+  );
+
   const items: WalletActivity[] = signatures.map((entry) => ({
     signature: entry.signature,
     status: activityStatus(entry.err, entry.confirmationStatus),
@@ -89,6 +97,7 @@ export async function GET(request: Request): Promise<NextResponse<ActivityRespon
        date every transaction to January 1970. */
     at: entry.blockTime === null ? null : new Date(entry.blockTime * 1000).toISOString(),
     memo: entry.memo,
+    summary: summaries.get(entry.signature) ?? null,
   }));
 
   return NextResponse.json({ items, error: null, unconfigured: false });

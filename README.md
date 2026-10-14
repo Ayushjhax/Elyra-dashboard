@@ -257,7 +257,8 @@ Each is noted where it happens, in the file that makes the choice.
 3. **Search palette glass.** Section 3 makes the product flat. The ⌘K palette
    alone is a sheet of glass (`.command-glass` in `app/globals.css`): a barely
    tinted pane over a light blur, a 1px Ivory rim brightest at the top-left,
-   and a sheen across the top. Light only — every highlight is Ivory at low
+   and a sheen across the top, over a workspace softened by a 6px blur so the
+   palette holds the eye. Light only — every highlight is Ivory at low
    alpha — and a solid panel under `prefers-reduced-transparency`.
 
 The black surfaces and the luminance layer (blooms, rims, frosted planes,

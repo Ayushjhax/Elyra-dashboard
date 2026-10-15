@@ -6,6 +6,7 @@ import {
   VERY_SLOW_MS,
   health,
   latencyFactor,
+  latencyTone,
   priceStateOf,
   rpcStateOf,
   toneFor,
@@ -64,6 +65,13 @@ describe("scoring", () => {
 });
 
 describe("latency", () => {
+  it("colours a round trip by the same thresholds the meter scores", () => {
+    expect(latencyTone(null)).toBe("unknown");
+    expect(latencyTone(SLOW_MS)).toBe("positive");
+    expect(latencyTone(SLOW_MS + 24)).toBe("warning");
+    expect(latencyTone(VERY_SLOW_MS)).toBe("negative");
+  });
+
   it("does not penalise a fast endpoint", () => {
     expect(latencyFactor(null)).toBe(1);
     expect(latencyFactor(0)).toBe(1);

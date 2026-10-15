@@ -44,6 +44,10 @@ interface WalletState {
   loading: boolean;
   /** The last attempt failed, but `snapshot` is a real earlier reading. */
   stale: boolean;
+  /** When the last successful read landed, epoch ms. Null before the first. */
+  fetchedAt: number | null;
+  /** A read is in flight — the first, a poll, or a refetch. */
+  refreshing: boolean;
 }
 
 const INITIAL: WalletState = {
@@ -53,6 +57,8 @@ const INITIAL: WalletState = {
   latencyMs: null,
   loading: true,
   stale: false,
+  fetchedAt: null,
+  refreshing: false,
 };
 
 let state: WalletState = INITIAL;
@@ -107,6 +113,7 @@ async function poll(): Promise<void> {
   if (inFlight || !enabled || fetcher === null) return;
 
   inFlight = true;
+  emit({ refreshing: true });
   let delay = POLL_MS;
 
   try {
@@ -121,6 +128,7 @@ async function poll(): Promise<void> {
         latencyMs: body.latencyMs,
         loading: false,
         stale: false,
+        fetchedAt: Date.now(),
       });
     } else {
       delay = RETRY_MS;
@@ -144,6 +152,9 @@ async function poll(): Promise<void> {
     });
   } finally {
     inFlight = false;
+    emit({ refreshing: false });
+    /* A refetch can land while a poll is scheduled; one timer, not two. */
+    if (timer !== null) clearTimeout(timer);
     if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), delay);
     else timer = null;
   }
@@ -183,6 +194,10 @@ export interface WalletDashboard {
   /** SOLANA_RPC_URL is unset — a configuration gap, not an outage. */
   unconfigured: boolean;
   latencyMs: number | null;
+  /** When the last successful read landed, epoch ms. */
+  fetchedAt: number | null;
+  /** A read is in flight, so a second refresh would be a duplicate. */
+  refreshing: boolean;
   refetch: () => void;
 }
 
@@ -235,7 +250,7 @@ export function useWalletDashboard(): WalletDashboard {
         address: null, balance: null, usdValue: null,
         chain: CLUSTER_LABEL[EXPECTED_CLUSTER], cluster: null, wrongChain: false,
         snapshot: null, isLoading: true, error: null, stale: false,
-        unconfigured: false, latencyMs: null, refetch,
+        unconfigured: false, latencyMs: null, fetchedAt: null, refreshing: false, refetch,
       };
     }
 
@@ -244,7 +259,7 @@ export function useWalletDashboard(): WalletDashboard {
         address: null, balance: null, usdValue: null,
         chain: CLUSTER_LABEL[EXPECTED_CLUSTER], cluster: null, wrongChain: false,
         snapshot: null, isLoading: false, error: null, stale: false,
-        unconfigured: false, latencyMs: null, refetch,
+        unconfigured: false, latencyMs: null, fetchedAt: null, refreshing: false, refetch,
       };
     }
 
@@ -265,6 +280,8 @@ export function useWalletDashboard(): WalletDashboard {
       stale: store.stale,
       unconfigured: store.unconfigured,
       latencyMs: store.latencyMs,
+      fetchedAt: store.fetchedAt,
+      refreshing: store.refreshing,
       refetch,
     };
   }, [auth.ready, auth.authenticated, auth.solanaAddress, store, refetch]);

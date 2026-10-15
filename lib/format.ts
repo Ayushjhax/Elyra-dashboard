@@ -88,6 +88,21 @@ export function formatRelativeTime(iso: string, now: number): string {
   return `${weeks}w ago`;
 }
 
+/**
+ * How old a reading is, to the second while it is fresh: "just now", "8s
+ * ago", "3m ago". For "Updated …" lines over data that polls every thirty
+ * seconds, where `formatRelativeTime`'s 45-second "just now" would hide a
+ * whole missed poll. `now` is the shared second clock, as above.
+ */
+export function formatAge(at: number, now: number): string {
+  const seconds = Math.max(0, Math.round((now - at) / 1000));
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return formatRelativeTime(new Date(at).toISOString(), now);
+}
+
 /** Clock time, to the minute: 14:06. */
 export function formatClock(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-GB", {

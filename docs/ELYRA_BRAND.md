@@ -84,7 +84,13 @@ the border, chosen so every text token still clears 1.5's floor on them.
 --negative        #D3906F   price down, short, loss — text     (Clay, lifted)
 --negative-bg     rgba(196,99,58,0.14)
 --neutral-flat    #B8BAA8   unchanged / pending              (Stone)
+--caution         #E9AC64   slow, degraded, worth a look — text (Amber)
+--caution-bg      rgba(233,172,100,0.14)
 ```
+
+Caution is not a market colour: it marks infrastructure that is working but
+not well — an RPC answering slowly, a read that is late. A loss is Clay, an
+interaction is Lime, and neither stands in for it.
 
 The text tokens are Sage and Clay lifted toward Ivory (18% and 30%) — the
 smallest lift at which each clears 4.5:1 on every forest surface and inside

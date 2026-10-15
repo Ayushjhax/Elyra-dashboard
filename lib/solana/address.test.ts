@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clusterOf, EXPECTED_CLUSTER, GENESIS_HASH } from "./cluster";
-import { isSolanaAddress, isSolanaSignature, truncateAddress } from "./address";
+import { accountExplorerUrl, isSolanaAddress, isSolanaSignature, truncateAddress, txExplorerUrl } from "./address";
 
 /* Real mainnet values, not invented ones. The two addresses are the SPL Token
    and Token-2022 program ids, which are fixed by the protocol and are the
@@ -87,5 +87,16 @@ describe("clusterOf", () => {
   it("expects mainnet, and the three hashes are distinct", () => {
     expect(EXPECTED_CLUSTER).toBe("mainnet-beta");
     expect(new Set(Object.values(GENESIS_HASH)).size).toBe(3);
+  });
+});
+
+describe("explorer links", () => {
+  it("open on the cluster the reading came from", () => {
+    expect(txExplorerUrl("sig")).toBe("https://solscan.io/tx/sig");
+    expect(txExplorerUrl("sig", "mainnet-beta")).toBe("https://solscan.io/tx/sig");
+    expect(txExplorerUrl("sig", "devnet")).toBe("https://solscan.io/tx/sig?cluster=devnet");
+    expect(accountExplorerUrl(USDC_MINT, "testnet")).toBe(`https://solscan.io/account/${USDC_MINT}?cluster=testnet`);
+    /* A cluster nobody recognises has no explorer; mainnet is the honest default. */
+    expect(accountExplorerUrl(USDC_MINT, "unknown")).toBe(`https://solscan.io/account/${USDC_MINT}`);
   });
 });

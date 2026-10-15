@@ -95,6 +95,12 @@ export interface LinkedAccountSummary {
   walletClientType: string | null;
   /** ISO. When this account was most recently used to log in or link. */
   latestVerifiedAt: string | null;
+  /**
+   * ISO. When Privy verified this account — an email or phone it sent a code
+   * to, a wallet that signed its message. Null when Privy reports none, and
+   * then nothing in the UI may call the account verified.
+   */
+  verifiedAt: string | null;
 }
 
 export interface ElyraAccount {
@@ -227,6 +233,7 @@ function PrivyBridge({ children }: { children: React.ReactNode }) {
           walletClientType:
             typeof raw.walletClientType === "string" ? raw.walletClientType : null,
           latestVerifiedAt: toIso(raw.latestVerifiedAt),
+          verifiedAt: toIso(raw.verifiedAt),
         };
       },
     );

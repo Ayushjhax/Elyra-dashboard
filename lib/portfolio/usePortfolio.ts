@@ -35,6 +35,8 @@ interface StoreState {
   stale: boolean;
   /** When the last successful read landed, for "Updated 8s ago". */
   fetchedAt: number | null;
+  /** A read is in flight — the first, a poll, or a refetch. */
+  refreshing: boolean;
 }
 
 const INITIAL: StoreState = {
@@ -44,6 +46,7 @@ const INITIAL: StoreState = {
   loading: true,
   stale: false,
   fetchedAt: null,
+  refreshing: false,
 };
 
 let state: StoreState = INITIAL;
@@ -84,6 +87,7 @@ async function poll(): Promise<void> {
   if (inFlight || !enabled || fetcher === null) return;
 
   inFlight = true;
+  emit({ refreshing: true });
   let delay = POLL_MS;
 
   try {
@@ -120,6 +124,9 @@ async function poll(): Promise<void> {
     });
   } finally {
     inFlight = false;
+    emit({ refreshing: false });
+    /* A refetch can land while a poll is scheduled; one timer, not two. */
+    if (timer !== null) clearTimeout(timer);
     if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), delay);
     else timer = null;
   }

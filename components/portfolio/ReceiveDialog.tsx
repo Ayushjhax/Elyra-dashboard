@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
 import { ExternalLink, TriangleAlert } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { CopyButton } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
+import { QrCode } from "@/components/ui/QrCode";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
-import { qrModules, qrPath } from "@/lib/qr";
 import { accountExplorerUrl } from "@/lib/solana/address";
 import { CLUSTER_LABEL, EXPECTED_CLUSTER, type Cluster } from "@/lib/solana/cluster";
 import { cn } from "@/lib/utils";
@@ -23,24 +22,6 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 const SOL = ["SOL"] as const;
-
-function QrCode({ value }: { value: string }) {
-  const modules = useMemo(() => qrModules(value), [value]);
-  const path = useMemo(() => qrPath(modules), [modules]);
-  return (
-    /* Dark ink on a light ground, whatever the theme: an inverted code is one
-       many phone cameras will not read. */
-    <svg
-      role="img"
-      aria-label="QR code of the wallet address"
-      viewBox={`0 0 ${modules.length} ${modules.length}`}
-      shapeRendering="crispEdges"
-      className="size-44 rounded-card bg-text-primary text-surface-base"
-    >
-      <path d={path} fill="currentColor" />
-    </svg>
-  );
-}
 
 export function ReceiveDialog({
   open,
@@ -86,7 +67,7 @@ export function ReceiveDialog({
               </div>
             </div>
 
-            <QrCode value={address} />
+            <QrCode value={address} label="QR code of the wallet address" />
 
             <div className="flex w-full flex-col gap-2">
               {/* Selectable as well as copyable, whole: a receiving address is

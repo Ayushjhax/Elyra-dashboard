@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, Copy, X, type LucideIcon } from "lucide-react";
 import { Panel, PanelBody } from "@/components/ui/Panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCopy } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -170,8 +171,6 @@ export function IconButton({
   );
 }
 
-type CopyState = "idle" | "copied" | "failed";
-
 /**
  * Copies a value, says so for a moment, and says so when it could not.
  *
@@ -192,35 +191,10 @@ export function CopyButton({
   text?: string;
   className?: string;
 }) {
-  const [state, setState] = useState<CopyState>("idle");
+  const { state, copy: write } = useCopy();
   /* Hover and focus open the tooltip as usual; a result holds it open. */
   const [pointing, setPointing] = useState(false);
-  const timer = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  const settle = (next: CopyState) => {
-    setState(next);
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setState("idle"), 1600);
-  };
-
-  const copy = () => {
-    const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard;
-    if (clipboard === undefined) {
-      settle("failed");
-      return;
-    }
-    clipboard.writeText(value).then(
-      () => settle("copied"),
-      () => settle("failed"),
-    );
-  };
+  const copy = () => void write(value);
 
   const tip = state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy" : `Copy ${label}`;
   const announce = (

@@ -8,6 +8,7 @@ import {
   DEFAULT_WATCHLIST_IDS,
 } from "@/lib/market/defaults";
 import type { ComposerAttachment } from "@/lib/attachments";
+import { CONTEXT_SOURCES, type ContextSource } from "@/lib/personalized/types";
 import { clampColumn, type ColumnWidths, type ShellColumnId } from "@/lib/layout";
 import type {
   AgentTab,
@@ -65,6 +66,18 @@ interface ElyraState {
    */
   balancesHidden: boolean;
   setBalancesHidden: (hidden: boolean) => void;
+
+  /* ---- capital intelligence ---- */
+  /**
+   * What Capital Intelligence may read for each question — the composer's
+   * "Using" chips. Persisted: leaving activity out is a standing choice, not
+   * one to make again on every visit.
+   */
+  contextSources: ContextSource[];
+  setContextSources: (sources: ContextSource[]) => void;
+  /** The context rail folded away beside the conversation. */
+  contextRailCollapsed: boolean;
+  setContextRailCollapsed: (collapsed: boolean) => void;
 
   /* ---- agent ---- */
   /**
@@ -307,6 +320,13 @@ export const useElyraStore = create<ElyraState>()(
       balancesHidden: false,
       setBalancesHidden: (hidden) => set({ balancesHidden: hidden }),
 
+      contextSources: [...CONTEXT_SOURCES],
+      /* Kept in a fixed order, so the chips never reshuffle as they toggle. */
+      setContextSources: (sources) =>
+        set({ contextSources: CONTEXT_SOURCES.filter((source) => sources.includes(source)) }),
+      contextRailCollapsed: false,
+      setContextRailCollapsed: (collapsed) => set({ contextRailCollapsed: collapsed }),
+
       /* No seeded conversation. A transcript the operator never had is a
          claim about their account; the panel opens on an invitation instead. */
       messages: [],
@@ -445,6 +465,8 @@ export const useElyraStore = create<ElyraState>()(
         favorites: state.favorites,
         selectedAssetId: state.selectedAssetId,
         balancesHidden: state.balancesHidden,
+        contextSources: state.contextSources,
+        contextRailCollapsed: state.contextRailCollapsed,
         widgetOrder: state.widgetOrder,
         collapsedWidgets: state.collapsedWidgets,
         widgetsOpen: state.widgetsOpen,

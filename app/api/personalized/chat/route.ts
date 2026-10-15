@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { describeAttachments, validateAttachments } from "@/lib/attachments";
 import { prepareAction } from "@/lib/personalized/actions";
 import { inferProposal } from "@/lib/personalized/proposal";
 import { buildContext } from "@/lib/personalized/context";
@@ -15,9 +16,12 @@ import {
   runPersonalized,
 } from "@/lib/personalized/orchestrator";
 import { rateLimited, resolve } from "@/lib/personalized/session";
-import type {
-  PersonalizedAnswer,
-  PersonalizedStreamEvent,
+import {
+  CONTEXT_SOURCES,
+  isContextSource,
+  type ContextSource,
+  type PersonalizedAnswer,
+  type PersonalizedStreamEvent,
 } from "@/lib/personalized/types";
 
 /* ---------------------------------------------------------------------------
@@ -49,22 +53,65 @@ function sse(event: PersonalizedStreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
+/**
+ * The sources this question may read, from the composer's selection.
+ *
+ * Absent means all of them — the behaviour before the selection existed.
+ * Anything malformed is a 400 rather than a silent "all": a person who
+ * turned their portfolio off must not have it sent because a field was
+ * misspelled.
+ */
+function readSources(raw: unknown): { exclude: ContextSource[] } | { error: string } {
+  if (raw === undefined || raw === null) return { exclude: [] };
+  if (!Array.isArray(raw) || !raw.every(isContextSource)) {
+    return { error: "sources must be a list of portfolio, positions, activity or memory." };
+  }
+  return { exclude: CONTEXT_SOURCES.filter((source) => !raw.includes(source)) };
+}
+
 export async function POST(request: Request): Promise<Response> {
   const resolved = await resolve(request);
   if ("response" in resolved) return resolved.response;
   const { session } = resolved;
 
-  let body: { message?: unknown; conversationId?: unknown };
+  let body: {
+    message?: unknown;
+    conversationId?: unknown;
+    sources?: unknown;
+    attachments?: unknown;
+    retry?: unknown;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Expected a JSON body" }, { status: 400 });
   }
 
-  const message = typeof body.message === "string" ? body.message.trim() : "";
-  if (message.length === 0) {
+  const typed = typeof body.message === "string" ? body.message.trim() : "";
+
+  /* Checked the same way every route that carries files checks them —
+     type, leading bytes, count, size — and never written anywhere. */
+  const checked = validateAttachments(body.attachments);
+  if ("error" in checked) {
+    return NextResponse.json({ error: checked.error }, { status: 400 });
+  }
+  const { attachments } = checked;
+
+  const sources = readSources(body.sources);
+  if ("error" in sources) {
+    return NextResponse.json({ error: sources.error }, { status: 400 });
+  }
+
+  if (typed.length === 0 && attachments.length === 0) {
     return NextResponse.json({ error: "Message is empty" }, { status: 400 });
   }
+  /* A file on its own is still a question — "what is this?" — and the
+     classifier and the transcript both need words to work with. */
+  const message = typed.length > 0 ? typed : "Look at what I attached and tell me what matters for my capital.";
+  /* What the transcript keeps: the words, and a note of what was attached. */
+  const stored = [typed, describeAttachments(attachments)].filter((part) => part.length > 0).join("\n\n");
+  const retry = body.retry === true;
+
   if (message.length > MAX_MESSAGE_LENGTH) {
     return NextResponse.json(
       { error: `Message is longer than ${MAX_MESSAGE_LENGTH} characters` },
@@ -115,6 +162,7 @@ export async function POST(request: Request): Promise<Response> {
             solanaAddress: session.solanaAddress,
             sessionWallet: session.sessionWallet,
             intent,
+            exclude: sources.exclude,
           }),
           (async () => {
             if (session.userId === null) return null;
@@ -134,16 +182,30 @@ export async function POST(request: Request): Promise<Response> {
           return;
         }
 
-        const history = conversation?.history ?? { summary: null, recent: [] };
+        if (conversation !== null) {
+          send({ type: "conversation", conversationId: conversation.record.id });
+        }
+
+        const storedHistory = conversation?.history ?? { summary: null, recent: [] };
+        const last = storedHistory.recent.at(-1);
+        /* A retry of a turn that failed after its question was written: the
+           question is already the conversation's last message. Writing it
+           again would put it in the transcript twice, and replaying it to the
+           model would ask it twice. */
+        const alreadyStored =
+          retry && last !== undefined && last.role === "user" && last.content === stored;
+        const history = alreadyStored
+          ? { ...storedHistory, recent: storedHistory.recent.slice(0, -1) }
+          : storedHistory;
 
         /* The user's turn is written before the model runs, so a failed or
            stopped generation still leaves the question in the transcript. */
-        if (conversation !== null && session.userId !== null) {
+        if (conversation !== null && session.userId !== null && !alreadyStored) {
           await appendMessage({
             userId: session.userId,
             conversationId: conversation.record.id,
             role: "user",
-            content: message,
+            content: stored,
           });
         }
 
@@ -152,6 +214,7 @@ export async function POST(request: Request): Promise<Response> {
           context: built.context,
           conversation: history,
           message,
+          attachments,
           signal: request.signal,
           onStatus: (status) => send({ type: "status", status }),
         });

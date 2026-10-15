@@ -311,7 +311,8 @@ export function StatusDot({
   children,
   className,
 }: {
-  tone: "positive" | "caution" | "negative" | "muted";
+  /** Accent is "ready to use" — available, not yet holding anything. */
+  tone: "positive" | "accent" | "caution" | "negative" | "muted";
   children: React.ReactNode;
   className?: string;
 }) {
@@ -321,6 +322,7 @@ export function StatusDot({
         "type-label inline-flex items-center gap-1.5 whitespace-nowrap",
         {
           positive: "text-positive",
+          accent: "text-accent",
           caution: "text-caution",
           negative: "text-negative",
           muted: "text-text-muted",
@@ -332,6 +334,7 @@ export function StatusDot({
         aria-hidden
         className={cn("size-2 shrink-0 rounded-pill", {
           positive: "bg-sage",
+          accent: "bg-accent",
           caution: "bg-caution",
           negative: "bg-negative",
           muted: "bg-text-muted",

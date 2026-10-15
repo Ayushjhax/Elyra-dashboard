@@ -6,12 +6,18 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
+  FileText,
+  Image as ImageIcon,
   Info,
+  RotateCcw,
   ShieldAlert,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Markdown } from "@/components/ui/Markdown";
+import type { SentAttachment } from "@/lib/attachments";
+import type { ChatTurn } from "@/lib/personalized/client";
 import { cn } from "@/lib/utils";
 import type {
   AnswerInsight,
@@ -200,12 +206,72 @@ export function ActionPreview({
    The turn
 --------------------------------------------------------------------------- */
 
-export function UserTurn({ content }: { content: string }) {
+function SentFiles({ files }: { files: SentAttachment[] }) {
   return (
-    <div className="flex justify-end">
-      <p className="type-body-sm max-w-[80%] rounded-card border border-border-subtle bg-surface-raised px-3 py-2 text-text-primary">
-        {content}
-      </p>
+    <ul aria-label="Attached" className="flex list-none flex-wrap justify-end gap-1.5">
+      {files.map((file, index) => (
+        <li
+          key={`${file.name}-${index}`}
+          className="type-label flex max-w-56 items-center gap-1.5 rounded-control border border-border-subtle bg-surface-raised px-2 py-1 text-text-secondary"
+        >
+          {file.previewUrl !== null ? (
+            /* eslint-disable-next-line @next/next/no-img-element -- a local data URL thumbnail */
+            <img src={file.previewUrl} alt="" className="size-6 shrink-0 rounded-chip object-cover" />
+          ) : file.kind === "image" ? (
+            <ImageIcon size={13} strokeWidth={1.5} aria-hidden className="shrink-0" />
+          ) : (
+            <FileText size={13} strokeWidth={1.5} aria-hidden className="shrink-0" />
+          )}
+          <span className="truncate">{file.name}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The person's own turn: compact, right-aligned, and — when it did not end in
+ * an answer — saying so, with a Retry that re-asks it in place.
+ */
+export function UserTurn({
+  turn,
+  onRetry,
+  canRetry,
+}: {
+  turn: Pick<ChatTurn, "content" | "attachments" | "outcome">;
+  onRetry?: () => void;
+  canRetry?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      {turn.attachments !== undefined && turn.attachments.length > 0 && <SentFiles files={turn.attachments} />}
+      {turn.content.length > 0 && (
+        <p className="type-body max-w-[min(80%,560px)] whitespace-pre-wrap break-words rounded-panel border border-border-subtle bg-surface-raised px-4 py-2.5 text-text-primary">
+          {turn.content}
+        </p>
+      )}
+      {turn.outcome !== undefined && (
+        <div
+          role={turn.outcome.state === "failed" ? "alert" : undefined}
+          className="flex max-w-[min(80%,560px)] flex-wrap items-center justify-end gap-x-2 gap-y-1"
+        >
+          <span className={cn("type-label inline-flex items-center gap-1.5", turn.outcome.state === "failed" ? "text-negative" : "text-text-muted")}>
+            {turn.outcome.state === "failed" && <AlertTriangle size={12} strokeWidth={1.75} aria-hidden className="shrink-0" />}
+            {turn.outcome.state === "failed" ? (turn.outcome.error ?? "That didn't finish.") : "Stopped before an answer."}
+          </span>
+          {onRetry !== undefined && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={canRetry === false}
+              className="type-label inline-flex h-7 items-center gap-1 rounded-control border border-border-strong px-2 text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover disabled:opacity-50"
+            >
+              <RotateCcw size={12} strokeWidth={1.75} aria-hidden />
+              Retry
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -224,19 +290,12 @@ export function AssistantTurn({
   return (
     <article className="flex flex-col gap-2.5">
       {answer?.headline !== undefined && (
-        <h3 className="type-panel-title text-balance text-text-primary">{answer.headline}</h3>
+        <h3 className="type-h2 text-balance text-text-primary">{answer.headline}</h3>
       )}
 
-      {/* Paragraphs rather than a Markdown renderer: the prose here is short
-          by prompt design, and pulling in a parser to render two sentences
-          would be a dependency for nothing. */}
-      <div className="flex flex-col gap-1.5">
-        {(answer?.message ?? content).split(/\n{2,}/).map((paragraph, index) => (
-          <p key={index} className="type-body-sm text-balance text-text-secondary">
-            {paragraph}
-          </p>
-        ))}
-      </div>
+      {/* Markdown, rendered as elements (components/ui/Markdown) — lists,
+          tables and links as the model wrote them, never as raw HTML. */}
+      <Markdown source={answer?.message ?? content} />
 
       {answer?.metrics !== undefined && <MetricRow metrics={answer.metrics} />}
       {answer?.insights !== undefined && <InsightRows insights={answer.insights} />}

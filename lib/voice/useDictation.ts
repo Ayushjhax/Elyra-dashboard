@@ -124,7 +124,27 @@ export interface Dictation {
   cancel: () => void;
 }
 
-export function useDictation(): Dictation {
+/**
+ * Where dictated words go. The agent's composer by default; another composer
+ * (Capital Intelligence) passes its own draft's reader and writer.
+ */
+export interface DictationTarget {
+  read: () => string;
+  write: (text: string) => void;
+}
+
+const STORE_TARGET: DictationTarget = {
+  read: () => useElyraStore.getState().composerDraft,
+  write: (text) => useElyraStore.getState().setComposerDraft(text),
+};
+
+export function useDictation(target: DictationTarget = STORE_TARGET): Dictation {
+  /* Read through a ref, so a caller passing a fresh object each render does
+     not restart anything — the latest reader and writer are simply used. */
+  const targetRef = useRef(target);
+  useEffect(() => {
+    targetRef.current = target;
+  });
   const authedFetch = useAuthedFetch();
   const [status, setStatus] = useState<DictationStatus>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -169,7 +189,7 @@ export function useDictation(): Dictation {
     const Ctor = recognitionCtor();
     if (Ctor === null) return;
     const run = generation.current;
-    const base = useElyraStore.getState().composerDraft;
+    const base = targetRef.current.read();
     const rec = new Ctor();
     rec.lang = navigator.language || "en-US";
     rec.continuous = true;
@@ -184,7 +204,7 @@ export function useDictation(): Dictation {
         if (result.isFinal) heard += result[0].transcript;
         else interim += result[0].transcript;
       }
-      useElyraStore.getState().setComposerDraft(joinDraft(base, `${heard} ${interim}`));
+      targetRef.current.write(joinDraft(base, `${heard} ${interim}`));
     };
     rec.onerror = (event) => {
       if (event.error === "aborted") return;
@@ -269,8 +289,7 @@ export function useDictation(): Dictation {
           } else if (!body.text) {
             setError(ERRORS["no-speech"]);
           } else {
-            const store = useElyraStore.getState();
-            store.setComposerDraft(joinDraft(store.composerDraft, body.text));
+            targetRef.current.write(joinDraft(targetRef.current.read(), body.text));
           }
         } catch {
           if (generation.current === run) setError("The recording could not be transcribed.");

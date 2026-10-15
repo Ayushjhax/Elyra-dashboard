@@ -109,6 +109,9 @@ export type PersonalizedStreamEvent =
   | { type: "answer"; answer: PersonalizedAnswer }
   | { type: "prepared_action"; action: PreparedAction }
   | { type: "done"; messageId: string; conversationId: string }
+  /** The conversation this turn belongs to, as soon as it exists — so a turn
+      that fails can be retried into the same conversation, not a new one. */
+  | { type: "conversation"; conversationId: string }
   | { type: "error"; error: string };
 
 /* ---------------------------------------------------------------------------
@@ -254,6 +257,29 @@ export interface TodayRow {
   detail: string | null;
 }
 
+/**
+ * The parts of an account the person lets a question read.
+ *
+ * Chosen in the composer, per question. An excluded source is not read, not
+ * sent and not guessed at — the prompt says it was withheld, which is a
+ * different instruction from "unknown".
+ */
+export type ContextSource = "portfolio" | "positions" | "activity" | "memory";
+
+export const CONTEXT_SOURCES: readonly ContextSource[] = ["portfolio", "positions", "activity", "memory"];
+
+export function isContextSource(value: unknown): value is ContextSource {
+  return typeof value === "string" && (CONTEXT_SOURCES as readonly string[]).includes(value);
+}
+
+/** One recent transaction, as the assistant is told it. */
+export interface ActivityContextRow {
+  at: string | null;
+  status: "pending" | "confirmed" | "failed";
+  /** "Swapped 2 SOL for 290.41 USDC", or "Transaction" when it could not be described. */
+  title: string;
+}
+
 export interface PersonalizedContext {
   asOf: string;
   /** Null when nothing could be totalled — never 0 as a stand-in. */
@@ -274,6 +300,14 @@ export interface PersonalizedContext {
    * summary inside carries its own `connected` flag for the other case.
    */
   prediction: PredictionContext | null;
+  /**
+   * Recent wallet transactions, when the question was about activity.
+   * Null when not read — not asked for, withheld, or no wallet — never [] as
+   * a stand-in for "none".
+   */
+  activity: ActivityContextRow[] | null;
+  /** Sources the person withheld for this question. */
+  excluded: ContextSource[];
   /** Sources that failed, so the model is told its picture is incomplete. */
   unavailable: Array<{ scope: string; reason: string }>;
   /** True when the operator has nothing to personalize around yet. */

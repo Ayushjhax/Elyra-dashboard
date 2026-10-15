@@ -15,11 +15,18 @@ import {
   totalEquityUsd,
 } from "@/lib/personalized/calculations";
 import { listMemories } from "@/lib/personalized/memory";
+import { CONTEXT_SOURCES as CONTEXT_ORDER } from "@/lib/personalized/types";
 import type {
+  ActivityContextRow,
   ContextFacet,
+  ContextSource,
   Intent,
   PersonalizedContext,
 } from "@/lib/personalized/types";
+import { getSignaturesForAddress, rpcConfigured } from "@/lib/solana/rpc";
+import { isSolanaAddress } from "@/lib/solana/address";
+import { describeSignatures } from "@/lib/wallet/helius";
+import { activityStatus } from "@/lib/wallet/types";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 
 /* ---------------------------------------------------------------------------
@@ -46,6 +53,8 @@ export interface ContextInput {
   solanaAddress: string | null;
   sessionWallet: string | null;
   intent?: Intent;
+  /** Sources the person withheld for this question. Not read, not sent. */
+  exclude?: readonly ContextSource[];
 }
 
 export interface BuiltContext {
@@ -57,15 +66,88 @@ export interface BuiltContext {
 /** Facets always loaded — equity is the denominator for everything else. */
 const ALWAYS: ContextFacet[] = ["equity"];
 
+/** How many recent transactions a question about activity is given. */
+const ACTIVITY_ROWS = 10;
+
+/**
+ * Recent transactions, described where Helius can say what they did.
+ * Null with a reason when they could not be read — the prompt then says the
+ * activity is missing rather than that there was none.
+ */
+async function readActivity(
+  address: string | null,
+): Promise<{ rows: ActivityContextRow[] | null; failure: string | null }> {
+  if (address === null || !isSolanaAddress(address)) return { rows: null, failure: "This account has no Solana wallet." };
+  if (!rpcConfigured()) return { rows: null, failure: "Transaction history is not configured (SOLANA_RPC_URL)." };
+  try {
+    const signatures = await getSignaturesForAddress(address, ACTIVITY_ROWS);
+    const summaries = await describeSignatures(
+      address,
+      signatures.map((entry) => entry.signature),
+    );
+    return {
+      rows: signatures.map((entry) => ({
+        at: entry.blockTime === null ? null : new Date(entry.blockTime * 1000).toISOString(),
+        status: activityStatus(entry.err, entry.confirmationStatus),
+        title: summaries.get(entry.signature)?.title ?? "Transaction",
+      })),
+      failure: null,
+    };
+  } catch (error: unknown) {
+    console.error("[personalized context] activity read failed:", error);
+    return { rows: null, failure: "Recent transactions could not be read." };
+  }
+}
+
+/**
+ * The context with every withheld source emptied out.
+ *
+ * Applied after the read rather than instead of it where the read is shared
+ * (the portfolio snapshot also feeds the action validator), so nothing the
+ * person turned off can reach the prompt by way of a field nobody blanked.
+ */
+export function withhold(context: PersonalizedContext, exclude: readonly ContextSource[]): PersonalizedContext {
+  const off = new Set(exclude);
+  let next: PersonalizedContext = { ...context, excluded: CONTEXT_ORDER.filter((source) => off.has(source)) };
+  if (off.has("portfolio")) {
+    next = {
+      ...next,
+      totalEquityUsd: null,
+      availableCapitalUsd: null,
+      change24h: null,
+      exposures: [],
+      largestExposure: null,
+      risk: [],
+      today: [],
+      empty: false,
+    };
+  }
+  if (off.has("positions")) next = { ...next, positionCount: 0, openOrderCount: 0, prediction: null };
+  if (off.has("activity")) next = { ...next, activity: null };
+  if (off.has("memory")) next = { ...next, memories: [], risk: next.risk.map((metric) => ({ ...metric, limit: null, breached: false })) };
+  next = {
+    ...next,
+    unavailable: next.unavailable.filter((entry) => !(off.has("activity") && entry.scope === "activity")),
+  };
+  return next;
+}
+
 export async function buildContext(input: ContextInput): Promise<BuiltContext> {
+  const built = await readContext(input);
+  return { ...built, context: withhold(built.context, input.exclude ?? []) };
+}
+
+async function readContext(input: ContextInput): Promise<BuiltContext> {
   const facets = new Set<ContextFacet>([...ALWAYS, ...(input.intent?.facets ?? [])]);
+  const exclude = new Set(input.exclude ?? []);
+  const wantsActivity = facets.has("activity") && !exclude.has("activity");
 
   /* The portfolio read and the memory read are independent, so they overlap.
      Memory is cheap and is always loaded: a risk limit changes how every
      other figure should be described, and skipping it to save a query would
      let the assistant state a 34% concentration without noticing it breaches
      a saved 30% limit. */
-  const [portfolio, memories] = await Promise.all([
+  const [portfolio, memories, activity] = await Promise.all([
     composePortfolio({
       solanaAddress: input.solanaAddress,
       sessionWallet: input.sessionWallet,
@@ -74,8 +156,12 @@ export async function buildContext(input: ContextInput): Promise<BuiltContext> {
       console.error("[personalized context] portfolio read failed:", error);
       return null;
     }),
-    input.userId === null ? Promise.resolve([]) : listMemories(input.userId),
+    /* Withheld memory is not even read. */
+    input.userId === null || exclude.has("memory") ? Promise.resolve([]) : listMemories(input.userId),
+    wantsActivity ? readActivity(input.solanaAddress) : Promise.resolve({ rows: null, failure: null }),
   ]);
+  const activityFailure =
+    activity.failure === null ? [] : [{ scope: "activity", reason: activity.failure }];
 
   if (portfolio === null) {
     return {
@@ -93,11 +179,14 @@ export async function buildContext(input: ContextInput): Promise<BuiltContext> {
         today: [],
         memories,
         prediction: null,
+        activity: activity.rows,
+        excluded: [],
         unavailable: [
           {
             scope: "portfolio",
             reason: "The account aggregation could not be read at all.",
           },
+          ...activityFailure,
         ],
         empty: false,
       },
@@ -148,9 +237,14 @@ export async function buildContext(input: ContextInput): Promise<BuiltContext> {
       risk: wantsRisk ? riskMetrics(portfolio, memories) : [],
       today: todayRows(portfolio),
       memories,
-      unavailable: portfolio.notes
-        .filter((note) => note.kind === "failed")
-        .map((note) => ({ scope: note.scope, reason: note.reason })),
+      activity: activity.rows,
+      excluded: [],
+      unavailable: [
+        ...portfolio.notes
+          .filter((note) => note.kind === "failed")
+          .map((note) => ({ scope: note.scope, reason: note.reason })),
+        ...activityFailure,
+      ],
       empty,
     },
   };
@@ -170,28 +264,50 @@ function usd(value: number | null): string {
   return value === null ? "unknown" : `$${value.toFixed(2)}`;
 }
 
+const WITHHELD: Record<ContextSource, string> = {
+  portfolio: "balances, equity, allocation and 24h change",
+  positions: "open positions, orders and prediction markets",
+  activity: "recent wallet transactions",
+  memory: "saved preferences",
+};
+
 export function renderContext(context: PersonalizedContext): string {
   const lines: string[] = [];
-
+  const off = new Set(context.excluded);
   lines.push(`As of: ${context.asOf}`);
-  lines.push(`Total equity: ${usd(context.totalEquityUsd)}`);
-  lines.push(`Available to deploy: ${usd(context.availableCapitalUsd)}`);
 
-  if (context.change24h === null) {
-    lines.push("24h change: unknown (nothing held carries a 24h price)");
-  } else {
-    const change = context.change24h;
+  if (context.excluded.length > 0) {
+    /* Withheld is not unknown: the model must not guess at what the person
+       chose not to share, nor tell them it "could not be read". */
     lines.push(
-      `24h change: ${change.pctChange >= 0 ? "+" : ""}${change.pctChange.toFixed(2)}% ` +
-        `(${change.usdChange >= 0 ? "+" : "-"}$${Math.abs(change.usdChange).toFixed(2)}), ` +
-        `computed over ${change.coveragePct.toFixed(0)}% of value`,
+      "WITHHELD BY THE USER for this question — do not describe, estimate or ask about these, " +
+        "and if the question needs them, say they were turned off in the composer:",
     );
+    for (const source of context.excluded) lines.push(`- ${source}: ${WITHHELD[source]}`);
+    lines.push("");
   }
 
-  lines.push(`Open positions: ${context.positionCount}`);
-  lines.push(`Open orders: ${context.openOrderCount}`);
+  if (!off.has("portfolio")) {
+    lines.push(`Total equity: ${usd(context.totalEquityUsd)}`);
+    lines.push(`Available to deploy: ${usd(context.availableCapitalUsd)}`);
+    if (context.change24h === null) {
+      lines.push("24h change: unknown (nothing held carries a 24h price)");
+    } else {
+      const change = context.change24h;
+      lines.push(
+        `24h change: ${change.pctChange >= 0 ? "+" : ""}${change.pctChange.toFixed(2)}% ` +
+          `(${change.usdChange >= 0 ? "+" : "-"}$${Math.abs(change.usdChange).toFixed(2)}), ` +
+          `computed over ${change.coveragePct.toFixed(0)}% of value`,
+      );
+    }
+  }
 
-  if (context.exposures.length > 0) {
+  if (!off.has("positions")) {
+    lines.push(`Open positions: ${context.positionCount}`);
+    lines.push(`Open orders: ${context.openOrderCount}`);
+  }
+
+  if (!off.has("portfolio") && context.exposures.length > 0) {
     lines.push("", "Exposure by symbol (margin for perps, not notional):");
     for (const row of context.exposures) {
       lines.push(
@@ -213,13 +329,26 @@ export function renderContext(context: PersonalizedContext): string {
     }
   }
 
-  if (context.memories.length > 0) {
-    lines.push("", "Saved preferences (standing instructions):");
-    for (const memory of context.memories) {
-      lines.push(`- ${memory.label}`);
+  if (context.activity !== null) {
+    if (context.activity.length === 0) {
+      lines.push("", "Recent wallet transactions: none.");
+    } else {
+      lines.push("", `Recent wallet transactions (newest first, last ${context.activity.length}):`);
+      for (const row of context.activity) {
+        lines.push(`- ${row.at ?? "time not yet known"}: ${row.title} (${row.status})`);
+      }
     }
-  } else {
-    lines.push("", "Saved preferences: none yet.");
+  }
+
+  if (!off.has("memory")) {
+    if (context.memories.length > 0) {
+      lines.push("", "Saved preferences (standing instructions):");
+      for (const memory of context.memories) {
+        lines.push(`- ${memory.label}`);
+      }
+    } else {
+      lines.push("", "Saved preferences: none yet.");
+    }
   }
 
   if (context.unavailable.length > 0) {

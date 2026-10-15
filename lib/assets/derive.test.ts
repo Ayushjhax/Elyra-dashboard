@@ -2,14 +2,13 @@ import { describe, expect, it } from "vitest";
 import { predictionUnavailable } from "@/lib/portfolio/compose";
 import {
   ALL_ACCOUNTS,
-  accountScopes,
-  allocationRows,
   change24hOf,
   deriveAccounts,
   orderBalances,
   scopeSnapshot,
   syncSummary,
   venueLabel,
+  capitalAllocation,
 } from "@/lib/assets/derive";
 import type {
   PerpPosition,
@@ -169,18 +168,7 @@ describe("change24hOf", () => {
   });
 });
 
-describe("allocationRows and syncSummary", () => {
-  it("ranks only accounts holding real capital", () => {
-    const accounts = deriveAccounts(
-      snapshot({ spot: [holding({ valueUsd: 1000 })], scopes: [scope({ valueUsd: 500 })] }),
-    );
-    const rows = allocationRows(accounts);
-    expect(rows.map((r) => r.id)).toEqual(["spot", "hyperliquid"]);
-    /* Percentages are against the true total, so they need not sum to 100
-       when something could not be valued — that is honest, not a bug. */
-    expect(rows[0].allocationPct).toBeCloseTo((1000 / 1500) * 100, 6);
-  });
-
+describe("syncSummary", () => {
   it("separates what failed from what was never connected", () => {
     const accounts = deriveAccounts(
       snapshot({
@@ -191,9 +179,46 @@ describe("allocationRows and syncSummary", () => {
     );
     const sync = syncSummary(accounts);
     expect(sync.failed).toEqual(["Hyperliquid"]);
-    expect(sync.unintegrated).toEqual(["Solana Perps", "Prediction Markets"]);
+    expect(accounts[2].connection).toBe("connected");
+    /* Prediction markets are linked through the connections console now;
+       only Solana perps has no adapter at all. */
+    expect(sync.unintegrated).toEqual(["Solana Perps"]);
     expect(sync.ready).toBe(1);
     expect(sync.total).toBe(4);
+  });
+
+  it("counts a linked venue whose read failed as connected, not as missing", () => {
+    const accounts = deriveAccounts(
+      snapshot({
+        spot: [holding()],
+        scopes: [scope()],
+        notes: [{ scope: "prediction", reason: "Polymarket 503", kind: "failed" }],
+      }),
+    );
+    const prediction = accounts.find((entry) => entry.id === "prediction")!;
+    expect(prediction).toMatchObject({ connection: "connected", status: "error", valueUsd: null });
+    expect(syncSummary(accounts)).toMatchObject({ connected: 3, notConnected: 1 });
+  });
+});
+
+describe("connection", () => {
+  it("values a read, empty wallet at $0.00 and an unlinked one at nothing", () => {
+    const empty = deriveAccounts(snapshot({ scopes: [{ id: "W", label: "Solana wallet", address: "W", chain: "Solana", venue: "wallet", valueUsd: 0, availableUsd: 0, unrealizedPnlUsd: null }] }));
+    expect(empty[0]).toMatchObject({ id: "spot", connection: "connected", status: "ready", valueUsd: 0 });
+
+    const unlinked = deriveAccounts(snapshot({}));
+    expect(unlinked[0]).toMatchObject({ connection: "disconnected", status: "empty", valueUsd: null });
+    expect(unlinked[0].detail).toMatch(/Link a Solana wallet/);
+    expect(unlinked[1]).toMatchObject({ id: "solana-perps", connection: "unsupported" });
+  });
+
+  it("reads a linked prediction account's value and active markets", () => {
+    const accounts = deriveAccounts(
+      snapshot({
+        prediction: { ...predictionUnavailable(""), connected: true, valueUsd: 120, activeMarkets: 3, unavailableReason: null },
+      }),
+    );
+    expect(accounts[3]).toMatchObject({ connection: "connected", status: "ready", valueUsd: 120, positions: 3, detail: "3 active markets" });
   });
 });
 
@@ -225,21 +250,6 @@ describe("scopeSnapshot", () => {
     );
     expect(view.spot.map((h) => h.id)).toEqual(["b"]);
     expect(view.perps.map((p) => p.venue)).toEqual(["hyperliquid"]);
-  });
-});
-
-describe("accountScopes", () => {
-  it("offers the wallet address only against the spot account", () => {
-    const base = snapshot({
-      spot: [holding()],
-      scopes: [
-        { id: "addr", label: "Solana wallet", address: "8rYaBc", chain: "Solana", venue: "wallet" },
-        scope(),
-      ],
-    });
-    const scopes = accountScopes(base, deriveAccounts(base));
-    expect(scopes.find((s) => s.id === "spot")?.address).toBe("8rYaBc");
-    expect(scopes.find((s) => s.id === "hyperliquid")?.address).toBeNull();
   });
 });
 
@@ -276,5 +286,59 @@ describe("venueLabel", () => {
     expect(venueLabel("wallet")).toBe("Spot");
     expect(venueLabel("hyperliquid")).toBe("Hyperliquid");
     expect(venueLabel("binance")).toBe("Binance");
+  });
+});
+
+describe("capitalAllocation", () => {
+  it("adds up to the total, perps at equity and never notional", () => {
+    const allocation = capitalAllocation(
+      snapshot({
+        summary: { ...snapshot().summary, totalValueUsd: 1320 },
+        spot: [holding({ valueUsd: 1000 })],
+        perps: [perp()],
+      }),
+      ALL_ACCOUNTS,
+    )!;
+    expect(allocation.by).toBe("account");
+    expect(allocation.slices.map((slice) => [slice.label, slice.valueUsd])).toEqual([
+      ["Spot", 1000],
+      ["Hyperliquid", 320],
+    ]);
+    expect(allocation.slices.reduce((sum, slice) => sum + slice.pct, 0)).toBeCloseTo(100, 6);
+  });
+
+  it("takes a DeFi receipt token's overlap out of Spot, where it sits", () => {
+    const allocation = capitalAllocation(
+      snapshot({
+        summary: { ...snapshot().summary, totalValueUsd: 1500 },
+        spot: [holding({ valueUsd: 1000 }), holding({ id: "wallet:kUSDC", symbol: "kUSDC", valueUsd: 500 })],
+        defi: [{ id: "k", protocol: "Kamino", chain: "solana", category: "vault", label: "USDC", valueUsd: 500, suppliedUsd: 500, borrowedUsd: null, apyPct: 5, earnedUsd: null, healthFactor: null, inRange: null }],
+      }),
+      ALL_ACCOUNTS,
+    )!;
+    expect(allocation.slices.find((slice) => slice.key === "spot")?.valueUsd).toBe(1000);
+    expect(allocation.slices.reduce((sum, slice) => sum + slice.valueUsd, 0)).toBe(1500);
+  });
+
+  it("has nothing to draw for an unfunded account", () => {
+    expect(capitalAllocation(snapshot({ summary: { ...snapshot().summary, totalValueUsd: 0 } }), ALL_ACCOUNTS)).toBeNull();
+  });
+
+  it("adds a venue's free collateral, so its breakdown matches its equity", () => {
+    const allocation = capitalAllocation(snapshot({ scopes: [scope()], perps: [perp()] }), "hyperliquid")!;
+    expect(allocation.slices.map((slice) => [slice.label, slice.valueUsd])).toEqual([
+      ["SOL-PERP", 320],
+      ["Free collateral", 180],
+    ]);
+    expect(allocation.totalUsd).toBe(500);
+  });
+
+  it("breaks one account down by what it holds", () => {
+    const allocation = capitalAllocation(
+      snapshot({ spot: [holding({ valueUsd: 300 }), holding({ id: "wallet:USDC", symbol: "USDC", valueUsd: 100 })], perps: [perp()] }),
+      "spot",
+    )!;
+    expect(allocation).toMatchObject({ by: "asset", totalUsd: 400 });
+    expect(allocation.slices.map((slice) => slice.label)).toEqual(["SOL", "USDC"]);
   });
 });

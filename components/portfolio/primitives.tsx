@@ -77,12 +77,18 @@ export function Money({
     );
   }
 
-  const text = compact
-    ? `${value < 0 ? "-" : sign ? "+" : ""}$${Math.abs(value).toLocaleString("en-US", {
-        notation: "compact",
-        maximumFractionDigits: 1,
-      })}`
-    : formatUsd(value, { decimals, sign });
+  /* A balance worth less than the smallest step shown is not zero, and
+     printing "$0.00" for it says it is. */
+  const step = 10 ** -decimals;
+  const text =
+    value !== 0 && Math.abs(value) < step
+      ? `${value < 0 ? "-" : sign ? "+" : ""}<$${step.toFixed(decimals)}`
+      : compact
+        ? `${value < 0 ? "-" : sign ? "+" : ""}$${Math.abs(value).toLocaleString("en-US", {
+            notation: "compact",
+            maximumFractionDigits: 1,
+          })}`
+        : formatUsd(value, { decimals, sign });
 
   return <span className={cn("tabular-nums", className)}>{text}</span>;
 }

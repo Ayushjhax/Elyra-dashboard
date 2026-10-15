@@ -19,6 +19,16 @@ export type AssetAccountType = "spot" | "solana-perps" | "hyperliquid" | "predic
 
 export type AssetAccountStatus = "ready" | "error" | "empty";
 
+/**
+ * Whether there is anything behind the account to read.
+ *
+ * Separate from `status` because the two answer different questions:
+ * "is it linked" and "did the last read work". A linked venue whose read
+ * failed is connected AND in error; a venue Elyra has no adapter for is
+ * unsupported, which no amount of connecting will change.
+ */
+export type AssetConnection = "connected" | "disconnected" | "unsupported";
+
 export interface AssetAccount {
   id: AssetAccountType;
   type: AssetAccountType;
@@ -29,17 +39,13 @@ export interface AssetAccount {
   /** Share of `summary.totalValueUsd`. Null when either side is unknown. */
   allocationPct: number | null;
   status: AssetAccountStatus;
+  connection: AssetConnection;
+  /** Open positions here, where the venue has such a thing. Null where it does not. */
+  positions: number | null;
   /** Present only when `status === "error"`, and why. */
   errorReason: string | null;
   /** One line of supporting detail, already composed for the card — e.g.
       "7 assets · +2.84% today" or "Available $5,250 · 1 open position". Null
       when there is nothing true to say yet. */
   detail: string | null;
-}
-
-/** A venue an operator can move capital between, for the header's selector. */
-export interface AssetScope {
-  id: string;
-  label: string;
-  address: string | null;
 }

@@ -166,11 +166,15 @@ async function request<T>(options: SecFetchOptions): Promise<ToolResult<T>> {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   try {
-    const response = await schedule(() =>
-      fetch(url, {
+    const response = await schedule(() => {
+      /* The clock starts when the request does, not while it waits its turn
+         in the limiter behind other reads — a background read of filings
+         must not time out a person's request before it is ever sent. */
+      timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
+      return fetch(url, {
         headers: {
           "User-Agent": agent,
           /* Requested explicitly: the SEC serves large JSON and asks clients
@@ -180,8 +184,8 @@ async function request<T>(options: SecFetchOptions): Promise<ToolResult<T>> {
         },
         signal: controller.signal,
         cache: "no-store",
-      }),
-    );
+      });
+    });
 
     clearTimeout(timer);
 
@@ -225,11 +229,16 @@ async function request<T>(options: SecFetchOptions): Promise<ToolResult<T>> {
       }
     }
 
-    if (cache.size >= MAX_ENTRIES) {
-      const oldest = cache.keys().next().value;
-      if (oldest !== undefined) cache.delete(oldest);
+    /* A TTL of zero is a read the caller keeps itself — a filing document
+       whose parsed form is cached elsewhere. Storing it here would evict
+       the ticker map and the submissions everything else depends on. */
+    if (ttlMs > 0) {
+      if (cache.size >= MAX_ENTRIES) {
+        const oldest = cache.keys().next().value;
+        if (oldest !== undefined) cache.delete(oldest);
+      }
+      cache.set(key, { value, storedAt: Date.now(), ttlMs });
     }
-    cache.set(key, { value, storedAt: Date.now(), ttlMs });
 
     return ok(value as T, "sec");
   } catch (error: unknown) {

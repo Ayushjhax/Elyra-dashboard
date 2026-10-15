@@ -134,10 +134,15 @@ export function toFilings(entries: FeedEntry[], tickers: Map<string, { ticker: s
   return filings.sort((a, b) => Date.parse(b.filedAt) - Date.parse(a.filedAt));
 }
 
-async function feedFor(form: string): Promise<ToolResult<FeedEntry[]>> {
+function feedFor(form: string): Promise<ToolResult<FeedEntry[]>> {
+  return feedPage(form, 0, PER_FORM);
+}
+
+/** One page of EDGAR's live feed for one form, newest first. EDGAR serves at most 100 a page. */
+export async function feedPage(form: string, start: number, count: number): Promise<ToolResult<FeedEntry[]>> {
   const path =
     `/cgi-bin/browse-edgar?action=getcurrent&type=${encodeURIComponent(form)}` +
-    `&company=&dateb=&owner=include&start=0&count=${PER_FORM}&output=atom`;
+    `&company=&dateb=&owner=include&start=${start}&count=${Math.min(count, 100)}&output=atom`;
   const result = await secText(path, FEED_TTL_MS, "www");
   if (!result.ok || result.data === undefined) {
     return fail("sec", result.error?.code ?? "UPSTREAM_UNAVAILABLE", result.error?.message ?? `The ${form} feed could not be read.`);

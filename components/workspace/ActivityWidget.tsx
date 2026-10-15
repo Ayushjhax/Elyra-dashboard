@@ -9,6 +9,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BellRing,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
   Clock3,
@@ -16,6 +17,7 @@ import {
   ExternalLink,
   KeyRound,
   MoreHorizontal,
+  Network as NetworkIcon,
   RefreshCw,
   Search,
   Sparkles,
@@ -24,7 +26,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { Section, SectionControl } from "@/components/ui/Section";
@@ -41,7 +43,7 @@ import {
   type Direction,
   type Network,
 } from "@/lib/activity/filter";
-import { useAccountEvents } from "@/lib/activity/useAccountEvents";
+import { useAccountEvents, type AccountFeed } from "@/lib/activity/useAccountEvents";
 import { formatClock, formatDayGroup, formatRelativeTime, formatTimestamp } from "@/lib/format";
 import { accountExplorerUrl } from "@/lib/solana/address";
 import { useMinute } from "@/lib/useClock";
@@ -137,7 +139,7 @@ function DirectionMark({ event }: { event: AccountEvent }) {
     <span
       aria-hidden
       className={cn(
-        "inline-flex size-7 shrink-0 items-center justify-center rounded-pill border",
+        "inline-flex size-7 shrink-0 items-center justify-center rounded-pill border @max-[300px]:size-6",
         event.status === "failed"
           ? "border-negative/40 bg-negative-bg text-negative"
           : direction === "received"
@@ -171,8 +173,10 @@ function Amounts({ event }: { event: AccountEvent }) {
       {formatTokenAmount(entry.amount)} {assetName(entry)}
     </span>
   );
+  /* Shares a wrapping line with the label: beside it when both fit, on its
+     own line under it when they do not — never squeezing the label. */
   return (
-    <span className="flex min-w-0 max-w-[58%] flex-col items-end gap-0.5">
+    <span className="ml-auto flex min-w-0 max-w-full flex-col items-end gap-0.5">
       {incoming.slice(0, 1).map((entry) => line(entry, "+"))}
       {outgoing.slice(0, 1).map((entry) => line(entry, "−"))}
     </span>
@@ -210,8 +214,24 @@ function Details({ event }: { event: AccountEvent }) {
     rows.push(["Details", "This transaction could not be decoded; the explorer has the full record."]);
   }
 
+  if (event.href) {
+    rows.push([
+      "Explorer",
+      <a
+        key="x"
+        href={event.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
+      >
+        Open in Solscan
+        <ExternalLink size={11} strokeWidth={1.5} aria-hidden />
+      </a>,
+    ]);
+  }
+
   return (
-    <dl className="mx-3 mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-control border border-border-subtle bg-surface-raised p-2.5">
+    <dl className="mx-3 mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-control border border-border-subtle bg-surface-raised p-2.5 @max-[300px]:mx-2.5">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="type-label text-text-muted">{label}</dt>
@@ -237,21 +257,25 @@ function Row({ event }: { event: AccountEvent }) {
           aria-controls={detailId}
           onClick={() => setOpen((value) => !value)}
           className={cn(
-            "flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 pr-1.5 text-left",
+            "flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 pr-1.5 text-left @max-[300px]:gap-2 @max-[300px]:pl-2.5",
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
           )}
         >
           <DirectionMark event={event} />
           <span className="min-w-0 flex-1">
-            <span className="type-body-sm block break-words font-medium leading-5 text-text-primary">{actionLabel(event)}</span>
-            <span className={cn("type-label mt-0.5 flex items-center gap-1", status.tone)}>
-              <StatusIcon size={11} strokeWidth={2} aria-hidden className="shrink-0" />
-              {status.label}
-              {event.at && <span className="text-text-muted">· {formatClock(event.at)}</span>}
+            <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="type-body-sm font-medium leading-5 text-text-primary [overflow-wrap:normal]">{actionLabel(event)}</span>
+              <Amounts event={event} />
+            </span>
+            <span className={cn("type-label mt-0.5 flex flex-wrap items-center gap-x-1", status.tone)}>
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <StatusIcon size={11} strokeWidth={2} aria-hidden className="shrink-0" />
+                {status.label}
+              </span>
+              {event.at && <span className="whitespace-nowrap text-text-muted">· {formatClock(event.at)}</span>}
             </span>
           </span>
-          <Amounts event={event} />
         </button>
         {event.href ? (
           <a
@@ -260,12 +284,14 @@ function Row({ event }: { event: AccountEvent }) {
             rel="noopener noreferrer"
             aria-label="Open in Solscan"
             title="Open in Solscan"
-            className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
+            /* In a narrow column the link moves into the row's details, so
+               the label and the amount keep the width. */
+            className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] @max-[300px]:hidden"
           >
             <ExternalLink size={13} strokeWidth={1.5} aria-hidden />
           </a>
         ) : (
-          <span aria-hidden className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center text-text-muted">
+          <span aria-hidden className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center text-text-muted @max-[300px]:hidden">
             <ChevronDown size={13} strokeWidth={1.5} className={cn("transition-transform", open && "rotate-180")} />
           </span>
         )}
@@ -318,22 +344,37 @@ function Select<T extends string>({
   value,
   options,
   onChange,
+  icon: Icon,
 }: {
   label: string;
   value: T;
-  options: Array<[T, string]>;
+  /** Value, full label, and a short label for a narrow column. */
+  options: Array<[T, string, string]>;
   onChange: (value: T) => void;
+  icon: LucideIcon;
 }) {
+  const current = options.find(([option]) => option === value) ?? options[0];
   return (
-    <label className="relative min-w-0 flex-1">
+    /* The native select stays on top, invisible, so the platform picker and
+       keyboard behaviour are untouched; the face underneath shows the value
+       in whichever length fits. */
+    <label
+      className={cn(
+        "relative flex h-7 min-w-0 items-center gap-1.5 rounded-control border border-border-subtle bg-surface-base pl-2 pr-6",
+        "hover:border-border-strong focus-within:outline-2 focus-within:outline-[var(--focus-ring)]",
+      )}
+    >
       <span className="sr-only">{label}</span>
+      <Icon size={12} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
+      <span aria-hidden className="type-label truncate whitespace-nowrap text-text-secondary">
+        <span className="@max-[300px]:hidden">{current[1]}</span>
+        <span className="hidden @max-[300px]:inline">{current[2]}</span>
+      </span>
+      <ChevronDown size={12} strokeWidth={1.5} aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-text-muted" />
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as T)}
-        className={cn(
-          "type-label h-7 w-full appearance-none truncate rounded-control border border-border-subtle bg-surface-base pl-2 pr-6 text-text-secondary",
-          "hover:border-border-strong focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]",
-        )}
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
       >
         {options.map(([option, text]) => (
           <option key={option} value={option}>
@@ -341,10 +382,11 @@ function Select<T extends string>({
           </option>
         ))}
       </select>
-      <ChevronDown size={12} strokeWidth={1.5} aria-hidden className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-text-muted" />
     </label>
   );
 }
+
+const RANGE_SHORT: Record<DateRange, string> = { all: "All time", today: "Today", "7d": "7 days", "30d": "30 days" };
 
 /* ---- The widget ---- */
 
@@ -355,9 +397,21 @@ function emptyMessage(filters: ActivityFilters): string {
   return `No ${what}${when}${query}.`;
 }
 
-export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
-  const auth = useElyraAuth();
-  const feed = useAccountEvents();
+export function ActivityWidget(props: WidgetProps) {
+  return <ActivityView {...props} auth={useElyraAuth()} feed={useAccountEvents()} />;
+}
+
+/** The widget with its data passed in, so it renders the same from fixtures. */
+export function ActivityView({
+  open,
+  onOpenChange,
+  controls,
+  auth,
+  feed,
+}: WidgetProps & {
+  auth: Pick<ElyraAuth, "available" | "login" | "solanaAddress">;
+  feed: AccountFeed;
+}) {
   const now = useMinute();
   const [filters, setFilters] = useState<ActivityFilters>(DEFAULT_FILTERS);
   const [searching, setSearching] = useState(false);
@@ -376,7 +430,12 @@ export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
   const groups = useMemo(() => {
     if (now === null) return [];
     const out: Array<{ label: string; items: AccountEvent[] }> = [];
-    for (const event of shown) {
+    /* Newest first, not-yet-in-a-block before everything — so each day is
+       one group whatever order the feed arrived in. */
+    const ordered = [...shown].sort(
+      (a, b) => (b.at === null ? Infinity : Date.parse(b.at)) - (a.at === null ? Infinity : Date.parse(a.at)),
+    );
+    for (const event of ordered) {
       const label = event.at === null ? "Processing" : formatDayGroup(event.at, now);
       const last = out.at(-1);
       if (last && last.label === label) last.items.push(event);
@@ -399,7 +458,7 @@ export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
           if (!next) set("query", "");
           else requestAnimationFrame(() => searchRef.current?.focus());
         }}
-        className={cn("size-7", searching && "bg-surface-hover text-text-primary")}
+        className={cn("size-7 @max-[300px]:hidden", searching && "bg-surface-hover text-text-primary")}
       >
         <Search size={14} strokeWidth={1.5} aria-hidden />
       </SectionControl>
@@ -422,6 +481,20 @@ export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
         }
       >
         <ul className="list-none">
+          {/* In a narrow column the header has no room for the search button. */}
+          <li className="hidden @max-[300px]:block">
+            <button
+              type="button"
+              onClick={() => {
+                setSearching(true);
+                setMenuOpen(false);
+                requestAnimationFrame(() => searchRef.current?.focus());
+              }}
+              className="type-label flex h-8 w-full items-center gap-2 rounded-control px-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+            >
+              <Search size={13} strokeWidth={1.5} aria-hidden /> Search activity
+            </button>
+          </li>
           <li>
             <button
               type="button"
@@ -481,12 +554,13 @@ export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
   return (
     <Section
       title="Activity"
+      className="@container"
       icon={<Activity size={16} strokeWidth={1.5} />}
       meta={
         ready && feed.events.length > 0 ? (
           <span
             aria-label={`${shown.length} ${filtered ? "matching" : "items"}`}
-            className="type-data-sm rounded-pill bg-surface-active px-1.5 text-text-primary"
+            className="type-data-sm rounded-pill bg-surface-active px-1.5 text-text-primary @max-[250px]:hidden"
           >
             {shown.length}
           </span>
@@ -534,20 +608,22 @@ export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
               </label>
             )}
             <Segmented value={filters.direction} onChange={(value) => set("direction", value)} />
-            <div className="flex gap-2">
+            <div className="flex items-center justify-between gap-2">
               <Select<DateRange>
                 label="Date range"
+                icon={CalendarDays}
                 value={filters.range}
                 onChange={(value) => set("range", value)}
-                options={(Object.keys(RANGE_LABEL) as DateRange[]).map((range) => [range, RANGE_LABEL[range]])}
+                options={(Object.keys(RANGE_LABEL) as DateRange[]).map((range) => [range, RANGE_LABEL[range], RANGE_SHORT[range]])}
               />
               <Select<Network>
                 label="Network"
+                icon={NetworkIcon}
                 value={filters.network}
                 onChange={(value) => set("network", value)}
                 options={[
-                  ["all", "All networks"],
-                  ["solana", "Solana"],
+                  ["all", "All networks", "All"],
+                  ["solana", "Solana", "Solana"],
                 ]}
               />
             </div>
@@ -610,14 +686,21 @@ export function ActivityWidget({ open, onOpenChange, controls }: WidgetProps) {
               href="/assets"
               className="type-label inline-flex min-w-0 items-center gap-1 rounded-control px-1 py-1 text-text-primary hover:text-accent focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
             >
-              View all activity
+              <span className="whitespace-nowrap">
+                View all<span className="@max-[300px]:hidden"> activity</span>
+              </span>
               <ArrowRight size={12} strokeWidth={1.75} aria-hidden />
             </Link>
             <span className="type-label ml-auto truncate text-text-muted" aria-live="polite">
               {feed.refreshing
                 ? "Updating…"
                 : feed.fetchedAt !== null && now !== null
-                  ? `Updated ${formatRelativeTime(new Date(feed.fetchedAt).toISOString(), Math.max(now, feed.fetchedAt))}`
+                  ? (
+                      <>
+                        <span className="@max-[300px]:hidden">Updated </span>
+                        {formatRelativeTime(new Date(feed.fetchedAt).toISOString(), Math.max(now, feed.fetchedAt))}
+                      </>
+                    )
                   : feed.error
                     ? "Not updated"
                     : ""}

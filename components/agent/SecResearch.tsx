@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ExternalLink, Landmark, RefreshCw, Search, Sparkles } from "lucide-react";
 import type { CompanyResponse } from "@/app/api/sec/company/route";
+import { AlphaBoard } from "@/components/agent/AlphaBoard";
+import { InsiderActivity } from "@/components/agent/InsiderActivity";
 import type { LatestResponse } from "@/app/api/sec/latest/route";
 import { Button } from "@/components/ui/Button";
 import { CompanyMark, FilerMark } from "@/components/ui/CompanyMark";
@@ -22,12 +24,13 @@ import { cn } from "@/lib/utils";
 
    Two views in one scroll:
 
-   - THE MARKET. What every registrant is filing right now — material events,
-     insider trades, earnings reports, 5% stakes, IPOs, planned insider
-     sales — from EDGAR's live feed, newest first, grouped by day.
+   - THE MARKET. First what is worth a second look (AlphaBoard: insider
+     buying, big stakes, red flags, catalysts, planned sales, IPOs), then
+     every filing as it lands — from EDGAR's live feed, grouped by day.
    - A COMPANY. Any SEC registrant by ticker, name or CIK: its record (industry,
      exchange, filer category), its latest quarter from XBRL against the same
-     quarter a year earlier, and its own filings by kind.
+     quarter a year earlier, what its insiders bought and sold, and its own
+     filings by kind.
 
    Documents, not opinions. Each row links to the filing itself, and a figure
    EDGAR could not resolve is absent rather than estimated.
@@ -125,20 +128,20 @@ function FeedRow({
         <Mark ticker={filing.ticker} name={filing.company} size={30} />
       </button>
       <div className="min-w-0 flex-1">
-        <p className="flex items-baseline gap-1.5">
+        <p className="type-body-sm text-text-primary">
           <button
             type="button"
             onClick={() => onOpen(filing.ticker ?? filing.cik)}
-            className="type-data shrink-0 text-text-primary hover:underline"
+            className="type-data mr-1.5 text-text-primary hover:underline"
           >
             {filing.ticker ?? "Unlisted"}
           </button>
-          <span className="type-body-sm min-w-0 truncate text-text-primary">{filing.label}</span>
-          <span className="type-data-sm shrink-0 text-text-muted">{filing.form}</span>
+          {filing.label}
         </p>
         <p className="type-label truncate text-text-secondary">
           {filing.company}
           {filing.filer ? <span className="text-text-muted"> · by {filing.filer}</span> : null}
+          <span className="text-text-muted"> · {filing.form}</span>
         </p>
         <ItemTags items={filing.items} />
       </div>
@@ -348,7 +351,7 @@ function CompanyView({
           className="type-label inline-flex items-center gap-1.5 rounded-control px-1 py-1 text-text-secondary hover:text-text-primary"
         >
           <ArrowLeft size={13} strokeWidth={1.5} aria-hidden />
-          Market feed
+          Back to the market
         </button>
       </div>
 
@@ -433,6 +436,8 @@ function CompanyView({
               </dl>
             )}
           </div>
+
+          <InsiderActivity query={company.ticker} onAsk={onAsk} />
 
           <div className="px-4 pb-2 pt-4">
             <p className="type-eyebrow mb-2 text-text-muted">Filings · {company.filings.length} most recent</p>
@@ -618,7 +623,10 @@ export function SecResearch({ onAsk }: { onAsk: (prompt: string) => void }) {
       </div>
 
       {company === null ? (
-        <MarketFeed onOpen={open} />
+        <>
+          <AlphaBoard onAsk={onAsk} onOpen={open} />
+          <MarketFeed onOpen={open} />
+        </>
       ) : (
         <CompanyView key={company} query={company} onBack={() => setCompany(null)} onAsk={onAsk} />
       )}

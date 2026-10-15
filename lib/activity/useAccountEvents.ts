@@ -13,7 +13,7 @@ import { useWalletActivity } from "@/lib/wallet/useWalletActivity";
  * reference-counted, so the Activity widget and the bell reading this cost
  * no request beyond the ones the workspace already makes.
  */
-export function useAccountEvents(): {
+export interface AccountFeed {
   events: AccountEvent[];
   signedIn: boolean;
   loading: boolean;
@@ -22,7 +22,9 @@ export function useAccountEvents(): {
   fetchedAt: number | null;
   refreshing: boolean;
   refetch: () => Promise<void>;
-} {
+}
+
+export function useAccountEvents(): AccountFeed {
   const portfolio = usePortfolio();
   const wallet = useWalletActivity(25);
   const alerts = useAlerts();

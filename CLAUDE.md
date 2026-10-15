@@ -18,14 +18,20 @@ glow, bloom, rim or gradient-filled control — the luminance layer that did
 those was removed in the workspace redesign. `lib/brand.ts` tracks
 `--surface-base`.
 
-The one exception is the search palette (`.command-glass` in
-`app/globals.css`): a sheet of glass over the whole workspace, its rim and
-sheen in Ivory at low alpha, solid under `prefers-reduced-transparency`. It
-does not spread — a new floating layer is a flat panel with `--shadow-pop`.
+The exceptions are glass, in two places only. The search palette
+(`.command-glass` in `app/globals.css`) is a sheet of glass over the whole
+workspace, its rim and sheen in Ivory at low alpha. The header's two menus —
+notifications and the wallet — are forest glass (`.glass-pop`, through
+`Popover`'s `surface="glass"`): a denser Ink-green pane with one blur, a
+pistachio edge and the one `--shadow-pop`. Both are solid under
+`prefers-reduced-transparency` and without backdrop-filter support. Glass does
+not spread further — any other floating layer is a flat panel with
+`--shadow-pop`.
 
 Three deliberate deviations are documented in `README.md` and commented at the
 point where they happen: the figures font in `app/layout.tsx`, the chart
-embed in `components/panels/ChartPanel.tsx`, and the search palette's glass.
+embed in `components/panels/ChartPanel.tsx`, and the glass (the search
+palette and the header menus).
 
 The shell's geometry has one authority: `lib/layout.ts`. Every column bound,
 the centre's floor and the order columns give up width in are there and

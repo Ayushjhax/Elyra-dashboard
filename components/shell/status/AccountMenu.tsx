@@ -3,13 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, Copy, PieChart, Power, Wallet } from "lucide-react";
-import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, PieChart, Power, QrCode, Wallet } from "lucide-react";
+import { Money, useBalancesHidden } from "@/components/portfolio/primitives";
+import { ReceiveDialog } from "@/components/portfolio/ReceiveDialog";
+import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { CopyButton, IconButton, StatusDot } from "@/components/shell/RouteDrawer";
 import { Button } from "@/components/ui/Button";
+import { CoinMark } from "@/components/ui/CoinMark";
 import { Popover } from "@/components/ui/Popover";
-import { formatUsd, truncateMiddle } from "@/lib/format";
+import { formatAge, truncateMiddle } from "@/lib/format";
+import { useTickerLogos } from "@/lib/market/tickerLogos";
+import { accountExplorerUrl } from "@/lib/solana/address";
+import { CLUSTER_LABEL, EXPECTED_CLUSTER } from "@/lib/solana/cluster";
 import { useElyraStore } from "@/lib/store";
-import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
+import { useSecond } from "@/lib/useClock";
+import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -21,25 +29,55 @@ import { cn } from "@/lib/utils";
    balance is a skeleton, never "$0.00", because $0.00 is a claim and the most
    alarming wrong one there is to make about somebody's wallet.
 
+   It is the SOLANA wallet's menu, so it shows the Solana address and nothing
+   else — an account's EVM wallet is a different wallet, read for Hyperliquid,
+   and never stands in for it here.
+
    Disconnecting stays behind a confirmation, because it is one click from
    everything else here and signing back in goes through email or OAuth.
 --------------------------------------------------------------------------- */
+
+const SOL = ["SOL"] as const;
 
 const TRIGGER = cn(
   "inline-flex h-10 items-center gap-2 rounded-card border border-border-subtle px-3",
   "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
 );
 
+const DIVIDER = "border-[color-mix(in_srgb,var(--accent)_12%,transparent)]";
+
+/** Where the wallet's read stands, in words the data supports. */
+function status(wallet: WalletDashboard): { tone: "positive" | "caution" | "negative" | "muted"; label: string } {
+  if (wallet.unconfigured) return { tone: "muted", label: "Not configured" };
+  if (wallet.wrongChain) return { tone: "negative", label: "Wrong cluster" };
+  if (wallet.snapshot === null) return wallet.isLoading ? { tone: "muted", label: "Checking…" } : { tone: "negative", label: "Unreachable" };
+  if (wallet.stale) return { tone: "caution", label: "Last read failed" };
+  return { tone: "positive", label: "Connected" };
+}
+
 export function AccountMenu() {
-  const auth = useElyraAuth();
-  const wallet = useWalletDashboard();
+  return <AccountMenuView auth={useElyraAuth()} wallet={useWalletDashboard()} />;
+}
+
+/** The menu with its data passed in, so every state renders from fixtures too. */
+export function AccountMenuView({
+  auth,
+  wallet,
+}: {
+  auth: Pick<ElyraAuth, "available" | "ready" | "authenticated" | "solanaAddress" | "login" | "logout">;
+  wallet: WalletDashboard;
+}) {
   const router = useRouter();
   const setWalletSheetOpen = useElyraStore((state) => state.setWalletSheetOpen);
-  const balancesHidden = useElyraStore((state) => state.balancesHidden);
+  const setHidden = useElyraStore((state) => state.setBalancesHidden);
+  const hidden = useBalancesHidden();
+  const logos = useTickerLogos(SOL);
+  const now = useSecond();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  const [receiving, setReceiving] = useState(false);
 
   /* No Privy at all: the terminal still runs, and a Connect button that opens
      nothing would be worse than no button. */
@@ -58,32 +96,29 @@ export function AccountMenu() {
     );
   }
 
-  /* Solana first: it is this app's chain, and on most accounts the EVM
-     address is an embedded wallet the user never chose. */
-  const address = auth.solanaAddress ?? auth.walletAddress;
-  const usd = wallet.usdValue;
-  const degraded = wallet.stale || wallet.error !== null || wallet.unconfigured;
-  const reason = wallet.unconfigured
-    ? "The Solana RPC is not configured, so no balance can be read."
-    : wallet.error !== null
-      ? wallet.stale
-        ? `Showing the last reading. ${wallet.error}`
-        : wallet.error
-      : usd === null && !wallet.isLoading
-        ? "The SOL price is unavailable, so the total cannot be computed."
-        : null;
+  const address = auth.solanaAddress;
+  const state = status(wallet);
+  const network = CLUSTER_LABEL[wallet.cluster ?? EXPECTED_CLUSTER];
+  const snapshot = wallet.snapshot;
 
   const close = (next: boolean) => {
     setOpen(next);
-    if (!next) setConfirming(false);
+    if (!next) {
+      setConfirming(false);
+      setDisconnectError(null);
+    }
   };
 
   const disconnect = async () => {
+    if (busy) return;
     setBusy(true);
+    setDisconnectError(null);
     try {
       await auth.logout();
       close(false);
       router.push("/");
+    } catch (error: unknown) {
+      setDisconnectError(error instanceof Error ? error.message : "Signing out failed. Try again.");
     } finally {
       /* Cleared even on failure, so a network error leaves a usable button
          rather than one stuck saying "Disconnecting". */
@@ -91,163 +126,201 @@ export function AccountMenu() {
     }
   };
 
-  const copy = async () => {
-    if (address === null) return;
-    try {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* Clipboard refused (insecure origin, permissions). The address is on
-         screen in full for a manual copy, so there is nothing to report. */
-    }
-  };
+  const row =
+    "glass-row type-body-sm flex h-11 w-full items-center gap-3 rounded-[10px] px-3 text-left text-text-primary";
 
   return (
-    <Popover
-      id="account-menu"
-      label="Account"
-      open={open}
-      onOpenChange={close}
-      className="w-72 p-1.5"
-      trigger={
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls="account-menu"
-          aria-haspopup="dialog"
-          aria-label={address === null ? "Account" : `Account ${address}`}
-          onClick={() => close(!open)}
-          className={cn(TRIGGER, open && "bg-surface-hover")}
-        >
-          <Wallet size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
-          <span className="type-mono-addr hidden text-text-primary compact:inline">
-            {address === null ? "Signed in" : truncateMiddle(address, 4, 4)}
-          </span>
-          <span
-            aria-hidden
-            className={cn(
-              "size-1.5 shrink-0 rounded-pill",
-              degraded ? "bg-negative" : wallet.isLoading ? "bg-text-muted" : "bg-positive",
+    <>
+      <Popover
+        id="account-menu"
+        label="Solana wallet"
+        open={open}
+        onOpenChange={close}
+        surface="glass"
+        pinOnPhone
+        className="w-[min(360px,calc(100vw-24px))] p-4"
+        trigger={
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls="account-menu"
+            aria-haspopup="dialog"
+            aria-label={address === null ? "Account" : `Solana wallet ${address}, ${state.label}`}
+            onClick={() => close(!open)}
+            className={cn(TRIGGER, open && "bg-surface-hover")}
+          >
+            <Wallet size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
+            <span className="type-mono-addr hidden text-text-primary compact:inline">
+              {address === null ? "Signed in" : truncateMiddle(address, 4, 4)}
+            </span>
+            <span
+              aria-hidden
+              className={cn(
+                "size-1.5 shrink-0 rounded-pill",
+                state.tone === "positive" ? "bg-sage" : state.tone === "muted" ? "bg-text-muted" : state.tone === "caution" ? "bg-caution" : "bg-negative",
+              )}
+            />
+            <ChevronDown size={14} strokeWidth={1.5} aria-hidden className={cn("hidden text-text-muted compact:block", open && "rotate-180")} />
+          </button>
+        }
+      >
+        {confirming ? (
+          <div className="flex flex-col gap-3">
+            <p className="type-h2 font-sans text-text-primary">Disconnect this wallet?</p>
+            <p className="type-body-sm text-text-secondary">
+              You&rsquo;ll be signed out of Elyra and returned to the workspace. Nothing is deleted; signing back in
+              goes through your original login method.
+            </p>
+            {disconnectError !== null && (
+              <p role="alert" className="type-label text-negative">
+                {disconnectError}
+              </p>
             )}
-          />
-        </button>
-      }
-    >
-      {confirming ? (
-        <div className="p-2.5">
-          <p className="type-body-sm text-text-primary">Disconnect this wallet?</p>
-          <p className="type-label mt-1 text-text-muted">
-            You will be signed out and returned to the workspace. Signing back in
-            goes through your original login method.
-          </p>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              data-autofocus
-              onClick={() => void disconnect()}
-              disabled={busy}
-            >
-              {busy ? "Disconnecting…" : "Disconnect"}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="px-2.5 pb-2.5 pt-2">
-            <p className="type-eyebrow text-text-muted">Wallet balance</p>
-            <div className="mt-1 flex items-center gap-2">
-              {degraded && (
-                <AlertTriangle size={14} strokeWidth={1.5} aria-hidden className="text-negative" />
-              )}
-              {usd === null ? (
-                <span aria-label="Balance loading" className="skeleton h-6 w-24" />
-              ) : (
-                <span
-                  className={cn(
-                    "type-h1 tabular-nums",
-                    wallet.stale ? "text-text-secondary" : "text-text-primary",
-                  )}
-                >
-                  {balancesHidden ? "••••••" : formatUsd(usd)}
-                </span>
-              )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(false);
+                  setDisconnectError(null);
+                }}
+                disabled={busy}
+                className="glass-outline type-body-sm h-9 rounded-[10px] border px-3.5 text-text-primary disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-autofocus
+                onClick={() => void disconnect()}
+                aria-disabled={busy || undefined}
+                className="type-body-sm h-9 rounded-[10px] border border-negative/40 bg-negative-bg px-3.5 font-medium text-negative hover:border-negative/70 aria-disabled:opacity-60"
+              >
+                {busy ? "Disconnecting…" : "Disconnect"}
+              </button>
             </div>
-            {reason !== null && <p className="type-label mt-1 text-text-muted">{reason}</p>}
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <CoinMark symbol="SOL" {...logos("SOL")} size={28} className="border-0 bg-transparent" />
+              <h2 className="type-h2 min-w-0 flex-1 truncate font-sans text-text-primary">Solana wallet</h2>
+              <StatusDot tone={state.tone}>{state.label}</StatusDot>
+            </div>
 
-            {address !== null && (
-              <div className="mt-3 flex items-center gap-2 rounded-control border border-border-subtle bg-surface-raised px-2.5 py-2">
-                <span className="type-mono-addr min-w-0 flex-1 break-all text-text-secondary">
-                  {address}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void copy()}
-                  aria-label={copied ? "Address copied" : "Copy address"}
-                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-chip text-text-muted hover:bg-surface-hover hover:text-text-primary"
-                >
-                  {copied ? (
-                    <Check size={14} strokeWidth={1.5} aria-hidden />
-                  ) : (
-                    <Copy size={14} strokeWidth={1.5} aria-hidden />
-                  )}
-                </button>
-              </div>
+            {address === null ? (
+              <p className="type-body-sm mt-4 text-text-secondary">
+                This account has no Solana wallet yet, so there is no balance or address to show.
+              </p>
+            ) : (
+              <>
+                <p className="type-body-sm mt-4 text-text-secondary">Wallet balance</p>
+                <div className="mt-1 flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    {snapshot === null ? (
+                      wallet.isLoading ? (
+                        <span aria-label="Balance loading" className="skeleton block h-9 w-36 rounded-control" />
+                      ) : (
+                        <span className="type-display font-sans text-text-muted" title={wallet.error ?? undefined}>
+                          —
+                        </span>
+                      )
+                    ) : (
+                      <Money
+                        value={snapshot.usdValue}
+                        reason="The SOL price is unavailable, so the total can't be valued."
+                        className={cn("type-display block truncate font-sans", wallet.stale ? "text-text-secondary" : "text-text-primary")}
+                      />
+                    )}
+                  </div>
+                  <IconButton
+                    label={hidden ? "Show balances" : "Hide balances"}
+                    aria-pressed={hidden}
+                    onClick={() => setHidden(!hidden)}
+                    className={cn("size-9", hidden && "text-accent")}
+                  >
+                    {hidden ? <EyeOff size={18} strokeWidth={1.5} aria-hidden /> : <Eye size={18} strokeWidth={1.5} aria-hidden />}
+                  </IconButton>
+                </div>
+                {(wallet.stale || (snapshot === null && !wallet.isLoading) || snapshot?.usdValue === null) && (
+                  <p className={cn("type-label mt-1", wallet.stale || snapshot === null ? "text-caution" : "text-text-muted")}>
+                    {wallet.stale
+                      ? `Last good reading${wallet.fetchedAt !== null && now !== null ? `, ${formatAge(wallet.fetchedAt, now)}` : ""}.`
+                      : snapshot === null
+                        ? (wallet.error ?? "The balance couldn't be read.")
+                        : "No SOL price right now, so the total can't be valued."}
+                  </p>
+                )}
+
+                <div className="glass-inset mt-4 flex items-center gap-2 rounded-[10px] border py-2 pl-3.5 pr-1.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="type-mono-addr truncate text-text-primary" title={address}>
+                      {truncateMiddle(address, 6, 6)}
+                      <span className="sr-only"> (full address: {address})</span>
+                    </p>
+                    <p className="type-label text-text-secondary">{network}</p>
+                  </div>
+                  <CopyButton value={address} label="wallet address" className="size-9" />
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    data-autofocus
+                    onClick={() => {
+                      close(false);
+                      setReceiving(true);
+                    }}
+                    className="type-body-sm inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-accent font-medium text-text-on-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover"
+                  >
+                    <QrCode size={17} strokeWidth={1.5} aria-hidden />
+                    Receive
+                  </button>
+                  <a
+                    href={accountExplorerUrl(address, wallet.cluster)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => close(false)}
+                    className="glass-outline type-body-sm inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border px-2 text-text-primary"
+                  >
+                    <ExternalLink size={16} strokeWidth={1.5} aria-hidden />
+                    View on explorer
+                  </a>
+                </div>
+              </>
             )}
-          </div>
 
-          <div className="border-t border-border-subtle pt-1.5">
-            <MenuRow
-              icon={<Wallet size={16} strokeWidth={1.5} aria-hidden />}
-              onClick={() => {
-                close(false);
-                setWalletSheetOpen(true);
-              }}
-            >
-              Open wallet
-            </MenuRow>
-            <Link
-              href="/portfolio"
-              onClick={() => close(false)}
-              className={ROW}
-            >
-              <PieChart size={16} strokeWidth={1.5} aria-hidden />
-              Portfolio
-            </Link>
-            <MenuRow
-              icon={<Power size={16} strokeWidth={1.5} aria-hidden />}
-              className="text-negative hover:bg-negative-bg hover:text-negative"
-              onClick={() => setConfirming(true)}
-            >
-              Disconnect
-            </MenuRow>
-          </div>
-        </>
-      )}
-    </Popover>
-  );
-}
+            <nav aria-label="Wallet" className={cn("mt-4 flex flex-col gap-0.5 border-t pt-3", DIVIDER)}>
+              <button
+                type="button"
+                onClick={() => {
+                  close(false);
+                  setWalletSheetOpen(true);
+                }}
+                className={row}
+              >
+                <Wallet size={18} strokeWidth={1.5} aria-hidden className="text-text-secondary" />
+                <span className="flex-1">Open wallet</span>
+                <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
+              </button>
+              <Link href="/portfolio" onClick={() => close(false)} className={row}>
+                <PieChart size={18} strokeWidth={1.5} aria-hidden className="text-text-secondary" />
+                <span className="flex-1">Portfolio</span>
+                <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
+              </Link>
+            </nav>
 
-const ROW = cn(
-  "flex h-9 w-full items-center gap-2 rounded-control px-2.5 text-left",
-  "type-label text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand",
-  "hover:bg-surface-hover hover:text-text-primary",
-);
+            <div className={cn("mt-3 border-t pt-3", DIVIDER)}>
+              <button type="button" onClick={() => setConfirming(true)} className={cn(row, "text-negative")}>
+                <Power size={18} strokeWidth={1.5} aria-hidden />
+                <span className="flex-1">Disconnect</span>
+                <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-negative/70" />
+              </button>
+            </div>
+          </>
+        )}
+      </Popover>
 
-function MenuRow({
-  icon,
-  className,
-  children,
-  ...props
-}: React.ComponentProps<"button"> & { icon: React.ReactNode }) {
-  return (
-    <button type="button" className={cn(ROW, className)} {...props}>
-      {icon}
-      {children}
-    </button>
+      <ReceiveDialog open={receiving} onOpenChange={setReceiving} address={address} cluster={wallet.cluster} />
+    </>
   );
 }

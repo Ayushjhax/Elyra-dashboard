@@ -78,18 +78,6 @@ export function latencyFactor(latencyMs: number | null): number {
   return 1 - 0.5 * ((latencyMs - SLOW_MS) / span);
 }
 
-/**
- * How an RPC round trip reads on its own: fine up to SLOW_MS, worth a look up
- * to VERY_SLOW_MS, a problem beyond it. The same two thresholds the meter
- * scores against, so a number and the meter never disagree.
- */
-export function latencyTone(latencyMs: number | null): HealthTone {
-  if (latencyMs === null) return "unknown";
-  if (latencyMs <= SLOW_MS) return "positive";
-  if (latencyMs < VERY_SLOW_MS) return "warning";
-  return "negative";
-}
-
 export function toneFor(score: number | null): HealthTone {
   if (score === null) return "unknown";
   if (score >= GREEN_AT) return "positive";

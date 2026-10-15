@@ -16,9 +16,6 @@ import {
   Network,
   Phone,
   RefreshCw,
-  Signal,
-  SignalHigh,
-  SignalLow,
   Wallet,
   WalletCards,
   type LucideIcon,
@@ -41,7 +38,6 @@ import { CLUSTER_LABEL } from "@/lib/solana/cluster";
 import { useElyraStore } from "@/lib/store";
 import { useMinute, useSecond } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
-import { latencyTone } from "@/lib/wallet/health";
 import type { ActivityStatus, WalletActivity } from "@/lib/wallet/types";
 import { useWalletActivity, type ActivityFeed } from "@/lib/wallet/useWalletActivity";
 import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
@@ -50,7 +46,7 @@ import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWallet
    The Dashboard drawer: the account at a glance.
 
    Four cards over two shared stores and the auth façade — `useWalletDashboard`
-   (balance, cluster, slot, RPC round trip), `useWalletActivity` (signatures)
+   (balance, cluster, SOL price), `useWalletActivity` (signatures)
    and `useElyraAuth` (who you are). Each store is reference counted and the
    status bar already holds the wallet one open, so this drawer adds no poll
    of its own.
@@ -192,13 +188,6 @@ function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
    Network
 --------------------------------------------------------------------------- */
 
-const LATENCY = {
-  positive: { icon: SignalHigh, text: "text-positive" },
-  warning: { icon: Signal, text: "text-caution" },
-  negative: { icon: SignalLow, text: "text-negative" },
-  unknown: { icon: Signal, text: "text-text-muted" },
-} as const;
-
 /** What the connection is, in words the data supports — never "Connected" on a failed read. */
 function connection(wallet: WalletDashboard): { tone: "positive" | "caution" | "negative" | "muted"; label: string } {
   if (wallet.unconfigured) return { tone: "muted", label: "Not configured" };
@@ -214,15 +203,13 @@ function NetworkCard({ wallet }: { wallet: WalletDashboard }) {
   const now = useSecond();
   const status = connection(wallet);
   const snapshot = wallet.snapshot;
-  const latency = LATENCY[latencyTone(wallet.latencyMs)];
-  const LatencyIcon = latency.icon;
   const loading = snapshot === null && wallet.isLoading;
   const pending = <span aria-hidden className="skeleton mt-0.5 block h-5 w-20" />;
 
   return (
     <DrawerCard icon={Network} title="Network" right={<StatusDot tone={status.tone}>{status.label}</StatusDot>}>
       <div className="grid grid-cols-2 border-t border-border-subtle">
-        <Metric label="Cluster" className="border-b border-r border-border-subtle py-3 pr-3">
+        <Metric label="Cluster" className="border-r border-border-subtle py-3 pr-3">
           {loading ? (
             pending
           ) : (
@@ -232,21 +219,7 @@ function NetworkCard({ wallet }: { wallet: WalletDashboard }) {
             </span>
           )}
         </Metric>
-        <Metric label="RPC latency" className="border-b border-border-subtle py-3 pl-4">
-          {loading ? (
-            pending
-          ) : wallet.latencyMs === null ? (
-            <span className="text-text-muted">—</span>
-          ) : (
-            <Tip label="Round trip of the last balance read">
-              <span tabIndex={0} className={cn("inline-flex items-center gap-1.5 rounded-chip", latency.text)}>
-                <LatencyIcon size={16} strokeWidth={1.75} aria-hidden />
-                {Math.round(wallet.latencyMs).toLocaleString("en-US")} ms
-              </span>
-            </Tip>
-          )}
-        </Metric>
-        <Metric label="SOL price" className="border-r border-border-subtle py-3 pr-3">
+        <Metric label="SOL price" className="py-3 pl-4">
           {loading ? (
             pending
           ) : snapshot?.solUsd == null ? (
@@ -254,9 +227,6 @@ function NetworkCard({ wallet }: { wallet: WalletDashboard }) {
           ) : (
             formatPriceUsd(snapshot.solUsd)
           )}
-        </Metric>
-        <Metric label="Current slot" className="py-3 pl-4">
-          {loading ? pending : snapshot === null ? <span className="text-text-muted">—</span> : snapshot.slot.toLocaleString("en-US")}
         </Metric>
       </div>
 

@@ -254,12 +254,18 @@ Each is noted where it happens, in the file that makes the choice.
    of the brand's market semantics. `ChartPanel` uses the `tv.js` widget, which
    honours the required colours: background, grid, Sage up, Clay down, and the
    EMA in `--accent-quiet` through its `ema.ma.color` override.
-3. **Search palette glass.** Section 3 makes the product flat. The ⌘K palette
-   alone is a sheet of glass (`.command-glass` in `app/globals.css`): a barely
-   tinted pane over a light blur, a 1px Ivory rim brightest at the top-left,
+3. **Glass: the search palette and the header menus.** Section 3 makes the
+   product flat. The ⌘K palette is a sheet of glass (`.command-glass` in
+   `app/globals.css`): a barely tinted pane over a light blur, a 1px Ivory rim brightest at the top-left,
    and a sheen across the top, over a workspace softened by a 6px blur so the
    palette holds the eye. Light only — every highlight is Ivory at low
    alpha — and a solid panel under `prefers-reduced-transparency`.
+   The header's notifications and wallet menus share a denser version
+   (`.glass-pop`): they sit directly over a live chart, so the pane is
+   Ink-green at 84% under a single 16px blur, with a pistachio edge, one top
+   highlight and `--shadow-pop`. Rows and inset cards inside are tints, never
+   a second blur. Opaque without backdrop-filter or under reduced
+   transparency.
 
 The black surfaces and the luminance layer (blooms, rims, frosted planes,
 gradient-filled controls) that used to be a third deviation are gone: the

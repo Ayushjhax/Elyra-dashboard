@@ -9,6 +9,7 @@ import {
 } from "@/lib/market/defaults";
 import type { ComposerAttachment } from "@/lib/attachments";
 import { CONTEXT_SOURCES, type ContextSource } from "@/lib/personalized/types";
+import { rememberRead } from "@/lib/activity/notifications";
 import { clampColumn, type ColumnWidths, type ShellColumnId } from "@/lib/layout";
 import type {
   AgentTab,
@@ -190,9 +191,13 @@ interface ElyraState {
   closeCollapsedSurfaces: () => void;
 
   /* ---- notifications (persisted) ---- */
-  /** ISO time the notifications list was last opened, or null if never. */
+  /** Every notification at or before this ISO time is read; null if none has been. */
   notificationsSeenAt: string | null;
+  /** Mark all read: everything up to `at`, and forget the ids read one by one. */
   markNotificationsSeen: (at: string) => void;
+  /** Notifications opened one at a time since the watermark, newest first. */
+  notificationsReadIds: string[];
+  markNotificationRead: (id: string) => void;
 }
 
 /**
@@ -441,7 +446,10 @@ export const useElyraStore = create<ElyraState>()(
         set({ agentDrawerOpen: false, navSheetOpen: false }),
 
       notificationsSeenAt: null,
-      markNotificationsSeen: (at) => set({ notificationsSeenAt: at }),
+      markNotificationsSeen: (at) => set({ notificationsSeenAt: at, notificationsReadIds: [] }),
+      notificationsReadIds: [],
+      markNotificationRead: (id) =>
+        set((state) => ({ notificationsReadIds: rememberRead(state.notificationsReadIds, id) })),
     }),
     {
       name: "elyra-terminal",
@@ -476,6 +484,7 @@ export const useElyraStore = create<ElyraState>()(
         columnWidths: state.columnWidths,
         railExpanded: state.railExpanded,
         notificationsSeenAt: state.notificationsSeenAt,
+        notificationsReadIds: state.notificationsReadIds,
         decisionBriefOpen: state.decisionBriefOpen,
       }),
       /* Rehydrate after mount so the server and the first client render agree. */

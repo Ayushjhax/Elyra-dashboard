@@ -31,6 +31,8 @@ export function Popover({
   label,
   side = "bottom",
   align = "end",
+  surface = "flat",
+  pinOnPhone = false,
   className,
   children,
 }: {
@@ -43,6 +45,17 @@ export function Popover({
   label: string;
   side?: Side;
   align?: Align;
+  /**
+   * `flat` is every popover's panel. `glass` is reserved for the header's
+   * notifications and wallet menus (`.glass-pop` in app/globals.css says why).
+   */
+  surface?: "flat" | "glass";
+  /**
+   * Below 640px, pin the panel under the header across the viewport rather
+   * than to its trigger — a trigger in the middle of a phone's header cannot
+   * hold a 400px panel without pushing it off one edge.
+   */
+  pinOnPhone?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -53,9 +66,13 @@ export function Popover({
     if (!open) return;
 
     /* Focus is a DOM call, not state, so it belongs in the effect body. */
-    const first = panelRef.current?.querySelector<HTMLElement>(
-      "[data-autofocus], button:not([disabled]), [href], input, [tabindex]:not([tabindex='-1'])",
-    );
+    /* Two queries, not one list: a selector list matches in document order,
+       so a marked element further down would lose to the first button. */
+    const first =
+      panelRef.current?.querySelector<HTMLElement>("[data-autofocus]") ??
+      panelRef.current?.querySelector<HTMLElement>(
+        "button:not([disabled]), [href], input, [tabindex]:not([tabindex='-1'])",
+      );
     first?.focus();
 
     const trigger = () =>
@@ -91,8 +108,11 @@ export function Popover({
           role="dialog"
           aria-label={label}
           className={cn(
-            "absolute z-50 rounded-card border border-border-strong bg-surface-panel shadow-pop",
+            "absolute z-50 border",
+            surface === "glass" ? "glass-pop" : "rounded-card border-border-strong bg-surface-panel shadow-pop",
             PLACEMENT[side][align],
+            pinOnPhone &&
+              "max-compact:fixed max-compact:inset-x-3 max-compact:top-[calc(var(--header-h)+8px)] max-compact:mt-0 max-compact:w-auto",
             className,
           )}
         >

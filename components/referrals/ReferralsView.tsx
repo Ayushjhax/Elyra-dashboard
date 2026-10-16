@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { ArrowDown, ArrowRight, Check, Copy, Gift, Link2, Lock, QrCode as QrIcon, RefreshCw, Send, Share2, Users, X } from "lucide-react";
 import type { ReferralsResponse } from "@/app/api/referrals/route";
 import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
    pool and the list are cards.
 --------------------------------------------------------------------------- */
 
-const card = "min-w-0 rounded-panel border border-border-subtle bg-surface-panel";
+const card = "min-w-0 rounded-sheet border border-border-subtle bg-surface-panel";
 
 const outlined = cn(
   "type-body-sm inline-flex h-11 items-center justify-center gap-2 rounded-control border border-border-strong px-4 font-medium text-text-primary",
@@ -498,43 +498,90 @@ function Skeleton() {
   );
 }
 
+/** How often the page re-reads while it is open and visible. */
+const REFRESH_MS = 60_000;
+
 export function Referrals() {
   const auth = useElyraAuth();
   const authedFetch = useAuthedFetch();
-  const [data, setData] = useState<ReferralsResponse | null>(null);
-  const [nonce, setNonce] = useState(0);
   const signedIn = auth.ready && auth.authenticated;
+  const account = signedIn ? (auth.account?.id ?? "signed-in") : null;
+  /* Keyed to the account it was read for, so another account's figures are
+     never on screen — not even for the frame before the new read lands. */
+  const [state, setState] = useState<{ account: string | null; data: ReferralsResponse | null; refreshError: string | null }>({
+    account: null,
+    data: null,
+    refreshError: null,
+  });
+  const [nonce, setNonce] = useState(0);
+  const inFlight = useRef(false);
 
-  /* One read for the page. Pure fetch, state set only after the await. */
-  const load = useCallback(async (): Promise<ReferralsResponse | null> => {
-    if (!signedIn) return null;
+  const read = useCallback(async (): Promise<ReferralsResponse> => {
     try {
       const response = await authedFetch("/api/referrals", { cache: "no-store" });
       return (await response.json()) as ReferralsResponse;
     } catch (error: unknown) {
       return { stats: null, referrals: [], unconfigured: false, error: error instanceof Error ? error.message : "Your referrals couldn't be loaded." };
     }
-  }, [authedFetch, signedIn]);
+  }, [authedFetch]);
 
+  /* Read on open, again whenever the tab comes back, and every minute while
+     it is visible — so a referral that activates while the page is open
+     appears without a reload. One read at a time; a failed refresh keeps the
+     last good figures on screen and says so, rather than blanking them. */
   useEffect(() => {
+    if (account === null) return;
     let cancelled = false;
-    void load().then((next) => {
-      if (!cancelled) setData(next);
-    });
+    let timer: number | null = null;
+    let lastGood = false;
+
+    const schedule = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (document.visibilityState === "visible") void tick();
+        else schedule();
+      }, REFRESH_MS);
+    };
+
+    const tick = async () => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      const next = await read();
+      inFlight.current = false;
+      if (cancelled) return;
+      if (next.stats === null && lastGood) {
+        setState((current) => ({ ...current, refreshError: next.error ?? "The latest refresh failed." }));
+      } else {
+        lastGood = next.stats !== null;
+        setState({ account, data: next, refreshError: null });
+      }
+      schedule();
+    };
+
+    const onReturn = () => {
+      if (document.visibilityState === "visible") void tick();
+    };
+
+    void tick();
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
     return () => {
       cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
     };
-  }, [load, nonce]);
+  }, [account, read, nonce]);
+
+  const current = state.account === account ? state : null;
 
   return (
     <ReferralsView
       auth={auth}
-      data={signedIn ? data : null}
-      loading={!auth.ready || (signedIn && data === null)}
-      onRetry={() => {
-        setData(null);
-        setNonce((value) => value + 1);
-      }}
+      data={current?.data ?? null}
+      loading={!auth.ready || (signedIn && current?.data == null)}
+      refreshError={current?.refreshError ?? null}
+      onRetry={() => setNonce((value) => value + 1)}
     />
   );
 }
@@ -544,11 +591,14 @@ export function ReferralsView({
   auth,
   data,
   loading,
+  refreshError = null,
   onRetry,
 }: {
   auth: Pick<ElyraAuth, "available" | "ready" | "authenticated" | "login">;
   data: ReferralsResponse | null;
   loading: boolean;
+  /** A background refresh failed; the figures shown are the last good read. */
+  refreshError?: string | null;
   onRetry: () => void;
 }) {
   const { state: copyState, copy } = useCopy();
@@ -611,6 +661,11 @@ export function ReferralsView({
           </section>
         ) : (
           <>
+            {refreshError !== null && (
+              <p role="status" className="type-label -mb-3 text-caution">
+                Couldn&rsquo;t refresh just now — showing your last reading. It will try again shortly.
+              </p>
+            )}
             <Stats stats={stats} />
 
             <div className="grid grid-cols-1 gap-5 @[60rem]:grid-cols-[minmax(0,1.38fr)_minmax(0,1fr)]">

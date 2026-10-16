@@ -3,6 +3,7 @@ import {
   CODE_ALPHABET,
   CODE_LENGTH,
   isWellFormedCode,
+  REFERRAL_PROGRAMME,
   referralConfig,
   referralUrlFor,
 } from "@/lib/referrals/config";
@@ -120,48 +121,34 @@ describe("activation pool arithmetic", () => {
 describe("reward configuration", () => {
   const original = { ...process.env };
 
-  beforeEach(() => {
-    delete process.env.ELYRA_REFERRAL_ACTIVATION_POINTS;
-    delete process.env.ELYRA_ACTIVATION_POOL_TARGET;
-    delete process.env.ELYRA_POOL_BONUS_POINTS;
-    delete process.env.ELYRA_ACTIVATION_RULE;
-  });
-
   afterEach(() => {
     process.env = { ...original };
   });
 
-  it("has one source for every reward number", () => {
-    const config = referralConfig();
-    expect(config.activationPoints).toBe(100);
-    expect(config.activationPoolTarget).toBe(5);
-    expect(config.poolCompletionBonusPoints).toBe(500);
+  it("is the published programme: 100 per activation, +500 every five, $10 held", () => {
+    expect(referralConfig()).toEqual({
+      activationPoints: 100,
+      activationPoolTarget: 5,
+      poolCompletionBonusPoints: 500,
+      activationRule: "wallet_funded",
+      activationMinValueUsd: 10,
+    });
   });
 
-  it("is overridable without a code change", () => {
+  it("cannot be changed from the environment, so what is paid is what was promised", () => {
+    process.env.ELYRA_REFERRAL_ACTIVATION_POINTS = "1";
     process.env.ELYRA_ACTIVATION_POOL_TARGET = "3";
     process.env.ELYRA_POOL_BONUS_POINTS = "250";
+    process.env.ELYRA_ACTIVATION_RULE = "profile_created";
+    process.env.ELYRA_ACTIVATION_MIN_USD = "0";
+    expect(referralConfig()).toEqual(REFERRAL_PROGRAMME);
+  });
+
+  it("hands out copies, so no caller can alter the programme for the next", () => {
     const config = referralConfig();
-    expect(config.activationPoolTarget).toBe(3);
-    expect(config.poolCompletionBonusPoints).toBe(250);
-  });
-
-  it("defaults activation to the rule that costs an attacker money", () => {
-    /* "Connected a wallet" is free to farm; holding value is not. */
-    expect(referralConfig().activationRule).toBe("wallet_funded");
-  });
-
-  it("accepts a different activation rule and ignores an unknown one", () => {
-    process.env.ELYRA_ACTIVATION_RULE = "wallet_connected";
-    expect(referralConfig().activationRule).toBe("wallet_connected");
-
-    process.env.ELYRA_ACTIVATION_RULE = "vibes";
-    expect(referralConfig().activationRule).toBe("wallet_funded");
-  });
-
-  it("refuses a target of zero, which would make every pool complete", () => {
-    process.env.ELYRA_ACTIVATION_POOL_TARGET = "0";
-    expect(referralConfig().activationPoolTarget).toBeGreaterThanOrEqual(1);
+    config.activationPoints = 1;
+    expect(referralConfig().activationPoints).toBe(100);
+    expect(Object.isFrozen(REFERRAL_PROGRAMME)).toBe(true);
   });
 });
 

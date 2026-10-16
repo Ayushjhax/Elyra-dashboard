@@ -189,6 +189,8 @@ kept for fills.
 
 **Radii**
 ```
+--radius-sheet    16px   a page's main cards where the page is spacious
+                         (Referrals), and the header's glass menus
 --radius-panel    12px
 --radius-card     10px
 --radius-control   8px

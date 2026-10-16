@@ -25,8 +25,8 @@
    available without device fingerprinting — something the spec says not to
    add without a legal requirement.
 
-   Change `ELYRA_ACTIVATION_RULE` to `wallet_connected` or `profile_created`
-   if the product decides differently. Nothing else needs to change.
+   The rule and every amount are fixed in `REFERRAL_PROGRAMME` below; a
+   different programme is a change to that one object.
 --------------------------------------------------------------------------- */
 
 /**
@@ -35,32 +35,16 @@
  * - `profile_created` — signing in once. Weakest; free to farm.
  * - `wallet_connected` — a Solana address is linked to the account.
  * - `wallet_funded`    — the account holds at least
- *   `ACTIVATION_MIN_VALUE_USD` of tracked, verified value. The default.
+ *   `activationMinValueUsd` of tracked, verified value. The programme's rule.
  */
 export type ActivationRule = "profile_created" | "wallet_connected" | "wallet_funded";
-
-const RULES: ActivationRule[] = ["profile_created", "wallet_connected", "wallet_funded"];
-
-function readRule(): ActivationRule {
-  const raw = process.env.ELYRA_ACTIVATION_RULE?.trim();
-  return raw !== undefined && RULES.includes(raw as ActivationRule)
-    ? (raw as ActivationRule)
-    : "wallet_funded";
-}
-
-function readNumber(name: string, fallback: number): number {
-  const raw = process.env[name]?.trim();
-  if (raw === undefined || raw.length === 0) return fallback;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
 
 export interface ReferralConfig {
   /** Points the referrer earns for each activated referral. */
   activationPoints: number;
   /** Activated referrals that fill one pool. */
   activationPoolTarget: number;
-  /** Points awarded each time a pool completes. */
+  /** Points awarded each time a pool completes. Pools repeat. */
   poolCompletionBonusPoints: number;
   /** What counts as activated. See the note above. */
   activationRule: ActivationRule;
@@ -69,17 +53,25 @@ export interface ReferralConfig {
 }
 
 /**
- * Read per call rather than frozen at module load, so a deployment can change
- * a reward without a rebuild and tests can vary it without re-importing.
+ * The programme, as published on the Referrals page and paid by the ledger.
+ *
+ * Fixed in code rather than read from the environment. These are promises
+ * made to people — "100 points when they activate", "+500 every five" — and
+ * a deployment variable that quietly changed one would change what is paid
+ * without changing what was promised to anyone already sharing a link.
+ * Changing the programme is a code change, reviewed, with the page and the
+ * ledger moving together.
  */
+export const REFERRAL_PROGRAMME: Readonly<ReferralConfig> = Object.freeze({
+  activationPoints: 100,
+  activationPoolTarget: 5,
+  poolCompletionBonusPoints: 500,
+  activationRule: "wallet_funded",
+  activationMinValueUsd: 10,
+});
+
 export function referralConfig(): ReferralConfig {
-  return {
-    activationPoints: readNumber("ELYRA_REFERRAL_ACTIVATION_POINTS", 100),
-    activationPoolTarget: Math.max(1, readNumber("ELYRA_ACTIVATION_POOL_TARGET", 5)),
-    poolCompletionBonusPoints: readNumber("ELYRA_POOL_BONUS_POINTS", 500),
-    activationRule: readRule(),
-    activationMinValueUsd: readNumber("ELYRA_ACTIVATION_MIN_USD", 10),
-  };
+  return { ...REFERRAL_PROGRAMME };
 }
 
 /* ---------------------------------------------------------------------------

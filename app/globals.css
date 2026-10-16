@@ -110,6 +110,7 @@
   --breakpoint-mid: 900px;
   --breakpoint-full: 1280px;
 
+  --radius-sheet: 16px;
   --radius-panel: 12px;
   --radius-card: 10px;
   --radius-control: 8px;
@@ -564,7 +565,7 @@ td {
 
 .glass-pop {
   --glass-light: 247 248 234;
-  border-radius: 16px;
+  border-radius: var(--radius-sheet);
   border-color: color-mix(in srgb, var(--accent) 16%, transparent);
   background:
     linear-gradient(180deg, rgb(var(--glass-light) / 5%), transparent 30%),

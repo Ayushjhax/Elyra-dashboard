@@ -324,14 +324,18 @@ describe("the web's side: open actions", () => {
     const { settleOpenAction } = await import("@/lib/telegram/actions");
     const record = await store(USER_A);
 
-    expect(await settleOpenAction(record!.id, USER_B, "cancelled")).toBe(false);
+    expect(await settleOpenAction(record!.id, USER_B, { outcome: "cancelled" })).toBe("closed");
     expect(state.db.rows("prepared_actions")[0].status).toBe("prepared");
 
-    expect(await settleOpenAction(record!.id, USER_A, "confirmed")).toBe(true);
+    expect(
+      await settleOpenAction(record!.id, USER_A, { outcome: "confirmed", signature: "5igSig" }),
+    ).toBe("settled");
     expect(state.db.rows("prepared_actions")[0].status).toBe("confirmed");
+    /* The evidence is kept with the row. */
+    expect(state.db.rows("prepared_actions")[0].confirmed_signature).toBe("5igSig");
 
     /* Settled rows are closed: a second write changes nothing. */
-    expect(await settleOpenAction(record!.id, USER_A, "cancelled")).toBe(false);
+    expect(await settleOpenAction(record!.id, USER_A, { outcome: "cancelled" })).toBe("closed");
     expect(state.db.rows("prepared_actions")[0].status).toBe("confirmed");
   });
 });

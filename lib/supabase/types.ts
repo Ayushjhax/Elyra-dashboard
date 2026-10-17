@@ -305,6 +305,8 @@ export interface PreparedActionRow {
   payload: unknown;
   surface: "web" | "telegram";
   status: "prepared" | "acknowledged" | "confirmed" | "expired" | "cancelled";
+  /** The landed transaction that confirmed it. Null otherwise (0012). */
+  confirmed_signature: string | null;
   expires_at: string;
   created_at: string;
   updated_at: string;
@@ -535,7 +537,7 @@ export interface Database {
       >;
       prepared_actions: Table<
         PreparedActionRow,
-        "id" | "status" | "created_at" | "updated_at"
+        "id" | "status" | "confirmed_signature" | "created_at" | "updated_at"
       >;
       backtest_results: Table<
         BacktestResultRow,

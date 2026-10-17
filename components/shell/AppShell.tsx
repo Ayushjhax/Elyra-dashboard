@@ -106,10 +106,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <AppHeader />
 
           {/* The one scroll container. The document never scrolls, so the
-              header stays put and the agent can stick under it. */}
+              header stays put and the agent can stick under it. Positioned,
+              so an absolutely placed element inside — a table's sr-only
+              caption among them — is contained by it rather than by the
+              page, which it would otherwise make taller than the window. */}
           <div
             data-workspace-scroll
-            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+            className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
           >
             <Workspace
               hidden={routeTakesBody}

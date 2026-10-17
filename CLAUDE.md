@@ -68,7 +68,9 @@ Phones are a first-class screen, and three rules keep them so. A field is
 16px on a touch screen (`app/globals.css`) or iOS zooms into it — a module
 stylesheet that sizes its fields must keep that. A table with more columns
 than a phone holds gives `DataTable` a `card`, rather than hiding its last
-columns behind a sideways scroll. And a tooltip that is the only place a
+columns behind a sideways scroll; between a phone and its full width, its
+lower-priority columns drop by container query (`hidden @[52rem]:table-cell`)
+and `minWidth` is the sum of the columns that stay. And a tooltip that is the only place a
 reason or definition lives is `Tip openOnTap` or an `InfoTip`: Radix's tooltip
 never opens on touch, so on a phone that text would be unreachable.
 
@@ -80,7 +82,10 @@ The workspace shows no sample data — `lib/mock/` is gone and must not come
 back. Every surface reads the signed-in account through a shared,
 reference-counted store (`usePortfolio`, `useWalletActivity`, `useAlerts`,
 `useOpenActions`); a new surface subscribes to one of those rather than
-fetching for itself. Signed out, a surface asks to connect; an empty list
+fetching for itself. Each resets when `accountKey` (`lib/account.ts`)
+changes and drops a read that started before the reset, so one account's
+data never lands under the next; the agent conversation ends the same way
+(`endConversation`). Signed out, a surface asks to connect; an empty list
 means the read succeeded and found nothing.
 
 Actions awaiting review are the stored `prepared_actions` rows, through

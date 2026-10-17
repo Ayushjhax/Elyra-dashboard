@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, Sparkles } from "lucide-react";
 import type { CompanyInsiders } from "@/lib/research/sec/alpha";
 import { formatCompactUsd, formatPriceUsd } from "@/lib/format";
+import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -19,13 +20,13 @@ import { cn } from "@/lib/utils";
 const RETRY_MS = 4_000;
 const MAX_TRIES = 8;
 
-/** "14 Oct", or "14 Oct 2025" for another year. */
-function dateLabel(iso: string | null): string {
+/** "14 Oct", or "14 Oct 2025" for another year — or before the shared clock has hydrated. */
+function dateLabel(iso: string | null, now: number | null): string {
   if (iso === null) return "";
   const parsed = Date.parse(iso);
   if (!Number.isFinite(parsed)) return iso;
   const date = new Date(parsed);
-  const sameYear = date.getUTCFullYear() === new Date().getUTCFullYear();
+  const sameYear = now !== null && date.getUTCFullYear() === new Date(now).getUTCFullYear();
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" });
 }
 
@@ -35,6 +36,7 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
     data: null,
     error: null,
   });
+  const now = useMinute();
 
   /* Asks again while the company's filings are still being read. */
   useEffect(() => {
@@ -70,7 +72,7 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
         <span>Insider activity</span>
         {data && (
           <span className="normal-case tracking-normal text-text-secondary">
-            {data.pending > 0 ? `Reading ${data.pending} more…` : `${data.filings} Form 4s · since ${dateLabel(data.since)}`}
+            {data.pending > 0 ? `Reading ${data.pending} more…` : `${data.filings} Form 4s · since ${dateLabel(data.since, now)}`}
           </span>
         )}
       </p>
@@ -110,7 +112,7 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
                         {buy ? "Bought" : "Sold"} {move.shares.toLocaleString("en-US")} sh
                       </span>
                       {move.avgPrice !== null && <span className="whitespace-nowrap">at ~{formatPriceUsd(move.avgPrice)}</span>}
-                      {move.tradeDate && <span className="whitespace-nowrap">· {dateLabel(move.tradeDate)}</span>}
+                      {move.tradeDate && <span className="whitespace-nowrap">· {dateLabel(move.tradeDate, now)}</span>}
                       {!buy && move.planned && <span className="whitespace-nowrap">· scheduled 10b5-1</span>}
                       {!buy && move.soldAll && <span className="whitespace-nowrap">· sold everything</span>}
                     </p>

@@ -5,12 +5,23 @@ import { FakeSupabase } from "@/lib/test/supabase-fake";
    /api/actions — the workspace's actions awaiting review.
 
    What matters: the user is always the session's, a confirmation needs a
-   wallet signature as evidence, and nothing here can reach another account.
+   wallet signature as evidence — checked on-chain and kept — and nothing
+   here can reach another account.
 --------------------------------------------------------------------------- */
+
+const WALLET = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
 
 const state = vi.hoisted(() => ({
   db: null as unknown as FakeSupabase,
-  user: null as null | { userId: string | null; profileStore: "ready" | "unreachable" },
+  user: null as null | {
+    userId: string | null;
+    profileStore: "ready" | "unreachable";
+    solanaAddress: string | null;
+  },
+  proof: { outcome: "proven" } as
+    | { outcome: "proven" }
+    | { outcome: "rejected" | "unknown"; reason: string },
+  proved: [] as Array<{ signature: string; wallet: string }>,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ serviceClient: () => state.db }));
@@ -19,6 +30,12 @@ vi.mock("@/lib/auth/session", () => ({
   hasProfile: (user: { userId: string | null; profileStore: string }) =>
     user.userId !== null && user.profileStore === "ready",
   databaseUnavailableMessage: (feature: string) => `${feature} need the database.`,
+}));
+vi.mock("@/lib/actions/proof", () => ({
+  proveSwap: async (signature: string, wallet: string) => {
+    state.proved.push({ signature, wallet });
+    return state.proof;
+  },
 }));
 
 const USER_A = "11111111-1111-4111-8111-111111111111";
@@ -54,7 +71,9 @@ const post = (body: unknown) =>
 
 beforeEach(() => {
   state.db = new FakeSupabase();
-  state.user = { userId: USER_A, profileStore: "ready" };
+  state.user = { userId: USER_A, profileStore: "ready", solanaAddress: WALLET };
+  state.proof = { outcome: "proven" };
+  state.proved = [];
 });
 
 describe("GET /api/actions", () => {
@@ -65,7 +84,7 @@ describe("GET /api/actions", () => {
   });
 
   it("says the database is down rather than returning an empty list", async () => {
-    state.user = { userId: null, profileStore: "unreachable" };
+    state.user = { userId: null, profileStore: "unreachable", solanaAddress: WALLET };
     const { GET } = await import("@/app/api/actions/route");
     const response = await GET(new Request("http://test/api/actions"));
     expect(response.status).toBe(503);
@@ -100,6 +119,27 @@ describe("POST /api/actions", () => {
 
     expect((await POST(post({ id, op: "confirm", signature: SIGNATURE }))).status).toBe(200);
     expect(state.db.rows("prepared_actions")[0].status).toBe("confirmed");
+    /* Checked against this account's wallet, and kept as the evidence. */
+    expect(state.proved).toEqual([{ signature: SIGNATURE, wallet: WALLET }]);
+    expect(state.db.rows("prepared_actions")[0].confirmed_signature).toBe(SIGNATURE);
+  });
+
+  it("refuses a signature the chain does not back", async () => {
+    const id = await seed(USER_A);
+    state.proof = { outcome: "rejected", reason: "That transaction was not signed by this account's wallet." };
+    const { POST } = await import("@/app/api/actions/route");
+    const response = await POST(post({ id, op: "confirm", signature: SIGNATURE }));
+    expect(response.status).toBe(422);
+    expect((await response.json()).error).toMatch(/not signed by this account/);
+    expect(state.db.rows("prepared_actions")[0].status).toBe("prepared");
+  });
+
+  it("asks to be retried when the swap cannot be checked yet", async () => {
+    const id = await seed(USER_A);
+    state.proof = { outcome: "unknown", reason: "The network has not shown this swap yet." };
+    const { POST } = await import("@/app/api/actions/route");
+    expect((await POST(post({ id, op: "confirm", signature: SIGNATURE }))).status).toBe(503);
+    expect(state.db.rows("prepared_actions")[0].status).toBe("prepared");
   });
 
   it("cannot touch another user's action", async () => {

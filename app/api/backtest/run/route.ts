@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
+import { rateLimited } from "@/lib/personalized/session";
 import { runOne, saveResult, validateRequest } from "@/lib/backtest/run";
 import { resolveStrategy } from "@/lib/backtest/strategies";
+
+/* A run can hold a function for minutes of candle reads and simulation. */
+const RUNS_PER_MINUTE = 10;
 
 /* ---------------------------------------------------------------------------
    Run one backtest.
@@ -20,6 +24,12 @@ export async function POST(request: Request): Promise<Response> {
   const user = await getSessionUser(request);
   if (user === null || user.userId === null) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  if (rateLimited(`backtest:${user.userId}`, RUNS_PER_MINUTE)) {
+    return NextResponse.json(
+      { error: "Too many requests. Wait a moment and try again." },
+      { status: 429 },
+    );
   }
 
   let body: Record<string, unknown>;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { base64Bytes } from "@/lib/attachments";
 import { getSessionUser } from "@/lib/auth/session";
+import { rateLimited } from "@/lib/personalized/session";
 import {
   AUDIO_TYPES,
   MAX_AUDIO_BYTES,
@@ -8,6 +9,10 @@ import {
   transcribe,
   transcriptionAvailable,
 } from "@/lib/voice/transcribe";
+
+/* Each recording is a paid transcription. Keyed on the Privy id, which is
+   verified and does not need the database. */
+const RECORDINGS_PER_MINUTE = 20;
 
 /* ---------------------------------------------------------------------------
    Voice input, for browsers without their own speech recognition.
@@ -46,6 +51,12 @@ export async function GET(): Promise<Response> {
 export async function POST(request: Request): Promise<Response> {
   const user = await getSessionUser(request);
   if (user === null) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (rateLimited(`transcribe:${user.privyDid}`, RECORDINGS_PER_MINUTE)) {
+    return NextResponse.json(
+      { error: "Too many requests. Wait a moment and try again." },
+      { status: 429 },
+    );
+  }
 
   let body: Record<string, unknown>;
   try {

@@ -397,14 +397,19 @@ export function AutomationSection() {
         </div>
       ) : feed.alerts.length === 0 ? (
         <EmptyRules>
-          {feed.error !== null ? (
-            <p className="text-negative">{feed.error}</p>
+          {feed.writeError !== null || feed.error !== null ? (
+            <p className="text-negative">{feed.writeError ?? feed.error}</p>
           ) : (
             <p>No rules yet. Add one here, from the chart&rsquo;s Alerts, or with /alert in Telegram.</p>
           )}
         </EmptyRules>
       ) : (
         <>
+          {feed.writeError !== null && (
+            <p role="alert" className="type-label border-b border-border-subtle px-4 py-2.5 text-negative">
+              {feed.writeError}
+            </p>
+          )}
           <ul className="list-none">
             {feed.alerts.map((alert) => (
               <RuleRow key={alert.id} alert={alert} price={priceOf(alert.symbol)} feed={feed} now={now} />

@@ -1,4 +1,4 @@
-import type { LinkedAccountSummary } from "@/components/providers/PrivyClientProvider";
+import type { ElyraAuth, LinkedAccountSummary } from "@/components/providers/PrivyClientProvider";
 
 /* ---------------------------------------------------------------------------
    An account's sign-in method, in the words a person would use.
@@ -73,4 +73,18 @@ export function signInLabel(method: LinkedAccountSummary | null): string | null 
     default:
       return `${methodLabel(method.type)} account`;
   }
+}
+
+/**
+ * Who is signed in, as a key the account stores compare between renders:
+ * null while signed out, otherwise the Privy account.
+ *
+ * Every store that holds one account's data resets when this changes, not
+ * only when it goes null — signing out and straight back in as someone else
+ * can happen without a render that sees "signed out", and the last account's
+ * rows must never be shown under the next one's.
+ */
+export function accountKey(auth: Pick<ElyraAuth, "ready" | "authenticated" | "account" | "solanaAddress">): string | null {
+  if (!auth.ready || !auth.authenticated) return null;
+  return auth.account?.id ?? auth.solanaAddress ?? "";
 }

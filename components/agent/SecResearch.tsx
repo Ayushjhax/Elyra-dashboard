@@ -114,7 +114,8 @@ function FeedRow({
   onOpen,
 }: {
   filing: EdgarFiling;
-  now: number;
+  /** The shared clock; null until hydrated, when the age is left blank. */
+  now: number | null;
   onOpen: (query: string) => void;
 }) {
   return (
@@ -153,7 +154,7 @@ function FeedRow({
         className="research-link ml-auto flex min-h-8 shrink-0 items-center gap-1.5 rounded-control px-2 py-1 text-text-secondary hover:text-text-primary"
       >
         <time dateTime={filing.filedAt} className="type-data-sm">
-          {formatRelativeTime(filing.filedAt, now)}
+          {now === null ? null : formatRelativeTime(filing.filedAt, now)}
         </time>
         <ExternalLink size={12} strokeWidth={1.5} aria-hidden />
       </a>
@@ -256,7 +257,7 @@ function MarketFeed({ onOpen }: { onOpen: (query: string) => void }) {
               </h3>
               <ul className="list-none">
                 {group.rows.map((filing) => (
-                  <FeedRow key={filing.accession} filing={filing} now={now ?? Date.now()} onOpen={onOpen} />
+                  <FeedRow key={filing.accession} filing={filing} now={now} onOpen={onOpen} />
                 ))}
               </ul>
             </div>

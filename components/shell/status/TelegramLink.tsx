@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Send } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { Tip } from "@/components/shell/RouteDrawer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { cn } from "@/lib/utils";
@@ -74,18 +75,19 @@ export function TelegramLink() {
   /* Telegram is optional for the whole app, so an unconfigured bot is a
      normal state and not an error. */
   if (!state.loading && state.botUsername === null) {
+    /* A button rather than a bare icon, so the reason can be reached by
+       keyboard and, through `openOnTap`, on a touch screen. */
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className={cn(control, "cursor-not-allowed text-text-muted opacity-50")}>
-            {icon}
-            <span className="sr-only">Telegram is not configured</span>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          Telegram is not configured for this deployment
-        </TooltipContent>
-      </Tooltip>
+      <Tip label="Telegram is not configured for this deployment" openOnTap>
+        <button
+          type="button"
+          aria-disabled="true"
+          aria-label="Telegram is not configured"
+          className={cn(control, "cursor-not-allowed text-text-muted opacity-50")}
+        >
+          {icon}
+        </button>
+      </Tip>
     );
   }
 

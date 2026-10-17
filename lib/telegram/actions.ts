@@ -260,30 +260,61 @@ export async function listOpenActions(userId: string): Promise<PreparedActionRec
   }));
 }
 
+/** Postgres undefined-column: a database from before 0012. */
+const UNDEFINED_COLUMN = "42703";
+let warnedNoSignatureColumn = false;
+
 /**
  * Closes an open action from the web.
  *
  * `cancelled` is the person setting it aside. `confirmed` is written only
- * after their wallet signed and the swap landed — the caller holds the
- * signature, and this route never produced it. Both are filtered on
- * `user_id` and on an open status, so a stale or foreign id changes nothing.
+ * with the signature of the swap that did it, which /api/actions has
+ * already checked on-chain; it is stored on the row as the evidence. Both
+ * are filtered on `user_id` and on an open status, so a stale or foreign id
+ * changes nothing.
+ *
+ * "closed" is an id that is not open for this user — already settled,
+ * expired, or someone else's. "failed" is the database not answering, which
+ * is not the same thing and must not be reported as it.
  */
 export async function settleOpenAction(
   id: string,
   userId: string,
-  outcome: "cancelled" | "confirmed",
-): Promise<boolean> {
-  const { data, error } = await serviceClient()
-    .from("prepared_actions")
-    .update({ status: outcome, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", userId)
-    .in("status", ["prepared", "acknowledged"])
-    .select("id");
+  settlement: { outcome: "cancelled" } | { outcome: "confirmed"; signature: string },
+): Promise<"settled" | "closed" | "failed"> {
+  const write = (withSignature: boolean) =>
+    serviceClient()
+      .from("prepared_actions")
+      .update({
+        status: settlement.outcome,
+        updated_at: new Date().toISOString(),
+        ...(withSignature && settlement.outcome === "confirmed"
+          ? { confirmed_signature: settlement.signature }
+          : {}),
+      })
+      .eq("id", id)
+      .eq("user_id", userId)
+      .in("status", ["prepared", "acknowledged"])
+      .select("id");
+
+  let { data, error } = await write(true);
+
+  /* A database one migration behind still records the confirmation — it was
+     verified either way — and the log says what to run to keep the proof. */
+  if (error?.code === UNDEFINED_COLUMN && settlement.outcome === "confirmed") {
+    if (!warnedNoSignatureColumn) {
+      warnedNoSignatureColumn = true;
+      console.warn(
+        "[actions] prepared_actions.confirmed_signature is missing, so signatures are not stored. " +
+          "Apply supabase/migrations/0012_prepared_action_signature.sql.",
+      );
+    }
+    ({ data, error } = await write(false));
+  }
 
   if (error) {
     console.error("[actions] could not settle action", error.code);
-    return false;
+    return "failed";
   }
-  return (data ?? []).length > 0;
+  return (data ?? []).length > 0 ? "settled" : "closed";
 }

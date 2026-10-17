@@ -5,6 +5,7 @@ import { ExternalLink, FileText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { CompanyMark } from "@/components/ui/CompanyMark";
 import { useAssets } from "@/lib/market/usePrices";
+import { useMinute } from "@/lib/useClock";
 import type { FilingsFeed } from "@/lib/smartmoney/filings";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -22,10 +23,15 @@ const REFRESH_MS = 5 * 60_000;
 
 type State = { feed: FilingsFeed | null; error: string | null; loading: boolean };
 
-function filedLabel(date: string): string {
+/** "Today", "3d ago", or the date — against the shared clock, so it rolls
+    over at midnight; the plain date until that clock has hydrated. */
+function filedLabel(date: string, now: number | null): string {
   const filed = Date.parse(`${date}T00:00:00Z`);
   if (!Number.isFinite(filed)) return date;
-  const days = Math.floor((Date.now() - filed) / 86_400_000);
+  if (now === null) {
+    return new Date(filed).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+  }
+  const days = Math.floor((now - filed) / 86_400_000);
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days}d ago`;
@@ -38,6 +44,7 @@ export function LiveFilings() {
   const asset = byId.get(selectedAssetId);
   const ticker = asset?.assetType === "equity" ? asset.symbol : null;
   const [state, setState] = useState<State>({ feed: null, error: null, loading: true });
+  const now = useMinute();
 
   /* Pure fetch with no setState of its own — every write is behind a `.then`. */
   const load = useCallback(async (): Promise<State> => {
@@ -135,7 +142,7 @@ export function LiveFilings() {
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   <time dateTime={filing.filedAt} className="type-data-sm text-text-muted">
-                    {filedLabel(filing.filedAt)}
+                    {filedLabel(filing.filedAt, now)}
                   </time>
                   <ExternalLink
                     size={13}

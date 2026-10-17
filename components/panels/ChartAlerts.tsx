@@ -53,7 +53,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
   };
 
   const armed = alerts.filter((alert) => alert.triggeredAt === null);
-  const shownError = error ?? feed.error;
+  const shownError = error ?? feed.writeError ?? feed.error;
 
   return (
     <Popover
@@ -98,7 +98,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
         </div>
       ) : (
         <>
-          {shownError !== null && <p className="type-label mt-2 break-words text-negative">{shownError}</p>}
+          {shownError !== null && <p role="alert" className="type-label mt-2 break-words text-negative">{shownError}</p>}
 
           {alerts.length > 0 && (
             <ul className="mt-2 list-none divide-y divide-border-subtle">

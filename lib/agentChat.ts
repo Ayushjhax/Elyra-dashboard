@@ -27,6 +27,21 @@ import { nextMessageId, useElyraStore } from "@/lib/store";
 /** Privy's token getter, handed in by the caller: only a hook can reach it. */
 export type TokenGetter = () => Promise<string | null>;
 
+/** The request in flight, so signing out can stop it. One at a time. */
+let active: AbortController | null = null;
+
+/**
+ * Ends the conversation: stops a reply still arriving and clears the
+ * transcript, the draft and anything staged. Called when the account it
+ * belonged to signs out or another signs in — the next person at this tab
+ * must not read the last one's questions, or have their answer land in it.
+ */
+export function endConversation(): void {
+  active?.abort();
+  active = null;
+  useElyraStore.getState().clearConversation();
+}
+
 /** Reads NDJSON events off a response body as they arrive. */
 async function* events(body: ReadableStream<Uint8Array>): AsyncGenerator<ChatStreamEvent> {
   const reader = body.getReader();
@@ -91,8 +106,16 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
   store.appendMessage({ id: replyId, role: "agent", text: "", at: new Date().toISOString() });
   store.setAgentPending(true);
 
-  const patch = useElyraStore.getState().patchMessage;
-  const setStreamingId = useElyraStore.getState().setStreamingId;
+  const controller = new AbortController();
+  active = controller;
+  /* After `endConversation` nothing here may write: the transcript it would
+     write into belongs to an account that is no longer signed in. */
+  const patch: typeof store.patchMessage = (id, next) => {
+    if (!controller.signal.aborted) useElyraStore.getState().patchMessage(id, next);
+  };
+  const setStreamingId: typeof store.setStreamingId = (id) => {
+    if (!controller.signal.aborted) useElyraStore.getState().setStreamingId(id);
+  };
   let draft = "";
   let finished = false;
 
@@ -111,6 +134,7 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
     const token = await getToken();
     const response = await fetch("/api/agent/chat", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "content-type": "application/json",
         /* Sent explicitly rather than relying on Privy's cookie, so this works
@@ -167,8 +191,11 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
         : "Could not reach the agent. Check your connection.",
     );
   } finally {
-    const settled = useElyraStore.getState();
-    settled.setStreamingId(null);
-    settled.setAgentPending(false);
+    if (active === controller) active = null;
+    if (!controller.signal.aborted) {
+      const settled = useElyraStore.getState();
+      settled.setStreamingId(null);
+      settled.setAgentPending(false);
+    }
   }
 }

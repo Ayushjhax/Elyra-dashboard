@@ -4,7 +4,9 @@ import {
   getSessionUser,
   hasProfile,
 } from "@/lib/auth/session";
+import { proveSwap } from "@/lib/actions/proof";
 import type { PreparedAction } from "@/lib/personalized/types";
+import { isSolanaAddress } from "@/lib/solana/address";
 import {
   listOpenActions,
   settleOpenAction,
@@ -21,7 +23,13 @@ import {
 
    Nothing here executes. A swap is finished by the swap dialog, which builds
    the transaction through Jupiter and has the browser wallet sign it; this
-   route is told afterwards and keeps the record honest.
+   route is told afterwards and keeps the record honest — the signature it
+   is handed is checked on-chain, as a successful transaction this account's
+   wallet signed, and stored with the row.
+
+   A confirmation answers 200 when recorded, 404 when the action is no longer
+   open, 422 when the signature does not prove the swap, and 503 when it
+   could not be checked or written yet. Only the last is worth retrying.
 
    The user is the verified session's, never the body's.
 --------------------------------------------------------------------------- */
@@ -48,7 +56,7 @@ const SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
 
 async function session(
   request: Request,
-): Promise<{ response: Response } | { userId: string }> {
+): Promise<{ response: Response } | { userId: string; solanaAddress: string | null }> {
   const user = await getSessionUser(request);
   if (user === null) {
     return { response: NextResponse.json({ actions: [], error: "Not signed in" }, { status: 401 }) };
@@ -61,8 +69,14 @@ async function session(
       ),
     };
   }
-  return { userId: user.userId };
+  return {
+    userId: user.userId,
+    solanaAddress:
+      user.solanaAddress !== null && isSolanaAddress(user.solanaAddress) ? user.solanaAddress : null,
+  };
 }
+
+const STATUS = { settled: 200, closed: 404, failed: 503 } as const;
 
 export async function GET(request: Request): Promise<Response> {
   const resolved = await session(request);
@@ -98,8 +112,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (body.op === "dismiss") {
-    const settled = await settleOpenAction(id, resolved.userId, "cancelled");
-    return NextResponse.json({ ok: settled }, { status: settled ? 200 : 404 });
+    const settled = await settleOpenAction(id, resolved.userId, { outcome: "cancelled" });
+    return NextResponse.json({ ok: settled === "settled" }, { status: STATUS[settled] });
   }
 
   if (body.op === "confirm") {
@@ -112,8 +126,21 @@ export async function POST(request: Request): Promise<Response> {
         { status: 400 },
       );
     }
-    const settled = await settleOpenAction(id, resolved.userId, "confirmed");
-    return NextResponse.json({ ok: settled }, { status: settled ? 200 : 404 });
+    if (resolved.solanaAddress === null) {
+      return NextResponse.json(
+        { error: "This account's Solana wallet could not be resolved, so the swap can't be checked yet." },
+        { status: 503 },
+      );
+    }
+    const proof = await proveSwap(signature, resolved.solanaAddress);
+    if (proof.outcome !== "proven") {
+      return NextResponse.json(
+        { error: proof.reason },
+        { status: proof.outcome === "rejected" ? 422 : 503 },
+      );
+    }
+    const settled = await settleOpenAction(id, resolved.userId, { outcome: "confirmed", signature });
+    return NextResponse.json({ ok: settled === "settled" }, { status: STATUS[settled] });
   }
 
   return NextResponse.json({ error: "op must be dismiss or confirm." }, { status: 400 });

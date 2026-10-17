@@ -89,6 +89,10 @@ interface ElyraState {
   messages: ChatMessage[];
   appendMessage: (message: ChatMessage) => void;
   patchMessage: (id: string, patch: Partial<ChatMessage>) => void;
+  /** Drops the conversation, the draft and anything staged: the account
+      they belonged to has signed out. `endConversation` in lib/agentChat.ts
+      calls it, after stopping a reply still arriving. */
+  clearConversation: () => void;
   /** A request to the agent is in flight. One at a time. */
   agentPending: boolean;
   setAgentPending: (pending: boolean) => void;
@@ -343,6 +347,14 @@ export const useElyraStore = create<ElyraState>()(
             message.id === id ? { ...message, ...patch } : message,
           ),
         })),
+      clearConversation: () =>
+        set({
+          messages: [],
+          agentPending: false,
+          streamingId: null,
+          composerDraft: "",
+          composerAttachments: [],
+        }),
       agentPending: false,
       setAgentPending: (agentPending) => set({ agentPending }),
       streamingId: null,

@@ -1,21 +1,7 @@
-/* Scoped Research palette: the global trading shell keeps its existing theme. */
+/* Research reads the brand tokens from app/globals.css like every other
+   surface; only its card radius and type defaults are its own. */
 .research-workspace,
 .research-dialog {
-  --surface-base: #121b14;
-  --surface-panel: #182319;
-  --surface-raised: #1d2a1f;
-  --surface-hover: #1d2a1f;
-  --surface-active: #2a382a;
-  --border-subtle: #2a382a;
-  --border-strong: #465441;
-  --text-primary: #e8ebdd;
-  --text-secondary: #a4af9d;
-  --text-muted: #a4af9d;
-  --accent: #c5d18e;
-  --accent-hover: #cdd79e;
-  --focus-ring: #c5d18e;
-  --positive: #9bc6ac;
-  --negative: #d79686;
   --radius-card: 16px;
   --radius-panel: 16px;
   color: var(--text-primary);
@@ -91,6 +77,32 @@
 .r-tabs button[aria-selected="true"] {
   color: var(--text-primary);
   border-bottom-color: var(--accent);
+}
+@media (max-width: 639px) {
+  .r-tabs {
+    gap: 24px;
+  }
+}
+/* On a phone the seven tabs do not fit and the strip scrolls. Its trailing
+   edge fades while more tabs lie past it, so the cut-off one reads as "more"
+   rather than as a clipped word, and the fade lifts at the end. Driven by
+   the strip's own scroll, so a strip that fits has no timeline and no fade;
+   a browser without scroll timelines keeps the plain strip. The mask uses
+   only alpha — the token is there for its opacity, not its colour. */
+@supports (animation-timeline: scroll()) {
+  .r-tabs {
+    animation: r-tabs-more linear both;
+    animation-timeline: scroll(self inline);
+  }
+  @keyframes r-tabs-more {
+    from,
+    98% {
+      mask-image: linear-gradient(to right, var(--text-primary) calc(100% - 48px), transparent);
+    }
+    to {
+      mask-image: none;
+    }
+  }
 }
 .r-tabpanel {
   padding-top: 32px;

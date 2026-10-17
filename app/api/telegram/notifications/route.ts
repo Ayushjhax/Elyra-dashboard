@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import {
-  NOTIFICATIONS_OFF,
   notificationPreferences,
   savePreferences,
 } from "@/lib/telegram/notifications";
@@ -125,5 +124,3 @@ export async function PATCH(request: Request): Promise<Response> {
     headers: { "cache-control": "no-store" },
   });
 }
-
-export { NOTIFICATIONS_OFF };

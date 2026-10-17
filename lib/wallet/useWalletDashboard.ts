@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { accountKey } from "@/lib/account";
 import {
   CLUSTER_LABEL,
   EXPECTED_CLUSTER,
@@ -226,7 +227,7 @@ export function useWalletDashboard(): WalletDashboard {
   /* Who is signed in. A different account — signed out and back in as
      someone else, without the store ever seeing "signed out" — is a reset
      too, so its wallet is never shown under the last one's. */
-  const account = signedIn ? (auth.account?.id ?? auth.solanaAddress ?? "") : null;
+  const account = accountKey(auth);
 
   /* Hand the store its fetcher and its on/off switch. Both are module
      assignments rather than state, so nothing here re-renders anyone. */

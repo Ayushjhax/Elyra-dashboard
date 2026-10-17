@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { accountKey } from "@/lib/account";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import type { ActivityResponse, WalletActivity } from "@/lib/wallet/types";
 
@@ -59,6 +60,16 @@ let subscribers = 0;
 let inFlight = false;
 let enabled = false;
 
+/**
+ * Bumped by every reset. A read that started under an earlier generation
+ * belongs to an account that is no longer signed in here, and is dropped
+ * when it lands rather than written over the new one.
+ */
+let generation = 0;
+
+/** Whose data the store holds: the account it was read for. */
+let owner: string | null = null;
+
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 let fetcher: Fetcher | null = null;
 
@@ -93,9 +104,11 @@ async function poll(): Promise<void> {
     timer = null;
   }
   let delay = POLL_MS;
+  const started = generation;
   try {
     const response = await fetcher(`/api/wallet/activity?limit=${FETCH_LIMIT}`, { cache: "no-store" });
     const body = (await response.json()) as ActivityResponse;
+    if (started !== generation) return;
     if (body.error !== null) delay = RETRY_MS;
     emit({
       items: body.error === null ? body.items : state.items,
@@ -105,6 +118,7 @@ async function poll(): Promise<void> {
       fetchedAt: body.error === null ? Date.now() : state.fetchedAt,
     });
   } catch (error: unknown) {
+    if (started !== generation) return;
     delay = RETRY_MS;
     emit({
       error: error instanceof Error ? error.message : "Network error",
@@ -113,7 +127,9 @@ async function poll(): Promise<void> {
   } finally {
     inFlight = false;
     emit({ refreshing: false });
-    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), delay);
+    if (timer !== null) clearTimeout(timer);
+    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), started !== generation ? 0 : delay);
+    else timer = null;
   }
 }
 
@@ -122,6 +138,7 @@ function ensurePolling(): void {
 }
 
 function reset(): void {
+  generation += 1;
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
@@ -135,6 +152,7 @@ export function useWalletActivity(limit = 20): ActivityFeed {
   const authedFetch = useAuthedFetch();
   const store = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const signedIn = auth.ready && auth.authenticated;
+  const account = accountKey(auth);
 
   useEffect(() => {
     fetcher = authedFetch;
@@ -145,10 +163,13 @@ export function useWalletActivity(limit = 20): ActivityFeed {
     enabled = signedIn;
     if (!signedIn) {
       if (was || state.loading) reset();
+      owner = null;
       return;
     }
+    if (owner !== null && owner !== account) reset();
+    owner = account;
     ensurePolling();
-  }, [signedIn]);
+  }, [signedIn, account]);
 
   useEffect(() => {
     if (!signedIn) return;

@@ -83,28 +83,32 @@ export async function POST(request: Request) {
   }
 
   try {
+    /* The height is read BEFORE the status, deliberately. A transaction can
+       only land at a height at or below its `lastValidBlockHeight`, so a
+       height already past it means any landing has already happened — and a
+       status read after it will show that landing. The other order leaves a
+       gap: a status read just before the transaction lands, then a height
+       read just after the chain moves past its limit, and a transfer that
+       went through is reported as expired, with "try again" beside it. */
+    const height =
+      lastValidBlockHeight === null ? null : await getBlockHeight().catch(() => null);
+
     const { value } = await getSignatureStatuses([signature]);
     const found = value[0] ?? null;
 
     if (found === null) {
-      /* Unseen. Pending — unless the bytes can no longer land at all. The
-         height is read AFTER the status, deliberately: the other order could
-         see a fresh height, then a status from a moment before the
-         transaction landed, and call a success "expired". */
-      if (lastValidBlockHeight !== null) {
-        const height = await getBlockHeight().catch(() => null);
-        if (height !== null && height > lastValidBlockHeight) {
-          return NextResponse.json(
-            {
-              status: "failed",
-              signature,
-              error:
-                "The network never confirmed this transfer and the transaction has now expired. " +
-                "Nothing was sent — try again.",
-            },
-            { status: 502 },
-          );
-        }
+      /* Unseen. Pending — unless the bytes can no longer land at all. */
+      if (height !== null && lastValidBlockHeight !== null && height > lastValidBlockHeight) {
+        return NextResponse.json(
+          {
+            status: "failed",
+            signature,
+            error:
+              "The network never confirmed this transfer and the transaction has now expired. " +
+              "Nothing was sent — try again.",
+          },
+          { status: 502 },
+        );
       }
       return NextResponse.json({ status: "pending", signature });
     }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { accountKey } from "@/lib/account";
 import { useSecond } from "@/lib/useClock";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import type { ActionsResponse, OpenAction } from "@/app/api/actions/route";
@@ -36,6 +37,16 @@ let subscribers = 0;
 let inFlight = false;
 let enabled = false;
 
+/**
+ * Bumped by every reset. A read that started under an earlier generation
+ * belongs to an account that is no longer signed in here, and is dropped
+ * when it lands rather than written over the new one.
+ */
+let generation = 0;
+
+/** Whose data the store holds: the account it was read for. */
+let owner: string | null = null;
+
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 let fetcher: Fetcher | null = null;
 
@@ -61,31 +72,74 @@ function subscribe(listener: () => void): () => void {
 const getSnapshot = (): StoreState => state;
 const getServerSnapshot = (): StoreState => INITIAL;
 
+/**
+ * Swaps a wallet signed whose confirmation has not been recorded yet, by
+ * action id. The swap happened, so the action stays off the open list —
+ * putting it back would invite doing it twice — and recording it is retried
+ * on every poll until the server takes it or says the signature proves
+ * nothing.
+ */
+const unrecorded = new Map<string, string>();
+
 /** Expired on this clock too: a row the last poll returned can lapse before the next. */
 function live(actions: OpenAction[]): OpenAction[] {
   const now = Date.now();
-  return actions.filter((entry) => Date.parse(entry.expiresAt) > now);
+  return actions.filter((entry) => Date.parse(entry.expiresAt) > now && !unrecorded.has(entry.id));
+}
+
+type Recorded = "recorded" | "rejected" | "retry";
+
+/** One attempt at recording a signed swap, and what to do next. */
+async function record(id: string, signature: string): Promise<{ result: Recorded; error: string | null }> {
+  if (fetcher === null) return { result: "retry", error: null };
+  try {
+    const response = await fetcher("/api/actions", {
+      method: "POST",
+      body: JSON.stringify({ id, op: "confirm", signature }),
+    });
+    /* 404: no longer open — recorded by an earlier attempt, or expired. */
+    if (response.ok || response.status === 404) return { result: "recorded", error: null };
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    if (response.status === 422) return { result: "rejected", error: body.error ?? "That signature does not prove the swap." };
+    return { result: "retry", error: body.error ?? null };
+  } catch {
+    return { result: "retry", error: null };
+  }
+}
+
+async function retryUnrecorded(): Promise<void> {
+  for (const [id, signature] of [...unrecorded]) {
+    const started = generation;
+    const { result } = await record(id, signature);
+    if (started !== generation) return;
+    if (result !== "retry") unrecorded.delete(id);
+  }
 }
 
 async function poll(): Promise<void> {
   if (inFlight || !enabled || fetcher === null) return;
   inFlight = true;
   let delay = POLL_MS;
+  const started = generation;
   try {
     const response = await fetcher("/api/actions", { cache: "no-store" });
     const body = (await response.json()) as ActionsResponse;
+    if (started !== generation) return;
     if (response.ok) {
       emit({ actions: live(body.actions), error: null, loading: false });
+      if (unrecorded.size > 0) void retryUnrecorded();
     } else {
       delay = RETRY_MS;
       emit({ error: body.error ?? "Actions could not be read.", loading: false });
     }
   } catch (error: unknown) {
+    if (started !== generation) return;
     delay = RETRY_MS;
     emit({ error: error instanceof Error ? error.message : "Network error", loading: false });
   } finally {
     inFlight = false;
-    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), delay);
+    if (timer !== null) clearTimeout(timer);
+    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), started !== generation ? 0 : delay);
     else timer = null;
   }
 }
@@ -95,6 +149,8 @@ function ensurePolling(): void {
 }
 
 function reset(): void {
+  generation += 1;
+  unrecorded.clear();
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
@@ -103,14 +159,14 @@ function reset(): void {
   for (const listener of listeners) listener();
 }
 
-async function settle(id: string, body: Record<string, unknown>): Promise<boolean> {
+async function dismissAction(id: string): Promise<boolean> {
   if (fetcher === null) return false;
   const before = state.actions;
   emit({ actions: before.filter((entry) => entry.id !== id) });
   try {
     const response = await fetcher("/api/actions", {
       method: "POST",
-      body: JSON.stringify({ id, ...body }),
+      body: JSON.stringify({ id, op: "dismiss" }),
     });
     if (response.ok) return true;
     /* 404: it expired or was settled elsewhere — gone either way, so it stays gone. */
@@ -119,6 +175,33 @@ async function settle(id: string, body: Record<string, unknown>): Promise<boolea
     /* Falls through to restore. */
   }
   emit({ actions: before, error: "That could not be saved. Try again." });
+  return false;
+}
+
+/**
+ * Records a swap the person's wallet signed. Whatever happens to the write,
+ * the action does not come back as open: the swap has already been done.
+ */
+async function confirmAction(id: string, signature: string): Promise<boolean> {
+  unrecorded.set(id, signature);
+  emit({ actions: state.actions.filter((entry) => entry.id !== id) });
+  const started = generation;
+  const { result, error } = await record(id, signature);
+  if (started !== generation) return false;
+  if (result === "recorded") {
+    unrecorded.delete(id);
+    return true;
+  }
+  if (result === "rejected") {
+    /* The signature proves nothing, so the action is genuinely still open. */
+    unrecorded.delete(id);
+    emit({ error });
+    void poll();
+    return false;
+  }
+  emit({
+    error: "Your swap went through, but Elyra couldn't record it against this action yet. It will keep trying.",
+  });
   return false;
 }
 
@@ -134,6 +217,7 @@ export function useOpenActions(): OpenActionsFeed {
   const authedFetch = useAuthedFetch();
   const store = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const signedIn = auth.ready && auth.authenticated;
+  const account = accountKey(auth);
 
   useEffect(() => {
     fetcher = authedFetch;
@@ -144,10 +228,13 @@ export function useOpenActions(): OpenActionsFeed {
     enabled = signedIn;
     if (!signedIn) {
       if (was) reset();
+      owner = null;
       return;
     }
+    if (owner !== null && owner !== account) reset();
+    owner = account;
     ensurePolling();
-  }, [signedIn]);
+  }, [signedIn, account]);
 
   /* Coming back to the tab is exactly when a Telegram tap is waiting. */
   useEffect(() => {
@@ -163,11 +250,8 @@ export function useOpenActions(): OpenActionsFeed {
     };
   }, [signedIn]);
 
-  const dismiss = useCallback((id: string) => settle(id, { op: "dismiss" }), []);
-  const confirm = useCallback(
-    (id: string, signature: string) => settle(id, { op: "confirm", signature }),
-    [],
-  );
+  const dismiss = useCallback((id: string) => dismissAction(id), []);
+  const confirm = useCallback((id: string, signature: string) => confirmAction(id, signature), []);
 
   return useMemo(
     () => ({

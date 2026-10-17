@@ -2,9 +2,8 @@
 
 import { Coins, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { Money, Quantity, useBalancesHidden } from "@/components/portfolio/primitives";
-import { IconButton } from "@/components/shell/RouteDrawer";
+import { IconButton, Tip } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatAge, truncateMiddle } from "@/lib/format";
 import { useTickerLogos, type TickerLogo } from "@/lib/market/tickerLogos";
 import { useElyraStore } from "@/lib/store";
@@ -145,18 +144,21 @@ function AssetRow({
       <div className="min-w-0 flex-1">
         <p className="type-body flex items-center gap-1.5 text-text-primary">
           <span className="truncate">{symbol}</span>
+          {/* The only place the reason is given, so it opens on a tap too —
+              Radix's tooltip alone never opens on a touch screen. */}
           {unverified && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span tabIndex={0} className="inline-flex shrink-0 rounded-chip">
-                  <ShieldAlert size={14} strokeWidth={1.5} aria-label="Unverified token" className="text-negative" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Unverified mint. Shown because it is in the wallet; not counted in the total, because anyone can
-                mint a token under a name that is already taken.
-              </TooltipContent>
-            </Tooltip>
+            <Tip
+              openOnTap
+              label="Unverified mint. Shown because it is in the wallet; not counted in the total, because anyone can mint a token under a name that is already taken."
+            >
+              <button
+                type="button"
+                aria-label="Unverified token"
+                className="relative inline-flex shrink-0 rounded-chip text-negative after:absolute after:-inset-2.5"
+              >
+                <ShieldAlert size={14} strokeWidth={1.5} aria-hidden />
+              </button>
+            </Tip>
           )}
         </p>
         <p className="type-body-sm truncate text-text-secondary" title={name}>

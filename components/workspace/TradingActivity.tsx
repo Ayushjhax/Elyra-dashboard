@@ -336,9 +336,26 @@ export function TradingActivity() {
       width: "88px",
       render: (row) => (row.size === null ? <Dash /> : formatQty(row.size, row.size < 1 ? 4 : 2)),
     },
-    { key: "entry", header: "Entry", align: "right", width: "88px", render: (row) => price(row.entryPrice) },
+    /* Entry and liquidation are the first to go in a narrow panel — a laptop's
+       centre column, a tablet — so the value, the P&L and the action stay on
+       screen rather than behind a sideways scroll. */
+    {
+      key: "entry",
+      header: "Entry",
+      align: "right",
+      width: "88px",
+      className: "hidden @[52rem]:table-cell",
+      render: (row) => price(row.entryPrice),
+    },
     { key: "mark", header: "Mark", align: "right", width: "88px", render: (row) => price(row.markPrice) },
-    { key: "liq", header: "Liq. Price", align: "right", width: "88px", render: (row) => price(row.liquidationPrice) },
+    {
+      key: "liq",
+      header: "Liq. Price",
+      align: "right",
+      width: "88px",
+      className: "hidden @[52rem]:table-cell",
+      render: (row) => price(row.liquidationPrice),
+    },
     {
       key: "value",
       header: "Value",
@@ -421,6 +438,7 @@ export function TradingActivity() {
       key: "type",
       header: "Type",
       width: "72px",
+      className: "hidden @[49rem]:table-cell",
       render: (row) => <span className="capitalize text-text-secondary">{row.type}</span>,
     },
     { key: "side", header: "Side", width: "64px", render: (row) => <SideCell side={row.side} /> },
@@ -437,6 +455,7 @@ export function TradingActivity() {
       header: "Filled",
       align: "right",
       width: "56px",
+      className: "hidden @[49rem]:table-cell",
       render: (row) => (
         <span className={row.filledPct > 0 ? "text-text-primary" : "text-text-muted"}>
           {formatPct(row.filledPct, { sign: false, decimals: 0 })}
@@ -631,7 +650,7 @@ export function TradingActivity() {
           columns={positionColumns}
           rows={positions}
           getRowKey={(row) => row.id}
-          minWidth={828}
+          minWidth={652}
           rowClassName={markSelected}
           card={positionCard}
           caption={`Open ${marketType === "all" ? "" : `${marketType} `}positions`}
@@ -644,7 +663,7 @@ export function TradingActivity() {
           columns={orderColumns}
           rows={orders}
           getRowKey={(row) => row.id}
-          minWidth={770}
+          minWidth={642}
           rowClassName={markSelected}
           card={orderCard}
           caption={`Resting ${marketType === "all" ? "" : `${marketType} `}orders`}

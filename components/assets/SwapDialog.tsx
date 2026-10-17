@@ -13,6 +13,7 @@ import {
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { txExplorerUrl } from "@/lib/solana/address";
 import type { PreparedAction } from "@/lib/personalized/types";
+import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -94,6 +95,9 @@ export function SwapDialog({
 }) {
   const { wallets } = useWallets();
   const { signTransaction } = useSignTransaction();
+  /* Both steps are scoped to the session's wallet, so both carry the token —
+     Privy's cookie is not something this app can count on being set. */
+  const authedFetch = useAuthedFetch();
 
   const [groups, setGroups] = useState<TokenGroup[]>([]);
   const [fromSymbol, setFromSymbol] = useState(initialFrom);
@@ -122,9 +126,8 @@ export function SwapDialog({
   }, []);
 
   const build = useCallback(async (): Promise<BuildResponse | null> => {
-    const response = await fetch("/api/swap/build", {
+    const response = await authedFetch("/api/swap/build", {
       method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ fromSymbol, toSymbol, amount }),
     });
     const payload = (await response.json()) as BuildResponse;
@@ -133,7 +136,7 @@ export function SwapDialog({
       return null;
     }
     return payload;
-  }, [fromSymbol, toSymbol, amount]);
+  }, [authedFetch, fromSymbol, toSymbol, amount]);
 
   const onQuote = useCallback(() => {
     setError(null);
@@ -179,9 +182,8 @@ export function SwapDialog({
           wallet,
         });
 
-        const response = await fetch("/api/swap/submit", {
+        const response = await authedFetch("/api/swap/submit", {
           method: "POST",
-          headers: { "content-type": "application/json" },
           body: JSON.stringify({
             signedTransaction: encodeBase64(signedTransaction),
             quoteRef,
@@ -214,7 +216,7 @@ export function SwapDialog({
         setWorking(false);
       }
     })();
-  }, [build, wallets, address, signTransaction, onExecuted]);
+  }, [authedFetch, build, wallets, address, signTransaction, onExecuted]);
 
   const symbols = groups.flatMap((group) => group.symbols);
   const canQuote =

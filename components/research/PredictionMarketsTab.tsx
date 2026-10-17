@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { useAuthedFetch } from "@/lib/useAuthedFetch";
+import { useState } from "react";
+import { FileSearch, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { PredictionMarket } from "@/lib/providers/types";
+import { Problem, Timestamp, useResearchResource } from "./shared";
 
 /* ---------------------------------------------------------------------------
    Prediction Markets.
@@ -35,14 +35,8 @@ interface OutcomeRow {
 }
 
 interface LiveResponse {
-  market: {
-    id: string;
-    question: string;
-    endsAt: string | null;
-    volume24hUsd: number | null;
-    liquidityUsd: number | null;
-    url: string | null;
-  };
+  market: PredictionMarket;
+  lastUpdateAt?: string | null;
   phase: string;
   outcomes: OutcomeRow[];
   warnings: string[];
@@ -61,10 +55,23 @@ interface Analytics {
   microprice: number | null;
   spreadPoints: number | null;
   spreadBps: number | null;
-  depth: { top1: DepthReading; top5: DepthReading; top10: DepthReading; within2c: DepthReading };
+  depth: {
+    top1: DepthReading;
+    top5: DepthReading;
+    top10: DepthReading;
+    within2c: DepthReading;
+  };
   weightedImbalance: number | null;
-  bidWalls: Array<{ price: number; notionalUsd: number; persistenceCount: number }>;
-  askWalls: Array<{ price: number; notionalUsd: number; persistenceCount: number }>;
+  bidWalls: Array<{
+    price: number;
+    notionalUsd: number;
+    persistenceCount: number;
+  }>;
+  askWalls: Array<{
+    price: number;
+    notionalUsd: number;
+    persistenceCount: number;
+  }>;
   crossed: boolean;
   oneSided: boolean;
   transport: string;
@@ -111,7 +118,12 @@ interface Signal {
     missed?: boolean;
   };
   target: { price?: number; maxPrice?: number; basis: string };
-  stop: { price?: number; invalidation?: string; basis: string; executable: boolean };
+  stop: {
+    price?: number;
+    invalidation?: string;
+    basis: string;
+    executable: boolean;
+  };
   riskReward: number | null;
   historicalWinRate: {
     valuePct: number;
@@ -125,7 +137,12 @@ interface Signal {
   winRateUnavailableReason: string | null;
   strength: string;
   liquidityQuality: string;
-  evidence: Array<{ label: string; value: number | string; direction: string; source: string }>;
+  evidence: Array<{
+    label: string;
+    value: number | string;
+    direction: string;
+    source: string;
+  }>;
   resolutionProximity: string;
   eventRisk: boolean;
   dataFreshnessMs: number;
@@ -221,7 +238,9 @@ function Ladder({ book }: { book: BookResponse }) {
 
   /* Cumulative depth, without reassigning a variable during render: each
      level's running total is the sum of everything at or better than it. */
-  const withCumulative = (levels: Array<{ price: number; size: number; notional: number }>) =>
+  const withCumulative = (
+    levels: Array<{ price: number; size: number; notional: number }>,
+  ) =>
     levels.map((level, index) => ({
       ...level,
       cumulative: levels
@@ -242,7 +261,12 @@ function Ladder({ book }: { book: BookResponse }) {
     <div className="space-y-2">
       <div className="space-y-px">
         {[...askRows].reverse().map((level) => (
-          <Row key={`ask-${level.price}`} level={level} widest={widest} side="ask" />
+          <Row
+            key={`ask-${level.price}`}
+            level={level}
+            widest={widest}
+            side="ask"
+          />
         ))}
       </div>
 
@@ -259,7 +283,12 @@ function Ladder({ book }: { book: BookResponse }) {
 
       <div className="space-y-px">
         {bidRows.map((level) => (
-          <Row key={`bid-${level.price}`} level={level} widest={widest} side="bid" />
+          <Row
+            key={`bid-${level.price}`}
+            level={level}
+            widest={widest}
+            side="bid"
+          />
         ))}
       </div>
     </div>
@@ -284,14 +313,14 @@ function Row({
         aria-hidden
         className={cn(
           "absolute inset-y-0 left-0",
-          side === "bid" ? "bg-accent-positive/12" : "bg-accent-negative/12",
+          side === "bid" ? "bg-positive-bg" : "bg-negative-bg",
         )}
         style={{ width: `${share}%` }}
       />
       <span
         className={cn(
           "relative type-body-sm tabular-nums",
-          side === "bid" ? "text-accent-positive" : "text-accent-negative",
+          side === "bid" ? "text-positive" : "text-negative",
         )}
       >
         {cents(level.price)}
@@ -317,15 +346,22 @@ function SignalPanel({ response }: { response: SignalResponse }) {
     return (
       <div className="space-y-3">
         <Unavailable
-          reason={response.reason ?? "No signal could be produced from this order book."}
+          reason={
+            response.reason ??
+            "No signal could be produced from this order book."
+          }
         />
         {response.skipped.length > 0 && (
           <div className="rounded-card border border-border-subtle bg-surface-base p-4">
             <p className="type-label text-text-muted">Not evaluated</p>
             <ul className="mt-2 space-y-1">
               {response.skipped.slice(0, 6).map((entry) => (
-                <li key={entry.strategyId} className="type-body-sm text-text-secondary">
-                  <span className="text-text-primary">{entry.strategyId}</span> — {entry.reason}
+                <li
+                  key={entry.strategyId}
+                  className="type-body-sm text-text-secondary"
+                >
+                  <span className="text-text-primary">{entry.strategyId}</span>{" "}
+                  — {entry.reason}
                 </li>
               ))}
             </ul>
@@ -370,7 +406,10 @@ function SignalPanel({ response }: { response: SignalResponse }) {
       {actionable && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label="Entry" value={entry} />
-          <Field label="Target" value={cents(signal.target.price ?? signal.target.maxPrice)} />
+          <Field
+            label="Target"
+            value={cents(signal.target.price ?? signal.target.maxPrice)}
+          />
           {/* "Invalidation" wherever a fill cannot be promised — a thin book
               gaps through a level rather than filling at it. */}
           <Field
@@ -379,13 +418,17 @@ function SignalPanel({ response }: { response: SignalResponse }) {
           />
           <Field
             label="Risk / Reward"
-            value={signal.riskReward === null ? "—" : signal.riskReward.toFixed(2)}
+            value={
+              signal.riskReward === null ? "—" : signal.riskReward.toFixed(2)
+            }
           />
         </div>
       )}
 
       {!actionable && signal.entry.trigger !== undefined && (
-        <p className="type-body-sm text-text-secondary">{signal.entry.trigger}</p>
+        <p className="type-body-sm text-text-secondary">
+          {signal.entry.trigger}
+        </p>
       )}
 
       <div>
@@ -413,7 +456,9 @@ function SignalPanel({ response }: { response: SignalResponse }) {
             <p className="type-label text-text-muted">
               {signal.strategyId} · {rate.marketUniverse}
             </p>
-            <p className="type-label text-text-muted">{rate.successDefinition}</p>
+            <p className="type-label text-text-muted">
+              {rate.successDefinition}
+            </p>
           </>
         )}
       </div>
@@ -429,15 +474,20 @@ function SignalPanel({ response }: { response: SignalResponse }) {
                   className={cn(
                     "mr-1.5",
                     item.direction === "supports"
-                      ? "text-accent-positive"
+                      ? "text-positive"
                       : item.direction === "contradicts"
-                        ? "text-accent-negative"
+                        ? "text-negative"
                         : "text-text-muted",
                   )}
                 >
-                  {item.direction === "supports" ? "✓" : item.direction === "contradicts" ? "✗" : "·"}
+                  {item.direction === "supports"
+                    ? "✓"
+                    : item.direction === "contradicts"
+                      ? "✗"
+                      : "·"}
                 </span>
-                {item.label}: <span className="tabular-nums">{String(item.value)}</span>
+                {item.label}:{" "}
+                <span className="tabular-nums">{String(item.value)}</span>
               </li>
             ))}
           </ul>
@@ -445,26 +495,38 @@ function SignalPanel({ response }: { response: SignalResponse }) {
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Field label="Strategy" value={`${signal.strategyId} v${signal.strategyVersion}`} />
+        <Field
+          label="Strategy"
+          value={`${signal.strategyId} v${signal.strategyVersion}`}
+        />
         <Field label="Resolution" value={signal.resolutionProximity} />
         <Field
           label="Data"
-          value={signal.transport === "realtime" ? "Live feed" : "REST snapshot"}
+          value={
+            signal.transport === "realtime" ? "Live feed" : "REST snapshot"
+          }
         />
-        <Field label="Age" value={`${Math.round(signal.dataFreshnessMs / 1000)}s`} />
+        <Field
+          label="Age"
+          value={`${Math.round(signal.dataFreshnessMs / 1000)}s`}
+        />
       </div>
 
       {signal.target.basis.length > 0 && (
-        <p className="type-label text-text-muted">Target basis: {signal.target.basis}</p>
+        <p className="type-label text-text-muted">
+          Target basis: {signal.target.basis}
+        </p>
       )}
       {signal.stop.basis.length > 0 && (
-        <p className="type-label text-text-muted">Invalidation basis: {signal.stop.basis}</p>
+        <p className="type-label text-text-muted">
+          Invalidation basis: {signal.stop.basis}
+        </p>
       )}
 
       {signal.warnings.length > 0 && (
         <ul className="space-y-1">
           {signal.warnings.map((warning) => (
-            <li key={warning} className="type-body-sm text-accent-warning">
+            <li key={warning} className="type-body-sm text-text-secondary">
               {warning}
             </li>
           ))}
@@ -472,8 +534,8 @@ function SignalPanel({ response }: { response: SignalResponse }) {
       )}
 
       <p className="type-label text-text-muted">
-        Computed by Elyra&apos;s deterministic engine from the venue&apos;s live order book.
-        Analysis, not advice — a signal does not place an order.
+        Computed by Elyra&apos;s deterministic engine from the venue&apos;s live
+        order book. Analysis, not advice — a signal does not place an order.
       </p>
     </div>
   );
@@ -511,8 +573,13 @@ function BasketPanel({ basket }: { basket: Basket }) {
             {basket.components.map((part) => (
               <li key={part.label} className="type-body-sm text-text-secondary">
                 {part.label}{" "}
-                <span className="tabular-nums text-text-primary">{pct(part.value)}</span>
-                <span className="type-label text-text-muted"> × {part.weight.toFixed(2)}</span>
+                <span className="tabular-nums text-text-primary">
+                  {pct(part.value)}
+                </span>
+                <span className="type-label text-text-muted">
+                  {" "}
+                  × {part.weight.toFixed(2)}
+                </span>
               </li>
             ))}
           </ul>
@@ -523,16 +590,19 @@ function BasketPanel({ basket }: { basket: Basket }) {
         <div>
           <p className="type-label text-text-muted">YES/NO integrity check</p>
           <p className="type-body-sm text-text-secondary">
-            <span className="tabular-nums text-text-primary">{pct(basket.complementCheck)}</span>
+            <span className="tabular-nums text-text-primary">
+              {pct(basket.complementCheck)}
+            </span>
             {" · deviation "}
             <span className="tabular-nums">
               {signed(basket.complementDeviationPoints, 2)} pts
             </span>
           </p>
           <p className="type-label text-text-muted">
-            Weighted zero. On Polymarket a NO share is the complement of a YES share in the same
-            order book, so this equals the midpoint by construction — a non-zero deviation means
-            one side is stale, the book is crossed, or an arbitrage is open.
+            Weighted zero. On Polymarket a NO share is the complement of a YES
+            share in the same order book, so this equals the midpoint by
+            construction — a non-zero deviation means one side is stale, the
+            book is crossed, or an arbitrage is open.
           </p>
         </div>
       )}
@@ -555,8 +625,8 @@ function BasketPanel({ basket }: { basket: Basket }) {
       )}
 
       <p className="type-label text-text-muted">
-        An analytical reference built from observable prices. Not a guaranteed probability, and
-        not a forecast Elyra is making.
+        An analytical reference built from observable prices. Not a guaranteed
+        probability, and not a forecast Elyra is making.
       </p>
     </div>
   );
@@ -566,163 +636,312 @@ function BasketPanel({ basket }: { basket: Basket }) {
    The tab
 --------------------------------------------------------------------------- */
 
-const EXAMPLES = ["fed september", "bitcoin", "election"];
+const EXAMPLES = ["Bitcoin", "Elections", "Interest rates", "Sports"];
 
 export function PredictionMarketsTab() {
-  const authedFetch = useAuthedFetch();
-
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState<string | null>(null);
-  const [live, setLive] = useState<LiveResponse | null>(null);
-  const [book, setBook] = useState<BookResponse | null>(null);
-  const [signal, setSignal] = useState<SignalResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(
-    async (market: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const encoded = encodeURIComponent(market);
-        const liveResponse = await authedFetch(`/api/prediction/markets/${encoded}/live`);
-        if (!liveResponse.ok) {
-          setError(`No Polymarket market matched "${market}".`);
-          setLive(null);
-          setBook(null);
-          setSignal(null);
-          return;
-        }
-
-        const liveBody = (await liveResponse.json()) as LiveResponse;
-        setLive(liveBody);
-
-        /* Book and signal are fetched against the RESOLVED id rather than the
-           original text, so all three panels describe the same market even
-           when the search matched something unexpected. */
-        const id = encodeURIComponent(liveBody.market.id);
-
-        const [bookResponse, signalResponse] = await Promise.all([
-          authedFetch(`/api/prediction/markets/${id}/orderbook`),
-          authedFetch(`/api/prediction/markets/${id}/signal`),
-        ]);
-
-        setBook(bookResponse.ok ? ((await bookResponse.json()) as BookResponse) : null);
-        setSignal(signalResponse.ok ? ((await signalResponse.json()) as SignalResponse) : null);
-      } catch {
-        setError("The market could not be read.");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [authedFetch],
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [category, setCategory] = useState("all");
+  const [showBook, setShowBook] = useState(false);
+  const [outcome, setOutcome] = useState("");
+  const search = useResearchResource<{
+    markets: PredictionMarket[];
+    asOf: string;
+    stale: boolean;
+    warnings: string[];
+  }>(
+    `/api/prediction/markets?q=${encodeURIComponent(submitted ?? "")}`,
+    submitted !== null,
   );
-
+  const liveFeed = useResearchResource<LiveResponse>(
+    `/api/prediction/markets/${encodeURIComponent(selectedId ?? "")}/live`,
+    selectedId !== null,
+  );
+  const live = liveFeed.data;
+  const selected =
+    live?.market ??
+    search.data?.markets.find((market) => market.id === selectedId) ??
+    null;
+  const bookFeed = useResearchResource<BookResponse & { timestamp?: string }>(
+    `/api/prediction/markets/${encodeURIComponent(selectedId ?? "")}/orderbook${outcome ? `?outcome=${encodeURIComponent(outcome)}` : ""}`,
+    selectedId !== null && showBook,
+  );
+  const signalFeed = useResearchResource<SignalResponse>(
+    `/api/prediction/markets/${encodeURIComponent(selectedId ?? "")}/signal`,
+    selectedId !== null && showBook,
+  );
+  const book = bookFeed.data;
   const analytics = book?.analytics ?? null;
-
+  const categories = [
+    ...new Set(
+      search.data?.markets.flatMap((market) => market.categories ?? []) ?? [],
+    ),
+  ].sort();
+  const markets = (search.data?.markets ?? []).filter(
+    (market) => category === "all" || market.categories?.includes(category),
+  );
+  const selectMarket = (id: string) => {
+    setSelectedId(id);
+    setShowBook(false);
+    setOutcome("");
+  };
+  const submit = (text: string) => {
+    const value = text.trim();
+    if (!value) return;
+    setQuery(value);
+    setCategory("all");
+    setShowBook(false);
+    setOutcome("");
+    if (/^https?:\/\//.test(value) || /^\d+$/.test(value)) {
+      setSubmitted(null);
+      setSelectedId(value);
+      return;
+    }
+    setSelectedId(null);
+    if (submitted === value) search.reload();
+    else setSubmitted(value);
+  };
+  const bookAvailable =
+    selected &&
+    !selected.closed &&
+    selected.status !== "resolved" &&
+    selected.status !== "cancelled" &&
+    selected.acceptingOrders !== false;
   return (
-    <div className="space-y-4">
+    <div className="r-prediction">
       <form
+        className="r-market-form"
         onSubmit={(event) => {
           event.preventDefault();
-          const trimmed = query.trim();
-          if (trimmed.length === 0) return;
-          setSubmitted(trimmed);
-          void load(trimmed);
+          submit(query);
         }}
-        className="flex flex-wrap gap-2"
       >
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search prediction markets…"
-          aria-label="Search prediction markets"
-          className="min-w-0 flex-1 rounded-card border border-border-subtle bg-surface-base px-3 py-2 type-body-sm text-text-primary placeholder:text-text-muted"
-        />
-        <Button type="submit" disabled={busy || query.trim().length === 0}>
-          {busy ? "Reading…" : "Read book"}
-        </Button>
+        <label>
+          <span className="sr-only">Market category</span>
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            <option value="all">All categories</option>
+            {categories.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label className="r-search">
+          <Search size={18} aria-hidden />
+          <span className="sr-only">Search prediction markets</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            maxLength={200}
+            placeholder="Search prediction markets…"
+          />
+        </label>
+        <button
+          className="r-button r-primary"
+          type="submit"
+          disabled={search.loading || !query.trim()}
+        >
+          {search.loading ? "Searching…" : "Search"}
+        </button>
       </form>
-
-      {submitted === null && (
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((example) => (
+      <div className="r-suggestions">
+        {EXAMPLES.map((example) => (
+          <button
+            key={example}
+            type="button"
+            className="r-chip"
+            onClick={() => submit(example)}
+          >
+            {example}
+          </button>
+        ))}
+      </div>
+      <div className="r-split r-market-columns">
+        <section>
+          <h2>{submitted ? "Markets" : "Explore a market"}</h2>
+          {submitted === null && (
+            <p className="r-note">
+              Search a topic to compare market probabilities.
+            </p>
+          )}
+          {search.loading && <Spinner label="Searching Polymarket…" />}
+          {search.error && (
+            <Problem retry={search.reload}>{search.error}</Problem>
+          )}
+          {submitted &&
+            search.data &&
+            !search.loading &&
+            markets.length === 0 && (
+              <div className="r-empty">
+                <h3>No markets found</h3>
+                <p>Try another topic or choose all categories.</p>
+              </div>
+            )}
+          {search.data?.stale && (
+            <p className="r-note">
+              Cached search results · current market details may differ.
+            </p>
+          )}
+          {markets.map((market) => (
             <button
-              key={example}
+              key={market.id}
               type="button"
-              onClick={() => {
-                setQuery(example);
-                setSubmitted(example);
-                void load(example);
-              }}
-              className="type-label rounded-full border border-border-subtle px-3 py-1 text-text-secondary hover:text-text-primary"
+              className="r-market-result"
+              aria-pressed={selectedId === market.id}
+              onClick={() => selectMarket(market.id)}
             >
-              {example}
+              <span className="r-market-question">{market.question}</span>
+              <span className="r-outcomes">
+                {market.outcomes.map((item) => (
+                  <span key={item.label}>
+                    {item.label} <strong>{pct(item.price)}</strong>
+                  </span>
+                ))}
+              </span>
+              <span className="r-note">
+                {market.status ?? (market.closed ? "closed" : "open")} ·
+                Liquidity {usd(market.liquidityUsd)} · 24h volume{" "}
+                {usd(market.volume24hUsd)}
+              </span>
             </button>
           ))}
-        </div>
-      )}
-
-      {busy && <Spinner label="Reading the live order book…" />}
-      {error !== null && <Unavailable reason={error} />}
-
-      {live !== null && !busy && (
-        <>
-          <div className="rounded-card border border-border-subtle bg-surface-raised p-4">
-            <p className="type-body text-text-primary">{live.market.question}</p>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Field label="24h volume" value={usd(live.market.volume24hUsd)} />
-              <Field label="Liquidity" value={usd(live.market.liquidityUsd)} />
-              <Field
-                label="Resolves"
-                value={
-                  live.market.endsAt === null
-                    ? "—"
-                    : new Date(live.market.endsAt).toISOString().slice(0, 10)
-                }
-              />
-              {/* The phase is shown because a snapshot is not a live feed and
-                  the difference changes what the numbers can support. */}
-              <Field label="Feed" value={live.phase} />
+          {submitted && search.data && (
+            <Timestamp at={search.data.asOf} label="Search snapshot" />
+          )}
+        </section>
+        <section className="r-market-details">
+          <h2>Market details</h2>
+          {selectedId === null ? (
+            <div className="r-empty">
+              <FileSearch size={32} strokeWidth={1.25} aria-hidden />
+              <p>Select a market to view probability, liquidity and depth.</p>
+              <button className="r-button" type="button" disabled>
+                View order book
+              </button>
             </div>
-
-            <div className="mt-3 flex flex-wrap gap-4">
-              {live.outcomes.map((outcome) => (
-                <div key={outcome.tokenId}>
-                  <p className="type-label text-text-muted">{outcome.label}</p>
-                  <p className="type-body-sm tabular-nums text-text-primary">
-                    {cents(outcome.bestBid)} / {cents(outcome.bestAsk)}
+          ) : (
+            <>
+              {liveFeed.loading && <Spinner label="Reading market details…" />}
+              {liveFeed.error && (
+                <Problem retry={liveFeed.reload}>{liveFeed.error}</Problem>
+              )}
+              {selected && (
+                <>
+                  <h3>{selected.question}</h3>
+                  <p className="r-note">
+                    {selected.status ?? (selected.closed ? "closed" : "open")}
+                    {live ? ` · ${live.phase}` : " · Search snapshot"}
                   </p>
-                </div>
-              ))}
-            </div>
-
-            {live.warnings.length > 0 && (
-              <ul className="mt-3 space-y-1">
-                {live.warnings.map((warning) => (
-                  <li key={warning} className="type-label text-text-muted">
-                    {warning}
-                  </li>
-                ))}
-              </ul>
-            )}
+                  <div className="r-metrics">
+                    <Field
+                      label="24h volume"
+                      value={usd(selected.volume24hUsd)}
+                    />
+                    <Field
+                      label="Liquidity"
+                      value={usd(selected.liquidityUsd)}
+                    />
+                    <Field
+                      label="Ends"
+                      value={
+                        selected.endsAt
+                          ? new Date(selected.endsAt).toLocaleDateString(
+                              "en-GB",
+                              { timeZone: "UTC" },
+                            )
+                          : "Not specified"
+                      }
+                    />
+                  </div>
+                  <div className="r-outcome-details">
+                    {(live?.outcomes ?? []).map((item) => (
+                      <div key={item.tokenId}>
+                        <span>{item.label ?? "Unlabelled outcome"}</span>
+                        <strong>{pct(item.midpoint)}</strong>
+                        <small>
+                          Bid {cents(item.bestBid)} / Ask {cents(item.bestAsk)}{" "}
+                          · {item.transport}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="r-note">
+                    Implied probabilities are market prices, not confirmed
+                    outcomes.
+                  </p>
+                  {live?.lastUpdateAt && (
+                    <Timestamp
+                      at={new Date(live.lastUpdateAt).toISOString()}
+                      label="Market updated"
+                    />
+                  )}
+                  {live?.warnings.map((warning) => (
+                    <p key={warning} className="r-note">
+                      {warning}
+                    </p>
+                  ))}
+                  <div className="r-actions">
+                    <button
+                      type="button"
+                      className="r-button"
+                      disabled={!bookAvailable || liveFeed.loading}
+                      onClick={() => setShowBook((value) => !value)}
+                    >
+                      {showBook ? "Hide order book" : "View order book"}
+                    </button>
+                    {selected.url && (
+                      <a
+                        className="r-button r-borderless"
+                        href={selected.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View market ↗
+                      </a>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+      {showBook && (
+        <div className="r-section r-orderbook">
+          <div className="r-section-heading">
+            <h2>Order book</h2>
+            <label>
+              <span className="sr-only">Order book outcome</span>
+              <select
+                value={outcome}
+                onChange={(event) => setOutcome(event.target.value)}
+              >
+                <option value="">First outcome</option>
+                {live?.outcomes
+                  .filter((item) => item.label)
+                  .map((item) => (
+                    <option key={item.tokenId} value={item.label!}>
+                      {item.label}
+                    </option>
+                  ))}
+              </select>
+            </label>
           </div>
-
-          {signal !== null && <SignalPanel response={signal} />}
-
-          {book !== null && (
-            <div className="rounded-card border border-border-subtle bg-surface-raised p-4">
-              <div className="flex items-baseline justify-between">
-                <p className="type-label text-text-muted">
-                  {book.outcome} order book
-                </p>
-                <span className="type-label text-text-muted">
-                  {book.transport === "realtime" ? "Live feed" : "REST snapshot"}
-                </span>
-              </div>
-
-              {analytics !== null && (
-                <div className="mb-3 mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {bookFeed.loading && <Spinner label="Reading order book…" />}
+          {bookFeed.error && (
+            <Problem retry={bookFeed.reload}>{bookFeed.error}</Problem>
+          )}
+          {book && (
+            <>
+              <p className="r-note">
+                {book.outcome} ·{" "}
+                {book.transport === "realtime" ? "Live feed" : "REST snapshot"}
+              </p>
+              {analytics && (
+                <div className="r-metrics">
                   <Field
                     label="Spread"
                     value={
@@ -735,30 +954,54 @@ export function PredictionMarketsTab() {
                     label="Imbalance (top 5)"
                     value={signed(analytics.depth.top5.imbalance)}
                   />
-                  <Field label="Bid depth" value={usd(analytics.depth.top5.bidUsd)} />
-                  <Field label="Ask depth" value={usd(analytics.depth.top5.askUsd)} />
+                  <Field
+                    label="Bid depth (top 5)"
+                    value={usd(analytics.depth.top5.bidUsd)}
+                  />
+                  <Field
+                    label="Ask depth (top 5)"
+                    value={usd(analytics.depth.top5.askUsd)}
+                  />
                 </div>
               )}
-
-              <div className="overflow-x-auto">
-                <Ladder book={book} />
-              </div>
-
-              {analytics !== null &&
-                analytics.bidWalls.length === 0 &&
-                analytics.askWalls.length === 0 && (
-                  <p className="mt-3 type-label text-text-muted">
-                    No level has been observed often enough to be called persistent. That is not
-                    the same as &ldquo;no large orders&rdquo; — persistence needs repeated
-                    observations, which a snapshot cannot provide.
-                  </p>
+              <div className="r-ladder">
+                <div className="r-section-heading r-note">
+                  <span>Price</span>
+                  <span>Size</span>
+                  <span>Cumulative USD</span>
+                </div>
+                {book.asks.length === 0 && book.bids.length === 0 ? (
+                  <Problem>No depth is available for this outcome.</Problem>
+                ) : (
+                  <Ladder book={book} />
                 )}
-            </div>
+              </div>
+              {book.timestamp && (
+                <Timestamp
+                  at={new Date(book.timestamp).toISOString()}
+                  label="Book updated"
+                />
+              )}
+            </>
           )}
-
-          {signal?.basket != null && <BasketPanel basket={signal.basket} />}
-        </>
+          {signalFeed.loading && (
+            <Spinner label="Reading analytical observations…" />
+          )}
+          {signalFeed.error && (
+            <Problem retry={signalFeed.reload}>
+              Market observations could not be loaded.
+            </Problem>
+          )}
+          {signalFeed.data && <SignalPanel response={signalFeed.data} />}
+          {signalFeed.data?.basket && (
+            <BasketPanel basket={signalFeed.data.basket} />
+          )}
+        </div>
       )}
+      <p className="r-footnote">
+        Browsing needs no connected account. Search covers the provider’s active
+        markets; directly linked markets retain their reported status.
+      </p>
     </div>
   );
 }

@@ -81,6 +81,16 @@ let fetcher: Fetcher | null = null;
 /** False while signed out, which is when polling must not happen at all. */
 let enabled = false;
 
+/**
+ * Bumped by every reset. A read that started under an earlier generation
+ * belongs to an account that is no longer signed in here, and is dropped
+ * when it lands rather than written over the new one.
+ */
+let generation = 0;
+
+/** Whose wallet the store holds: the Privy account it was read for. */
+let owner: string | null = null;
+
 function emit(next: Partial<WalletState>): void {
   state = { ...state, ...next };
   for (const listener of listeners) listener();
@@ -115,10 +125,12 @@ async function poll(): Promise<void> {
   inFlight = true;
   emit({ refreshing: true });
   let delay = POLL_MS;
+  const started = generation;
 
   try {
     const response = await fetcher("/api/wallet", { cache: "no-store" });
     const body = (await response.json()) as WalletResponse;
+    if (started !== generation) return;
 
     if (body.wallet !== null) {
       emit({
@@ -144,6 +156,7 @@ async function poll(): Promise<void> {
       });
     }
   } catch (error: unknown) {
+    if (started !== generation) return;
     delay = RETRY_MS;
     emit({
       error: error instanceof Error ? error.message : "Network error",
@@ -153,9 +166,11 @@ async function poll(): Promise<void> {
   } finally {
     inFlight = false;
     emit({ refreshing: false });
-    /* A refetch can land while a poll is scheduled; one timer, not two. */
+    /* A refetch can land while a poll is scheduled; one timer, not two. A
+       read dropped for a switched account is followed at once by one for
+       the account now signed in, rather than a poll interval later. */
     if (timer !== null) clearTimeout(timer);
-    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), delay);
+    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), started !== generation ? 0 : delay);
     else timer = null;
   }
 }
@@ -164,8 +179,9 @@ function ensurePolling(): void {
   if (timer === null && !inFlight && enabled && subscribers > 0) void poll();
 }
 
-/** Drop everything on sign-out. Another user's balance must never persist. */
+/** Drop everything on sign-out or an account switch. Another user's balance must never persist. */
 function reset(): void {
+  generation += 1;
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
@@ -207,6 +223,10 @@ export function useWalletDashboard(): WalletDashboard {
   const store = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
 
   const signedIn = auth.ready && auth.authenticated;
+  /* Who is signed in. A different account — signed out and back in as
+     someone else, without the store ever seeing "signed out" — is a reset
+     too, so its wallet is never shown under the last one's. */
+  const account = signedIn ? (auth.account?.id ?? auth.solanaAddress ?? "") : null;
 
   /* Hand the store its fetcher and its on/off switch. Both are module
      assignments rather than state, so nothing here re-renders anyone. */
@@ -219,10 +239,13 @@ export function useWalletDashboard(): WalletDashboard {
     enabled = signedIn;
     if (!signedIn) {
       if (was) reset();
+      owner = null;
       return;
     }
+    if (owner !== null && owner !== account) reset();
+    owner = account;
     ensurePolling();
-  }, [signedIn]);
+  }, [signedIn, account]);
 
   /* Refetch when the tab comes back. A dashboard left open for an hour and
      then looked at should not show an hour-old balance for 30 seconds. */

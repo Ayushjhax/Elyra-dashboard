@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, Copy, X, type LucideIcon } from "lucide-react";
+import { Check, Copy, Info, X, type LucideIcon } from "lucide-react";
 import { Panel, PanelBody } from "@/components/ui/Panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCopy } from "@/lib/clipboard";
@@ -134,13 +134,76 @@ export function DrawerCard({
   );
 }
 
-/** A label that opens on focus as well as hover — Radix's tooltip does both. */
-export function Tip({ label, children }: { label: React.ReactNode; children: React.ReactElement }) {
+/**
+ * A label that opens on focus as well as hover — Radix's tooltip does both.
+ *
+ * Neither happens on a phone: Radix ignores touch, and iOS does not focus a
+ * tapped button. That is fine where the label names a button that does
+ * something, but not where the label is the whole point — a reason, a
+ * definition — so `openOnTap` makes a tap toggle it, and a tap anywhere else
+ * close it.
+ */
+export function Tip({
+  label,
+  openOnTap = false,
+  children,
+}: {
+  label: React.ReactNode;
+  openOnTap?: boolean;
+  children: React.ReactElement;
+}) {
+  const [open, setOpen] = useState(false);
+  /* Whether it was open when the finger came down. Between that and the
+     click, a tap on Android also focuses the trigger — which opens it — and
+     lifts the pointer off it — which closes it — so the click sets the
+     opposite of where the tap started, not of wherever those left it. */
+  const openAtPress = useRef(false);
+
+  if (!openOnTap) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger
+        asChild
+        onPointerDown={() => {
+          openAtPress.current = open;
+        }}
+        onClick={(event) => {
+          /* Radix closes a tooltip on its trigger's click; this click is the
+             one that opens it. A click from the keyboard has no press. */
+          event.preventDefault();
+          setOpen(event.detail === 0 ? !open : !openAtPress.current);
+        }}
+      >
+        {children}
+      </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/**
+ * The ⓘ beside a figure's label, and what the figure means. Its hit area
+ * reaches past the 12px glyph without moving anything around it.
+ */
+export function InfoTip({ text }: { text: string }) {
+  return (
+    <Tip label={text} openOnTap>
+      <button
+        type="button"
+        aria-label="What this means"
+        className="relative rounded-chip text-text-muted after:absolute after:-inset-2.5 hover:text-text-secondary"
+      >
+        <Info size={12} strokeWidth={1.5} aria-hidden />
+      </button>
+    </Tip>
   );
 }
 

@@ -113,7 +113,7 @@ export function LiveFilings() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={cn(
-                  "group flex items-start gap-3 border-t border-border-subtle px-4 py-2.5",
+                  "metallic research-card group flex flex-wrap items-start gap-3 border-t border-border-subtle px-4 py-3.5",
                   "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-agent-accent",
                 )}
               >
@@ -131,7 +131,7 @@ export function LiveFilings() {
                       {filing.items.join(", ")}
                     </span>
                   )}
-                  <span className="type-label block truncate text-text-muted">{filing.company}</span>
+                  <span className="type-label mt-1 block break-words leading-5 text-text-secondary">{filing.company}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   <time dateTime={filing.filedAt} className="type-data-sm text-text-muted">

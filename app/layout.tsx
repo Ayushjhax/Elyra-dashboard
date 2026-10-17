@@ -58,6 +58,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: THEME_COLOR_INK,
   colorScheme: "dark",
+  /* The on-screen keyboard shrinks the layout viewport rather than covering
+     it, so a sheet sized to the screen — the agent drawer and its composer —
+     ends above the keyboard instead of under it. Chrome on Android reads it;
+     Safari ignores it and pans to the focused field, as it always has. */
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

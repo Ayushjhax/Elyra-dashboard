@@ -15,6 +15,11 @@
    agent, widening the widgets or opening a route takes its width from the
    other side columns, in a fixed order, and only what is left over comes out
    of the centre. MAIN_MIN is the floor it stops at.
+
+   The floor keeps the chart working; MAIN_SHARE keeps it the point of the
+   screen. The side columns open at widths chosen on a wide screen, and on a
+   laptop those same widths left the chart barely half the row — so a column
+   the screen is sizing gives width back as the screen narrows.
 --------------------------------------------------------------------------- */
 
 /** The resizable columns that flank the centre. The centre is everything else. */
@@ -59,6 +64,28 @@ export const WORKSPACE_GAP = 16;
  * chart, so this is the number every other column yields to.
  */
 export const MAIN_MIN = 480;
+
+/**
+ * The share of the workspace row the centre keeps against the columns the
+ * screen is sizing.
+ *
+ * A side column the operator has not sized — no drag, no key, no "widen" — is
+ * the screen's to size. It opens at its initial width where the centre still
+ * has this share beside it, and gives width back where it does not, in
+ * SQUEEZE_ORDER, each column down to its minimum. What the operator chose is
+ * theirs and gives only to MAIN_MIN: a width they set, the rail's labels, and
+ * a route, which is the thing they just asked for by name.
+ *
+ * 0.6 leaves a 1920px screen exactly as the columns open, with or without the
+ * rail's labels. On a 1470px laptop it takes the widgets and the agent to their
+ * minimums, which gives the chart 784px where it had 714.
+ */
+export const MAIN_SHARE = 0.6;
+
+/** The width the centre is owed out of `available` px: its share, never below its floor. */
+export function centreShare(available: number): number {
+  return Math.max(MAIN_MIN, Math.round(available * MAIN_SHARE));
+}
 
 /**
  * The routes that take the whole workspace instead of opening beside the
@@ -132,6 +159,11 @@ export function columnWidth(widths: ColumnWidths, id: ShellColumnId): number {
   return clampColumn(id, widths[id] ?? COLUMN_BOUNDS[id].initial);
 }
 
+/** Whether `id` gives width to the centre's share, and not only to its floor. */
+function sizedByScreen(id: ShellColumnId, widths: ColumnWidths): boolean {
+  return id !== "route" && widths[id] === undefined;
+}
+
 /**
  * Fit `visible` beside the centre inside `available` px.
  *
@@ -139,9 +171,12 @@ export function columnWidth(widths: ColumnWidths, id: ShellColumnId): number {
  * been measured yet — on the server and for the first paint — where the stored
  * widths are used as they are.
  *
- * Columns are taken down to their minimums in SQUEEZE_ORDER. If even the
- * minimums do not fit, the centre takes what is left: it is still open, which
- * is the point, and `minmax(0, 1fr)` keeps the grid inside the viewport.
+ * Two passes, both in SQUEEZE_ORDER and neither taking a column below its
+ * minimum. The columns the screen is sizing give first, until the centre has
+ * its share of the row (MAIN_SHARE); then every column gives, until it has its
+ * floor (MAIN_MIN). If even the minimums do not fit, the centre takes what is
+ * left: it is still open, which is the point, and `minmax(0, 1fr)` keeps the
+ * grid inside the viewport.
  */
 export function fitColumns(
   visible: readonly ShellColumnId[],
@@ -152,28 +187,40 @@ export function fitColumns(
   for (const id of visible) fitted.set(id, columnWidth(widths, id));
   if (available === null) return fitted;
 
-  let over = overflow(fitted, available);
-  if (over <= 0) return fitted;
+  squeeze(fitted, available, centreShare(available), (id) => sizedByScreen(id, widths));
+  squeeze(fitted, available, MAIN_MIN, () => true);
+  return fitted;
+}
 
+/** Narrow the columns that `gives` allows until the centre has `centre` px. */
+function squeeze(
+  fitted: Map<ShellColumnId, number>,
+  available: number,
+  centre: number,
+  gives: (id: ShellColumnId) => boolean,
+): void {
+  let over = overflow(fitted, available, centre);
   for (const id of SQUEEZE_ORDER) {
-    if (over <= 0) break;
+    if (over <= 0) return;
     const width = fitted.get(id);
-    if (width === undefined) continue;
+    if (width === undefined || !gives(id)) continue;
     const give = Math.min(width - COLUMN_BOUNDS[id].min, over);
     if (give <= 0) continue;
     fitted.set(id, width - give);
     over -= give;
   }
-
-  return fitted;
 }
 
-/** How far `fitted` plus the centre's floor runs past `available`. */
-function overflow(fitted: Map<ShellColumnId, number>, available: number): number {
+/** How far `fitted` plus a centre of `centre` px runs past `available`. */
+function overflow(
+  fitted: Map<ShellColumnId, number>,
+  available: number,
+  centre: number,
+): number {
   /* One gap per side column: each sits beside the centre or beside another. */
   let sides = WORKSPACE_GAP * fitted.size;
   for (const width of fitted.values()) sides += width;
-  return sides + MAIN_MIN - available;
+  return sides + centre - available;
 }
 
 export interface ShellLayoutInput {
@@ -238,11 +285,13 @@ function fitBreakpoint(
   const availableFor = (rail: number) => viewport - rail - WORKSPACE_PAD * 2;
 
   /* Labels in the rail are the cheapest thing on screen to give up, so they go
-     before any column is narrowed. */
+     before any column is narrowed to hold the centre's floor. Not for its
+     share: the labels are always the operator's choice — the rail opens as
+     icons — and a toggle the screen overrules would do nothing on a laptop. */
   let rail = railWanted;
   const atWanted = new Map<ShellColumnId, number>();
   for (const id of visible) atWanted.set(id, columnWidth(widths, id));
-  if (rail === RAIL_EXPANDED && overflow(atWanted, availableFor(rail)) > 0) {
+  if (rail === RAIL_EXPANDED && overflow(atWanted, availableFor(rail), MAIN_MIN) > 0) {
     rail = RAIL_COLLAPSED;
   }
 

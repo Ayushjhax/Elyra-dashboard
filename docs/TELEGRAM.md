@@ -129,7 +129,13 @@ user id; the user sends `/link ABC234` to the bot; the webhook consumes the
 code and writes the link. Codes expire in ten minutes and are single-use, and
 every failure mode — wrong, expired, already spent — returns the same message,
 because distinguishing them would confirm which codes exist in a space of only
-32⁶.
+32⁶. An account holds at most one live code: issuing a new one revokes any
+unredeemed code it replaces.
+
+Unlinking works from either side: `/unlink` in the chat, or Unlink in
+Connections on the web (`DELETE /api/telegram/link`), which removes every chat
+linked to the account, revokes any outstanding code, and tells each chat it
+was unlinked.
 
 ---
 

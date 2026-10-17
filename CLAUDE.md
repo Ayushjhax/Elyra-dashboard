@@ -34,15 +34,19 @@ embed in `components/panels/ChartPanel.tsx`, and the glass (the search
 palette and the header menus).
 
 The shell's geometry has one authority: `lib/layout.ts`. Every column bound,
-the centre's floor and the order columns give up width in are there and
-nowhere else, so a width is held to the same rule whether it came from a drag,
-a key or a restored workspace. Three rules bind anything new built on it.
+the centre's floor and share, and the order columns give up width in are there
+and nowhere else, so a width is held to the same rule whether it came from a
+drag, a key or a restored workspace. Three rules bind anything new built on it.
 
 - The chart is never the column that pays, and it is never a route. The
   workspace that holds it is mounted by `AppShell` for the life of the
   session. A route opens beside the chart in the widgets' column from 900px;
   a column takes its width from the other side columns, in `SQUEEZE_ORDER`,
-  and stops at `MAIN_MIN`. The one exception is an allowlist: a route named in
+  and stops at `MAIN_MIN`. A column the screen is sizing (no stored width)
+  also gives, in the same order, until the centre has `MAIN_SHARE` of the
+  row — that is what keeps the chart the focus on a laptop — while an
+  operator's width, the rail's labels and a route give only to the floor.
+  The one exception is an allowlist: a route named in
   `FULL_BLEED_ROUTES` (currently `/assets`, `/personalized`, `/referrals` and
   `/research`, each with its reason commented in `lib/layout.ts`) takes the
   workspace body, and the workspace is hidden — never unmounted — under it.
@@ -56,6 +60,17 @@ a key or a restored workspace. Three rules bind anything new built on it.
   is the one scroll container, which is what lets the agent and an open route
   stick; `lib/useStickyFill.ts` sizes them so their bottom edge — and the
   agent's composer — is always on screen. Anything sticky goes through it.
+  The chart's plot is not sticky; `lib/useFirstScreenFit.ts` measures the room
+  the first screen leaves it, so never size it from a fixed estimate of what
+  sits above it.
+
+Phones are a first-class screen, and three rules keep them so. A field is
+16px on a touch screen (`app/globals.css`) or iOS zooms into it — a module
+stylesheet that sizes its fields must keep that. A table with more columns
+than a phone holds gives `DataTable` a `card`, rather than hiding its last
+columns behind a sideways scroll. And a tooltip that is the only place a
+reason or definition lives is `Tip openOnTap` or an `InfoTip`: Radix's tooltip
+never opens on touch, so on a phone that text would be unreachable.
 
 Every price shown with a currency sign goes through `formatPriceUsd` in
 `lib/format.ts`, whose precision follows the instrument (`lib/market/precision.ts`)

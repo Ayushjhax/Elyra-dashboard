@@ -118,7 +118,7 @@ function FeedRow({
   onOpen: (query: string) => void;
 }) {
   return (
-    <li className="flex items-start gap-3 border-t border-border-subtle px-4 py-2.5">
+    <li className="metallic research-card flex flex-wrap items-start gap-3 border-t border-border-subtle px-4 py-3.5">
       <button
         type="button"
         onClick={() => onOpen(filing.ticker ?? filing.cik)}
@@ -138,7 +138,7 @@ function FeedRow({
           </button>
           {filing.label}
         </p>
-        <p className="type-label truncate text-text-secondary">
+        <p className="type-label mt-1 break-words leading-5 text-text-secondary">
           {filing.company}
           {filing.filer ? <span className="text-text-muted"> · by {filing.filer}</span> : null}
           <span className="text-text-muted"> · {filing.form}</span>
@@ -150,7 +150,7 @@ function FeedRow({
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Open the ${filing.form} filing on EDGAR`}
-        className="flex shrink-0 items-center gap-1 rounded-control px-1 py-0.5 text-text-muted hover:text-text-primary"
+        className="research-link ml-auto flex min-h-8 shrink-0 items-center gap-1.5 rounded-control px-2 py-1 text-text-secondary hover:text-text-primary"
       >
         <time dateTime={filing.filedAt} className="type-data-sm">
           {formatRelativeTime(filing.filedAt, now)}
@@ -293,7 +293,7 @@ function CompanyFilingRow({ filing }: { filing: CompanyFiling }) {
         href={filing.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-start gap-3 px-4 py-2.5 transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover"
+        className="metallic research-card flex flex-wrap items-start gap-3 px-4 py-3.5 transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover"
       >
         <span className="type-data-sm mt-0.5 w-14 shrink-0 text-text-muted">{filing.form}</span>
         <span className="min-w-0 flex-1">

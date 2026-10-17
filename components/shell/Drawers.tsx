@@ -2,6 +2,7 @@
 
 import { AgentPanel } from "@/components/agent/AgentPanel";
 import { NavList } from "@/components/shell/NavRail";
+import { SheetAccount } from "@/components/shell/RailAccount";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,10 @@ export function NavSheet() {
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           <NavList showLabels onNavigate={() => setOpen(false)} />
+          {/* No rail on a phone, so the account the rail's avatar opens is here. */}
+          <div className="mt-3 border-t border-border-subtle pt-3">
+            <SheetAccount onNavigate={() => setOpen(false)} />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

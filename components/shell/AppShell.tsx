@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trackMetallicPointer } from "@/lib/metallic";
 import { usePathname } from "next/navigation";
 import { AppHeader } from "@/components/shell/AppHeader";
 import { CommandPalette } from "@/components/shell/CommandPalette";
@@ -88,6 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider delayDuration={300}>
       <div
+        onPointerMove={trackMetallicPointer}
         data-resizing={resizing ? "true" : undefined}
         className="shell-frame grid h-dvh w-full overflow-hidden"
         style={

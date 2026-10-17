@@ -30,7 +30,7 @@ import {
   Tip,
 } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
-import { methodLabel } from "@/components/wallet/WalletIdentity";
+import { methodLabel } from "@/lib/account";
 import { formatAge, formatPriceUsd, formatQty, formatRelativeTime, formatUsd, truncateMiddle } from "@/lib/format";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
 import { txExplorerUrl } from "@/lib/solana/address";
@@ -348,7 +348,7 @@ function LinkedRow({ entry }: { entry: LinkedAccountSummary }) {
         </span>
       </div>
       {verified !== null ? (
-        <Tip label={`Verified by sign-in provider · ${formatWhen(verified)}`}>
+        <Tip openOnTap label={`Verified by sign-in provider · ${formatWhen(verified)}`}>
           <span tabIndex={0} aria-label="Verified" className={cn("grid size-8 shrink-0 place-items-center rounded-control text-positive")}>
             <BadgeCheck size={17} strokeWidth={1.75} aria-hidden />
           </span>
@@ -366,7 +366,7 @@ function AccountCard({ auth }: { auth: ElyraAuth }) {
   const account = auth.account;
   if (!auth.ready || account === null) {
     return (
-      <DrawerCard icon={CircleUserRound} title="Account">
+      <DrawerCard id="account" icon={CircleUserRound} title="Account" className="scroll-mt-3">
         <div aria-busy="true" aria-label="Reading account" className="flex flex-col gap-2">
           {[0, 1, 2, 3].map((index) => (
             <span key={index} aria-hidden className="skeleton h-8 w-full rounded-control" />
@@ -383,7 +383,7 @@ function AccountCard({ auth }: { auth: ElyraAuth }) {
   const MethodIcon = method === null ? null : (OAUTH_ICON[method.type] ?? AtSign);
 
   return (
-    <DrawerCard icon={CircleUserRound} title="Account">
+    <DrawerCard id="account" icon={CircleUserRound} title="Account" className="scroll-mt-3">
       <div className="border-t border-border-subtle">
         <AccountRow label="User ID">
           <span className="type-mono-addr min-w-0 truncate text-text-primary" title={account.id}>
@@ -448,7 +448,7 @@ function ActivityRow({ item, now, cluster }: { item: WalletActivity; now: number
       {when === null ? (
         <span className="type-label shrink-0 text-text-muted">In flight</span>
       ) : (
-        <Tip label={when}>
+        <Tip openOnTap label={when}>
           <time
             dateTime={item.at ?? undefined}
             tabIndex={0}

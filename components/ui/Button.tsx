@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  */
 const button = cva(
   cn(
-    "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
+    "metallic inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
     "transition-[color,background-color,border-color] duration-[var(--dur-fast)] ease-brand",
     "disabled:pointer-events-none disabled:text-text-muted",
   ),

@@ -287,7 +287,7 @@ function PoolCard({ stats }: { stats: ReferralStats }) {
           <p className="type-body-sm text-text-secondary">Next bonus</p>
           <p className="type-h1 mt-0.5 font-sans tabular-nums text-accent">+{pool.nextBonusPoints.toLocaleString("en-US")} pts</p>
         </div>
-        <Tip label={`Unlocks at ${pool.target} activations`}>
+        <Tip openOnTap label={`Unlocks at ${pool.target} activations`}>
           <span tabIndex={0} aria-label={`Locked until ${plural(remaining, "more activation")}`} className="grid size-9 place-items-center rounded-control text-text-secondary">
             <Lock size={20} strokeWidth={1.5} aria-hidden />
           </span>

@@ -8,7 +8,6 @@ import {
   Coins,
   Eye,
   EyeOff,
-  Info,
   Plus,
   QrCode,
   RefreshCw,
@@ -19,7 +18,7 @@ import { SwapDialog } from "@/components/assets/SwapDialog";
 import { Delta, Money, Quantity, useBalancesHidden } from "@/components/portfolio/primitives";
 import { ReceiveDialog } from "@/components/portfolio/ReceiveDialog";
 import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
-import { IconButton, StatusDot, Tip } from "@/components/shell/RouteDrawer";
+import { IconButton, InfoTip, StatusDot, Tip } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { OptionMenu } from "@/components/ui/OptionMenu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -62,17 +61,6 @@ const outlined = cn(
 
 function noteFor(notes: SourceNote[], ...scopes: string[]): SourceNote | undefined {
   return notes.find((note) => scopes.includes(note.scope) && note.kind === "failed");
-}
-
-/** A short explanation for a figure's label, reachable from the keyboard. */
-function LabelHint({ text }: { text: string }) {
-  return (
-    <Tip label={text}>
-      <button type="button" aria-label="What this means" className={cn("rounded-chip text-text-muted hover:text-text-secondary")}>
-        <Info size={12} strokeWidth={1.5} aria-hidden />
-      </button>
-    </Tip>
-  );
 }
 
 /* ---------------------------------------------------------------------------
@@ -146,7 +134,7 @@ function SyncLine({ feed, now }: { feed: PortfolioFeed; now: number | null }) {
   }
   if (failed.length > 0) {
     return (
-      <Tip label={failed.map((note) => note.reason).join(" ")}>
+      <Tip openOnTap label={failed.map((note) => note.reason).join(" ")}>
         <span tabIndex={0} className={cn("rounded-chip")}>
           <StatusDot tone="caution">
             Partial · {failed.length} {failed.length === 1 ? "source" : "sources"} unavailable
@@ -219,7 +207,7 @@ function BalanceCard({ view, feed }: { view: DrawerView; feed: PortfolioFeed }) 
         <div className="min-w-0 border-r border-border-subtle pr-3">
           <p className="type-body-sm flex items-center gap-1 text-text-secondary">
             Available
-            <LabelHint text="Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything." />
+            <InfoTip text="Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything." />
           </p>
           <Money
             value={view.availableUsd}
@@ -230,7 +218,7 @@ function BalanceCard({ view, feed }: { view: DrawerView; feed: PortfolioFeed }) 
         <div className="min-w-0 pl-4">
           <p className="type-body-sm flex items-center gap-1 text-text-secondary">
             In positions
-            <LabelHint text="Perp margin with its open PnL, DeFi deposits and prediction-market shares. Wallet balances are never counted here." />
+            <InfoTip text="Perp margin with its open PnL, DeFi deposits and prediction-market shares. Wallet balances are never counted here." />
           </p>
           <Money
             value={view.inPositionsUsd}
@@ -403,7 +391,7 @@ function HoldingRow({
           <span className="truncate">{holding.symbol}</span>
           {holding.venue !== "wallet" && <span className="shrink-0 capitalize text-text-muted">· {holding.venue}</span>}
           {!holding.verified ? (
-            <Tip label="Not recognised by Jupiter, so it is shown but never counted.">
+            <Tip openOnTap label="Not recognised by Jupiter, so it is shown but never counted.">
               <span tabIndex={0} className={cn("shrink-0 rounded-chip border border-border-subtle px-1 text-text-muted")}>
                 Unverified
               </span>

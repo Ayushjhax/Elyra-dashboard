@@ -72,7 +72,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
           aria-label={`Price alerts${armed.length > 0 ? `, ${armed.length} armed` : ""}`}
           onClick={openPanel}
           className={cn(
-            "type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2 @3xl:px-2.5",
+            "type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2 @4xl:px-2.5",
             "transition-colors duration-[var(--dur-fast)] ease-brand",
             open
               ? "bg-surface-hover text-text-primary"
@@ -80,7 +80,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
           )}
         >
           <Bell size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @3xl:inline">Alerts</span>
+          <span className="hidden @4xl:inline">Alerts</span>
           {armed.length > 0 && <span className="type-data-sm text-text-muted">{armed.length}</span>}
         </button>
       }

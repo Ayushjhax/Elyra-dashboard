@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   COLUMN_BOUNDS,
   MAIN_MIN,
+  MAIN_SHARE,
   RAIL_COLLAPSED,
   RAIL_EXPANDED,
   WORKSPACE_GAP,
   WORKSPACE_PAD,
+  centreShare,
   clampColumn,
   fitColumns,
   shellLayout,
@@ -13,7 +15,9 @@ import {
 } from "@/lib/layout";
 
 const BASE: ShellLayoutInput = {
-  viewport: 1440,
+  /* Wide enough that nothing has to be fitted. A test about fitting sets its
+     own width. */
+  viewport: 2400,
   widths: {},
   railExpanded: false,
   widgetsOpen: true,
@@ -62,26 +66,29 @@ describe("fitColumns", () => {
   });
 
   it("squeezes the widgets before the agent", () => {
-    /* Only 20px short: the widgets alone should cover it. */
+    /* Only 20px short of the floor: the widgets alone should cover it. The
+       widths are the operator's, so only the floor applies to them. */
+    const widths = { widgets: COLUMN_BOUNDS.widgets.initial, agent: COLUMN_BOUNDS.agent.initial };
     const available =
       COLUMN_BOUNDS.widgets.initial +
       COLUMN_BOUNDS.agent.initial +
       MAIN_MIN +
       WORKSPACE_GAP * 2 -
       20;
-    const fitted = fitColumns(["widgets", "agent"], {}, available);
+    const fitted = fitColumns(["widgets", "agent"], widths, available);
     expect(fitted.get("widgets")).toBe(COLUMN_BOUNDS.widgets.initial - 20);
     expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial);
   });
 
   it("squeezes the agent before a route the operator just opened", () => {
+    const widths = { agent: COLUMN_BOUNDS.agent.initial };
     const available =
       COLUMN_BOUNDS.route.initial +
       COLUMN_BOUNDS.agent.initial +
       MAIN_MIN +
       WORKSPACE_GAP * 2 -
       30;
-    const fitted = fitColumns(["route", "agent"], {}, available);
+    const fitted = fitColumns(["route", "agent"], widths, available);
     expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial - 30);
     expect(fitted.get("route")).toBe(COLUMN_BOUNDS.route.initial);
   });
@@ -203,5 +210,123 @@ describe("shellLayout", () => {
   it("follows the stored preference before the first measurement", () => {
     expect(shellLayout({ ...BASE, viewport: null, railExpanded: true }).railIcons).toBe(false);
     expect(shellLayout({ ...BASE, viewport: null, railExpanded: false }).railIcons).toBe(true);
+  });
+});
+
+describe("the centre's share", () => {
+  /** The row a viewport leaves the workspace grid, with the rail at `rail`. */
+  const row = (viewport: number, rail: number) => viewport - rail - WORKSPACE_PAD * 2;
+
+  it("narrows the side columns on a laptop so the chart keeps its share", () => {
+    /* A 13-inch MacBook Air's browser window. */
+    const layout = shellLayout({ ...BASE, viewport: 1470 });
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.widgets.min,
+      COLUMN_BOUNDS.agent.min,
+    ]);
+    expect(centreWidth(1470, layout.frame.full, layout.workspace.full)).toBe(784);
+  });
+
+  it("leaves a 1920px screen exactly as the columns open", () => {
+    for (const railExpanded of [false, true]) {
+      const layout = shellLayout({ ...BASE, viewport: 1920, railExpanded });
+      expect(px(layout.frame.full)[0]).toBe(railExpanded ? RAIL_EXPANDED : RAIL_COLLAPSED);
+      expect(px(layout.workspace.full)).toEqual([
+        COLUMN_BOUNDS.widgets.initial,
+        COLUMN_BOUNDS.agent.initial,
+      ]);
+    }
+  });
+
+  it("gives width back as the screen narrows, the widgets before the agent", () => {
+    /* A row 10px short of the share: the widgets alone should cover it. */
+    const sides =
+      COLUMN_BOUNDS.widgets.initial + COLUMN_BOUNDS.agent.initial + WORKSPACE_GAP * 2;
+    const available = Math.round((sides - 10) / (1 - MAIN_SHARE));
+    const short = centreShare(available) - (available - sides);
+    expect(short).toBeGreaterThan(0);
+    expect(short).toBeLessThan(COLUMN_BOUNDS.widgets.initial - COLUMN_BOUNDS.widgets.min);
+
+    const fitted = fitColumns(["widgets", "agent"], {}, available);
+    expect(fitted.get("widgets")).toBe(COLUMN_BOUNDS.widgets.initial - short);
+    expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial);
+  });
+
+  it("keeps a width the operator chose, which gives only to the floor", () => {
+    /* "Widen" on the agent, on a laptop: the agent stays wide, the widgets
+       still give what they can, and the centre is above its floor. */
+    const layout = shellLayout({
+      ...BASE,
+      viewport: 1470,
+      widths: { agent: COLUMN_BOUNDS.agent.max },
+    });
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.widgets.min,
+      COLUMN_BOUNDS.agent.max,
+    ]);
+    expect(centreWidth(1470, layout.frame.full, layout.workspace.full)).toBeGreaterThanOrEqual(
+      MAIN_MIN,
+    );
+  });
+
+  it("does not narrow a route for the share", () => {
+    const layout = shellLayout({ ...BASE, viewport: 1470, routeOpen: true });
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.route.initial,
+      COLUMN_BOUNDS.agent.min,
+    ]);
+  });
+
+  it("keeps the rail's labels the operator asked for while the floor allows", () => {
+    /* The labels are a choice, so the share does not take them; the columns
+       the screen is sizing still give what they can. */
+    const layout = shellLayout({ ...BASE, viewport: 1470, railExpanded: true });
+    expect(px(layout.frame.full)[0]).toBe(RAIL_EXPANDED);
+    expect(layout.railIcons).toBe(false);
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.widgets.min,
+      COLUMN_BOUNDS.agent.min,
+    ]);
+  });
+
+  it("keeps the centre its share, or has spent every column the screen is sizing on it", () => {
+    for (let viewport = 900; viewport <= 2560; viewport += 20) {
+      for (const railExpanded of [false, true]) {
+        for (const widgetsOpen of [false, true]) {
+          for (const agentOpen of [false, true]) {
+            for (const routeOpen of [false, true]) {
+              const layout = shellLayout({
+                ...BASE,
+                viewport,
+                railExpanded,
+                widgetsOpen,
+                agentOpen,
+                routeOpen,
+              });
+              const wide = viewport >= 1280;
+              const frame = wide ? layout.frame.full : layout.frame.mid;
+              const workspace = wide ? layout.workspace.full : layout.workspace.mid;
+              const where = `${viewport}px rail=${railExpanded} widgets=${widgetsOpen} agent=${agentOpen} route=${routeOpen}`;
+
+              const [rail] = px(frame);
+              const centre = centreWidth(viewport, frame, workspace);
+              if (centre >= centreShare(row(viewport, rail))) continue;
+
+              /* The columns come back left first, then the agent. A route and
+                 the rail's labels are not the screen's to size, so only the
+                 floor binds them. */
+              const [first, second] = px(workspace);
+              const agent = agentOpen && wide ? (layout.left === null ? first : second) : null;
+              if (layout.left === "widgets") {
+                expect(first, `${where} — widgets at their minimum`).toBe(COLUMN_BOUNDS.widgets.min);
+              }
+              if (agent !== null) {
+                expect(agent, `${where} — agent at its minimum`).toBe(COLUMN_BOUNDS.agent.min);
+              }
+            }
+          }
+        }
+      }
+    }
   });
 });

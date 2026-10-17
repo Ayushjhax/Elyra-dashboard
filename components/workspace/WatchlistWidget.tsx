@@ -53,12 +53,13 @@ function WatchRow({
 
   return (
     <li
+      data-selected={selected}
       className={cn(
-        "group/row relative flex items-center rounded-card border",
+        "metallic watch-row group/row relative flex items-center rounded-card border",
         "transition-colors duration-[var(--dur-fast)] ease-brand",
         /* Forest fill with a hairline of lime: selected, not alarming. */
         selected
-          ? "border-accent/45 bg-surface-active"
+          ? "border-border-strong bg-surface-raised"
           : "border-transparent hover:bg-surface-hover",
       )}
     >
@@ -101,7 +102,7 @@ function WatchRow({
         aria-label={favorite ? `Remove ${asset.symbol} from favourites` : `Add ${asset.symbol} to favourites`}
         onClick={() => toggleFavorite(asset.id)}
         className={cn(
-          "mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-chip",
+          "mr-1 inline-flex size-9 shrink-0 items-center justify-center rounded-chip",
           "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
           favorite ? "text-accent" : "text-text-muted hover:text-text-secondary",
         )}
@@ -220,6 +221,15 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
                 type="button"
                 role="radio"
                 aria-checked={active}
+                tabIndex={active ? 0 : -1}
+                onKeyDown={(event) => {
+                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                  event.preventDefault();
+                  const next = event.key === "Home" ? "all" : event.key === "End" ? "favorites" : value === "all" ? "favorites" : "all";
+                  setFilter(next);
+                  const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button");
+                  buttons?.[next === "all" ? 0 : 1]?.focus();
+                }}
                 onClick={() => setFilter(value)}
                 className={cn(
                   "type-label -mb-px flex h-9 items-center gap-1.5 border-b-2 px-2",
@@ -239,6 +249,11 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
         </div>
       </div>
 
+      <div aria-hidden="true" className="watch-columns type-eyebrow mx-3 mt-3 grid grid-cols-[minmax(0,1fr)_auto_36px] gap-2 border-b border-border-subtle px-2 pb-2 text-text-secondary">
+        <span>Market</span>
+        <span className="text-right">Price / 24h</span>
+        <Star size={12} className="justify-self-center" />
+      </div>
       <div className="max-h-[360px] overflow-y-auto px-2 py-2">
         {watchlist.length === 0 ? (
           <EmptyState

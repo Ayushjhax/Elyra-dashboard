@@ -346,15 +346,47 @@
   overscroll-behavior-y: contain;
 }
 
+/* It scrolls down, never sideways. Whatever runs past the content's width —
+   a popover opened near a phone's edge — is clipped there, so focusing a
+   field inside it can never slide the whole workspace left and leave it so.
+   `clip` rather than `hidden`, which would make the content a scroll
+   container of its own and end the agent's stickiness. */
+[data-workspace-scroll] > * {
+  overflow-x: clip;
+}
+
+/* iOS Safari zooms into any field set under 16px when it takes focus, and
+   stays zoomed after it. On a touch screen every field is 16px — 16/22, the
+   type scale's own h2 step — so tapping into search, a filter or the
+   composer leaves the page where it was. A mouse keeps the denser sizes the
+   fields were drawn at. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  textarea {
+    line-height: 22px;
+  }
+}
+
 /* The chart's own height. Large enough to dominate the first screen, small
    enough that the overview above it stays in view on a laptop — section 6 of
    the redesign asks for roughly 500–620px on a typical desktop. Focus mode
-   gives it everything below the heading instead. */
+   gives it everything below the heading instead.
+
+   --plot-fit is the room the first screen leaves the plot once everything
+   around it is drawn, measured by lib/useFirstScreenFit.ts so the card's foot
+   lands on the viewport's however the strip and the card's header wrap. Until
+   it is measured, an estimate stands in: the header, the overview strip, the
+   card's own header, pivots, toolbar and footer and the gap under the card
+   come to about 364px. */
 .chart-plot {
-  /* Header, overview strip, the chart card's own header, toolbar and footer
-     come to about 340px; the plot takes the rest, between a floor that keeps
-     candles readable and a ceiling that leaves the trading table in reach. */
-  height: clamp(380px, calc(100dvh - 340px), 560px);
+  /* Between a floor that keeps candles readable and a ceiling that leaves the
+     trading table in reach. */
+  height: clamp(380px, var(--plot-fit, calc(100dvh - 364px)), 560px);
 }
 
 @media (width < 640px) {
@@ -363,10 +395,21 @@
   }
 }
 
-/* Everything below the header, less the strip and the card's own chrome, so
-   the whole card fits the screen it was focused on. */
+/* Everything the first screen has left, with no ceiling, so the whole card
+   fits the screen it was focused on. */
 .chart-plot[data-focus="true"] {
-  height: max(360px, calc(100dvh - var(--header-h) - 250px));
+  height: max(360px, var(--plot-fit, calc(100dvh - var(--header-h) - 304px)));
+}
+
+/* A phone on its side has less room under the header than either floor
+   above, so a plot held to its floor could never be seen whole. There the
+   plot is the room under the header, less a gap: scrolled into view, all of
+   it is on screen. */
+@media (height < 520px) {
+  .chart-plot,
+  .chart-plot[data-focus="true"] {
+    height: max(200px, calc(100dvh - var(--header-h) - 24px));
+  }
 }
 
 /* A label in the nav rail.
@@ -774,5 +817,185 @@ td {
     transition-duration: 1ms !important;
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+/* Interaction finish requested for the forest workspace. The metallic layer
+   is deliberately local to actionable surfaces; the plot stays unlit. These
+   tints extend the brand for interaction feedback, not market semantics. */
+:root {
+  --metal-silver: #d8e6dd;
+  --metal-cyan: #83d5cf;
+  --metal-amber: #d9bc85;
+  --metal-violet: #b9b2cb;
+  --interaction-edge: #73958a;
+  --text-secondary: #c3c9ba;
+  --text-muted: #a2ad99;
+  --metal-spectrum: linear-gradient(115deg,
+    color-mix(in srgb, var(--metal-cyan) 11%, transparent),
+    color-mix(in srgb, var(--metal-silver) 16%, transparent) 30%,
+    color-mix(in srgb, var(--metal-violet) 10%, transparent) 52%,
+    color-mix(in srgb, var(--metal-amber) 12%, transparent) 76%,
+    color-mix(in srgb, var(--sage) 8%, transparent));
+}
+
+.metallic {
+  position: relative;
+  isolation: isolate;
+}
+
+/* The finish sits behind content and cannot intercept clicks or obscure text.
+   Its radius follows each control without clipping focus rings or popovers. */
+.metallic::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse at var(--metal-x, 50%) var(--metal-y, 30%),
+      color-mix(in srgb, var(--metal-silver) 19%, transparent), transparent 65%),
+    var(--metal-spectrum);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--metal-silver) 26%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--metal-cyan) 24%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .metallic:not(:disabled):hover::before {
+    opacity: 1;
+  }
+  .watch-row:hover,
+  .research-card:hover {
+    border-color: var(--interaction-edge);
+  }
+  .research-card:hover .research-link {
+    color: var(--metal-cyan);
+    background: color-mix(in srgb, var(--metal-cyan) 9%, transparent);
+  }
+  .automation-row:hover::before {
+    box-shadow: inset 0 0 0 1px var(--metal-amber);
+  }
+}
+
+.metallic:focus-visible::before,
+.watch-row:focus-within::before,
+.research-card:focus-within::before {
+  opacity: 1;
+}
+
+.watch-row[data-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.watch-row > button:first-of-type {
+  min-height: 64px;
+  gap: 8px;
+  padding-left: 8px;
+}
+
+.activity-row > div > button:hover {
+  background-color: transparent;
+}
+
+.watch-row > button:first-of-type > span:last-child {
+  min-width: 76px;
+  padding-left: 4px;
+}
+
+.chart-control[aria-pressed="true"] {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ivory) 45%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.research-card {
+  border-radius: var(--radius-card);
+  margin: 4px 8px;
+  padding-left: 12px;
+  padding-right: 12px;
+  border: 1px solid var(--border-subtle);
+  background-color: color-mix(in srgb, var(--surface-raised) 50%, var(--surface-panel));
+}
+
+.research-card > .min-w-0 {
+  /* Keep a readable text measure even when the timestamp wraps below. */
+  flex-basis: 140px;
+}
+
+.research-card .type-body-sm {
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.activity-row[data-expanded="true"] {
+  background-color: var(--surface-raised);
+  box-shadow: inset 2px 0 0 var(--positive);
+}
+
+.transaction-details {
+  background-color: var(--surface-base);
+  border-color: var(--border-strong);
+  padding: 12px;
+}
+
+.agent-composer:focus-within {
+  border-color: var(--metal-cyan);
+  outline: 1px solid var(--metal-cyan);
+  outline-offset: 2px;
+  caret-color: var(--metal-cyan);
+}
+
+.agent-composer:focus-within::before {
+  opacity: 0.65;
+}
+
+.agent-suggestion:focus-visible {
+  outline-color: var(--metal-cyan);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .metallic::before {
+    transition: opacity 150ms ease-out;
+  }
+  .activity-chevron {
+    transition: transform 180ms var(--ease);
+  }
+  .transaction-expansion:not([hidden]) {
+    animation: transaction-reveal 180ms ease-out;
+  }
+}
+
+@keyframes transaction-reveal {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (pointer: coarse) {
+  .metallic:is(button, a),
+  .watch-row > button,
+  .activity-row a {
+    min-height: 40px;
+  }
+  .watch-row > button:last-child {
+    min-width: 40px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .metallic::before {
+    background: var(--surface-hover);
+    box-shadow: inset 0 0 0 1px var(--interaction-edge);
+  }
+  .chart-control[aria-pressed="true"]::before {
+    background: transparent;
   }
 }

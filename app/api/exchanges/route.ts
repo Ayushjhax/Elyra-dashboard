@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/session";
+import { isBinanceCredential } from "@/lib/connections/state";
 import { encryptSecret, lastFour } from "@/lib/crypto/credentials";
 import { listConnections } from "@/lib/exchange/accounts";
+import { checkBinanceKey } from "@/lib/exchange/binance";
+import { inspectHyperliquidAccount } from "@/lib/exchange/hyperliquid";
 import { serviceClient } from "@/lib/supabase/server";
 import type { ExchangeId } from "@/lib/supabase/types";
 
@@ -14,8 +17,9 @@ import type { ExchangeId } from "@/lib/supabase/types";
 
    These are READ-ONLY connections. Nothing in this codebase calls a trading
    endpoint, but a key with trade permission would still be a key with trade
-   permission sitting in a database. The UI says so; this is the note for
-   whoever reads the code.
+   permission sitting in a database — so a Binance key's permissions are read
+   back from Binance before it is stored, and a key that can trade, transfer
+   or withdraw is refused (lib/exchange/binance.ts, `checkBinanceKey`).
 --------------------------------------------------------------------------- */
 
 export const runtime = "nodejs";
@@ -85,9 +89,19 @@ export async function POST(request: Request) {
     const address = String(body.walletAddress ?? "").trim();
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
       return NextResponse.json(
-        { error: "Expected an EVM wallet address." },
+        { error: "That is not a wallet address. It should start 0x and be 42 characters." },
         { status: 400 },
       );
+    }
+
+    /* Read before anything is stored, and on preview, instead of storing: the
+       person sees what is at the address and recognises it as theirs. */
+    const inspection = await inspectHyperliquidAccount(address);
+    if (!inspection.ok) {
+      return NextResponse.json({ error: inspection.error }, { status: 502 });
+    }
+    if (body.preview === true) {
+      return NextResponse.json({ preview: true, found: inspection.found });
     }
 
     const { error } = await db.from("exchange_accounts").upsert(
@@ -101,10 +115,10 @@ export async function POST(request: Request) {
     );
 
     if (error) {
-      console.error("[exchanges]", error);
-      return NextResponse.json({ error: "Could not save." }, { status: 500 });
+      console.error("[exchanges]", error.code, error.message);
+      return NextResponse.json({ error: "Could not save that address. Nothing was changed." }, { status: 500 });
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, found: inspection.found });
   }
 
   const apiKey = String(body.apiKey ?? "").trim();
@@ -114,6 +128,25 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Both an API key and secret are required." },
       { status: 400 },
+    );
+  }
+
+  /* The same shape rule the form applies, so a request that skipped the form
+     is held to it too. Neither value is echoed back. */
+  if (!isBinanceCredential(apiKey) || !isBinanceCredential(apiSecret)) {
+    return NextResponse.json(
+      { error: "That does not look like a Binance API key and secret. Paste each one in full." },
+      { status: 400 },
+    );
+  }
+
+  /* Read-only is checked, not assumed: Binance reports what the key may do,
+     and a key that can trade or withdraw is refused before it is stored. */
+  const check = await checkBinanceKey(apiKey, apiSecret);
+  if (!check.ok) {
+    return NextResponse.json(
+      { error: check.message, reason: check.reason },
+      { status: check.reason === "unreachable" ? 502 : 400 },
     );
   }
 
@@ -130,11 +163,13 @@ export async function POST(request: Request) {
   );
 
   if (error) {
-    console.error("[exchanges]", error);
+    /* The code and message only: a database error object can carry the row
+       it was asked to write, and that row holds the encrypted pair. */
+    console.error("[exchanges]", error.code, error.message);
     return NextResponse.json({ error: "Could not save." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ipRestricted: check.ipRestricted });
 }
 
 export async function DELETE(request: Request) {

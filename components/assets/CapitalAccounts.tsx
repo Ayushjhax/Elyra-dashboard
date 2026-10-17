@@ -26,7 +26,7 @@ import { BalancesTable, HistoryTable, PositionsTable } from "@/components/assets
 import { Delta, Money, useBalancesHidden } from "@/components/portfolio/primitives";
 import { ReceiveDialog } from "@/components/portfolio/ReceiveDialog";
 import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
-import { IconButton, Tip } from "@/components/shell/RouteDrawer";
+import { IconButton, InfoTip, Tip } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { OptionMenu } from "@/components/ui/OptionMenu";
 import { Popover } from "@/components/ui/Popover";
@@ -200,7 +200,7 @@ function EquityCard({
               </span>
             )}
             {snapshot.partial && scoped === null && (
-              <Tip label={snapshot.notes.filter((note) => note.kind === "failed").map((note) => note.reason).join(" ")}>
+              <Tip openOnTap label={snapshot.notes.filter((note) => note.kind === "failed").map((note) => note.reason).join(" ")}>
                 <span tabIndex={0} className="type-label ml-2 inline-flex rounded-chip text-caution">· Partial total</span>
               </Tip>
             )}
@@ -216,11 +216,7 @@ function EquityCard({
         <div className="min-w-0 border-r border-border-subtle pr-4">
           <p className="type-body-sm flex items-center gap-1.5 text-text-secondary">
             Available to deploy
-            <Tip label="Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything.">
-              <button type="button" aria-label="What this means" className="rounded-chip text-text-muted hover:text-text-secondary">
-                <Info size={12} strokeWidth={1.5} aria-hidden />
-              </button>
-            </Tip>
+            <InfoTip text="Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything." />
           </p>
           <Money
             value={available ?? (total === 0 ? 0 : null)}
@@ -340,7 +336,7 @@ function AllocationCard({
         </span>
         <Link
           href="/agent"
-          className="type-body-sm inline-flex items-center gap-1 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
+          className="type-body-sm relative inline-flex items-center gap-1 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand after:absolute after:-inset-x-1 after:-inset-y-2 hover:text-accent-hover"
         >
           Manage connections
           <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden />
@@ -452,7 +448,7 @@ function VenueCard({
         <ArrowRight size={15} strokeWidth={1.5} aria-hidden />
       </button>
     ) : account.connection === "unsupported" ? (
-      <Tip label={account.detail ?? "Not available in Elyra yet."}>
+      <Tip openOnTap label={account.detail ?? "Not available in Elyra yet."}>
         <button type="button" aria-disabled className={cn(outlined, "h-9 w-full cursor-not-allowed border-border-subtle text-text-muted hover:border-border-subtle hover:bg-transparent")}>
           <BriefcaseBusiness size={15} strokeWidth={1.5} aria-hidden />
           Not available yet

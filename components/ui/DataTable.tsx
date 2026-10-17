@@ -25,6 +25,13 @@ export interface Column<T> {
  * A real <table> with a sticky header row. Rows are --row-h tall, divided by
  * hairlines, and hover to --surface-hover. Every numeric cell inherits
  * tabular figures from the base stylesheet, so a tick never moves a column.
+ *
+ * With `card`, a container narrower than 40rem — a phone — gets a list of
+ * cards instead: a table of eight columns three hundred pixels wide shows
+ * two of them and hides the rest behind a sideways scroll, where the figure
+ * that matters (a PnL, an action) is always last. Both are rendered and a
+ * container query shows one, so the choice is CSS's, like every other layout
+ * decision here, and the hidden one is out of the accessibility tree.
  */
 export function DataTable<T>({
   columns,
@@ -33,6 +40,7 @@ export function DataTable<T>({
   caption,
   minWidth,
   rowClassName,
+  card,
   className,
 }: {
   columns: Column<T>[];
@@ -44,9 +52,11 @@ export function DataTable<T>({
   caption: string;
   /** Sum of the column widths, so the table scrolls rather than squeezing. */
   minWidth?: number;
+  /** The row laid out for a narrow container. */
+  card?: (row: T) => React.ReactNode;
   className?: string;
 }) {
-  return (
+  const table = (
     <table
       className={cn("w-full border-collapse text-left", className)}
       style={{ tableLayout: "fixed", minWidth }}
@@ -103,5 +113,23 @@ export function DataTable<T>({
         ))}
       </tbody>
     </table>
+  );
+
+  if (card === undefined) return table;
+
+  return (
+    <div className="@container">
+      <div className="hidden @[40rem]:block">{table}</div>
+      <ul aria-label={caption} className="list-none @[40rem]:hidden">
+        {rows.map((row) => (
+          <li
+            key={getRowKey(row)}
+            className={cn("border-b border-border-subtle px-4 py-3 last:border-b-0", rowClassName?.(row))}
+          >
+            {card(row)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

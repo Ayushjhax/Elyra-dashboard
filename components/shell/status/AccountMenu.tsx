@@ -17,6 +17,7 @@ import { accountExplorerUrl } from "@/lib/solana/address";
 import { CLUSTER_LABEL, EXPECTED_CLUSTER } from "@/lib/solana/cluster";
 import { useElyraStore } from "@/lib/store";
 import { useSecond } from "@/lib/useClock";
+import { walletStatus } from "@/lib/wallet/status";
 import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
 
@@ -45,15 +46,6 @@ const TRIGGER = cn(
 );
 
 const DIVIDER = "border-[color-mix(in_srgb,var(--accent)_12%,transparent)]";
-
-/** Where the wallet's read stands, in words the data supports. */
-function status(wallet: WalletDashboard): { tone: "positive" | "caution" | "negative" | "muted"; label: string } {
-  if (wallet.unconfigured) return { tone: "muted", label: "Not configured" };
-  if (wallet.wrongChain) return { tone: "negative", label: "Wrong cluster" };
-  if (wallet.snapshot === null) return wallet.isLoading ? { tone: "muted", label: "Checking…" } : { tone: "negative", label: "Unreachable" };
-  if (wallet.stale) return { tone: "caution", label: "Last read failed" };
-  return { tone: "positive", label: "Connected" };
-}
 
 export function AccountMenu() {
   return <AccountMenuView auth={useElyraAuth()} wallet={useWalletDashboard()} />;
@@ -97,7 +89,7 @@ export function AccountMenuView({
   }
 
   const address = auth.solanaAddress;
-  const state = status(wallet);
+  const state = walletStatus(wallet);
   const network = CLUSTER_LABEL[wallet.cluster ?? EXPECTED_CLUSTER];
   const snapshot = wallet.snapshot;
 

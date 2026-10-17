@@ -1,8 +1,12 @@
 import "server-only";
 
-import { annualisedFundingPct, binanceTicker } from "@/lib/providers/binance-public";
+import {
+  annualisedFundingPct,
+  binanceTicker,
+} from "@/lib/providers/binance-public";
 import { hyperliquidMarket } from "@/lib/providers/hyperliquid-public";
 import { routePrices } from "@/lib/providers/router";
+import { SIGNAL_CRITERIA } from "@/lib/research/signalCriteria";
 import { divergenceBps } from "@/lib/research/calculations";
 import { ok, type ToolResult } from "@/lib/providers/types";
 
@@ -36,6 +40,15 @@ import { ok, type ToolResult } from "@/lib/providers/types";
    Three levels, decided by rules. A "confidence: 0.83" would be a number with
    no method behind it, and its precision would imply one.
 --------------------------------------------------------------------------- */
+
+export type EvaluationState =
+  "evaluated" | "unavailable" | "stale" | "unsupported";
+export interface SignalEvaluation {
+  price: EvaluationState;
+  funding: EvaluationState;
+  divergence: EvaluationState;
+  generatedAt: string;
+}
 
 export type SignalType =
   | "price_momentum"
@@ -76,7 +89,7 @@ export interface MarketSignal {
 }
 
 /** Beyond this, a reading describes a market that may have moved on. */
-const STALE_MS = 5 * 60_000;
+const STALE_MS = SIGNAL_CRITERIA.staleMs;
 
 function freshEnough(asOf: string, now: number): boolean {
   const at = Date.parse(asOf);
@@ -121,7 +134,9 @@ const MINTS: Record<string, string> = {
  * threshold. "Nothing notable" is a real and useful answer; a product that
  * always finds a signal is a product whose signals mean nothing.
  */
-export async function signalsFor(symbol: string): Promise<ToolResult<MarketSignal[]>> {
+export async function signalsFor(
+  symbol: string,
+): Promise<ToolResult<MarketSignal[]> & { evaluation: SignalEvaluation }> {
   const asset = symbol.trim().toUpperCase();
   const now = Date.now();
   const generatedAt = new Date(now).toISOString();
@@ -163,7 +178,9 @@ export async function signalsFor(symbol: string): Promise<ToolResult<MarketSigna
   }
 
   const onchainPrice =
-    onchain !== null && onchain.ok ? (onchain.data?.[0]?.usdPrice ?? null) : null;
+    onchain !== null && onchain.ok
+      ? (onchain.data?.[0]?.usdPrice ?? null)
+      : null;
   if (onchainPrice !== null && onchain !== null) {
     evidence.push({
       source: "jupiter",
@@ -176,10 +193,12 @@ export async function signalsFor(symbol: string): Promise<ToolResult<MarketSigna
 
   const oldest = timestamps.sort()[0] ?? generatedAt;
   const stale = !freshEnough(oldest, now);
-  const venues = [spotPrice, perpMark, onchainPrice].filter((p) => p !== null).length;
+  const venues = [spotPrice, perpMark, onchainPrice].filter(
+    (p) => p !== null,
+  ).length;
 
   /* ---- Momentum ---- */
-  if (change !== null && Math.abs(change) >= 2) {
+  if (change !== null && Math.abs(change) >= SIGNAL_CRITERIA.priceChangePct) {
     const fundingPct =
       perp.ok && perp.data !== null && perp.data !== undefined
         ? annualisedFundingPct(perp.data)
@@ -190,7 +209,10 @@ export async function signalsFor(symbol: string): Promise<ToolResult<MarketSigna
     /* Funding crowded in the direction of the move means the trade is already
        consensus. That does not invalidate the momentum — it means the easy
        part may be behind it, which is worth saying rather than burying. */
-    if (fundingPct !== null && Math.abs(fundingPct) > 10) {
+    if (
+      fundingPct !== null &&
+      Math.abs(fundingPct) > SIGNAL_CRITERIA.crowdedFundingPct
+    ) {
       const crowdedLong = fundingPct > 0 && change > 0;
       const crowdedShort = fundingPct < 0 && change < 0;
       if (crowdedLong || crowdedShort) {
@@ -239,7 +261,7 @@ export async function signalsFor(symbol: string): Promise<ToolResult<MarketSigna
      latency, and none of that is measured here. */
   if (spotPrice !== null && onchainPrice !== null) {
     const bps = divergenceBps(onchainPrice, spotPrice);
-    if (bps !== null && Math.abs(bps) >= 30) {
+    if (bps !== null && Math.abs(bps) >= SIGNAL_CRITERIA.divergenceBps) {
       signals.push({
         instrumentId: `crypto:${asset}`,
         symbol: asset,
@@ -268,7 +290,10 @@ export async function signalsFor(symbol: string): Promise<ToolResult<MarketSigna
   /* ---- Funding dislocation ---- */
   if (perp.ok && perp.data !== null && perp.data !== undefined) {
     const fundingPct = annualisedFundingPct(perp.data);
-    if (fundingPct !== null && Math.abs(fundingPct) >= 25) {
+    if (
+      fundingPct !== null &&
+      Math.abs(fundingPct) >= SIGNAL_CRITERIA.fundingPct
+    ) {
       signals.push({
         instrumentId: `crypto:${asset}`,
         symbol: asset,
@@ -289,17 +314,47 @@ export async function signalsFor(symbol: string): Promise<ToolResult<MarketSigna
     }
   }
 
-  return ok(signals, "binance", {
-    asOf: oldest,
-    warnings: stale
-      ? ["Readings are more than five minutes old; strength is capped at low."]
-      : [],
-  });
+  const reading = (
+    available: boolean,
+    timestamps: string[],
+  ): EvaluationState =>
+    !available
+      ? "unavailable"
+      : timestamps.some((at) => !freshEnough(at, now))
+        ? "stale"
+        : "evaluated";
+  const funding = perp.ok && perp.data ? annualisedFundingPct(perp.data) : null;
+  return {
+    ...ok(signals, "binance", {
+      asOf: oldest,
+      warnings: stale
+        ? [
+            "Readings are more than five minutes old; strength is capped at low.",
+          ]
+        : [],
+    }),
+    evaluation: {
+      price: reading(change !== null, [spot.asOf]),
+      funding: reading(funding !== null, [perp.asOf]),
+      divergence:
+        MINTS[asset] === undefined
+          ? "unsupported"
+          : reading(spotPrice !== null && onchainPrice !== null, [
+              spot.asOf,
+              onchain?.asOf ?? generatedAt,
+            ]),
+      generatedAt,
+    },
+  };
 }
 
 /** A compact line per signal, for chat surfaces. */
 export function describeSignal(signal: MarketSignal): string {
   const arrow =
-    signal.direction === "positive" ? "▲" : signal.direction === "negative" ? "▼" : "·";
+    signal.direction === "positive"
+      ? "▲"
+      : signal.direction === "negative"
+        ? "▼"
+        : "·";
   return `${arrow} ${signal.title} — ${signal.strength} strength, ${signal.confirmationCount} venue(s)`;
 }

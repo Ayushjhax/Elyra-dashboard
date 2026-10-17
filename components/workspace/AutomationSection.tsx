@@ -93,7 +93,7 @@ function RuleRow({
     <li className="agent-rail border-b border-border-subtle last:border-b-0">
       <div
         className={cn(
-          "flex items-center gap-3 py-2.5 pl-[14px] pr-4",
+          "metallic automation-row flex items-center gap-3 py-2.5 pl-[14px] pr-4",
           "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
         )}
       >

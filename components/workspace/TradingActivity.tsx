@@ -76,6 +76,12 @@ function SideCell({ side }: { side: "long" | "short" | "buy" | "sell" }) {
   );
 }
 
+/** Long or Short for a position with a side; otherwise what kind of holding it is. */
+function PositionKind({ row }: { row: LedgerPosition }) {
+  if (row.side !== null) return <SideCell side={row.side} />;
+  return <span className="type-label capitalize text-text-secondary">{row.category ?? "Hold"}</span>;
+}
+
 /** Left behind on a SOL sale for network fees and rent. */
 const SOL_FEE_RESERVE = 0.01;
 
@@ -90,6 +96,11 @@ function price(value: number | null) {
 function venueLabel(venue: string): string {
   if (venue === "okx") return "OKX";
   return venue.charAt(0).toUpperCase() + venue.slice(1);
+}
+
+/** Whether ActionCell draws anything for `action`. */
+function actionable(action: LedgerAction): boolean {
+  return action !== null && (action.kind === "swap" || action.href !== null);
 }
 
 /**
@@ -131,6 +142,78 @@ function ActionCell({
       className={cn(buttonVariants({ variant: "quiet", size: "xs" }), "px-1.5")}
     >
       {venueLabel(action.venue)}
+      <ExternalLink size={11} strokeWidth={1.5} aria-hidden />
+    </a>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   The rows as cards, for a phone (see DataTable's `card`).
+
+   The table's columns, regrouped: what the row is and what it is worth on
+   the first line, its particulars as labelled figures under it, and its
+   action last. A figure the row does not have is left out rather than
+   dashed, so a wallet holding is not a card of dashes.
+--------------------------------------------------------------------------- */
+
+/** One labelled figure. Null leaves it out. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  if (children === null) return null;
+  return (
+    <div className="min-w-0">
+      <dt className="type-label text-text-muted">{label}</dt>
+      <dd className="type-data truncate text-text-primary">{children}</dd>
+    </div>
+  );
+}
+
+/** The first line: what the row is, then what matters most about it. */
+function CardHead({ title, badge, children }: { title: string; badge?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-start justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="type-data truncate text-text-primary" title={title}>
+          {title}
+        </span>
+        {badge}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function priceOrNull(value: number | null) {
+  return value === null ? null : formatPrice(value, priceDecimals(value));
+}
+
+/** A history row's status, coloured only when it failed or is still pending. */
+function EventStatus({ status }: { status: LedgerEvent["status"] }) {
+  return (
+    <span
+      className={cn(
+        "capitalize",
+        status === "failed" ? "text-negative" : status === "pending" ? "text-text-muted" : "text-text-secondary",
+      )}
+    >
+      {status}
+    </span>
+  );
+}
+
+/** Out to the explorer or the venue, where a row has somewhere to go. */
+function EventLink({ href }: { href: string | null }) {
+  if (href === null) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "type-label relative inline-flex shrink-0 items-center gap-1 text-text-secondary underline-offset-2",
+        "after:absolute after:-inset-2.5 hover:text-text-primary hover:underline",
+      )}
+    >
+      View
       <ExternalLink size={11} strokeWidth={1.5} aria-hidden />
     </a>
   );
@@ -218,6 +301,22 @@ export function TradingActivity() {
     [selectedSymbol],
   );
 
+  /* SOL pays the network fee, so a full-balance sale would fail at signing.
+     A small reserve stays behind; the amount is editable. */
+  const startSell = (symbol: string, quantity: number) => {
+    const amount = symbol === "SOL" ? Math.max(0, quantity - SOL_FEE_RESERVE) : quantity;
+    setSell({ symbol, amount: amount.toFixed(9).replace(/\.?0+$/, "") });
+  };
+
+  const eventTime = (row: LedgerEvent) =>
+    row.at === null ? (
+      <span className="text-text-muted">Pending</span>
+    ) : (
+      <time dateTime={row.at} className="text-text-secondary" title={`${formatTimestamp(row.at)} UTC`}>
+        {now === null ? formatTimestamp(row.at) : formatRelativeTime(row.at, now)}
+      </time>
+    );
+
   const positionColumns: Column<LedgerPosition>[] = [
     {
       key: "market",
@@ -229,19 +328,7 @@ export function TradingActivity() {
         </span>
       ),
     },
-    {
-      key: "side",
-      header: "Side",
-      width: "64px",
-      render: (row) =>
-        row.side !== null ? (
-          <SideCell side={row.side} />
-        ) : row.category !== null ? (
-          <span className="type-label capitalize text-text-secondary">{row.category}</span>
-        ) : (
-          <span className="type-label text-text-secondary">Hold</span>
-        ),
-    },
+    { key: "side", header: "Side", width: "64px", render: (row) => <PositionKind row={row} /> },
     {
       key: "size",
       header: "Size",
@@ -280,20 +367,34 @@ export function TradingActivity() {
       align: "right",
       width: "96px",
       headerSrOnly: true,
-      render: (row) => (
-        <ActionCell
-          action={row.action}
-          canSign={canSign}
-          onSell={(symbol, quantity) => {
-            /* SOL pays the network fee, so a full-balance sale would fail at
-               signing. A small reserve stays behind; the amount is editable. */
-            const amount = symbol === "SOL" ? Math.max(0, quantity - SOL_FEE_RESERVE) : quantity;
-            setSell({ symbol, amount: amount.toFixed(9).replace(/\.?0+$/, "") });
-          }}
-        />
-      ),
+      render: (row) => <ActionCell action={row.action} canSign={canSign} onSell={startSell} />,
     },
   ];
+
+  const positionCard = (row: LedgerPosition) => (
+    <>
+      <CardHead title={row.label} badge={<PositionKind row={row} />}>
+        {row.pnlUsd !== null && (
+          <ValueTone value={row.pnlUsd} className="type-data flex shrink-0 flex-col items-end leading-4">
+            <span>{formatUsd(row.pnlUsd, { sign: true })}</span>
+            {row.pnlPct !== null && <span className="type-data-sm leading-[14px]">{formatPct(row.pnlPct)}</span>}
+          </ValueTone>
+        )}
+      </CardHead>
+      <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2">
+        <Fact label="Value">{row.valueUsd === null ? null : formatCompactUsd(row.valueUsd)}</Fact>
+        <Fact label="Size">{row.size === null ? null : formatQty(row.size, row.size < 1 ? 4 : 2)}</Fact>
+        <Fact label="Entry">{priceOrNull(row.entryPrice)}</Fact>
+        <Fact label="Mark">{priceOrNull(row.markPrice)}</Fact>
+        <Fact label="Liq. Price">{priceOrNull(row.liquidationPrice)}</Fact>
+      </dl>
+      {actionable(row.action) && (
+        <div className="mt-2 flex justify-end">
+          <ActionCell action={row.action} canSign={canSign} onSell={startSell} />
+        </div>
+      )}
+    </>
+  );
 
   const orderColumns: Column<LedgerOrder>[] = [
     {
@@ -358,19 +459,38 @@ export function TradingActivity() {
     },
   ];
 
+  const orderCard = (row: LedgerOrder) => (
+    <>
+      <CardHead title={row.label} badge={<SideCell side={row.side} />}>
+        <time dateTime={row.createdAt} className="type-data-sm shrink-0 text-text-secondary">
+          {formatTimestamp(row.createdAt)}
+        </time>
+      </CardHead>
+      <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2">
+        <Fact label="Type">
+          <span className="capitalize">{row.type}</span>
+        </Fact>
+        <Fact label="Price">{priceOrNull(row.priceUsd)}</Fact>
+        <Fact label="Size">{formatQty(row.quantity, row.quantity < 1 ? 4 : 2)}</Fact>
+        <Fact label="Filled">{formatPct(row.filledPct, { sign: false, decimals: 0 })}</Fact>
+        <Fact label="Status">
+          <span className="capitalize">{row.status}</span>
+        </Fact>
+      </dl>
+      {actionable(row.action) && (
+        <div className="mt-2 flex justify-end">
+          <ActionCell action={row.action} canSign={false} onSell={() => {}} />
+        </div>
+      )}
+    </>
+  );
+
   const historyColumns: Column<LedgerEvent>[] = [
     {
       key: "time",
       header: "Time",
       width: "112px",
-      render: (row) =>
-        row.at === null ? (
-          <span className="text-text-muted">Pending</span>
-        ) : (
-          <time dateTime={row.at} className="text-text-secondary" title={`${formatTimestamp(row.at)} UTC`}>
-            {now === null ? formatTimestamp(row.at) : formatRelativeTime(row.at, now)}
-          </time>
-        ),
+      render: eventTime,
     },
     {
       key: "summary",
@@ -392,16 +512,7 @@ export function TradingActivity() {
       key: "status",
       header: "Status",
       width: "88px",
-      render: (row) => (
-        <span
-          className={cn(
-            "capitalize",
-            row.status === "failed" ? "text-negative" : row.status === "pending" ? "text-text-muted" : "text-text-secondary",
-          )}
-        >
-          {row.status}
-        </span>
-      ),
+      render: (row) => <EventStatus status={row.status} />,
     },
     {
       key: "link",
@@ -409,20 +520,21 @@ export function TradingActivity() {
       align: "right",
       width: "80px",
       headerSrOnly: true,
-      render: (row) =>
-        row.href === null ? null : (
-          <a
-            href={row.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="type-label inline-flex items-center gap-1 text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
-          >
-            View
-            <ExternalLink size={11} strokeWidth={1.5} aria-hidden />
-          </a>
-        ),
+      render: (row) => <EventLink href={row.href} />,
     },
   ];
+
+  const historyCard = (row: LedgerEvent) => (
+    <div className="flex min-w-0 items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="type-data line-clamp-2 text-text-primary">{row.summary}</p>
+        <p className="type-label mt-0.5 text-text-secondary">
+          {eventTime(row)} · {venueLabel(row.venue)} · <EventStatus status={row.status} />
+        </p>
+      </div>
+      <EventLink href={row.href} />
+    </div>
+  );
 
   const signedIn = portfolio.signedIn;
   const ordersMissing = snapshot?.notes.find((note) => note.scope === "orders" && note.kind === "missing");
@@ -521,6 +633,7 @@ export function TradingActivity() {
           getRowKey={(row) => row.id}
           minWidth={828}
           rowClassName={markSelected}
+          card={positionCard}
           caption={`Open ${marketType === "all" ? "" : `${marketType} `}positions`}
         />
       );
@@ -533,6 +646,7 @@ export function TradingActivity() {
           getRowKey={(row) => row.id}
           minWidth={770}
           rowClassName={markSelected}
+          card={orderCard}
           caption={`Resting ${marketType === "all" ? "" : `${marketType} `}orders`}
         />
       );
@@ -544,6 +658,7 @@ export function TradingActivity() {
           rows={history}
           getRowKey={(row) => row.id}
           minWidth={616}
+          card={historyCard}
           caption={`${marketType === "all" ? "All" : marketType} account history`}
         />
       );

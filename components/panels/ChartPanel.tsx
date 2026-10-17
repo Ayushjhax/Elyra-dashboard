@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import {
   CandlestickChart,
+  Check,
   ChevronDown,
   LineChart,
   Maximize,
@@ -11,6 +12,7 @@ import {
   SlidersHorizontal,
   MousePointerClick,
   PenTool,
+  Pointer,
   Star,
 } from "lucide-react";
 import { AssetSelectDialog } from "@/components/panels/AssetSelectDialog";
@@ -21,6 +23,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Popover } from "@/components/ui/Popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompactUsd, formatPrice, formatPriceUsd } from "@/lib/format";
+import { WORKSPACE_GAP, WORKSPACE_PAD } from "@/lib/layout";
 import { priceDecimals } from "@/lib/market/precision";
 import { nearestLevels } from "@/lib/market/levels";
 import { useLevels } from "@/lib/market/useLevels";
@@ -29,6 +32,7 @@ import type { PriceRow } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
 import type { ChartStyle, Interval } from "@/lib/types";
 import { useSecond } from "@/lib/useClock";
+import { useFirstScreenFit } from "@/lib/useFirstScreenFit";
 import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
 
@@ -102,10 +106,21 @@ function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+const noSubscription = () => () => {};
+
+/**
+ * Whether this browser can put the chart card full screen. Safari on an
+ * iPhone cannot — the API is not there — so the button would do nothing; it
+ * is drawn on the server and dropped once the browser says so.
+ */
+function useCanFullscreen(): boolean {
+  return useSyncExternalStore(noSubscription, () => document.fullscreenEnabled === true, () => true);
+}
+
 type Status = "loading" | "ready" | "error";
 
 const TOOL = cn(
-  "type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2.5",
+  "metallic chart-control type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2.5",
   "transition-colors duration-[var(--dur-fast)] ease-brand",
 );
 
@@ -149,14 +164,14 @@ function Indicators() {
           aria-label={`Indicators, ${count} on`}
           className={cn(
             TOOL,
-            "px-2 @3xl:px-2.5",
+            "px-2 @4xl:px-2.5",
             open
               ? "bg-surface-hover text-text-primary"
               : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
           )}
         >
           <SlidersHorizontal size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @3xl:inline">Indicators</span>
+          <span className="hidden @4xl:inline">Indicators</span>
           {count > 0 && <span className="type-data-sm text-text-muted">{count}</span>}
         </button>
       }
@@ -297,7 +312,7 @@ function FeedFooter({
             </span>
           )}
         </span>
-        <span className="type-label hidden shrink-0 text-text-muted @4xl:inline">
+        <span className="type-label hidden shrink-0 text-text-muted pointer-fine:@4xl:inline">
           {engaged ? "Scroll zooms · move away to release" : "Click the chart to zoom and inspect"}
         </span>
         <span className="type-data-sm shrink-0 text-text-muted">{clock} UTC</span>
@@ -328,6 +343,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
   const [status, setStatus] = useState<Status>("loading");
   const [reloads, setReloads] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
+  const canFullscreen = useCanFullscreen();
   /* Whether the chart has the pointer's gestures. Off until the operator
      clicks into it — see the guard over the plot below. */
   const [engaged, setEngaged] = useState(false);
@@ -336,6 +352,10 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rawId = useId();
   const containerId = `tv-${rawId.replace(/[^a-zA-Z0-9]/g, "")}`;
+
+  /* The card opens one screen tall: its foot level with the agent's, or — in
+     focus mode, with nothing under it — on the workspace's bottom padding. */
+  useFirstScreenFit(plotRef, cardRef, focus ? WORKSPACE_PAD : WORKSPACE_GAP);
 
   /* Derived server-side from the asset's class — see lib/market/pyth/tradingview.ts.
      Null means Pyth carries the asset but TradingView has no dependable symbol
@@ -603,12 +623,17 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           row and the tools sit under them — rather than squeezing the
           intervals into a scroller one button wide. Only the intervals may
           scroll sideways: the indicators menu has to sit outside any
-          scroller, or its popover would be clipped by it. */}
+          scroller, or its popover would be clipped by it.
+
+          The tools' labels need about 830px on one row with alerts armed, so
+          they arrive at @4xl; from @3xl they pushed the reload and full-screen
+          buttons onto a row of their own on a laptop. Below it the tools are
+          icons, each named by its aria-label. */}
       <div className="@container flex flex-wrap items-center gap-2 border-y border-border-subtle px-3 py-2 compact:px-4">
         <div
           role="group"
           aria-label="Chart interval"
-          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @xl:basis-auto @xl:flex-1 @3xl:flex-none"
+          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @xl:basis-auto @xl:flex-1 @4xl:flex-none"
         >
           {INTERVALS.map((value) => {
             const active = value === interval;
@@ -619,7 +644,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
                 aria-pressed={active}
                 onClick={() => setInterval(value)}
                 className={cn(
-                  "type-data-sm h-8 min-w-9 shrink-0 rounded-control px-2.5",
+                  "metallic chart-control type-data-sm h-8 min-w-9 shrink-0 rounded-control px-2.5",
                   "transition-colors duration-[var(--dur-fast)] ease-brand",
                   active
                     ? "bg-accent text-text-on-accent"
@@ -652,14 +677,14 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
                 onClick={() => setChartStyle(value)}
                 className={cn(
                   TOOL,
-                  "px-2 @3xl:px-2.5",
+                  "px-2 @4xl:px-2.5",
                   active
                     ? "bg-surface-hover text-text-primary"
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
                 )}
               >
                 <Icon size={15} strokeWidth={1.5} aria-hidden />
-                <span className="hidden @3xl:inline">{label}</span>
+                <span className="hidden @4xl:inline">{label}</span>
               </button>
             );
           })}
@@ -675,14 +700,14 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           onClick={() => setDrawing(!drawing)}
           className={cn(
             TOOL,
-            "px-2 @3xl:px-2.5",
+            "px-2 @4xl:px-2.5",
             drawing
               ? "bg-surface-hover text-text-primary"
               : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
           )}
         >
           <PenTool size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @3xl:inline">Draw</span>
+          <span className="hidden @4xl:inline">Draw</span>
         </button>
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -699,24 +724,26 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
             </TooltipTrigger>
             <TooltipContent side="bottom">Reload the chart</TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-pressed={fullscreen}
-                aria-label={fullscreen ? "Exit full screen" : "Full screen"}
-                onClick={toggleFullscreen}
-                className={cn(TOOL, "px-2 text-text-muted hover:bg-surface-hover hover:text-text-primary")}
-              >
-                {fullscreen ? (
-                  <Minimize size={15} strokeWidth={1.5} aria-hidden />
-                ) : (
-                  <Maximize size={15} strokeWidth={1.5} aria-hidden />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{fullscreen ? "Exit full screen" : "Full screen"}</TooltipContent>
-          </Tooltip>
+          {canFullscreen && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-pressed={fullscreen}
+                  aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+                  onClick={toggleFullscreen}
+                  className={cn(TOOL, "px-2 text-text-muted hover:bg-surface-hover hover:text-text-primary")}
+                >
+                  {fullscreen ? (
+                    <Minimize size={15} strokeWidth={1.5} aria-hidden />
+                  ) : (
+                    <Maximize size={15} strokeWidth={1.5} aria-hidden />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{fullscreen ? "Exit full screen" : "Full screen"}</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </div>
 
@@ -724,14 +751,20 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
         <PivotRow symbol={asset?.assetType === "crypto" ? symbol : null} price={row?.price ?? null} />
       )}
 
-      {/* The plot. Its height is CSS — see .chart-plot — and the widget's
-          iframe is 100% of it, so a column opening or closing beside the
-          centre resizes the chart without rebuilding it. */}
+      {/* The plot. Its height is CSS — see .chart-plot, fed the first
+          screen's room by useFirstScreenFit — and the widget's iframe is 100%
+          of it, so a column opening or closing beside the centre resizes the
+          chart without rebuilding it. */}
       <div
         ref={plotRef}
         className={cn("chart-plot relative min-h-0", fullscreen && "!h-auto flex-1")}
         data-focus={focus ? "true" : undefined}
-        onPointerLeave={() => setEngaged(false)}
+        onPointerLeave={(event) => {
+          /* A finger "leaves" every time it lifts — before the click it was
+             lifting from — so for touch, leaving means nothing. The release
+             button and a tap elsewhere hand the page back instead. */
+          if (event.pointerType !== "touch") setEngaged(false);
+        }}
       >
         <div
           key={mount}
@@ -754,7 +787,11 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
             until then a scroll over the chart scrolls the workspace like
             anywhere else, and after it the chart has zoom, pan and the
             crosshair until the pointer leaves (or a tap lands elsewhere, or
-            Escape). Full screen has no page to scroll, so it is never guarded. */}
+            Escape). Full screen has no page to scroll, so it is never guarded.
+
+            A touch screen has no hover to show the hint on, so there it is
+            always shown; and no pointer to leave with, so the engaged chart
+            carries its own way back to scrolling the page. */}
         {shownStatus === "ready" && !engaged && !fullscreen && (
           <button
             type="button"
@@ -767,13 +804,30 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
               aria-hidden
               className={cn(
                 "type-label pointer-events-none absolute bottom-10 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5",
-                "rounded-pill border border-border-strong bg-surface-raised px-3 py-1.5 text-text-secondary shadow-pop",
+                "whitespace-nowrap rounded-pill border border-border-strong bg-surface-raised px-3 py-1.5 text-text-secondary shadow-pop",
                 "opacity-0 transition-opacity duration-[var(--dur-base)] ease-brand group-hover/guard:opacity-100",
+                "pointer-coarse:opacity-100",
               )}
             >
-              <MousePointerClick size={13} strokeWidth={1.5} />
-              Click to zoom, pan and inspect
+              <MousePointerClick size={13} strokeWidth={1.5} className="pointer-coarse:hidden" />
+              <Pointer size={13} strokeWidth={1.5} className="hidden pointer-coarse:block" />
+              <span className="pointer-coarse:hidden">Click to zoom, pan and inspect</span>
+              <span className="hidden pointer-coarse:inline">Tap to zoom, pan and inspect</span>
             </span>
+          </button>
+        )}
+
+        {shownStatus === "ready" && engaged && !fullscreen && (
+          <button
+            type="button"
+            onClick={() => setEngaged(false)}
+            className={cn(
+              "type-label absolute bottom-10 left-1/2 z-10 hidden h-9 -translate-x-1/2 items-center gap-1.5 pointer-coarse:inline-flex",
+              "whitespace-nowrap rounded-pill border border-border-strong bg-surface-raised px-3.5 text-text-primary shadow-pop",
+            )}
+          >
+            <Check size={14} strokeWidth={1.5} aria-hidden />
+            Release chart
           </button>
         )}
 

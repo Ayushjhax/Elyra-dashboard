@@ -5,14 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bot,
   ChevronsLeft,
   ChevronsRight,
   Coins,
   FileSearch,
   Gift,
   LayoutDashboard,
-  LogIn,
+  Link2,
   PieChart,
   RotateCcw,
   Settings,
@@ -20,7 +19,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { RailAccount } from "@/components/shell/RailAccount";
 import { Popover } from "@/components/ui/Popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useElyraStore } from "@/lib/store";
@@ -43,7 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/portfolio", label: "Portfolio", icon: PieChart },
   { href: "/personalized", label: "Personalized", icon: Sparkles },
   { href: "/assets", label: "Assets", icon: Coins },
-  { href: "/agent", label: "Agent", icon: Bot },
+  { href: "/agent", label: "Connections", icon: Link2 },
   { href: "/research", label: "Research", icon: FileSearch },
   { href: "/referrals", label: "Referrals", icon: Gift },
 ];
@@ -239,75 +238,6 @@ function SettingsMenu() {
   );
 }
 
-function truncateAddress(address: string) {
-  return `${address.slice(0, 4)}…${address.slice(-4)}`;
-}
-
-/**
- * Identity, from the Privy session. Signing in from here, and the wallet one
- * click away once signed in. Signing out lives in the account menu in the
- * header, behind its confirmation.
- */
-function Profile() {
-  const auth = useElyraAuth();
-  const setWalletSheetOpen = useElyraStore((state) => state.setWalletSheetOpen);
-
-  if (!auth.available) return null;
-
-  const address = auth.solanaAddress ?? auth.walletAddress;
-  const signedIn = auth.ready && auth.authenticated;
-  const label = !auth.ready
-    ? "Restoring session"
-    : !signedIn
-      ? "Sign in"
-      : address === null
-        ? "Signed in"
-        : `Wallet ${truncateAddress(address)}`;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          disabled={!auth.ready}
-          aria-label={signedIn ? `${label}. Open wallet` : label}
-          onClick={() => (signedIn ? setWalletSheetOpen(true) : auth.login())}
-          className={cn(
-            ITEM,
-            "px-[9px] text-text-secondary hover:bg-surface-hover hover:text-text-primary",
-          )}
-        >
-          <span
-            aria-hidden
-            className={cn(
-              "inline-flex size-[26px] shrink-0 items-center justify-center rounded-pill border",
-              signedIn
-                ? "type-data-sm border-accent-quiet bg-surface-active text-text-primary"
-                : "border-border-strong bg-surface-raised",
-            )}
-          >
-            {signedIn ? (
-              (address ?? "E").slice(0, 2)
-            ) : (
-              <LogIn size={14} strokeWidth={1.5} />
-            )}
-          </span>
-          <span className="rail-label type-label">
-            {signedIn && address !== null ? truncateAddress(address) : label}
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="right">
-        {signedIn && address !== null ? (
-          <span className="type-mono-addr block break-all">{address}</span>
-        ) : (
-          label
-        )}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function NavRail({
   icons,
   className,
@@ -349,7 +279,7 @@ export function NavRail({
       <div className="flex shrink-0 flex-col gap-1 border-t border-border-subtle px-2.5 py-3">
         <ExpandToggle icons={icons} />
         <SettingsMenu />
-        <Profile />
+        <RailAccount icons={icons} />
       </div>
     </nav>
   );

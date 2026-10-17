@@ -16,19 +16,19 @@ import {
 /* ---------------------------------------------------------------------------
    Linking a prediction-market account.
 
-   ── Why the address is supplied rather than derived ────────────────────
+   ── Derived, then checked — never guessed ──────────────────────────────
 
    Polymarket holds positions in a contract wallet, not the EOA that controls
-   it. The current generation of those (deposit wallets, mid-2026 onward) IS
-   deterministically derivable via CREATE2 from a documented factory and
-   beacon — but the legacy Proxy wallets created through email login and the
-   Safe wallets created through browser wallets are NOT, and between them
-   they cover most existing accounts.
+   it. Every kind it has made — proxy, Safe, and both generations of deposit
+   wallet — is derivable from the signer (lib/prediction/derive.ts), but only
+   from the signer that made the account. Someone who signs in to Elyra with a
+   different wallet than they use on Polymarket derives nothing useful, which
+   is why the address can still be supplied by hand.
 
    A derivation that silently produces the wrong address does not fail
    loudly: it links a stranger's positions to this user's portfolio and
-   reports them as theirs. Given that failure mode, asking is better than
-   guessing.
+   reports them as theirs. So every candidate is checked against live data,
+   and an ambiguous result is handed back rather than resolved by guessing.
 
    ── Verify before storing ──────────────────────────────────────────────
 
@@ -93,46 +93,55 @@ async function inspect(address: string): Promise<
   };
 }
 
+/** A derived address that holds a real account, with why it was checked. */
+type Candidate = Found & { kind: string; label: string };
+
 /**
  * Finds the caller's account without them typing anything.
  *
- * Derives the addresses a Polymarket account for this signer could live at,
- * checks each against live data, and returns the first that actually holds
- * positions. An address with nothing at it is NOT auto-linked — a wrong guess
- * that stores silently would attach a stranger's positions to this portfolio.
+ * Derives the addresses a Polymarket account for this signer could live at
+ * and checks every one against live data. Exactly one with something at it
+ * is the account. More than one is ambiguous and is handed back for the
+ * operator to choose — picking the first would be a guess, and a wrong guess
+ * that stores silently attaches a stranger's positions to this portfolio.
+ * An address with nothing at it is never a match.
  */
 async function detect(signer: string | null): Promise<
-  | { found: Found; kind: string }
-  | { found: null; checked: number; reason: string }
+  | { outcome: "one"; found: Found }
+  | { outcome: "many"; candidates: Candidate[] }
+  | { outcome: "none"; reason: string }
+  | { outcome: "failed"; error: string }
 > {
   if (signer === null || signer.length === 0) {
-    return {
-      found: null,
-      checked: 0,
-      reason: "No wallet is connected to this account.",
-    };
+    return { outcome: "none", reason: "No EVM wallet is connected to this account." };
   }
 
   const candidates = candidatesFor(signer);
+  const inspections = await Promise.all(
+    candidates.map(async (candidate) => ({ candidate, inspection: await inspect(candidate.address) })),
+  );
 
-  for (const candidate of candidates) {
-    const inspection = await inspect(candidate.address);
-    /* A provider outage is not "not found" — stop rather than report a
-       confident negative built on a failed read. */
-    if (!inspection.ok) {
-      return { found: null, checked: candidates.length, reason: inspection.error };
-    }
-    if (inspection.found.positionCount > 0 || inspection.found.activityCount > 0) {
-      return { found: inspection.found, kind: candidate.kind };
-    }
+  /* A provider outage is not "not found" — any failed read fails the search
+     rather than reporting a confident negative, or a lone match, built on
+     half the answer. */
+  const failed = inspections.find((entry) => !entry.inspection.ok);
+  if (failed !== undefined && !failed.inspection.ok) {
+    return { outcome: "failed", error: failed.inspection.error };
   }
 
+  const matches: Candidate[] = inspections.flatMap(({ candidate, inspection }) =>
+    inspection.ok && (inspection.found.positionCount > 0 || inspection.found.activityCount > 0)
+      ? [{ ...inspection.found, kind: candidate.kind, label: candidate.label }]
+      : [],
+  );
+
+  if (matches.length === 1) return { outcome: "one", found: matches[0] };
+  if (matches.length > 1) return { outcome: "many", candidates: matches };
   return {
-    found: null,
-    checked: candidates.length,
+    outcome: "none",
     reason:
-      "No prediction-market account was found for your connected wallet. If " +
-      "you trade on Polymarket with a different login, enter that address below.",
+      "No Polymarket account was found for your connected wallet. If you " +
+      "trade with a different login, enter that address instead.",
   };
 }
 
@@ -178,9 +187,26 @@ export async function POST(request: Request): Promise<Response> {
   if (body.detect === true) {
     const outcome = await detect(user.walletAddress);
 
-    if (outcome.found === null) {
+    if (outcome.outcome === "failed") {
+      return NextResponse.json({ error: outcome.error }, { status: 503 });
+    }
+
+    if (outcome.outcome === "none") {
       return NextResponse.json(
         { detected: false, reason: outcome.reason },
+        { status: 200, headers: { "cache-control": "no-store" } },
+      );
+    }
+
+    /* Nothing is linked. The operator picks one, and that pick goes through
+       the ordinary address path below — checked again, then stored. */
+    if (outcome.outcome === "many") {
+      return NextResponse.json(
+        {
+          detected: false,
+          candidates: outcome.candidates,
+          reason: "More than one Polymarket account was found for your wallet. Choose yours.",
+        },
         { status: 200, headers: { "cache-control": "no-store" } },
       );
     }

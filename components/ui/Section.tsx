@@ -58,7 +58,7 @@ export function Section({
             aria-controls={bodyId}
             onClick={() => onOpenChange(!open)}
             className={cn(
-              "flex h-9 w-full min-w-0 items-center gap-2 rounded-control px-1.5 text-left",
+              "metallic flex h-9 w-full min-w-0 items-center gap-2 rounded-control px-1.5 text-left",
               "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
             )}
           >
@@ -105,7 +105,7 @@ export function SectionControl({
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex size-8 items-center justify-center rounded-control text-text-muted",
+        "metallic inline-flex size-8 items-center justify-center rounded-control text-text-muted",
         "transition-colors duration-[var(--dur-fast)] ease-brand",
         "hover:bg-surface-hover hover:text-text-primary",
         "disabled:pointer-events-none disabled:opacity-40",

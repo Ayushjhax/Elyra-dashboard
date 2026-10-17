@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   COLUMN_BOUNDS,
   clampColumn,
@@ -40,9 +40,10 @@ function lockCursor(cursor: string): () => void {
  * column left of the centre, `start` for the agent, which is on the other side
  * of it and so widens as the pointer moves left.
  *
- * A drag starts from the column's measured width rather than its stored one,
- * so the boundary always leaves from where it is drawn — including when the
- * fitter is holding the column narrower than the operator asked for.
+ * A drag or a nudge starts from the column's measured width rather than its
+ * stored one, so the boundary always leaves from where it is drawn — including
+ * when the fitter is holding the column narrower than it opens, which on a
+ * laptop is most of the time. The value it announces is that width too.
  */
 export function ColumnResizer({
   id,
@@ -60,19 +61,35 @@ export function ColumnResizer({
   const setResizing = useElyraStore((state) => state.setResizing);
   const resetColumnWidth = useElyraStore((state) => state.resetColumnWidth);
   const [dragging, setDragging] = useState(false);
+  /* The column's drawn width, for the separator's value: null until it is
+     measured, and while the column is off screen at this breakpoint. */
+  const [drawn, setDrawn] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const bounds = COLUMN_BOUNDS[id];
   const direction = side === "end" ? 1 : -1;
 
+  /** The column this handle resizes. */
+  function host(): HTMLElement | null {
+    return ref.current?.closest<HTMLElement>("[data-shell-column]") ?? null;
+  }
+
+  useEffect(() => {
+    const column = ref.current?.closest<HTMLElement>("[data-shell-column]");
+    if (!column) return;
+    const observer = new ResizeObserver(() => setDrawn(column.offsetWidth || null));
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, []);
+
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
-    const host = ref.current?.closest<HTMLElement>("[data-shell-column]");
-    if (!host) return;
+    const column = host();
+    if (!column) return;
     event.preventDefault();
 
     const startX = event.clientX;
-    const startWidth = host.offsetWidth;
+    const startWidth = column.offsetWidth;
     const release = lockCursor("col-resize");
     setDragging(true);
     setResizing(true);
@@ -96,14 +113,15 @@ export function ColumnResizer({
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const step = event.shiftKey ? 48 : 16;
+    const from = host()?.offsetWidth ?? stored;
     /* Arrow keys move the boundary, not the column, so the same key widens the
        column left of the centre and narrows the one on its right. */
     switch (event.key) {
       case "ArrowLeft":
-        setColumnWidth(id, stored - step * direction);
+        setColumnWidth(id, from - step * direction);
         break;
       case "ArrowRight":
-        setColumnWidth(id, stored + step * direction);
+        setColumnWidth(id, from + step * direction);
         break;
       case "Home":
         setColumnWidth(id, bounds.min);
@@ -129,7 +147,7 @@ export function ColumnResizer({
       aria-label={`Resize the ${bounds.label} column`}
       aria-valuemin={bounds.min}
       aria-valuemax={bounds.max}
-      aria-valuenow={clampColumn(id, stored)}
+      aria-valuenow={drawn ?? clampColumn(id, stored)}
       tabIndex={0}
       title="Drag to resize. Double-click to reset."
       onPointerDown={handlePointerDown}

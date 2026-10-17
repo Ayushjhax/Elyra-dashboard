@@ -91,7 +91,7 @@ function WalletLine({ wallet, view, portfolioLoading }: { wallet: SourceStatus; 
         )}
       </span>
       <span aria-hidden className="hidden h-4 w-px bg-border-subtle compact:block" />
-      <Link href="/portfolio" className="inline-flex items-center gap-1 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover">
+      <Link href="/portfolio" className="relative inline-flex items-center gap-1 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand after:absolute after:-inset-x-1 after:-inset-y-2 hover:text-accent-hover">
         View portfolio
         <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden />
       </Link>

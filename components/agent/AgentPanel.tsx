@@ -466,7 +466,7 @@ function Composer({
               disabled={pending}
               onClick={() => onAsk(chip)}
               className={cn(
-                "type-label inline-flex items-center gap-1.5 rounded-control border border-border-subtle px-2.5 py-1.5",
+                "metallic agent-suggestion type-label inline-flex min-h-9 items-center gap-1.5 rounded-control border border-border-subtle px-2.5 py-1.5",
                 "text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand",
                 "hover:border-border-strong hover:bg-surface-hover hover:text-text-primary",
                 "disabled:opacity-50",
@@ -502,7 +502,7 @@ function Composer({
           void addFiles(Array.from(event.dataTransfer.files));
         }}
         className={cn(
-          "flex flex-col gap-2 rounded-card border bg-surface-raised p-2",
+          "metallic agent-composer flex flex-col gap-2 rounded-card border bg-surface-raised p-2",
           "transition-colors duration-[var(--dur-fast)] ease-brand",
           dragging ? "border-accent-quiet bg-surface-hover" : "border-border-strong focus-within:border-accent-quiet",
         )}

@@ -231,7 +231,7 @@ function Details({ event }: { event: AccountEvent }) {
   }
 
   return (
-    <dl className="mx-3 mb-2.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-control border border-border-subtle bg-surface-raised p-2.5 @max-[300px]:mx-2.5">
+    <dl className="transaction-details mx-3 mb-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 rounded-control border border-border-subtle bg-surface-raised p-2.5 @max-[300px]:mx-2.5 @max-[300px]:gap-x-3">
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="type-label text-text-muted">{label}</dt>
@@ -249,7 +249,7 @@ function Row({ event }: { event: AccountEvent }) {
   const StatusIcon = status.icon;
 
   return (
-    <li className={cn("border-b border-border-subtle last:border-b-0", open && "bg-surface-raised/40")}>
+    <li data-expanded={open} className={cn("metallic activity-row border-b border-border-subtle last:border-b-0", open && "bg-surface-raised/40")}>
       <div className="flex items-start">
         <button
           type="button"
@@ -276,6 +276,7 @@ function Row({ event }: { event: AccountEvent }) {
               {event.at && <span className="whitespace-nowrap text-text-muted">· {formatClock(event.at)}</span>}
             </span>
           </span>
+          <ChevronDown size={14} aria-hidden className={cn("activity-chevron mt-1 shrink-0 text-text-secondary", open && "rotate-180")} />
         </button>
         {event.href ? (
           <a
@@ -291,12 +292,10 @@ function Row({ event }: { event: AccountEvent }) {
             <ExternalLink size={13} strokeWidth={1.5} aria-hidden />
           </a>
         ) : (
-          <span aria-hidden className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center text-text-muted @max-[300px]:hidden">
-            <ChevronDown size={13} strokeWidth={1.5} className={cn("transition-transform", open && "rotate-180")} />
-          </span>
+          <span aria-hidden className="mr-1.5 mt-2 inline-flex w-1 shrink-0" />
         )}
       </div>
-      <div id={detailId} hidden={!open}>
+      <div id={detailId} hidden={!open} className="transaction-expansion">
         <Details event={event} />
       </div>
     </li>

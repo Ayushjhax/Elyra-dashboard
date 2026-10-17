@@ -72,10 +72,30 @@ rail   account strip: value + 24h P&L · available · positions · 7-day line
        Activity       Automation                           · Research (sticky)
 ```
 
-Those are opening widths, not fixed ones. Below 1280px the agent becomes a
+Those are opening widths, not fixed ones, and they are a wide screen's. On a
+laptop a column you have not resized opens narrower, so the chart keeps 60%
+of the row: a 13-inch MacBook Air (1470px) opens at 230 | 784 | 320, where a
+1920px screen opens exactly as drawn above. Below 1280px the agent becomes a
 drawer; below 900px the workspace is one column with the widgets stacked
 under the centre; below 640px the rail becomes a sheet behind the header's
 menu button.
+
+On a phone, beyond the columns:
+
+- Trading activity's positions, orders and history are cards in a container
+  under 40rem (`DataTable`'s `card`), so a P&L and its action are never behind
+  a sideways scroll.
+- Every field is 16px on a touch screen, so iOS does not zoom into it, and
+  the keyboard resizes the page on Android (`interactiveWidget`), so the
+  agent's composer stays above it.
+- A popover keeps itself inside the viewport, and the workspace never
+  scrolls sideways.
+- The chart says to tap it; once tapped it holds the gestures, and a
+  **Release chart** button hands them back. The full-screen button is
+  dropped where the browser cannot do it (Safari on an iPhone), and on a
+  phone on its side the plot is held to the room under the header.
+- A tooltip that is the only place a reason or a definition lives opens on a
+  tap (`Tip openOnTap`, `InfoTip`); Radix's tooltip alone never does on touch.
 
 The agent's **Ask Elyra** view leads with a **decision brief** — where the
 price sits in today's range, against its EMA and between yesterday's pivot
@@ -120,6 +140,12 @@ One rule holds the geometry together, and `lib/layout.ts` is where it lives.
 - When the row does not fit, the rail drops its labels first, then the side
   columns give width in `SQUEEZE_ORDER` — widgets, agent, route — down to their
   minimums. The centre takes whatever is left.
+- The floor keeps the chart working; `MAIN_SHARE` keeps it the point of the
+  screen. A widgets or agent column the operator has not sized — never
+  dragged, nudged or widened — gives width in the same order until the centre
+  has 60% of the row. A width the operator chose, the rail's labels and an open
+  route are choices, and give only to the floor. Double-clicking a handle hands
+  its column back to the screen.
 - `shellLayout` returns one track string per breakpoint for the frame (rail |
   everything) and for the workspace grid. `AppShell` publishes them as custom
   properties and `.shell-frame` / `.workspace-grid` in `app/globals.css` pick
@@ -133,7 +159,10 @@ Side columns resize from their inner edge (drag, arrow keys, double-click to
 reset). The agent and an open route are sticky: they start level with the
 chart, scroll up with the page, then stay while the centre keeps going —
 `lib/useStickyFill.ts` measures them so their bottom edge, and the agent's
-composer, is always on screen.
+composer, is always on screen. The chart card opens one screen tall:
+`lib/useFirstScreenFit.ts` measures what sits above the plot, so the card's
+foot lands level with the agent's on any screen height, and in focus mode the
+whole card fits.
 
 ### What persists
 
@@ -151,6 +180,17 @@ side columns while it is on and finds them exactly as they were when it ends
   suggestions all read from it. Layout preferences persist (see above) and
   rehydrate after mount so the server and client render identically; version 2
   of the persisted state migrates the old composed column's order.
+- **The account and the wallet.** The rail's avatar opens the account menu
+  (`components/shell/RailAccount.tsx`; inline in the navigation sheet on a
+  phone) and the menu opens the wallet drawer (`components/wallet/`). Both
+  read `useWalletDashboard`, the one wallet store, and `lib/wallet/status.ts`
+  names its state for every surface, so the avatar, the address, the network
+  and "Wallet connected" always describe the same wallet. The avatar is an
+  identicon drawn from the network and the full, case-sensitive address
+  (`lib/identicon.ts`) — the same face on every reload. Sign out (the menu)
+  and Disconnect (the drawer) both end the Privy session: the app has no
+  wallet-only disconnect, and the drawer says so. The store drops any read
+  that lands after the account changed.
 - `lib/agentChat.ts` — sends to the agent and reads the streamed reply,
   outside any component, so the panel can close mid-answer and lose nothing.
   `/api/agent/chat` with `stream: true` answers in newline-delimited JSON:

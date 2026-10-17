@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -12,7 +12,15 @@ import { cn } from "@/lib/utils";
    pointer down outside closes it, and focus moves into it on open. The
    trigger is the caller's, and carries `aria-expanded` and
    `aria-controls` itself so the relationship is announced.
+
+   It also stays on screen. Anchored to its trigger, a 288px panel opened from
+   the middle of a phone's toolbar runs past the right edge; so on open, and
+   on every resize while open, it is measured and slid back inside the
+   viewport's margin. Measured before paint, so it never shows where it was.
 --------------------------------------------------------------------------- */
+
+/** How close to the viewport's edge a panel may sit, in px. */
+const EDGE = 12;
 
 type Side = "bottom" | "top" | "right";
 type Align = "start" | "end";
@@ -62,6 +70,25 @@ export function Popover({
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!open || !panel) return;
+
+    const keepOnScreen = () => {
+      panel.style.translate = "";
+      const box = panel.getBoundingClientRect();
+      const width = document.documentElement.clientWidth;
+      let shift = 0;
+      if (box.right > width - EDGE) shift = width - EDGE - box.right;
+      if (box.left + shift < EDGE) shift = EDGE - box.left;
+      if (shift !== 0) panel.style.translate = `${Math.round(shift)}px 0`;
+    };
+
+    keepOnScreen();
+    window.addEventListener("resize", keepOnScreen);
+    return () => window.removeEventListener("resize", keepOnScreen);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -108,7 +135,7 @@ export function Popover({
           role="dialog"
           aria-label={label}
           className={cn(
-            "absolute z-50 border",
+            "absolute z-50 max-w-[calc(100vw-24px)] border",
             surface === "glass" ? "glass-pop" : "rounded-card border-border-strong bg-surface-panel shadow-pop",
             PLACEMENT[side][align],
             pinOnPhone &&

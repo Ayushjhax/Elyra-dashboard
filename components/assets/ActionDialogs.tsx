@@ -101,7 +101,7 @@ function CapitalAction({
       <span className="truncate">{busy ? `${label}…` : label}</span>
     </button>
   );
-  return unavailable ? <Tip label={reason}>{button}</Tip> : button;
+  return unavailable ? <Tip openOnTap label={reason}>{button}</Tip> : button;
 }
 
 /**

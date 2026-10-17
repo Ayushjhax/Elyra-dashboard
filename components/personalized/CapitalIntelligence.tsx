@@ -227,14 +227,20 @@ export function CapitalIntelligenceView({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* On a phone the three buttons do not fit one row with their
+              labels, so this one, the least asked-for, keeps only its icon. */}
           {signedIn && (
             <button
               type="button"
               onClick={() => setContextOpen(true)}
-              className={cn(outlined, "border-border-strong text-text-primary @[64rem]:hidden")}
+              aria-label="Context"
+              className={cn(
+                outlined,
+                "border-border-strong text-text-primary @max-[36rem]:w-10 @max-[36rem]:px-0 @[64rem]:hidden",
+              )}
             >
               <PanelRightOpen size={17} strokeWidth={1.5} aria-hidden />
-              Context
+              <span className="@max-[36rem]:hidden">Context</span>
             </button>
           )}
           <button

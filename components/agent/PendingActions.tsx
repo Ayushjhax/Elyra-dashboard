@@ -6,7 +6,7 @@ import { ClipboardCheck } from "lucide-react";
 import { SwapDialog } from "@/components/assets/SwapDialog";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import type { OpenAction } from "@/app/api/actions/route";
+import type { OpenAction } from "@/lib/actions/types";
 import { swapPrefill, useOpenActions } from "@/lib/actions/useOpenActions";
 import { useSecond } from "@/lib/useClock";
 import { useElyraStore } from "@/lib/store";

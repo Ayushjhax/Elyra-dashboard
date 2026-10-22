@@ -19,7 +19,7 @@ import { formatPriceUsd, formatRelativeTime, formatTimestamp } from "@/lib/forma
 import { priceDecimals } from "@/lib/market/precision";
 import { useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
 import { useElyraStore } from "@/lib/store";
-import type { PriceAlert } from "@/lib/telegram/alerts";
+import type { PriceAlert } from "@/lib/alerts/types";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 

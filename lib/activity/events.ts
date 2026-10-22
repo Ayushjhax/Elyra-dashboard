@@ -1,7 +1,7 @@
-import type { OpenAction } from "@/app/api/actions/route";
+import type { OpenAction } from "@/lib/actions/types";
 import { formatPriceUsd } from "@/lib/format";
 import type { PortfolioActivity } from "@/lib/portfolio/types";
-import type { PriceAlert } from "@/lib/telegram/alerts";
+import type { PriceAlert } from "@/lib/alerts/types";
 import type { TxSummary } from "@/lib/wallet/summarise";
 import type { WalletActivity } from "@/lib/wallet/types";
 

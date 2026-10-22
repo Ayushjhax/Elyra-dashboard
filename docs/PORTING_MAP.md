@@ -16,7 +16,9 @@ The API column says `same` when the app calls the existing route unchanged.
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Brand tokens, type scale, fonts | `docs/ELYRA_BRAND.md`, `app/globals.css`, `app/layout.tsx` | `mobile/` theme module, `<Text variant>` | — | todo |
+| Brand tokens and type scale as values | `app/globals.css` | `lib/tokens.ts` (drift test: `lib/tokens.test.ts`) | — | done |
+| Shared pure modules | `lib/*` | `lib/core.ts` list, purity test `lib/core.test.ts` | — | done |
+| Fonts, `<Text variant>` | `app/layout.tsx`, `app/fonts/*` | `mobile/` theme | — | todo |
 | Primitives (Button, Panel, Section, EmptyState, Skeleton) | `components/ui/*` | `mobile/` primitives | — | todo |
 | Money / Quantity / DeltaText, hidden balances | `components/portfolio/primitives.tsx` | primitives | — | todo |
 | Coin, company and monogram marks | `components/ui/CoinMark.tsx`, `CompanyMark.tsx`, `Monogram.tsx` | primitives | — | todo |

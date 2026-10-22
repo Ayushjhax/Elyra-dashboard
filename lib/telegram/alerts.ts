@@ -1,6 +1,7 @@
 import "server-only";
 
 import { serviceClient } from "@/lib/supabase/server";
+import type { PriceAlert } from "@/lib/alerts/types";
 
 /* ---------------------------------------------------------------------------
    Price alerts.
@@ -19,17 +20,7 @@ import { serviceClient } from "@/lib/supabase/server";
    user typed. They said above; it is stored as above.
 --------------------------------------------------------------------------- */
 
-export interface PriceAlert {
-  id: string;
-  symbol: string;
-  direction: "above" | "below";
-  target: number;
-  createdPrice: number | null;
-  triggeredAt: string | null;
-  /** The price the delivery worker saw when it fired. */
-  triggeredPrice?: number | null;
-  createdAt?: string;
-}
+export type { PriceAlert };
 
 /** `SOL > 120`, `SOL above 120`, `sol under 80`, `SOL 120`. */
 export function parseAlertCommand(

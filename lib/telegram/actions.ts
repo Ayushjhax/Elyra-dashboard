@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "@/lib/supabase/server";
 import type { PreparedAction } from "@/lib/personalized/types";
+import type { PreparedActionStatus, PreparedActionSurface } from "@/lib/actions/types";
 
 /* ---------------------------------------------------------------------------
    Prepared actions, and the opaque handle a Telegram button carries.
@@ -41,12 +42,8 @@ const TOKEN_BYTES = 16;
 /** A financial preview is stale well before this; ten minutes is generous. */
 const TTL_MS = 10 * 60 * 1000;
 
-export type PreparedActionStatus =
-  | "prepared"
-  | "acknowledged"
-  | "confirmed"
-  | "expired"
-  | "cancelled";
+/* Shared with the website and the Android app through lib/actions/types.ts. */
+export type { PreparedActionStatus };
 
 export interface PreparedActionRecord {
   id: string;
@@ -54,7 +51,7 @@ export interface PreparedActionRecord {
   token: string;
   kind: string;
   action: PreparedAction;
-  surface: "web" | "telegram";
+  surface: PreparedActionSurface;
   status: PreparedActionStatus;
   expiresAt: string;
 }
@@ -95,7 +92,7 @@ export function tokenFromCallback(data: string): string | null {
 export async function storePreparedAction(input: {
   userId: string;
   action: PreparedAction;
-  surface: "web" | "telegram";
+  surface: PreparedActionSurface;
 }): Promise<PreparedActionRecord | null> {
   const token = newToken();
   const expiresAt = new Date(Date.now() + TTL_MS).toISOString();

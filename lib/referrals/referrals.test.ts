@@ -5,8 +5,8 @@ import {
   isWellFormedCode,
   REFERRAL_PROGRAMME,
   referralConfig,
-  referralUrlFor,
 } from "@/lib/referrals/config";
+import { referralUrlFor } from "@/lib/referrals/url";
 import {
   activationsToNextBonus,
   completedPoolCount,

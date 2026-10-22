@@ -9,6 +9,7 @@ import {
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { PRIVY_MODAL_ACCENT, PRIVY_MODAL_THEME } from "@/lib/brand";
 import { PRIVY_APP_ID_LENGTH, publicEnv } from "@/lib/env";
+import type { LinkedAccountSummary } from "@/lib/account";
 
 /* Built once at module scope: rebuilding it per render would hand
    PrivyProvider a new config object every time and remount the connectors. */
@@ -76,32 +77,9 @@ const solanaRpcs = {
    `available: false` when there is no Privy to talk to.
 --------------------------------------------------------------------------- */
 
-/**
- * One entry in the account card.
- *
- * Flattened to strings here rather than passed through as Privy's union, so
- * a component rendering it does not have to narrow fifteen account types —
- * and so the rest of the app still knows nothing about Privy's model beyond
- * this file.
- */
-export interface LinkedAccountSummary {
-  /** Privy's own `LinkedAccountType`: "wallet", "email", "google_oauth"… */
-  type: string;
-  /** The address, handle or email. Null when Privy exposes none. */
-  detail: string | null;
-  /** Wallets only: "solana", "ethereum". */
-  chainType: string | null;
-  /** Wallets only. "privy" means an embedded wallet, which can be exported. */
-  walletClientType: string | null;
-  /** ISO. When this account was most recently used to log in or link. */
-  latestVerifiedAt: string | null;
-  /**
-   * ISO. When Privy verified this account — an email or phone it sent a code
-   * to, a wallet that signed its message. Null when Privy reports none, and
-   * then nothing in the UI may call the account verified.
-   */
-  verifiedAt: string | null;
-}
+/* One entry in the account card — defined in lib/account.ts, which the
+   Android app shares. */
+export type { LinkedAccountSummary };
 
 export interface ElyraAccount {
   /** The Privy DID. */

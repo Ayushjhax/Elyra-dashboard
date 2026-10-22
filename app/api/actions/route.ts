@@ -5,13 +5,9 @@ import {
   hasProfile,
 } from "@/lib/auth/session";
 import { proveSwap } from "@/lib/actions/proof";
-import type { PreparedAction } from "@/lib/personalized/types";
+import type { ActionsResponse } from "@/lib/actions/types";
 import { isSolanaAddress } from "@/lib/solana/address";
-import {
-  listOpenActions,
-  settleOpenAction,
-  type PreparedActionStatus,
-} from "@/lib/telegram/actions";
+import { listOpenActions, settleOpenAction } from "@/lib/telegram/actions";
 
 /* ---------------------------------------------------------------------------
    Actions awaiting review, for the workspace.
@@ -36,19 +32,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-export interface OpenAction {
-  id: string;
-  action: PreparedAction;
-  surface: "web" | "telegram";
-  status: PreparedActionStatus;
-  expiresAt: string;
-}
-
-export interface ActionsResponse {
-  actions: OpenAction[];
-  error: string | null;
-}
 
 const ID = /^[0-9a-f-]{36}$/i;
 /** A Solana signature: 64 bytes, base58. */

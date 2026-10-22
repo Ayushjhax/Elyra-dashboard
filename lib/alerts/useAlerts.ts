@@ -5,7 +5,7 @@ import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { accountKey } from "@/lib/account";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import type { AlertsResponse } from "@/app/api/alerts/route";
-import type { PriceAlert } from "@/lib/telegram/alerts";
+import type { PriceAlert } from "@/lib/alerts/types";
 
 /* ---------------------------------------------------------------------------
    The signed-in account's price alerts, read once for the workspace.

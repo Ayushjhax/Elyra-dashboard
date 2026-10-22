@@ -5,7 +5,7 @@ import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { accountKey } from "@/lib/account";
 import { useSecond } from "@/lib/useClock";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import type { ActionsResponse, OpenAction } from "@/app/api/actions/route";
+import type { ActionsResponse, OpenAction } from "@/lib/actions/types";
 
 /* ---------------------------------------------------------------------------
    Actions awaiting review, read once for the whole workspace.

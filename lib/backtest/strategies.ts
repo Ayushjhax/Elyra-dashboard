@@ -1,4 +1,4 @@
-import type { Candle } from "@/lib/backtest/candles";
+import type { Candle } from "@/lib/backtest/intervals";
 import {
   absolutePriceOscillator,
   aroon,

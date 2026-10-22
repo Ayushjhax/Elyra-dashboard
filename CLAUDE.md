@@ -8,7 +8,9 @@ Tailwind's default palette.
 
 Every token is declared once in `app/globals.css` — semantic tokens keep the
 brand doc's own names, and `@theme inline` aliases them into Tailwind. No
-component holds a colour value. The one exception, and why, is `lib/brand.ts`.
+component holds a colour value. The exceptions, and why, are `lib/brand.ts`
+and `lib/tokens.ts` — the Android app's mirror of the tokens as values,
+which `lib/tokens.test.ts` holds identical to `app/globals.css`.
 
 The surfaces are the doc's dark forest (`--surface-base` is `#101710`, cards
 `#182117`, borders `#33402d`), and the product is flat: elevation is surface
@@ -138,10 +140,13 @@ Solana dApp Store. It lives in this repo and shares its backend.
 `mobile/` is a standalone Expo project with its own package.json, lockfile,
 lint and tests. The web's tsconfig, eslint and vitest exclude it, and
 `.vercelignore` keeps it out of the web upload. Metro watches the repo root
-so the app can import shared code. The app may import only pure modules from
-`lib/` — nothing that touches `server-only`, `process.env`, Supabase, Node or
-the DOM. If a module mixes the two, split it so the web and the app import
-the same pure half.
+so the app can import shared code. The app may import only the modules listed
+in `lib/core.ts`. `lib/core.test.ts` walks their imports, type-only ones
+included, and fails on anything that touches `server-only`, `process.env`,
+Supabase, Node, React or the DOM. To share another module, add it to that
+list. If a module mixes the two, split it so the web and the app import the
+same pure half (as `lib/backtest/intervals.ts` and
+`lib/market/tickerLogoData.ts` are).
 
 **Same backend, same accounts.** The app uses this repo's API, so it uses the
 same Supabase database and the same Privy app as the website. A person has
@@ -185,8 +190,8 @@ notification preferences apply to every channel.
 - **Shared stores.** Built on one reference-counted store helper with the
   generation guard and the `accountKey` reset. They refresh on AppState
   "active" and stop polling in the background.
-- **Design.** Brand tokens come from one module generated from
-  `docs/ELYRA_BRAND.md` and `app/globals.css`; no component holds a colour.
+- **Design.** Brand tokens come from `lib/tokens.ts`; no app component holds
+  a colour.
   Surfaces are flat: no glass or blur on mobile. Use the brand's type roles
   and tabular figures.
 - **Touch.** 48dp touch targets. Any explanation opens on tap. Drawers become

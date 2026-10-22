@@ -1,7 +1,8 @@
 import "server-only";
 
 import { ensureReferralCode } from "@/lib/referrals/codes";
-import { referralConfig, referralUrlFor } from "@/lib/referrals/config";
+import { referralConfig } from "@/lib/referrals/config";
+import { referralUrlFor } from "@/lib/referrals/url";
 import { serviceClient } from "@/lib/supabase/server";
 import type { ReferralStatus } from "@/lib/supabase/types";
 

@@ -1,11 +1,36 @@
-import type { ElyraAuth, LinkedAccountSummary } from "@/components/providers/PrivyClientProvider";
-
 /* ---------------------------------------------------------------------------
    An account's sign-in method, in the words a person would use.
 
    Client-safe and pure: the rail's account menu, the wallet drawer and the
    Dashboard's account card all name the method the same way from here.
 --------------------------------------------------------------------------- */
+
+/**
+ * One entry in the account card.
+ *
+ * Flattened to strings here rather than passed through as Privy's union, so
+ * a component rendering it does not have to narrow fifteen account types —
+ * and so the rest of the app still knows nothing about Privy's model beyond
+ * the provider that fills it in.
+ */
+export interface LinkedAccountSummary {
+  /** Privy's own `LinkedAccountType`: "wallet", "email", "google_oauth"… */
+  type: string;
+  /** The address, handle or email. Null when Privy exposes none. */
+  detail: string | null;
+  /** Wallets only: "solana", "ethereum". */
+  chainType: string | null;
+  /** Wallets only. "privy" means an embedded wallet, which can be exported. */
+  walletClientType: string | null;
+  /** ISO. When this account was most recently used to log in or link. */
+  latestVerifiedAt: string | null;
+  /**
+   * ISO. When Privy verified this account — an email or phone it sent a code
+   * to, a wallet that signed its message. Null when Privy reports none, and
+   * then nothing in the UI may call the account verified.
+   */
+  verifiedAt: string | null;
+}
 
 /** Privy's account types, by their own names. */
 const METHOD_LABEL: Record<string, string> = {
@@ -84,7 +109,12 @@ export function signInLabel(method: LinkedAccountSummary | null): string | null 
  * can happen without a render that sees "signed out", and the last account's
  * rows must never be shown under the next one's.
  */
-export function accountKey(auth: Pick<ElyraAuth, "ready" | "authenticated" | "account" | "solanaAddress">): string | null {
+export function accountKey(auth: {
+  ready: boolean;
+  authenticated: boolean;
+  account: { id: string } | null;
+  solanaAddress: string | null;
+}): string | null {
   if (!auth.ready || !auth.authenticated) return null;
   return auth.account?.id ?? auth.solanaAddress ?? "";
 }

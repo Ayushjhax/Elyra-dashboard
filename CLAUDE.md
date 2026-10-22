@@ -113,3 +113,108 @@ spoken is sent or acted on without the person pressing send.
 
 `formatRelativeTime` and `formatDayGroup` take `now` as a required argument —
 pass the shared clock from `lib/useClock.ts`, never `Date.now()` in render.
+
+# The Android dApp (`mobile/`)
+
+Elyra also ships as an Android app, built with Expo and published on the
+Solana dApp Store. It lives in this repo and shares its backend.
+
+| | |
+|---|---|
+| App name | Elyra |
+| Android package | `xyz.getelyra.app` — never changes after the first dApp Store release |
+| API URL | `https://api.getelyra.xyz` (this Next app; same Vercel project as the website) |
+| Website domain | `https://getelyra.xyz` — referral links and Android App Links |
+| Support email | ayushkmrjha@gmail.com |
+| Privacy policy | https://getelyra.xyz/privacy |
+| Terms | https://getelyra.xyz/terms |
+
+**Layout.** Build prompts may name a separate folder. In this repo:
+- `apps/mobile` is `mobile/`.
+- `apps/api` is this Next app's `app/api` and `lib/`.
+- `packages/core` is the pure modules in `lib/`, imported by the app through
+  the `@/` alias.
+
+`mobile/` is a standalone Expo project with its own package.json, lockfile,
+lint and tests. The web's tsconfig, eslint and vitest exclude it, and
+`.vercelignore` keeps it out of the web upload. Metro watches the repo root
+so the app can import shared code. The app may import only pure modules from
+`lib/` — nothing that touches `server-only`, `process.env`, Supabase, Node or
+the DOM. If a module mixes the two, split it so the web and the app import
+the same pure half.
+
+**Same backend, same accounts.** The app uses this repo's API, so it uses the
+same Supabase database and the same Privy app as the website. A person has
+the same login, embedded wallet, alerts, conversations, referrals and
+connections on both. A migration for the app is additive and must not break
+the web. The app talks only to the API — never to Supabase, an RPC, Pyth,
+Jupiter, an exchange or a model provider directly.
+
+**No Telegram in the app.** The website keeps its Telegram surface. The app
+has none: no Telegram code, copy, link or setting under `mobile/`, and
+`grep -ri telegram mobile` returns nothing. Everything Telegram does happens
+in the app instead:
+- questions → Ask Elyra;
+- commands → screens;
+- notifications → push plus an in-app inbox;
+- Mini App views → native screens;
+- "Review in Elyra" → an in-app review card.
+
+Server code shared by both keeps one source of truth for each rule. For
+example, delivery claims each event once and then fans out per channel
+(Telegram for a linked chat, push and the inbox for an app device), and
+notification preferences apply to every channel.
+
+**Vercel is on the free (Hobby) plan.**
+- A Vercel cron may run at most once a day; a more frequent schedule fails
+  the deploy. The five-minute delivery tick runs from Supabase pg_cron +
+  pg_net instead (`supabase/migrations/0013_delivery_schedule.sql`,
+  `supabase/SCHEDULER.md`). A new scheduled job goes there, never in
+  `vercel.json`.
+- Function duration is capped by the plan, so a long job checkpoints or
+  splits rather than assuming more time.
+- Hobby is for non-commercial use. Moving to Pro changes only the scheduler
+  note above.
+
+**App rules.** Every rule above applies to the app. These are specific to it:
+- **Signing.** The server builds every transaction, the wallet signs, the
+  server submits and confirms. The app never builds or edits transaction
+  bytes. The signing address must equal the address the server built for.
+  There are two signers behind one interface: the Privy embedded wallet, and
+  an external wallet through Mobile Wallet Adapter.
+- **Shared stores.** Built on one reference-counted store helper with the
+  generation guard and the `accountKey` reset. They refresh on AppState
+  "active" and stop polling in the background.
+- **Design.** Brand tokens come from one module generated from
+  `docs/ELYRA_BRAND.md` and `app/globals.css`; no component holds a colour.
+  Surfaces are flat: no glass or blur on mobile. Use the brand's type roles
+  and tabular figures.
+- **Touch.** 48dp touch targets. Any explanation opens on tap. Drawers become
+  bottom sheets. Tables become cards on phones and drop columns on tablets.
+  On an asset screen the chart is the focus.
+- **Secrets.** No secret in the bundle: only public `EXPO_PUBLIC_` values (the
+  Privy app ID and client ID, the API URL). Session data lives in
+  expo-secure-store.
+- **Device boundaries.** WebViews load only allowlisted origins (TradingView's
+  widget). Each permission is asked in context.
+- **Store policy.** In-app account deletion, and the privacy policy and terms
+  linked in the app. Never imply endorsement by Solana Mobile or any venue.
+- **Versions.** Read the docs for the installed Expo, Privy and Mobile Wallet
+  Adapter versions before using their APIs.
+- **Verification.** Verify on an Android emulator, and on a device for
+  signing, MWA and push.
+- **Type.** Fustat for display, headings and large numerics, never below 14.
+  General Sans for body, UI and data, never above 20. Sentence case
+  everywhere except eyebrows.
+- **Lists and scaling.** Long lists are virtualised. Font scaling is
+  respected, but capped on dense data rows.
+- **Read the installed docs first.** Expo: `docs.expo.dev/llms.txt`. Privy:
+  `docs.privy.io/llms.txt`. Solana Mobile: `docs.solanamobile.com/llms.txt`.
+  Next.js: `node_modules/next/dist/docs`. Never code these APIs from memory.
+- **Checks.** Keep both projects green: the web's `pnpm typecheck`,
+  `pnpm lint` and `pnpm test`, and the same scripts in `mobile/`. Port a
+  web test along with the code it tests.
+- **Screenshots.** UI is verified with adb screenshots at 360dp and 412dp
+  widths and at a tablet width.
+- **Porting map.** `docs/PORTING_MAP.md` is the checklist for parity with the
+  website. Tick rows off as they ship.

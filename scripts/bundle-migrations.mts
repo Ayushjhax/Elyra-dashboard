@@ -50,6 +50,7 @@ const SOURCES = [
   "supabase/migrations/0010_backtests.sql",
   "supabase/migrations/0011_prediction_signals.sql",
   "supabase/migrations/0012_prepared_action_signature.sql",
+  "supabase/migrations/0013_delivery_schedule.sql",
 ];
 
 const TARGET = "supabase/migrations/_apply_all.sql";

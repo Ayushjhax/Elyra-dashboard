@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildPulse, type MarketPulse } from "@/lib/market/pulse";
+import { buildPulse, type PulseResponse } from "@/lib/market/pulse";
 import { hyperliquidMarkets } from "@/lib/providers/hyperliquid-public";
 
 /* ---------------------------------------------------------------------------
@@ -13,10 +13,8 @@ import { hyperliquidMarkets } from "@/lib/providers/hyperliquid-public";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export interface PulseResponse {
-  pulse: MarketPulse | null;
-  error: string | null;
-}
+/* The response type is shared with the website and the app. */
+export type { PulseResponse } from "@/lib/market/pulse";
 
 export async function GET(): Promise<NextResponse<PulseResponse>> {
   const markets = await hyperliquidMarkets();

@@ -75,3 +75,11 @@ export function nearestLevels(
   }
   return { above, below };
 }
+
+/** /api/market/levels. */
+export interface LevelsResponse {
+  symbol: string;
+  levels: PivotLevels | null;
+  source: string;
+  error: string | null;
+}

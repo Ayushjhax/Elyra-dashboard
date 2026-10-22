@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { pivotLevels, type PivotLevels } from "@/lib/market/levels";
+import { pivotLevels, type LevelsResponse } from "@/lib/market/levels";
 import * as router from "@/lib/market/router";
 
 /* ---------------------------------------------------------------------------
@@ -20,12 +20,8 @@ export const dynamic = "force-dynamic";
 const TTL_MS = 15 * 60_000;
 const SYMBOL = /^[A-Z0-9]{1,12}$/;
 
-export interface LevelsResponse {
-  symbol: string;
-  levels: PivotLevels | null;
-  source: string;
-  error: string | null;
-}
+/* The response type is shared with the website and the app. */
+export type { LevelsResponse } from "@/lib/market/levels";
 
 const cache = new Map<string, { at: number; value: Promise<LevelsResponse> }>();
 

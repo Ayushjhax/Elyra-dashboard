@@ -24,6 +24,7 @@ export const CORE_MODULES = [
   "lib/markdown.ts",
   "lib/qr.ts",
   "lib/identicon.ts",
+  "lib/monogram.ts",
 
   /* shared types */
   "lib/types.ts",
@@ -32,13 +33,19 @@ export const CORE_MODULES = [
   "lib/tracker/types.ts",
   "lib/smartmoney/types.ts",
   "lib/alerts/types.ts",
+  "lib/alerts/rules.ts",
   "lib/actions/types.ts",
+  "lib/actions/prefill.ts",
 
   /* market */
+  "lib/market/defaults.ts",
   "lib/market/levels.ts",
   "lib/market/indicators.ts",
   "lib/market/pulse.ts",
   "lib/market/tickerLogoData.ts",
+  "lib/market/chartWidget.ts",
+  "lib/market/pyth/types.ts",
+  "lib/market/brief.ts",
 
   /* portfolio, assets, wallet, activity */
   "lib/portfolio/types.ts",
@@ -53,6 +60,8 @@ export const CORE_MODULES = [
   "lib/wallet/summarise.ts",
   "lib/wallet/health.ts",
   "lib/wallet/status.ts",
+  "lib/wallet/flows.ts",
+  "lib/solana/address.ts",
   "lib/activity/events.ts",
   "lib/activity/filter.ts",
   "lib/activity/notifications.ts",

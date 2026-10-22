@@ -1,0 +1,23 @@
+Generated using the built-in image_gen tool, with public/logo.png as the compositing input.
+
+Use case: ads-marketing, compositing.
+Asset type: a finished premium landscape Twitter/X launch-teaser image, 1792 x 1024 pixels.
+Edit target: the supplied Elyra logo image. Expand it into a complete widescreen social campaign poster. Keep the exact existing logo design and its colors, circular organic cutouts and square citron field intact; reproduce it faithfully as a small brand icon beside the wordmark at upper left and on the phone display. This is the real brand logo, do not invent a different logo.
+
+Primary request: Announce Elyra, an AI crypto market intelligence and portfolio terminal, coming soon to the Solana dApp Store. Elegant, quiet, high-end fintech editorial art direction with an Android phone product photograph. The hierarchy is striking, sparse, and extremely legible in a Twitter feed.
+
+Layout: generous 80px safe margins. Left 54% is spacious editorial typography on a flat near-black forest background #101710. At upper left, the original logo at about 54px square and the word "Elyra" in medium ivory type. Main headline is very large modern rounded geometric sans, inspired by Fustat, meticulously typeset, ivory #F7F8EA, left-aligned, two or three balanced lines. Beneath it a compact announcement with "Coming soon to the" in muted stone, and "Solana dApp Store" in ivory, separated from the headline by ample breathing room. A fine citron line is the sole small graphic accent. No boxes around the announcement, no official download button, no implied current availability.
+
+Right 46%: one beautiful satin graphite Android smartphone shown upright, three-quarter view, slightly angled back, floating just above a forest-green surface with a restrained contact shadow. The phone is large, fills the right side, stays inside the frame and has a realistic circular hole-punch camera, no Apple-style notch, no Apple logo. Its screen is Elyra's dark forest mobile interface: original Elyra app logo and wordmark at top, a quietly drawn sage financial line chart occupying the middle, a few minimal fine dividers, and a pale citron agent prompt reading "Ask Elyra" at bottom. Screen must be elegant and believable, avoid tiny detailed text, financial numbers, fictional performance metrics, fake prices, wallet addresses, large gains, or invented buttons. Physical controlled studio lighting with sage rim light, real matte materials; the only subtly atmospheric light is behind the phone, not behind typography.
+
+Color palette: 70% ink and forest #101710, #182117, #1B3118; ivory #F7F8EA; restrained citron #D2DC76 and lime #E4EB9D, sage #7A9E70; all type clean and readable. Do not add purple or a neon rainbow.
+
+Text, verbatim, with no additional copy:
+"Elyra"
+"Intelligence."
+"In your pocket."
+"Coming soon to the"
+"Solana dApp Store"
+On the phone only, "Elyra" and "Ask Elyra".
+
+Constraints: no watermark, no rocket ships, no coins, no crypto clip-art, no sparkles, no particles, no globe, no humanoid robot, no generic cyberpunk neon, no extra slogans, no partnership claims, no launch date. Crisp professional typography and precise spelling. This is a complete finished ad image, not a moodboard.

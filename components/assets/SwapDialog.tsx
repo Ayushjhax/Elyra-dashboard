@@ -14,6 +14,7 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 import { txExplorerUrl } from "@/lib/solana/address";
 import type { PreparedAction } from "@/lib/personalized/types";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
+import { signingFailure } from "@/lib/wallet/flows";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -204,14 +205,7 @@ export function SwapDialog({
       } catch (caught: unknown) {
         /* Closing Privy's modal rejects, and that is a decision rather than a
            fault — it reads as "cancelled", not as an error to investigate. */
-        const message = caught instanceof Error ? caught.message : "";
-        setError(
-          /reject|denied|cancel|closed/i.test(message)
-            ? "Cancelled — nothing was signed or sent."
-            : message.length > 0
-              ? message
-              : "The swap could not be completed.",
-        );
+        setError(signingFailure(caught, "The swap could not be completed."));
       } finally {
         setWorking(false);
       }

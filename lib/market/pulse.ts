@@ -96,3 +96,9 @@ export function buildPulse(markets: readonly PerpMarket[], limit = 8, now = new 
     asOf: now.toISOString(),
   };
 }
+
+/** /api/market/pulse. */
+export interface PulseResponse {
+  pulse: MarketPulse | null;
+  error: string | null;
+}

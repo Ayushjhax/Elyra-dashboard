@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { accountKey } from "@/lib/account";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import type { AlertsResponse } from "@/app/api/alerts/route";
+import type { AlertsResponse } from "@/lib/alerts/types";
 import type { PriceAlert } from "@/lib/alerts/types";
 
 /* ---------------------------------------------------------------------------
@@ -246,14 +246,5 @@ export function useAlerts(): AlertsFeed {
   );
 }
 
-/**
- * Whether the live price is already past an alert's level.
- *
- * The server only stamps `triggeredAt` when it delivers to Telegram, so with
- * no chat linked an alert can be crossed and still read as armed. This is
- * how the web says so honestly.
- */
-export function isPast(alert: PriceAlert, price: number | null | undefined): boolean {
-  if (price === null || price === undefined || !Number.isFinite(price)) return false;
-  return alert.direction === "above" ? price >= alert.target : price <= alert.target;
-}
+/* The pure rule, shared with the Android app. */
+export { isPast } from "@/lib/alerts/rules";

@@ -6,6 +6,8 @@ import {
 } from "@/lib/auth/session";
 import { serviceClient } from "@/lib/supabase/server";
 import { createAlert, deleteAlert, listAlerts, type PriceAlert } from "@/lib/alerts/store";
+import { appDeliveryFor } from "@/lib/alerts/rules";
+import type { AlertsResponse } from "@/lib/alerts/types";
 import { notificationPreferences } from "@/lib/notifications/preferences";
 
 /* ---------------------------------------------------------------------------
@@ -24,20 +26,8 @@ import { notificationPreferences } from "@/lib/notifications/preferences";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export interface AlertsResponse {
-  alerts: PriceAlert[];
-  /**
-   * Where a crossing goes.
-   * `telegram`: a linked chat with price alerts on.
-   * `app`: the Android app, with price alerts on — push and its inbox.
-   * `inbox`: the app has it, but push is off (price alerts switched off, or
-   *   no device with notifications allowed) — it lands in the inbox only.
-   * `muted`: a linked chat with price alerts switched off, and no app.
-   * `null`: no chat and no app, so nothing is ever sent.
-   */
-  delivery: "telegram" | "app" | "inbox" | "muted" | null;
-  error: string | null;
-}
+/* The response type is shared with the website and the app. */
+export type { AlertsResponse } from "@/lib/alerts/types";
 
 const SYMBOL = /^[A-Z0-9]{1,12}$/;
 
@@ -49,7 +39,7 @@ async function session(
   if (!hasProfile(user)) {
     return {
       response: NextResponse.json(
-        { alerts: [], delivery: null, error: databaseUnavailableMessage("Alerts") },
+        { alerts: [], delivery: null, appDelivery: "none", error: databaseUnavailableMessage("Alerts") },
         { status: 503 },
       ),
     };
@@ -93,6 +83,7 @@ export async function GET(request: Request): Promise<Response> {
       : app.hasApp ? "inbox"
       : linked ? "muted"
       : null,
+    appDelivery: appDeliveryFor({ priceAlertsOn: on, hasApp: app.hasApp, canPush: app.canPush }),
     error: null,
   });
 }

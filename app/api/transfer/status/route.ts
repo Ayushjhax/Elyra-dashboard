@@ -103,6 +103,9 @@ export async function POST(request: Request) {
           {
             status: "failed",
             signature,
+            /* Said apart from an on-chain failure: nothing moved, and the
+               app reads it as "expired — try again". */
+            expired: true,
             error:
               "The network never confirmed this transfer and the transaction has now expired. " +
               "Nothing was sent — try again.",

@@ -118,3 +118,118 @@ export function accountKey(auth: {
   if (!auth.ready || !auth.authenticated) return null;
   return auth.account?.id ?? auth.solanaAddress ?? "";
 }
+
+/* ---------------------------------------------------------------------------
+   A Privy user, as Elyra reads it.
+
+   The website's Privy SDK and the Android app's hand back the same facts in
+   two shapes — camelCase with Dates on the web, snake_case with epoch
+   seconds in Expo. Both are read here, so the two apps cannot disagree about
+   which wallet is the account's: the FIRST linked Solana wallet, which is
+   also the one the server builds every transaction for (lib/auth/session.ts).
+--------------------------------------------------------------------------- */
+
+export interface ElyraAccount {
+  /** The Privy DID. */
+  id: string;
+  createdAt: string | null;
+  accounts: LinkedAccountSummary[];
+  /**
+   * The account most recently used to sign in.
+   *
+   * Privy does not publish "the method used for this session" directly, but
+   * it does record `latestVerifiedAt` per account and documents it as the
+   * last time that account was used as a login or link method. The newest
+   * one is therefore how the user got here — a reading of a documented
+   * field, not an inference from the shape of the data.
+   */
+  loginMethod: LinkedAccountSummary | null;
+  /** The Solana address is a Privy embedded wallet, so it can be exported. */
+  solanaIsEmbedded: boolean;
+}
+
+export interface UserSummary {
+  account: ElyraAccount;
+  /** The first linked Solana wallet — what the server builds for. */
+  solanaAddress: string | null;
+  /** The first linked EVM wallet, for the Hyperliquid read. */
+  walletAddress: string | null;
+}
+
+type Raw = Record<string, unknown>;
+
+function field(raw: Raw, camel: string, snake: string): unknown {
+  return raw[camel] ?? raw[snake];
+}
+
+function text(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+/** A Date, an ISO string, or epoch seconds/milliseconds, as ISO — or null. */
+export function toIso(value: unknown): string | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    /* Privy's REST shape is in seconds; a JavaScript time is in milliseconds. */
+    return new Date(value < 1e12 ? value * 1000 : value).toISOString();
+  }
+  if (typeof value === "string" && !Number.isNaN(Date.parse(value))) return new Date(value).toISOString();
+  return null;
+}
+
+/** What to show for an account: its address, number, handle or email. */
+function describeAccount(raw: Raw): string | null {
+  for (const key of ["address", "number", "username", "email", "name", "subject"]) {
+    const value = text(raw[key]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+export function summariseUser(user: Raw & { id: string }): UserSummary {
+  const linkedRaw = field(user, "linkedAccounts", "linked_accounts");
+  const raws = (Array.isArray(linkedRaw) ? linkedRaw : []) as Raw[];
+
+  const accounts: LinkedAccountSummary[] = raws.map((raw) => ({
+    type: text(raw.type) ?? "unknown",
+    detail: describeAccount(raw),
+    chainType: text(field(raw, "chainType", "chain_type")),
+    walletClientType: text(field(raw, "walletClientType", "wallet_client_type")),
+    latestVerifiedAt: toIso(field(raw, "latestVerifiedAt", "latest_verified_at")),
+    verifiedAt: toIso(field(raw, "verifiedAt", "verified_at")),
+  }));
+
+  /* Each chain picked explicitly from the linked accounts, never Privy's
+     "primary" wallet — the EVM address in particular is what Hyperliquid is
+     keyed by and is not interchangeable. */
+  const addressFor = (chain: string) =>
+    accounts.find((entry) => entry.type === "wallet" && entry.chainType === chain)?.detail ?? null;
+  const solanaAddress = addressFor("solana");
+
+  /* Accounts with no timestamp are excluded rather than sorted to the front:
+     "never verified" must not outrank a real login. */
+  const loginMethod =
+    accounts
+      .filter((entry): entry is LinkedAccountSummary & { latestVerifiedAt: string } => entry.latestVerifiedAt !== null)
+      .sort((a, b) => (a.latestVerifiedAt < b.latestVerifiedAt ? 1 : -1))[0] ?? null;
+
+  return {
+    account: {
+      id: user.id,
+      createdAt: toIso(field(user, "createdAt", "created_at")),
+      accounts,
+      loginMethod,
+      /* "privy" is the embedded-wallet client. Only an embedded wallet has a
+         key Privy can show the user, so this gates Export. */
+      solanaIsEmbedded: accounts.some(
+        (entry) =>
+          entry.type === "wallet" &&
+          entry.chainType === "solana" &&
+          entry.detail === solanaAddress &&
+          entry.walletClientType === "privy",
+      ),
+    },
+    solanaAddress,
+    walletAddress: addressFor("ethereum"),
+  };
+}

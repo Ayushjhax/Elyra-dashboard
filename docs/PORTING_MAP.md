@@ -18,28 +18,28 @@ The API column says `same` when the app calls the existing route unchanged.
 |---|---|---|---|---|
 | Brand tokens and type scale as values | `app/globals.css` | `lib/tokens.ts` (drift test: `lib/tokens.test.ts`) | — | done |
 | Shared pure modules | `lib/*` | `lib/core.ts` list, purity test `lib/core.test.ts` | — | done |
-| Fonts, `<Text variant>` | `app/layout.tsx`, `app/fonts/*` | `mobile/` theme | — | todo |
-| Primitives (Button, Panel, Section, EmptyState, Skeleton) | `components/ui/*` | `mobile/` primitives | — | todo |
-| Money / Quantity / DeltaText, hidden balances | `components/portfolio/primitives.tsx` | primitives | — | todo |
-| Coin, company and monogram marks | `components/ui/CoinMark.tsx`, `CompanyMark.tsx`, `Monogram.tsx` | primitives | — | todo |
-| Identicon | `lib/identicon.ts`, `components/ui/Identicon.tsx` | react-native-svg port | — | todo |
-| QR code | `lib/qr.ts`, `components/ui/QrCode.tsx` | react-native-svg port | — | todo |
-| Markdown | `lib/markdown.ts`, `components/ui/Markdown.tsx` | native renderer | — | todo |
-| Tooltips and InfoTip (tap) | `components/shell/RouteDrawer.tsx` (`Tip`, `InfoTip`) | tap popover | — | todo |
-| Tables → cards, column priority | `components/ui/DataTable.tsx` | DataList | — | todo |
-| Shared clock | `lib/useClock.ts` | port | — | todo |
-| Reference-counted account stores | `lib/portfolio/usePortfolio.ts`, `lib/wallet/useWalletDashboard.ts` | `createAccountStore` | — | todo |
-| App store (UI state, agent conversation) | `lib/store.ts` | zustand + AsyncStorage | — | todo |
-| Authed fetch, streaming | `lib/useAuthedFetch.ts`, `lib/agentChat.ts` | API client + `expo/fetch` streaming | — | todo |
-| Version gate | — | blocking update screen | `GET /api/app/config` (done), `lib/appVersion.ts` | in progress — server done |
+| Fonts, `<Text variant>` | `app/layout.tsx`, `app/fonts/*` | `mobile/src/theme` (static Fustat + General Sans) | — | done |
+| Primitives (Button, Panel, Section, EmptyState, Skeleton) | `components/ui/*` | `mobile/src/components/ui` | — | done |
+| Money / Quantity / DeltaText, hidden balances | `components/portfolio/primitives.tsx` | `mobile/src/components/ui/values.tsx` | — | done |
+| Coin, company and monogram marks | `components/ui/CoinMark.tsx`, `CompanyMark.tsx`, `Monogram.tsx` | `mobile/src/components/ui/marks.tsx`, `lib/monogram.ts` | — | done |
+| Identicon | `lib/identicon.ts`, `components/ui/Identicon.tsx` | react-native-svg port | — | done |
+| QR code | `lib/qr.ts`, `components/ui/QrCode.tsx` | react-native-svg port | — | done |
+| Markdown | `lib/markdown.ts`, `components/ui/Markdown.tsx` | native renderer | — | done |
+| Tooltips and InfoTip (tap) | `components/shell/RouteDrawer.tsx` (`Tip`, `InfoTip`) | `InfoTip` tap popover | — | done |
+| Tables → cards, column priority | `components/ui/DataTable.tsx` | `DataList` | — | done |
+| Shared clock | `lib/useClock.ts` | `mobile/src/lib/useClock.ts` | — | done |
+| Reference-counted account stores | `lib/portfolio/usePortfolio.ts`, `lib/wallet/useWalletDashboard.ts` | `mobile/src/lib/stores/createAccountStore.ts` | — | done |
+| App store (UI state, agent conversation) | `lib/store.ts` | `mobile/src/lib/store.ts` (zustand + AsyncStorage) | — | done |
+| Authed fetch, streaming | `lib/useAuthedFetch.ts`, `lib/agentChat.ts` | `mobile/src/lib/api.ts` + `expo/fetch` streaming | — | done |
+| Version gate | — | blocking update screen | `GET /api/app/config`, `lib/appVersion.ts` | done |
 | Health | — | Settings → About | `GET /api/health` (done) | in progress — server done |
 
 ## Sign-in and account
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Privy sign-in (email, Google, wallets) | `components/providers/PrivyClientProvider.tsx` | `@privy-io/expo` sign-in screen | same | todo |
-| Wallet sign-in (Seeker / Phantom / Solflare) | — | MWA + `useLoginWithSiws` | same | todo |
+| Privy sign-in (email, Google, wallets) | `components/providers/PrivyClientProvider.tsx` | `mobile/src/app/welcome.tsx`, `mobile/src/lib/auth/AuthProvider.tsx` | same | in progress — wallet sign-in verified on a Seeker; email, Google and passkey not yet checked on a device |
+| Wallet sign-in (Seeker / Phantom / Solflare) | — | MWA + `useLoginWithSiws` (`mobile/src/lib/wallet/mwa.ts`) | same | done — verified on a Seeker with its own wallet |
 | Embedded Solana wallet | `PrivyClientProvider.tsx` (createOnLogin) | Privy Expo embedded wallet | same | todo |
 | Account identicon and menu | `components/shell/RailAccount.tsx`, `lib/account.ts` | header identicon → account sheet | — | todo |
 | Account card (user id, linked accounts) | `components/dashboard/DashboardDrawer.tsx` | Account → Settings | — | todo |
@@ -52,16 +52,16 @@ The API column says `same` when the app calls the existing route unchanged.
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Wallet drawer (identity, total, assets, sync) | `components/wallet/*` | wallet bottom sheet | `/api/wallet` same | todo |
+| Wallet drawer (identity, total, assets, sync) | `components/wallet/*` | `mobile/src/app/wallet.tsx`, `mobile/src/components/wallet/WalletSections.tsx`; states previewable from `/dev` | `/api/wallet` same | in progress — built; device screenshots pending |
 | Wallet health and status | `lib/wallet/status.ts`, `health.ts`, `components/shell/status/*` | header status, wallet sheet | same | todo |
-| Receive (QR) | `components/portfolio/ReceiveDialog.tsx` | Receive sheet + Share | — | todo |
-| Fund wallet | `WalletActions.tsx` (Privy funding) | only if Privy Expo supports funding | — | todo |
-| Export wallet | `WalletActions.tsx` (Privy export) | only if Privy Expo supports export | — | todo |
-| Transfer / withdraw | `components/assets/TransferDialog.tsx` | Send screen, QR scan | `/api/transfer/*` same; build returns `signer` (done) | todo |
-| Swap | `components/assets/SwapDialog.tsx` | Swap screen | `/api/swap/*` same; build returns `signer` (done) | todo |
-| Action dialogs | `components/assets/ActionDialogs.tsx` | Swap / Send entry points | — | todo |
-| Wallet activity | `components/workspace/ActivityWidget.tsx`, `lib/wallet/useWalletActivity.ts`, `lib/activity/*` | Portfolio → Activity | `/api/wallet/activity` same | todo |
-| Actions awaiting review | `components/agent/PendingActions.tsx`, `lib/actions/useOpenActions.ts` | review cards | `/api/actions` same | todo |
+| Receive (QR) | `components/portfolio/ReceiveDialog.tsx` | `mobile/src/app/receive.tsx` (QR, copy, Share, mainnet-only warning) | — | in progress — built; device check pending |
+| Fund wallet | `WalletActions.tsx` (Privy funding) | wallet sheet, `useFundSolanaWallet` from `@privy-io/expo/ui` (0.77 supports it; `PrivyElements` mounted in `AuthProvider`) | — | in progress — built; needs funding enabled in the Privy dashboard to test |
+| Export wallet | `WalletActions.tsx` (Privy export) | — | — | dropped — `@privy-io/expo` 0.77 has no export flow, and the app never renders a key; the wallet sheet says to export from getelyra.xyz. Revisit when Privy's Expo SDK adds one |
+| Transfer / withdraw | `components/assets/TransferDialog.tsx` | `mobile/src/app/transfer.tsx` (`?intent=withdraw`), QR scan in `ScanAddress.tsx`; shared rules in `lib/wallet/flows.ts` | `/api/transfer/*` same; status now says `expired` | in progress — built; on-chain test pending |
+| Swap | `components/assets/SwapDialog.tsx` | `mobile/src/app/swap.tsx` | `/api/swap/*` same | in progress — built; on-chain test pending |
+| Action dialogs | `components/assets/ActionDialogs.tsx` | Portfolio action bar (Receive, Swap, Transfer, Withdraw) | — | done |
+| Wallet activity | `components/workspace/ActivityWidget.tsx`, `lib/wallet/useWalletActivity.ts`, `lib/activity/*` | Portfolio tab (`mobile/src/components/wallet/Activity.tsx`, `mobile/src/lib/stores/activity.ts`); fired alerts and venue activity join with their stores | `/api/wallet/activity` same | in progress — built; device check pending |
+| Actions awaiting review | `components/agent/PendingActions.tsx`, `lib/actions/useOpenActions.ts` | `mobile/src/components/actions/ReviewCards.tsx` (Portfolio and Elyra tabs), `mobile/src/lib/stores/actions.ts` | `/api/actions` same | in progress — built and unit-tested; device check pending |
 | On-chain proof of a confirmed action | `lib/actions/proof.ts` | — | same | done (server) |
 
 ## Markets

@@ -46,6 +46,12 @@ export function accountEvents(input: {
   alerts: readonly PriceAlert[];
   actions: readonly OpenAction[];
   explorer: (signature: string) => string;
+  /**
+   * How a fired alert's row ends: where it went, on the surface showing it.
+   * The website says Telegram; the Android app, which has no Telegram, says
+   * it fired.
+   */
+  alertNote?: string;
 }): AccountEvent[] {
   const events: AccountEvent[] = [];
 
@@ -92,7 +98,7 @@ export function accountEvents(input: {
     events.push({
       id: `alert:${alert.id}:${alert.triggeredAt}`,
       kind: "alert",
-      text: `${alert.symbol} crossed ${alert.direction} ${formatPriceUsd(alert.target)}${seen} — alert sent to Telegram`,
+      text: `${alert.symbol} crossed ${alert.direction} ${formatPriceUsd(alert.target)}${seen} — ${input.alertNote ?? "alert sent to Telegram"}`,
       at: alert.triggeredAt,
       status: "confirmed",
       href: null,

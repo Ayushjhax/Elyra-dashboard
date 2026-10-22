@@ -7,8 +7,8 @@ import {
   catalogue,
   refusalFor,
   assetFor,
-} from "@/lib/telegram/trade";
-import { parseAlertCommand, hasCrossed } from "@/lib/telegram/alerts";
+} from "@/lib/trade";
+import { parseAlertCommand, hasCrossed } from "@/lib/alerts/store";
 
 /* ---------------------------------------------------------------------------
    The parsers that turn a chat message into something touching money.

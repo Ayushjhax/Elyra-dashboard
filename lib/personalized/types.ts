@@ -88,6 +88,8 @@ export interface PersonalizedAnswer {
   metrics?: AnswerMetric[];
   suggestedPrompts?: string[];
   preparedAction?: PreparedAction;
+  /** The stored action behind `preparedAction`, when it was ready to review. */
+  preparedActionId?: string;
   /**
    * Which parts of the user's state this answer actually used.
    *
@@ -107,7 +109,9 @@ export type PersonalizedStreamEvent =
   | { type: "status"; status: string }
   | { type: "text_delta"; delta: string }
   | { type: "answer"; answer: PersonalizedAnswer }
-  | { type: "prepared_action"; action: PreparedAction }
+  /** `id` is the stored action a review card confirms — null when it was not
+      ready, or the store could not be reached. */
+  | { type: "prepared_action"; action: PreparedAction; id: string | null }
   | { type: "done"; messageId: string; conversationId: string }
   /** The conversation this turn belongs to, as soon as it exists — so a turn
       that fails can be retried into the same conversation, not a new one. */

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { resolveCode } from "@/lib/referrals/codes";
-import { ATTRIBUTION_COOKIE } from "@/lib/referrals/config";
+import { ATTRIBUTION_COOKIE, isWellFormedCode } from "@/lib/referrals/config";
 import { serviceClient } from "@/lib/supabase/server";
 
 /* ---------------------------------------------------------------------------
@@ -10,6 +10,12 @@ import { serviceClient } from "@/lib/supabase/server";
    The chain is: someone opens /r/CODE, the code is validated and written to
    an httpOnly cookie, and the cookie is read exactly once — when that
    visitor's profile row is first created.
+
+   The Android app has no cookie jar shared with a browser. It keeps the code
+   from the link that opened it and sends it as `x-elyra-referral` on its
+   first signed-in request, which reaches the same single read at profile
+   creation. An existing account ignores the header exactly as it ignores
+   the cookie.
 
    ── Why binding happens at profile creation ────────────────────────────
 
@@ -41,6 +47,21 @@ export function readAttributionCookie(request: Request): string | null {
     return value.length > 0 ? value : null;
   }
   return null;
+}
+
+/** The header the Android app sends its stored referral code in. */
+export const REFERRAL_HEADER = "x-elyra-referral";
+
+/**
+ * The referral code a request carries: the website's cookie, or the app's
+ * header. A header that is not a well-formed code is ignored rather than
+ * passed on. Like the cookie, it is untrusted until `resolveCode` runs.
+ */
+export function readAttribution(request: Request): string | null {
+  const cookie = readAttributionCookie(request);
+  if (cookie !== null) return cookie;
+  const header = request.headers.get(REFERRAL_HEADER)?.trim().toUpperCase() ?? "";
+  return isWellFormedCode(header) ? header : null;
 }
 
 export type BindResult =

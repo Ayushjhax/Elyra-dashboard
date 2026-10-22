@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { LinkedAccount } from "@privy-io/node";
 import { PRIVY_TIMEOUT_MS, privyClient } from "@/lib/auth/privy";
-import { bindReferral, readAttributionCookie } from "@/lib/referrals/attribution";
+import { bindReferral, readAttribution } from "@/lib/referrals/attribution";
 import { supabaseHost, unreachableReason } from "@/lib/supabase/reachability";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
@@ -569,7 +569,7 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
 
   /* Only consulted when a profile is created below; an established account
      ignores it entirely. See lib/referrals/attribution.ts. */
-  return resolveProfile(privyDid, readAttributionCookie(req));
+  return resolveProfile(privyDid, readAttribution(req));
 }
 
 /** As `getSessionUser`, but throws instead of returning null. */

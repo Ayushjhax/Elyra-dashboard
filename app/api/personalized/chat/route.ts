@@ -23,6 +23,7 @@ import {
   type PersonalizedAnswer,
   type PersonalizedStreamEvent,
 } from "@/lib/personalized/types";
+import { storePreparedAction } from "@/lib/actions/store";
 
 /* ---------------------------------------------------------------------------
    One turn of Personalized, streamed.
@@ -244,8 +245,22 @@ export async function POST(request: Request): Promise<Response> {
               concentrationLimit:
                 typeof limit?.value === "number" ? limit.value : null,
             });
-            answer = { ...answer, preparedAction: action };
-            send({ type: "prepared_action", action });
+            /* A ready preview is stored, like Telegram's "Review in Elyra",
+               so the app can show it as a review card and the confirmation
+               can be recorded against it once a wallet signs. A preview
+               that is not ready is shown with its reason and never stored —
+               a card offering what nothing can execute is a promise the
+               product cannot keep. */
+            const stored =
+              action.readiness === "ready" && session.userId !== null
+                ? await storePreparedAction({ userId: session.userId, action, surface: "agent" })
+                : null;
+            answer = {
+              ...answer,
+              preparedAction: action,
+              ...(stored === null ? {} : { preparedActionId: stored.id }),
+            };
+            send({ type: "prepared_action", action, id: stored?.id ?? null });
           }
         }
 

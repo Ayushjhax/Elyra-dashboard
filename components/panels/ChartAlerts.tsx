@@ -186,7 +186,15 @@ export function DeliveryNote({
   delivery: AlertsResponse["delivery"];
   className?: string;
 }) {
-  if (delivery === "telegram") return null;
+  if (delivery === "telegram" || delivery === "app") return null;
+  if (delivery === "inbox") {
+    return (
+      <p className={cn("type-label text-text-muted", className)}>
+        A crossing reaches your Elyra app&rsquo;s inbox, but push is off — turn price alerts on in the app&rsquo;s
+        notification settings to be told at once.
+      </p>
+    );
+  }
   return (
     <p className={cn("type-label text-text-muted", className)}>
       {delivery === "muted"

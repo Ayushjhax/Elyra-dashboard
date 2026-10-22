@@ -80,6 +80,17 @@ export type NotificationKind =
   | "daily_summary"
   | "system";
 
+/** A push Expo accepted, waiting for its receipt (0015). The id is Expo's. */
+export interface PushTicketRow {
+  id: string;
+  device_id: string;
+  notification_id: string | null;
+  created_at: string;
+  checked_at: string | null;
+  receipt_status: string | null;
+  receipt_message: string | null;
+}
+
 /** One entry in the app's inbox. */
 export interface NotificationRow {
   id: string;
@@ -360,7 +371,7 @@ export interface PreparedActionRow {
   updated_at: string;
 }
 
-export interface TelegramNotificationPreferencesRow {
+export interface NotificationPreferencesRow {
   user_id: string;
   price_alerts: boolean;
   liquidation_alerts: boolean;
@@ -539,6 +550,10 @@ export interface Database {
         "id" | "device_name" | "created_at" | "last_seen_at" | "disabled_at" | "disabled_reason"
       >;
       notifications: Table<NotificationRow, "id" | "data" | "created_at" | "read_at">;
+      push_tickets: Table<
+        PushTicketRow,
+        "notification_id" | "created_at" | "checked_at" | "receipt_status" | "receipt_message"
+      >;
       telegram_links: Table<TelegramLink, "id" | "linked_at">;
       telegram_link_codes: Table<TelegramLinkCode, "consumed_at">;
       telegram_updates: Table<
@@ -638,7 +653,7 @@ export interface Database {
         "recorded_at"
       >;
       telegram_notification_preferences: Table<
-        TelegramNotificationPreferencesRow,
+        NotificationPreferencesRow,
         | "prediction_alerts"
         | "prediction_order_updates"
         | "prediction_resolution_alerts"

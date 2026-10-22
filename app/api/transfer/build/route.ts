@@ -12,7 +12,7 @@ import {
   isValidRecipient,
 } from "@/lib/solana/transfer";
 import { resolveTokens } from "@/lib/solana/tokens";
-import { assetFor, toBaseUnits } from "@/lib/telegram/trade";
+import { assetFor, toBaseUnits } from "@/lib/trade";
 
 /* ---------------------------------------------------------------------------
    Step one of a transfer: build it, unsigned.
@@ -254,6 +254,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       unsignedTransaction: built.unsignedTransaction,
+      /* The sender the transaction was built for — the only wallet that may
+         sign it. See /api/swap/build. */
+      signer: from,
       /* The block height past which these bytes are dead. The client hands
          it back to `/api/transfer/status`, which is how "still pending"
          becomes "expired" rather than a spinner with no end. */

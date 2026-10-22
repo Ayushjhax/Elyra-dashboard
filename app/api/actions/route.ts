@@ -7,7 +7,7 @@ import {
 import { proveSwap } from "@/lib/actions/proof";
 import type { ActionsResponse } from "@/lib/actions/types";
 import { isSolanaAddress } from "@/lib/solana/address";
-import { listOpenActions, settleOpenAction } from "@/lib/telegram/actions";
+import { listOpenActions, settleOpenAction } from "@/lib/actions/store";
 
 /* ---------------------------------------------------------------------------
    Actions awaiting review, for the workspace.

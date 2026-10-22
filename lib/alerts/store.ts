@@ -84,7 +84,7 @@ export async function createAlert(input: {
     );
 
   if (error) {
-    console.error("[telegram] could not create alert", error.code);
+    console.error("[alerts] could not create alert", error.code);
     return false;
   }
   return true;

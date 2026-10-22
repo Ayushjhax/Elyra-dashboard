@@ -43,7 +43,7 @@ const USER_B = "22222222-2222-4222-8222-222222222222";
 const SIGNATURE = "5".repeat(88);
 
 async function seed(userId: string, status = "prepared") {
-  const { storePreparedAction } = await import("@/lib/telegram/actions");
+  const { storePreparedAction } = await import("@/lib/actions/store");
   const record = await storePreparedAction({
     userId,
     surface: "telegram",

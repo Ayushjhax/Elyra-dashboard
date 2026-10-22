@@ -59,6 +59,7 @@ export const CORE_MODULES = [
 
   /* account, referrals, attachments */
   "lib/account.ts",
+  "lib/appVersion.ts",
   "lib/referrals/display.ts",
   "lib/referrals/config.ts",
   "lib/attachments.ts",

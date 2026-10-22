@@ -41,9 +41,8 @@ begin
     return;
   end if;
 
-  -- Every route the tick drives. The app's own delivery route is added here
-  -- when it exists.
-  foreach route in array array['/api/telegram/deliver'] loop
+  -- One route delivers every channel: Telegram, the app's inbox and push.
+  foreach route in array array['/api/notifications/deliver'] loop
     perform net.http_get(
       url := rtrim(base, '/') || route,
       headers := jsonb_build_object('Authorization', 'Bearer ' || secret),

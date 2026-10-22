@@ -151,7 +151,11 @@ function watchNext(
       return {
         kind: "ready",
         text: `Your ${crossed.direction} ${formatPriceUsd(crossed.target)} alert has been crossed${
-          alerts.delivery === "telegram" ? " — Telegram is told on the next check" : ", and it is not being sent anywhere"
+          alerts.delivery === "telegram"
+            ? " — Telegram is told on the next check"
+            : alerts.delivery === "app" || alerts.delivery === "inbox"
+              ? " — the Elyra app is told on the next check"
+              : ", and it is not being sent anywhere"
         }.`,
         source: "Your price alerts",
       };
@@ -166,7 +170,12 @@ function watchNext(
     return {
       kind: "ready",
       text: `Your alert ${nearest.direction} ${formatPriceUsd(nearest.target)}${distance}.${more}`,
-      source: alerts.delivery === "telegram" ? "Your price alerts · Telegram" : "Your price alerts · not delivered",
+      source:
+        alerts.delivery === "telegram"
+          ? "Your price alerts · Telegram"
+          : alerts.delivery === "app" || alerts.delivery === "inbox"
+            ? "Your price alerts · Elyra app"
+            : "Your price alerts · not delivered",
     };
   }
 

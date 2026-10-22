@@ -19,7 +19,7 @@ vi.mock("@/lib/telegram/api", () => ({
 
 describe("localClock", () => {
   it("reads the calendar date and minute where the user lives", async () => {
-    const { localClock } = await import("@/lib/telegram/deliver");
+    const { localClock } = await import("@/lib/notifications/deliver");
 
     /* 2026-09-16T01:30:00Z is still the 15th in New York and already the
        16th, mid-morning, in Tokyo. A summary keyed on the server's date would
@@ -38,7 +38,7 @@ describe("localClock", () => {
   });
 
   it("handles a half-hour offset", async () => {
-    const { localClock } = await import("@/lib/telegram/deliver");
+    const { localClock } = await import("@/lib/notifications/deliver");
     const at = new Date("2026-09-16T01:30:00Z");
 
     /* India is UTC+5:30. An implementation that assumes whole hours is an
@@ -50,7 +50,7 @@ describe("localClock", () => {
   });
 
   it("returns null for a timezone it cannot resolve", async () => {
-    const { localClock } = await import("@/lib/telegram/deliver");
+    const { localClock } = await import("@/lib/notifications/deliver");
 
     /* Null rather than falling back to UTC, which would send the summary at
        the wrong hour and never say why. */
@@ -59,7 +59,7 @@ describe("localClock", () => {
   });
 
   it("uses a 24-hour clock, so midnight is 0 and not 720", async () => {
-    const { localClock } = await import("@/lib/telegram/deliver");
+    const { localClock } = await import("@/lib/notifications/deliver");
 
     /* h12 reports midnight as hour 12. That would put the daily summary
        exactly twelve hours out for anyone who picked a morning slot. */

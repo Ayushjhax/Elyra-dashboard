@@ -16,11 +16,10 @@ import {
 } from "@/lib/telegram/api";
 import {
   acknowledgePreparedAction,
-  callbackDataFor,
   resolvePreparedAction,
   storePreparedAction,
-  tokenFromCallback,
-} from "@/lib/telegram/actions";
+} from "@/lib/actions/store";
+import { callbackDataFor, tokenFromCallback } from "@/lib/telegram/buttons";
 import { answerFromTelegram } from "@/lib/telegram/personalized";
 import {
   alertView,
@@ -28,7 +27,7 @@ import {
   swapView,
   watchView,
 } from "@/lib/telegram/actions-views";
-import { notificationPreferences } from "@/lib/telegram/notifications";
+import { notificationPreferences } from "@/lib/notifications/preferences";
 import { parseResearchIntent } from "@/lib/research/intent";
 import {
   backtestMenu,

@@ -6,37 +6,37 @@ import type { PreparedAction } from "@/lib/personalized/types";
 import type { PreparedActionStatus, PreparedActionSurface } from "@/lib/actions/types";
 
 /* ---------------------------------------------------------------------------
-   Prepared actions, and the opaque handle a Telegram button carries.
+   Prepared actions: previews stored for review, from the website, its
+   Telegram chat, the Android app, or an assistant answer.
 
    ── The rule this file exists to enforce ───────────────────────────────
 
-   A TELEGRAM TAP IS NOT A SIGNATURE.
+   A TAP IS NOT A SIGNATURE.
 
-   Telegram authenticates a *chat account*. It says nothing about custody of a
-   wallet, and an inline button is not a consent mechanism for moving money.
-   So a tap here does exactly one thing: it moves a record from `prepared` to
-   `acknowledged` and returns a link. Confirmation happens in a surface that
-   can verify the person and their wallet. Nothing in this repository can sign
-   a transaction anyway — there is no signing path in it — but the boundary is
-   written down here so that adding one later does not accidentally make a
-   button an authorisation.
+   A chat button or a review card says someone saw the preview. It says
+   nothing about custody of a wallet, and a button is not a consent mechanism
+   for moving money. So a tap does exactly one thing: it moves a record from
+   `prepared` to `acknowledged`. A record becomes `confirmed` only with the
+   signature of the transaction that did it, which /api/actions verifies
+   on-chain (lib/actions/proof.ts) before settleOpenAction writes it.
 
    ── Why the token is random ────────────────────────────────────────────
 
-   `callback_data` is 64 bytes that Telegram hands back verbatim. Packing the
-   action into it — "swap:SOL:USDC:21.25" — makes the amount an input to the
-   webhook rather than a fact the server established. The token below is
-   random, unguessable, and means nothing on its own: everything that decides
-   what happens is read from the row it points at.
+   A Telegram button hands back 64 bytes verbatim (lib/telegram/buttons.ts).
+   Packing the action into them — "swap:SOL:USDC:21.25" — would make the
+   amount an input to the webhook rather than a fact the server established.
+   The token is random, unguessable, and means nothing on its own: everything
+   that decides what happens is read from the row it points at. Every other
+   surface addresses a record by its id.
 
    ── Why they expire ────────────────────────────────────────────────────
 
-   A swap prepared against one price and tapped twenty minutes later is a
+   A swap prepared against one price and acted on twenty minutes later is a
    different trade. Expiry is short and enforced on read, not by a sweeper,
    so a row that outlives its window is unusable even if nothing cleaned up.
 --------------------------------------------------------------------------- */
 
-/** Long enough that guessing is hopeless, short enough for callback_data. */
+/** Long enough that guessing is hopeless, short enough for a Telegram button. */
 const TOKEN_BYTES = 16;
 
 /** A financial preview is stale well before this; ten minutes is generous. */
@@ -59,27 +59,6 @@ export interface PreparedActionRecord {
 /** url-safe base64, so it survives callback_data without escaping. */
 function newToken(): string {
   return randomBytes(TOKEN_BYTES).toString("base64url");
-}
-
-/**
- * The string an inline button carries.
- *
- * Prefixed so the webhook can route it without parsing, and bounded because
- * Telegram silently rejects a keyboard whose callback_data exceeds 64 bytes —
- * silently meaning the message sends without the buttons.
- */
-export function callbackDataFor(token: string): string {
-  const data = `action:${token}`;
-  if (Buffer.byteLength(data, "utf8") > 64) {
-    throw new Error("callback_data exceeds Telegram's 64-byte limit");
-  }
-  return data;
-}
-
-/** The token out of a callback payload, or null if it is not one of ours. */
-export function tokenFromCallback(data: string): string | null {
-  const match = /^action:([A-Za-z0-9_-]{16,64})$/.exec(data.trim());
-  return match === null ? null : match[1];
 }
 
 /**
@@ -112,7 +91,7 @@ export async function storePreparedAction(input: {
     .maybeSingle();
 
   if (error || !data) {
-    console.error("[telegram] could not store prepared action", error?.code ?? "no row");
+    console.error("[actions] could not store prepared action", error?.code ?? "no row");
     return null;
   }
 
@@ -203,7 +182,7 @@ export async function acknowledgePreparedAction(
     .select("id");
 
   if (error) {
-    console.error("[telegram] could not acknowledge action", error.code);
+    console.error("[actions] could not acknowledge action", error.code);
     return false;
   }
   return (data ?? []).length > 0;

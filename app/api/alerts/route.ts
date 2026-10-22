@@ -5,8 +5,8 @@ import {
   hasProfile,
 } from "@/lib/auth/session";
 import { serviceClient } from "@/lib/supabase/server";
-import { createAlert, deleteAlert, listAlerts, type PriceAlert } from "@/lib/telegram/alerts";
-import { notificationPreferences } from "@/lib/telegram/notifications";
+import { createAlert, deleteAlert, listAlerts, type PriceAlert } from "@/lib/alerts/store";
+import { notificationPreferences } from "@/lib/notifications/preferences";
 
 /* ---------------------------------------------------------------------------
    Price alerts, from the web.
@@ -27,11 +27,15 @@ export const dynamic = "force-dynamic";
 export interface AlertsResponse {
   alerts: PriceAlert[];
   /**
-   * Where a crossing goes. `telegram`: a linked chat with price alerts on.
-   * `muted`: linked, but price alerts are switched off, so the worker skips
-   * them. `null`: no chat linked, so nothing is ever sent.
+   * Where a crossing goes.
+   * `telegram`: a linked chat with price alerts on.
+   * `app`: the Android app, with price alerts on — push and its inbox.
+   * `inbox`: the app has it, but push is off (price alerts switched off, or
+   *   no device with notifications allowed) — it lands in the inbox only.
+   * `muted`: a linked chat with price alerts switched off, and no app.
+   * `null`: no chat and no app, so nothing is ever sent.
    */
-  delivery: "telegram" | "muted" | null;
+  delivery: "telegram" | "app" | "inbox" | "muted" | null;
   error: string | null;
 }
 
@@ -62,19 +66,33 @@ async function telegramLinked(userId: string): Promise<boolean> {
   return data !== null && data !== undefined;
 }
 
+/** The app's devices for this account: whether it has the app, and whether any can take a push. */
+async function appDevices(userId: string): Promise<{ hasApp: boolean; canPush: boolean }> {
+  const { data } = await serviceClient().from("push_devices").select("disabled_at").eq("user_id", userId);
+  const rows = data ?? [];
+  return { hasApp: rows.length > 0, canPush: rows.some((row) => row.disabled_at === null) };
+}
+
 export async function GET(request: Request): Promise<Response> {
   const resolved = await session(request);
   if ("response" in resolved) return resolved.response;
 
   const symbol = new URL(request.url).searchParams.get("symbol")?.toUpperCase() ?? null;
-  const [alerts, linked, preferences] = await Promise.all([
+  const [alerts, linked, app, preferences] = await Promise.all([
     listAlerts(resolved.userId),
     telegramLinked(resolved.userId),
+    appDevices(resolved.userId),
     notificationPreferences(resolved.userId),
   ]);
+  const on = preferences.priceAlerts;
   return NextResponse.json<AlertsResponse>({
     alerts: symbol === null ? alerts : alerts.filter((alert) => alert.symbol === symbol),
-    delivery: !linked ? null : preferences.priceAlerts ? "telegram" : "muted",
+    delivery:
+      linked && on ? "telegram"
+      : app.canPush && on ? "app"
+      : app.hasApp ? "inbox"
+      : linked ? "muted"
+      : null,
     error: null,
   });
 }

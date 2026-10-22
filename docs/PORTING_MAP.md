@@ -31,8 +31,8 @@ The API column says `same` when the app calls the existing route unchanged.
 | Reference-counted account stores | `lib/portfolio/usePortfolio.ts`, `lib/wallet/useWalletDashboard.ts` | `createAccountStore` | — | todo |
 | App store (UI state, agent conversation) | `lib/store.ts` | zustand + AsyncStorage | — | todo |
 | Authed fetch, streaming | `lib/useAuthedFetch.ts`, `lib/agentChat.ts` | API client + `expo/fetch` streaming | — | todo |
-| Version gate | — | blocking update screen | new `GET /api/app/config` | todo |
-| Health | — | Settings → About | new `GET /api/health` | todo |
+| Version gate | — | blocking update screen | `GET /api/app/config` (done), `lib/appVersion.ts` | in progress — server done |
+| Health | — | Settings → About | `GET /api/health` (done) | in progress — server done |
 
 ## Sign-in and account
 
@@ -57,8 +57,8 @@ The API column says `same` when the app calls the existing route unchanged.
 | Receive (QR) | `components/portfolio/ReceiveDialog.tsx` | Receive sheet + Share | — | todo |
 | Fund wallet | `WalletActions.tsx` (Privy funding) | only if Privy Expo supports funding | — | todo |
 | Export wallet | `WalletActions.tsx` (Privy export) | only if Privy Expo supports export | — | todo |
-| Transfer / withdraw | `components/assets/TransferDialog.tsx` | Send screen, QR scan | `/api/transfer/*` same, + `signer` in build | todo |
-| Swap | `components/assets/SwapDialog.tsx` | Swap screen | `/api/swap/*` same, + `signer` in build | todo |
+| Transfer / withdraw | `components/assets/TransferDialog.tsx` | Send screen, QR scan | `/api/transfer/*` same; build returns `signer` (done) | todo |
+| Swap | `components/assets/SwapDialog.tsx` | Swap screen | `/api/swap/*` same; build returns `signer` (done) | todo |
 | Action dialogs | `components/assets/ActionDialogs.tsx` | Swap / Send entry points | — | todo |
 | Wallet activity | `components/workspace/ActivityWidget.tsx`, `lib/wallet/useWalletActivity.ts`, `lib/activity/*` | Portfolio → Activity | `/api/wallet/activity` same | todo |
 | Actions awaiting review | `components/agent/PendingActions.tsx`, `lib/actions/useOpenActions.ts` | review cards | `/api/actions` same | todo |
@@ -68,7 +68,7 @@ The API column says `same` when the app calls the existing route unchanged.
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Watchlist (market types, favorites, order) | `components/workspace/WatchlistWidget.tsx`, `lib/store.ts` | Markets tab | new `/api/watchlist` (server-synced) | todo |
+| Watchlist (market types, favorites, order) | `components/workspace/WatchlistWidget.tsx`, `lib/store.ts` | Markets tab | `/api/watchlist` (done, `lib/watchlist.ts`) | todo |
 | Asset search | `components/panels/AssetSelectDialog.tsx`, `lib/market/useAssetSearch.ts` | Search screen | `/api/market/assets` same | todo |
 | Command palette | `components/shell/CommandPalette.tsx` | Search screen (assets, screens, actions) | — | todo |
 | Prices (Pyth) | `lib/market/usePrices.ts` | prices store | `/api/market/prices` same | todo |
@@ -102,7 +102,7 @@ The API column says `same` when the app calls the existing route unchanged.
 | Suggestion chips | `lib/agent/suggestions.ts` | chat | — | todo |
 | Elyra signals tab | `components/agent/ElyraSignals.tsx` | Elyra → Signals | same | todo |
 | Capital Intelligence (context, answers, history, memory) | `components/personalized/*`, `lib/personalized/client.ts` | Elyra → Capital Intelligence | `/api/personalized/*` same | todo |
-| Prepared actions from answers | `lib/personalized/actions.ts`, `/api/personalized/actions/*` | inline review card → Swap | store the action, return its id | todo |
+| Prepared actions from answers | `lib/personalized/actions.ts`, `/api/personalized/actions/*` | inline review card → Swap | stored as `agent`, `preparedActionId` returned (done) | todo |
 
 ## Research
 
@@ -126,9 +126,9 @@ The API column says `same` when the app calls the existing route unchanged.
 | Exchange connections (read-only) | `components/connections/ExchangeCards.tsx`, `ConnectionsDrawer.tsx`, `lib/connections/state.ts` | Account → Connections | `/api/exchanges` same | todo |
 | Polymarket account link | `components/connections/PolymarketCard.tsx` | Account → Connections | `/api/prediction/account` same | todo |
 | Referrals (metrics, invite, pool, steps, list) | `components/referrals/ReferralsView.tsx`, `lib/referrals/*` | Account → Referrals | `/api/referrals` same | todo |
-| Referral link `/r/CODE` | `app/r/[code]/route.ts`, `lib/referrals/attribution.ts` | Android App Link → stored code | + `x-elyra-referral` header on first sign-in | todo |
+| Referral link `/r/CODE` | `app/r/[code]/route.ts`, `lib/referrals/attribution.ts` | Android App Link → stored code | `x-elyra-referral` read at profile creation (done, `lib/referrals/attribution.ts`) | todo |
 | Automation (alert rules list) | `components/workspace/AutomationSection.tsx` | Account → Alerts & automation | `/api/alerts` same | todo |
-| Notifications menu | `components/shell/status/*`, `lib/activity/notifications.ts` | bell → inbox | new inbox API | todo |
+| Notifications menu | `components/shell/status/*`, `lib/activity/notifications.ts` | bell → inbox | `/api/notifications`, `/read` (done) | todo |
 
 ## Telegram → in-app
 
@@ -136,28 +136,28 @@ The website keeps Telegram. The app replaces every part of it.
 
 | Telegram | In the app | Server work | Status |
 |---|---|---|---|
-| Linking a chat (`/link`, `/start CODE`, `/unlink`, link codes) | not needed — sign-in is the identity; the push device registers itself | new `/api/devices` | todo |
+| Linking a chat (`/link`, `/start CODE`, `/unlink`, link codes) | not needed — sign-in is the identity; the push device registers itself | `/api/devices` (done) | todo |
 | Free text and `/ask` | Elyra → Ask | same | todo |
 | `/portfolio` `/wallet` `/positions` `/defi` | Portfolio screens | same | todo |
 | `/orders` `/activity` (`/fills`) | Portfolio → Activity | same | todo |
 | `/markets` `/price` | Markets tab, asset screen | same | todo |
-| `/watch` (`/watchlist`) | Markets watchlist | new `/api/watchlist` (the `watchlist` table, which the agent and large-move alerts read) | todo |
-| `/swap` preview + "Review in Elyra" | Swap screen, review cards | store agent-prepared actions | todo |
+| `/watch` (`/watchlist`) | Markets watchlist | `/api/watchlist` (done) | todo |
+| `/swap` preview + "Review in Elyra" | Swap screen, review cards | ready previews stored as `agent` actions, id returned (done) | todo |
 | `/alert` `/alerts` | alert editor, Alerts & automation | same | todo |
 | `/research` `/report` | Research → Reports | same | todo |
 | `/recap` `/signals` `/yield` `/unlocks` | Research tabs | same | todo |
 | `/backtest` | Research → Backtests | same | todo |
 | `/predictions` `/book` (`/orderbook`) `/basket` (`/fair`) | Research → Prediction markets | same | todo |
 | `/settings` `/help` | Account → Settings; `/` shortcuts in the chat composer | — | todo |
-| Notification: price alert crossed | push + inbox | channel fan-out in delivery | todo |
-| Notification: liquidation warning | push + inbox | channel fan-out | todo |
-| Notification: large move on a watched symbol | push + inbox | channel fan-out | todo |
-| Notification: prediction probability move | push + inbox | channel fan-out | todo |
-| Notification: prediction order update | push + inbox | channel fan-out | todo |
-| Notification: prediction resolution | push + inbox | channel fan-out | todo |
-| Notification: prediction signal alert | push + inbox | channel fan-out | todo |
-| Notification: daily summary | push + inbox | channel fan-out | todo |
-| Notification preferences | Account → Notifications | shared preferences, every channel | todo |
+| Notification: price alert crossed | push + inbox | one pass, every channel (done, `lib/notifications/deliver.ts`) | todo |
+| Notification: liquidation warning | push + inbox | one pass, every channel (done) | todo |
+| Notification: large move on a watched symbol | push + inbox | one pass, every channel (done) | todo |
+| Notification: prediction probability move | push + inbox | one pass, every channel (done) | todo |
+| Notification: prediction order update | push + inbox | one pass, every channel (done) | todo |
+| Notification: prediction resolution | push + inbox | one pass, every channel (done) | todo |
+| Notification: prediction signal alert | push + inbox | one pass, every channel (done) | todo |
+| Notification: daily summary | push + inbox | one pass, every channel (done) | todo |
+| Notification preferences | Account → Notifications | `/api/notifications/preferences` (done), shared validation | todo |
 | Mini App: Overview, Holdings, Risk, DeFi | Portfolio screens | same | todo |
 | Mini App: Prediction, Trending, Signals, Alerts | Research → Prediction markets | same | todo |
 | Mini App: Backtests | Research → Backtests | same | todo |

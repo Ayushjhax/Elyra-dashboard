@@ -52,6 +52,7 @@ const SOURCES = [
   "supabase/migrations/0012_prepared_action_signature.sql",
   "supabase/migrations/0013_delivery_schedule.sql",
   "supabase/migrations/0014_android_app.sql",
+  "supabase/migrations/0015_push_receipts.sql",
 ];
 
 const TARGET = "supabase/migrations/_apply_all.sql";

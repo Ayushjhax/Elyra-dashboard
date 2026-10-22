@@ -53,7 +53,9 @@ function statusOf(alert: PriceAlert, price: number | undefined): Status {
 function statusLabel(status: Status, delivery: AlertsFeed["delivery"]): string {
   if (status === "fired") return "Fired — off until re-armed";
   if (status === "crossed") {
-    return delivery === "telegram" ? "Crossed — sent on the next check" : "Crossed — not sent anywhere";
+    return delivery === "telegram" || delivery === "app" || delivery === "inbox"
+      ? "Crossed — sent on the next check"
+      : "Crossed — not sent anywhere";
   }
   return "Armed";
 }

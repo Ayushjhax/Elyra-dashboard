@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import {
-  NOTIFICATIONS_OFF,
   notificationPreferences,
+  parsePreferencesPatch,
   savePreferences,
-} from "@/lib/telegram/notifications";
+} from "@/lib/notifications/preferences";
 
 /* ---------------------------------------------------------------------------
    Notification preferences.
@@ -20,16 +20,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const FLAGS = [
-  "priceAlerts",
-  "liquidationAlerts",
-  "largeMoves",
-  "dailySummary",
-  "predictionAlerts",
-  "predictionOrderUpdates",
-  "predictionResolutionAlerts",
-] as const;
 
 export async function GET(request: Request): Promise<Response> {
   const user = await getSessionUser(request);
@@ -55,65 +45,10 @@ export async function PATCH(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Expected a JSON body" }, { status: 400 });
   }
 
-  /* An allowlist, field by field. Spreading the body into the patch would let
-     a client set `user_id` and write to another account. */
-  const patch: Parameters<typeof savePreferences>[1] = {};
+  const parsed = parsePreferencesPatch(body);
+  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  for (const flag of FLAGS) {
-    if (typeof body[flag] === "boolean") patch[flag] = body[flag];
-  }
-
-  if (typeof body.moveThresholdPct === "number") {
-    const value = body.moveThresholdPct;
-    if (!Number.isFinite(value) || value <= 0 || value > 100) {
-      return NextResponse.json(
-        { error: "Move threshold must be between 0 and 100 percent." },
-        { status: 400 },
-      );
-    }
-    patch.moveThresholdPct = value;
-  }
-
-  if (typeof body.predictionMoveThresholdPoints === "number") {
-    const value = body.predictionMoveThresholdPoints;
-    /* Points, and a probability cannot move more than 100 of them. */
-    if (!Number.isFinite(value) || value <= 0 || value > 100) {
-      return NextResponse.json(
-        { error: "Probability move threshold must be between 0 and 100 points." },
-        { status: 400 },
-      );
-    }
-    patch.predictionMoveThresholdPoints = value;
-  }
-
-  if (typeof body.dailySummaryMinute === "number") {
-    const value = body.dailySummaryMinute;
-    if (!Number.isInteger(value) || value < 0 || value > 1439) {
-      return NextResponse.json(
-        { error: "Daily summary time must be a minute of the day." },
-        { status: 400 },
-      );
-    }
-    patch.dailySummaryMinute = value;
-  }
-
-  if (typeof body.timezone === "string") {
-    /* Validated against the runtime's own zone database rather than a regex:
-       an unparseable zone would make every future digest fire at the wrong
-       hour, silently. */
-    try {
-      new Intl.DateTimeFormat("en-US", { timeZone: body.timezone });
-      patch.timezone = body.timezone;
-    } catch {
-      return NextResponse.json({ error: "Unknown timezone." }, { status: 400 });
-    }
-  }
-
-  if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
-  }
-
-  const saved = await savePreferences(user.userId, patch);
+  const saved = await savePreferences(user.userId, parsed.patch);
   if (!saved) {
     return NextResponse.json(
       { error: "Could not save that. Nothing was changed." },
@@ -125,5 +60,3 @@ export async function PATCH(request: Request): Promise<Response> {
     headers: { "cache-control": "no-store" },
   });
 }
-
-export { NOTIFICATIONS_OFF };

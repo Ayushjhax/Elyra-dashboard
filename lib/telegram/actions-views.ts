@@ -8,8 +8,8 @@ import {
   createAlert,
   listAlerts,
   parseAlertCommand,
-} from "@/lib/telegram/alerts";
-import { catalogue, parseSwapCommand, previewSwap } from "@/lib/telegram/trade";
+} from "@/lib/alerts/store";
+import { catalogue, parseSwapCommand, previewSwap } from "@/lib/trade";
 import type { PreparedAction } from "@/lib/personalized/types";
 
 /* ---------------------------------------------------------------------------

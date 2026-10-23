@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { catalogue } from "@/lib/telegram/trade";
+import { catalogue } from "@/lib/trade";
 
 /* ---------------------------------------------------------------------------
    What can be swapped.

@@ -49,15 +49,6 @@ const figures = localFont({
   ],
 });
 
-/* Wordmark — Parastoo. Used once, for the "Elyra" text beside the mark in
-   the nav rail. Not part of the brand's type system otherwise. */
-const parastoo = localFont({
-  src: "./fonts/Parastoo-Latin-Regular.woff2",
-  weight: "400",
-  display: "swap",
-  variable: "--font-parastoo",
-});
-
 export const metadata: Metadata = {
   title: "Elyra — Agentic trading terminal",
   description:
@@ -67,6 +58,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: THEME_COLOR_INK,
   colorScheme: "dark",
+  /* The on-screen keyboard shrinks the layout viewport rather than covering
+     it, so a sheet sized to the screen — the agent drawer and its composer —
+     ends above the keyboard instead of under it. Chrome on Android reads it;
+     Safari ignores it and pans to the focused field, as it always has. */
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({
@@ -77,14 +73,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${fustat.variable} ${generalSans.variable} ${figures.variable} ${parastoo.variable}`}
+      className={`dark ${fustat.variable} ${generalSans.variable} ${figures.variable}`}
       suppressHydrationWarning
     >
       <body>
         {/* The shell is the layout, not the page. Mounting it here is what
-            keeps the chart, the composed column and the assistant alive across
-            a navigation — every route renders into it, beside the chart rather
-            than in place of it. */}
+            keeps the chart, the widgets and the agent alive across a
+            navigation — every route renders into it, beside the chart or in
+            the workspace's place, never by tearing the chart down. */}
         <PrivyClientProvider>
           <AppShell>{children}</AppShell>
         </PrivyClientProvider>

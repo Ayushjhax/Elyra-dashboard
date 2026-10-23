@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { Attachment } from "@/lib/attachments";
+
 /* ---------------------------------------------------------------------------
    The neutral surface between the agent loop and a model provider.
 
@@ -23,8 +25,25 @@ export interface ToolCall {
 }
 
 export type AgentMessage =
-  | { role: "user"; content: string }
-  | { role: "assistant"; content: string; toolCalls?: ToolCall[] }
+  | {
+      role: "user";
+      content: string;
+      /** Files sent with this turn. Only ever on the newest user message:
+          history is replayed as text, with a note of what was attached. */
+      attachments?: Attachment[];
+    }
+  | {
+      role: "assistant";
+      content: string;
+      toolCalls?: ToolCall[];
+      /**
+       * The turn exactly as its provider returned it — thinking blocks and
+       * their signatures included — for that provider's adapter to send back
+       * unchanged on the tool continuation. Another provider ignores it and
+       * reads `content` and `toolCalls`.
+       */
+      providerContent?: { provider: ProviderId; blocks: unknown[] };
+    }
   | { role: "tool"; toolCallId: string; name: string; result: unknown };
 
 /**
@@ -83,6 +102,10 @@ export interface ProviderResult {
    */
   refused: boolean;
   refusalReason: string | null;
+  /** The provider's own content blocks, for `providerContent` on a continuation. */
+  rawContent?: unknown[];
+  /** Text reached the caller as it was generated, through `onText`. */
+  streamed?: boolean;
 }
 
 /* ---------------------------------------------------------------------------
@@ -145,6 +168,12 @@ export interface Provider {
   readonly id: ProviderId;
   readonly model: string;
   complete(request: ProviderRequest): Promise<ProviderResult>;
+  /**
+   * As `complete`, with text handed to `onText` as it is generated. Optional:
+   * a provider without it is called through `complete`, and its text arrives
+   * whole.
+   */
+  stream?(request: ProviderRequest, onText: (delta: string) => void): Promise<ProviderResult>;
 }
 
 /** Ceiling on a single provider call, per the spec's 30s fallback trigger. */

@@ -138,7 +138,7 @@ export function BalancesTable({
           <span className="text-text-muted">—</span>
         ) : (
           <span className="tabular-nums text-text-secondary">
-            {row.allocationPct.toFixed(1)}%
+            {row.allocationPct > 0 && row.allocationPct < 0.05 ? "<0.1" : row.allocationPct.toFixed(1)}%
           </span>
         ),
     },

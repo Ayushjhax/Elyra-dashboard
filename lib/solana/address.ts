@@ -11,6 +11,8 @@
    call. Nothing here reads the environment, so it is safe on both sides.
 --------------------------------------------------------------------------- */
 
+import type { Cluster } from "@/lib/solana/cluster";
+
 /** Base58 as Bitcoin defined it: no 0, O, I or l, because they misread. */
 const BASE58 = /^[1-9A-HJ-NP-Za-km-z]+$/;
 
@@ -46,10 +48,19 @@ export function truncateAddress(address: string, lead = 4, tail = 4): string {
 
 const EXPLORER = "https://solscan.io";
 
-export function accountExplorerUrl(address: string): string {
-  return `${EXPLORER}/account/${address}`;
+/**
+ * Solscan's own cluster switch. Mainnet is its default and takes no
+ * parameter; a devnet signature opened without one is "not found", which is
+ * the wrong answer to give about a transaction that exists.
+ */
+function clusterQuery(cluster: Cluster | null | undefined): string {
+  return cluster === "devnet" || cluster === "testnet" ? `?cluster=${cluster}` : "";
 }
 
-export function txExplorerUrl(signature: string): string {
-  return `${EXPLORER}/tx/${signature}`;
+export function accountExplorerUrl(address: string, cluster?: Cluster | null): string {
+  return `${EXPLORER}/account/${address}${clusterQuery(cluster)}`;
+}
+
+export function txExplorerUrl(signature: string, cluster?: Cluster | null): string {
+  return `${EXPLORER}/tx/${signature}${clusterQuery(cluster)}`;
 }

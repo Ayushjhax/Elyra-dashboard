@@ -7,6 +7,8 @@
    changes with it in the same commit.
 --------------------------------------------------------------------------- */
 
+import type { PreparedActionSurface } from "@/lib/actions/types";
+
 export type Surface = "web" | "telegram";
 export type MessageRole = "user" | "assistant" | "tool";
 export type ExchangeId = "binance" | "okx" | "hyperliquid";
@@ -44,6 +46,62 @@ export interface WatchlistRow {
   user_id: string;
   symbol: string;
   added_at: string;
+  /** Order in the list, from 0. Null only on a row written before 0014 ran. */
+  position: number | null;
+}
+
+/* ---------------------------------------------------------------------------
+   The Android app (0014)
+--------------------------------------------------------------------------- */
+
+export interface PushDeviceRow {
+  id: string;
+  user_id: string;
+  /** Unique: a phone's token belongs to one account at a time. */
+  expo_push_token: string;
+  platform: "android" | "ios";
+  app_version: string;
+  device_name: string | null;
+  created_at: string;
+  last_seen_at: string;
+  /** Set when Expo reports the device unregistered; cleared on re-registration. */
+  disabled_at: string | null;
+  disabled_reason: string | null;
+}
+
+export type NotificationKind =
+  | "price_alert"
+  | "liquidation"
+  | "large_move"
+  | "prediction_move"
+  | "prediction_order"
+  | "prediction_resolution"
+  | "prediction_signal"
+  | "daily_summary"
+  | "system";
+
+/** A push Expo accepted, waiting for its receipt (0015). The id is Expo's. */
+export interface PushTicketRow {
+  id: string;
+  device_id: string;
+  notification_id: string | null;
+  created_at: string;
+  checked_at: string | null;
+  receipt_status: string | null;
+  receipt_message: string | null;
+}
+
+/** One entry in the app's inbox. */
+export interface NotificationRow {
+  id: string;
+  user_id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** What a tap opens: the route and the ids it needs. */
+  data: Record<string, unknown>;
+  created_at: string;
+  read_at: string | null;
 }
 
 export interface TelegramLink {
@@ -303,14 +361,17 @@ export interface PreparedActionRow {
   kind: string;
   /** The PreparedAction exactly as it was shown. */
   payload: unknown;
-  surface: "web" | "telegram";
+  /** Where it was prepared. "app" and "agent" are the Android app's (0014). */
+  surface: PreparedActionSurface;
   status: "prepared" | "acknowledged" | "confirmed" | "expired" | "cancelled";
+  /** The landed transaction that confirmed it. Null otherwise (0012). */
+  confirmed_signature: string | null;
   expires_at: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface TelegramNotificationPreferencesRow {
+export interface NotificationPreferencesRow {
   user_id: string;
   price_alerts: boolean;
   liquidation_alerts: boolean;
@@ -483,7 +544,16 @@ export interface Database {
         "created_at" | "updated_at"
       >;
       exchange_accounts: Table<ExchangeAccount, "id" | "created_at">;
-      watchlist: Table<WatchlistRow, "added_at">;
+      watchlist: Table<WatchlistRow, "added_at" | "position">;
+      push_devices: Table<
+        PushDeviceRow,
+        "id" | "device_name" | "created_at" | "last_seen_at" | "disabled_at" | "disabled_reason"
+      >;
+      notifications: Table<NotificationRow, "id" | "data" | "created_at" | "read_at">;
+      push_tickets: Table<
+        PushTicketRow,
+        "notification_id" | "created_at" | "checked_at" | "receipt_status" | "receipt_message"
+      >;
       telegram_links: Table<TelegramLink, "id" | "linked_at">;
       telegram_link_codes: Table<TelegramLinkCode, "consumed_at">;
       telegram_updates: Table<
@@ -535,7 +605,7 @@ export interface Database {
       >;
       prepared_actions: Table<
         PreparedActionRow,
-        "id" | "status" | "created_at" | "updated_at"
+        "id" | "status" | "confirmed_signature" | "created_at" | "updated_at"
       >;
       backtest_results: Table<
         BacktestResultRow,
@@ -583,7 +653,7 @@ export interface Database {
         "recorded_at"
       >;
       telegram_notification_preferences: Table<
-        TelegramNotificationPreferencesRow,
+        NotificationPreferencesRow,
         | "prediction_alerts"
         | "prediction_order_updates"
         | "prediction_resolution_alerts"

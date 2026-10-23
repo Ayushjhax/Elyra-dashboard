@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import type { HistoryResponse } from "@/app/api/portfolio/history/route";
+import type { HistoryResponse } from "@/lib/portfolio/types";
 import type { PortfolioHistoryPoint } from "@/lib/portfolio/types";
 
 /* ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ export function usePortfolioHistory(range: string): HistoryFeed {
 
   /* Pure fetch, with no setState of its own. `react-hooks/set-state-in-effect`
      rejects any setState reachable before an effect's first await — the same
-     constraint EngineSignalPanel and SmartMoneyPanel document — so every
+     constraint SmartMoneyPanel documents — so every
      write here sits behind a real `.then()` boundary. */
   const load = useCallback(async (): Promise<Loaded> => {
     if (!signedIn) return { ...NOTHING, forRange: range };

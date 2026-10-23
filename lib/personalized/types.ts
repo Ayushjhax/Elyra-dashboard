@@ -88,6 +88,8 @@ export interface PersonalizedAnswer {
   metrics?: AnswerMetric[];
   suggestedPrompts?: string[];
   preparedAction?: PreparedAction;
+  /** The stored action behind `preparedAction`, when it was ready to review. */
+  preparedActionId?: string;
   /**
    * Which parts of the user's state this answer actually used.
    *
@@ -107,8 +109,13 @@ export type PersonalizedStreamEvent =
   | { type: "status"; status: string }
   | { type: "text_delta"; delta: string }
   | { type: "answer"; answer: PersonalizedAnswer }
-  | { type: "prepared_action"; action: PreparedAction }
+  /** `id` is the stored action a review card confirms — null when it was not
+      ready, or the store could not be reached. */
+  | { type: "prepared_action"; action: PreparedAction; id: string | null }
   | { type: "done"; messageId: string; conversationId: string }
+  /** The conversation this turn belongs to, as soon as it exists — so a turn
+      that fails can be retried into the same conversation, not a new one. */
+  | { type: "conversation"; conversationId: string }
   | { type: "error"; error: string };
 
 /* ---------------------------------------------------------------------------
@@ -157,6 +164,17 @@ export interface PreparedAction {
   warnings: string[];
   /** When the underlying quote or balance was read. */
   preparedAt: string;
+  /**
+   * The resolved inputs, for a surface that can carry the action on — the
+   * web's swap dialog prefills from these. Absent on actions stored before
+   * they were recorded; `fields` still describes those for a person.
+   */
+  params?: {
+    symbol?: string;
+    toSymbol?: string;
+    quantity?: number;
+    market?: string;
+  };
 }
 
 /* ---------------------------------------------------------------------------
@@ -243,6 +261,29 @@ export interface TodayRow {
   detail: string | null;
 }
 
+/**
+ * The parts of an account the person lets a question read.
+ *
+ * Chosen in the composer, per question. An excluded source is not read, not
+ * sent and not guessed at — the prompt says it was withheld, which is a
+ * different instruction from "unknown".
+ */
+export type ContextSource = "portfolio" | "positions" | "activity" | "memory";
+
+export const CONTEXT_SOURCES: readonly ContextSource[] = ["portfolio", "positions", "activity", "memory"];
+
+export function isContextSource(value: unknown): value is ContextSource {
+  return typeof value === "string" && (CONTEXT_SOURCES as readonly string[]).includes(value);
+}
+
+/** One recent transaction, as the assistant is told it. */
+export interface ActivityContextRow {
+  at: string | null;
+  status: "pending" | "confirmed" | "failed";
+  /** "Swapped 2 SOL for 290.41 USDC", or "Transaction" when it could not be described. */
+  title: string;
+}
+
 export interface PersonalizedContext {
   asOf: string;
   /** Null when nothing could be totalled — never 0 as a stand-in. */
@@ -263,6 +304,14 @@ export interface PersonalizedContext {
    * summary inside carries its own `connected` flag for the other case.
    */
   prediction: PredictionContext | null;
+  /**
+   * Recent wallet transactions, when the question was about activity.
+   * Null when not read — not asked for, withheld, or no wallet — never [] as
+   * a stand-in for "none".
+   */
+  activity: ActivityContextRow[] | null;
+  /** Sources the person withheld for this question. */
+  excluded: ContextSource[];
   /** Sources that failed, so the model is told its picture is incomplete. */
   unavailable: Array<{ scope: string; reason: string }>;
   /** True when the operator has nothing to personalize around yet. */

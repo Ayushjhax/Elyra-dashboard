@@ -30,7 +30,8 @@ import type { PortfolioHistoryPoint, SpotHolding } from "@/lib/portfolio/types";
    misleading thing this page could show.
 --------------------------------------------------------------------------- */
 
-export type HistoryBasis = "recorded" | "reconstructed" | "none";
+export type { HistoryBasis } from "@/lib/portfolio/types";
+import type { HistoryBasis } from "@/lib/portfolio/types";
 
 export interface HistoryResult {
   points: PortfolioHistoryPoint[];

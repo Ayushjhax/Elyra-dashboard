@@ -121,7 +121,7 @@ export function AssetSelectDialog({
                     "type-data-sm h-6 rounded-pill px-2.5",
                     "transition-colors duration-[var(--dur-fast)] ease-brand",
                     active
-                      ? "fill-accent bg-accent text-text-on-accent"
+                      ? "bg-accent text-text-on-accent"
                       : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
                   )}
                 >
@@ -161,7 +161,7 @@ export function AssetSelectDialog({
                     key={asset.id}
                     className={cn(
                       "flex h-[var(--row-h)] items-center border-b border-border-subtle last:border-b-0",
-                      isSelected && "fill-active bg-surface-active",
+                      isSelected && "bg-surface-active",
                     )}
                   >
                     <button

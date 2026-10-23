@@ -203,3 +203,54 @@ describe("circuit breaker", () => {
     expect(primary.complete).toHaveBeenCalled();
   });
 });
+
+describe("streaming", () => {
+  const streaming = (
+    id: "anthropic" | "gemini",
+    deltas: string[],
+    failAfter?: ProviderError,
+  ): Provider => ({
+    id,
+    model: `${id}-model`,
+    complete: vi.fn(async () => ok(id)),
+    stream: vi.fn(async (_request: ProviderRequest, onText: (delta: string) => void) => {
+      for (const delta of deltas) onText(delta);
+      if (failAfter) throw failAfter;
+      return { ...ok(id, deltas.join("")), streamed: true };
+    }),
+  });
+
+  it("streams the primary when asked, and only then", async () => {
+    const primary = streaming("anthropic", ["Hel", "lo"]);
+    const seen: string[] = [];
+    const result = await route(request, { primary, fallback: null }, (delta) => seen.push(delta));
+    expect(seen).toEqual(["Hel", "lo"]);
+    expect(result.streamed).toBe(true);
+
+    await route(request, { primary, fallback: null });
+    expect(primary.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back when the stream fails before any text", async () => {
+    const fallback = working("gemini");
+    const result = await route(
+      request,
+      { primary: streaming("anthropic", [], err("server_error", 529)), fallback },
+      () => {},
+    );
+    expect(result.provider).toBe("gemini");
+    expect(result.fellBack).toBe(true);
+  });
+
+  it("does not splice a second answer after text has been shown", async () => {
+    const fallback = working("gemini");
+    await expect(
+      route(
+        request,
+        { primary: streaming("anthropic", ["Half an ans"], err("network")), fallback },
+        () => {},
+      ),
+    ).rejects.toBeInstanceOf(ProviderError);
+    expect(fallback.complete).not.toHaveBeenCalled();
+  });
+});

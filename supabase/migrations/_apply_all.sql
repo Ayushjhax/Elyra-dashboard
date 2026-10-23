@@ -1331,3 +1331,291 @@ create index if not exists prediction_watchlist_market_idx
 
 alter table public.prediction_watchlist enable row level security;
 
+-- ============= 0012_prepared_action_signature.sql =============
+-- ---------------------------------------------------------------------------
+-- The evidence behind a confirmed prepared action.
+--
+-- A prepared swap becomes `confirmed` only once the person's wallet signed it
+-- and it landed. The signature is that proof, checked against the chain by
+-- /api/actions before the row changes — and kept here, so the record says
+-- which transaction did it rather than only that something did.
+--
+-- Null for every other status, and for rows confirmed before this column.
+--
+-- Safe to run against a database that already has it.
+-- ---------------------------------------------------------------------------
+
+alter table public.prepared_actions
+  add column if not exists confirmed_signature text;
+
+-- ================= 0013_delivery_schedule.sql =================
+-- ---------------------------------------------------------------------------
+-- The delivery tick, scheduled by the database.
+--
+-- Notifications are checked every five minutes. Vercel's Hobby plan only
+-- runs a cron once a day — and fails the deploy when one is set more often —
+-- so the schedule lives here instead: pg_cron fires every five minutes and
+-- pg_net calls the API's delivery route(s) with the shared CRON_SECRET.
+-- vercel.json keeps one daily run as a fallback. A duplicate call is
+-- harmless: every send is claimed once, through a unique constraint, before
+-- it goes out.
+--
+-- The API URL and the secret are NOT in this file. They live in Supabase
+-- Vault, set once by hand (see supabase/SCHEDULER.md):
+--
+--   select vault.create_secret('https://api.getelyra.xyz', 'elyra_api_url');
+--   select vault.create_secret('<the CRON_SECRET set in Vercel>', 'elyra_cron_secret');
+--
+-- Until both exist the tick does nothing, so applying this file is safe on a
+-- database that is not wired to a deployment yet.
+--
+-- Safe to run more than once.
+-- ---------------------------------------------------------------------------
+
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+create or replace function public.elyra_delivery_tick()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  base   text;
+  secret text;
+  route  text;
+begin
+  select decrypted_secret into base   from vault.decrypted_secrets where name = 'elyra_api_url';
+  select decrypted_secret into secret from vault.decrypted_secrets where name = 'elyra_cron_secret';
+  if base is null or secret is null then
+    return;
+  end if;
+
+  -- One route delivers every channel: Telegram, the app's inbox and push.
+  foreach route in array array['/api/notifications/deliver'] loop
+    perform net.http_get(
+      url := rtrim(base, '/') || route,
+      headers := jsonb_build_object('Authorization', 'Bearer ' || secret),
+      -- A pass can take minutes; the route's own ceiling is 300s.
+      timeout_milliseconds := 300000
+    );
+  end loop;
+end;
+$$;
+
+-- Functions in `public` are callable through the REST API. This one is for
+-- the scheduler only.
+revoke execute on function public.elyra_delivery_tick() from public, anon, authenticated;
+
+-- Scheduling under an existing name replaces that job, so this stays one job.
+select cron.schedule('elyra-delivery', '*/5 * * * *', 'select public.elyra_delivery_tick()');
+
+-- ==================== 0014_android_app.sql ====================
+-- ---------------------------------------------------------------------------
+-- The Android app: push devices, the in-app inbox, an ordered watchlist, and
+-- actions the agent prepares.
+--
+-- The app shares this database with the website, so everything here is
+-- ADDITIVE: no table is renamed or dropped, and every existing row keeps its
+-- meaning. The Telegram tables stay, because the website still uses them.
+-- The app never touches them.
+--
+-- Same lockdown as the rest of the schema: Privy means auth.uid() is null,
+-- so RLS is enabled with no policies, the service-role client is the only
+-- writer, and every query filters by user_id.
+--
+-- Safe to run more than once.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- Push devices.
+--
+-- One row per installed app that has registered for notifications. A token
+-- belongs to one account at a time: when another account signs in on the
+-- same phone, the row moves to that account rather than being shared, so
+-- one person's alerts never reach another person's lock screen.
+--
+-- A device is disabled, not deleted, when Expo reports it unregistered —
+-- the reason stays visible for diagnosis, and the next registration from
+-- that phone clears it.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.push_devices (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references public.profiles(id) on delete cascade,
+  expo_push_token  text not null unique,
+  platform         text not null check (platform in ('android', 'ios')),
+  app_version      text not null,
+  device_name      text,
+  created_at       timestamptz not null default now(),
+  last_seen_at     timestamptz not null default now(),
+  disabled_at      timestamptz,
+  disabled_reason  text
+);
+
+create index if not exists push_devices_user_idx
+  on public.push_devices(user_id)
+  where disabled_at is null;
+
+alter table public.push_devices enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- The inbox.
+--
+-- Every notification the app is sent also lands here, so nothing depends on
+-- a push arriving: a denied permission, a dropped push or a cleared lock
+-- screen still leaves the message in the app. `data` carries what a tap
+-- opens (the route and the ids it needs), never a figure the body does not
+-- already state.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.notifications (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  kind        text not null check (kind in (
+                'price_alert',
+                'liquidation',
+                'large_move',
+                'prediction_move',
+                'prediction_order',
+                'prediction_resolution',
+                'prediction_signal',
+                'daily_summary',
+                'system')),
+  title       text not null,
+  body        text not null,
+  data        jsonb not null default '{}'::jsonb,
+  created_at  timestamptz not null default now(),
+  read_at     timestamptz
+);
+
+create index if not exists notifications_user_idx
+  on public.notifications(user_id, created_at desc);
+
+-- The unread badge counts these; it never scans the whole inbox.
+create index if not exists notifications_unread_idx
+  on public.notifications(user_id)
+  where read_at is null;
+
+alter table public.notifications enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- The watchlist, ordered.
+--
+-- The table already exists with (user_id, symbol) as its primary key, so a
+-- symbol is already unique per account. The app lets a person reorder it,
+-- which needs a position. Existing rows are numbered in the order they were
+-- added, so nobody's list reshuffles when this runs.
+-- ---------------------------------------------------------------------------
+
+alter table public.watchlist
+  add column if not exists position integer;
+
+update public.watchlist w
+set position = numbered.rn
+from (
+  select user_id, symbol,
+         row_number() over (partition by user_id order by added_at, symbol) - 1 as rn
+  from public.watchlist
+) numbered
+where w.user_id = numbered.user_id
+  and w.symbol = numbered.symbol
+  and w.position is null;
+
+create index if not exists watchlist_user_position_idx
+  on public.watchlist(user_id, position);
+
+-- ---------------------------------------------------------------------------
+-- Prepared actions from the app.
+--
+-- 'web' and 'telegram' stay valid for the website's existing rows. 'app' is
+-- an action prepared in the Android app; 'agent' is one an assistant answer
+-- prepared, shown as a review card. The opaque `token` stays: the website's
+-- Telegram buttons still resolve by it, and every new row gets one from the
+-- same generator.
+-- ---------------------------------------------------------------------------
+
+alter table public.prepared_actions
+  drop constraint if exists prepared_actions_surface_check;
+
+alter table public.prepared_actions
+  add constraint prepared_actions_surface_check
+  check (surface in ('web', 'telegram', 'app', 'agent'));
+
+-- =================== 0015_push_receipts.sql ===================
+-- ---------------------------------------------------------------------------
+-- Push receipts, and one delivery route for every channel.
+--
+-- Expo answers a push with a ticket at once, but whether the phone's push
+-- service actually took it — or reported the device gone — arrives later as a
+-- receipt. Expo asks for receipts to be read about fifteen minutes on, which
+-- is a later delivery run, so the ticket ids wait here in between. A receipt
+-- saying DeviceNotRegistered disables the device; any other error is kept on
+-- the row for diagnosis.
+--
+-- The delivery tick now calls /api/notifications/deliver, which sends to every
+-- channel — the website's Telegram chat, the app's inbox and push — from one
+-- claim per event. /api/telegram/deliver runs the same pass, so calling both
+-- would only find every event already claimed.
+--
+-- Additive, and safe to run more than once.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.push_tickets (
+  -- Expo's ticket id, which is also the receipt id.
+  id               text primary key,
+  device_id        uuid not null references public.push_devices(id) on delete cascade,
+  notification_id  uuid references public.notifications(id) on delete set null,
+  created_at       timestamptz not null default now(),
+  checked_at       timestamptz,
+  -- 'ok', or the receipt's error, e.g. 'DeviceNotRegistered'.
+  receipt_status   text,
+  receipt_message  text
+);
+
+create index if not exists push_tickets_unchecked_idx
+  on public.push_tickets(created_at)
+  where checked_at is null;
+
+alter table public.push_tickets enable row level security;
+
+-- The scheduled tick: one route, every channel. Replaces 0013's definition.
+-- Only where pg_net and Vault exist (every Supabase project); a plain
+-- Postgres skips this block.
+do $migration$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_net') then
+    execute $function$
+      create or replace function public.elyra_delivery_tick()
+      returns void
+      language plpgsql
+      security definer
+      set search_path = ''
+      as $body$
+      declare
+        base   text;
+        secret text;
+        route  text;
+      begin
+        select decrypted_secret into base   from vault.decrypted_secrets where name = 'elyra_api_url';
+        select decrypted_secret into secret from vault.decrypted_secrets where name = 'elyra_cron_secret';
+        if base is null or secret is null then
+          return;
+        end if;
+
+        foreach route in array array['/api/notifications/deliver'] loop
+          perform net.http_get(
+            url := rtrim(base, '/') || route,
+            headers := jsonb_build_object('Authorization', 'Bearer ' || secret),
+            timeout_milliseconds := 300000
+          );
+        end loop;
+      end;
+      $body$;
+    $function$;
+    execute 'revoke execute on function public.elyra_delivery_tick() from public, anon, authenticated';
+  end if;
+end;
+$migration$;
+

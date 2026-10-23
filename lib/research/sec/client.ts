@@ -80,21 +80,18 @@ let lastStartedAt = 0;
 function schedule<T>(task: () => Promise<T>): Promise<T> {
   const spacingMs = 1000 / maxRps();
 
-  const result = queue.then(async () => {
+  /* The chain orders START times, not completions. The SEC's ceiling is on
+     how often requests begin; waiting for each response before starting the
+     next held eight feed reads to one at a time — a minute of wall clock
+     for what the limit allows in one second. */
+  const started = queue.then(async () => {
     const wait = Math.max(0, lastStartedAt + spacingMs - Date.now());
     if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     lastStartedAt = Date.now();
-    return task();
   });
+  queue = started;
 
-  /* The queue advances whether or not the task succeeded — a failed request
-     must not wedge every subsequent one. */
-  queue = result.then(
-    () => undefined,
-    () => undefined,
-  );
-
-  return result;
+  return started.then(task);
 }
 
 /* ---------------------------------------------------------------------------
@@ -169,11 +166,15 @@ async function request<T>(options: SecFetchOptions): Promise<ToolResult<T>> {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   try {
-    const response = await schedule(() =>
-      fetch(url, {
+    const response = await schedule(() => {
+      /* The clock starts when the request does, not while it waits its turn
+         in the limiter behind other reads — a background read of filings
+         must not time out a person's request before it is ever sent. */
+      timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
+      return fetch(url, {
         headers: {
           "User-Agent": agent,
           /* Requested explicitly: the SEC serves large JSON and asks clients
@@ -183,8 +184,8 @@ async function request<T>(options: SecFetchOptions): Promise<ToolResult<T>> {
         },
         signal: controller.signal,
         cache: "no-store",
-      }),
-    );
+      });
+    });
 
     clearTimeout(timer);
 
@@ -228,11 +229,16 @@ async function request<T>(options: SecFetchOptions): Promise<ToolResult<T>> {
       }
     }
 
-    if (cache.size >= MAX_ENTRIES) {
-      const oldest = cache.keys().next().value;
-      if (oldest !== undefined) cache.delete(oldest);
+    /* A TTL of zero is a read the caller keeps itself — a filing document
+       whose parsed form is cached elsewhere. Storing it here would evict
+       the ticker map and the submissions everything else depends on. */
+    if (ttlMs > 0) {
+      if (cache.size >= MAX_ENTRIES) {
+        const oldest = cache.keys().next().value;
+        if (oldest !== undefined) cache.delete(oldest);
+      }
+      cache.set(key, { value, storedAt: Date.now(), ttlMs });
     }
-    cache.set(key, { value, storedAt: Date.now(), ttlMs });
 
     return ok(value as T, "sec");
   } catch (error: unknown) {

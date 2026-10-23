@@ -1,6 +1,7 @@
 import "server-only";
 
 import { executeTool, type ToolContext } from "@/lib/agent/tools/registry";
+import { formatPriceUsd } from "@/lib/format";
 import { escapeHtml } from "@/lib/personalized/render/telegram";
 
 /* ---------------------------------------------------------------------------
@@ -29,6 +30,9 @@ const money = (value: number | null | undefined): string => {
     maximumFractionDigits: 2,
   });
 };
+
+/** A market price — instrument precision, so a small token is never $0.00. */
+const price = (value: number | null | undefined): string => formatPriceUsd(value);
 
 const pct = (value: number | null | undefined, digits = 2): string =>
   value === null || value === undefined ? "—" : `${value.toFixed(digits)}%`;
@@ -277,10 +281,10 @@ export async function ordersView(context: ToolContext): Promise<string> {
     for (const order of orders.slice(0, 20)) {
       const arrow = order.side === "buy" ? "Buy" : "Sell";
       const trigger =
-        order.triggerPrice === null ? "" : ` · trigger ${money(order.triggerPrice)}`;
+        order.triggerPrice === null ? "" : ` · trigger ${price(order.triggerPrice)}`;
       const flag = order.reduceOnly ? " · reduce-only" : "";
       lines.push(
-        `<b>${escapeHtml(order.symbol)}</b> ${arrow} ${order.size} @ ${money(order.limitPrice)}`,
+        `<b>${escapeHtml(order.symbol)}</b> ${arrow} ${order.size} @ ${price(order.limitPrice)}`,
         `  ${escapeHtml(order.orderType)}${trigger}${flag}`,
       );
     }
@@ -327,7 +331,7 @@ export async function activityView(context: ToolContext): Promise<string> {
       const when = new Date(fill.at).toISOString().slice(5, 16).replace("T", " ");
       lines.push(
         `<b>${escapeHtml(fill.symbol)}</b> ${escapeHtml(fill.direction || fill.side)} ` +
-          `${fill.size} @ ${money(fill.price)}${pnl}`,
+          `${fill.size} @ ${price(fill.price)}${pnl}`,
         `  <i>${when} UTC</i>`,
       );
     }
@@ -382,8 +386,8 @@ export async function marketsView(
   return [
     `<b>${escapeHtml(String(result.symbol))}</b> <i>${escapeHtml(String(result.source))}</i>`,
     "",
-    `Mark: <b>${money(result.markPrice as number | null)}</b>`,
-    `Index: ${money(result.indexPrice as number | null)}`,
+    `Mark: <b>${price(result.markPrice as number | null)}</b>`,
+    `Index: ${price(result.indexPrice as number | null)}`,
     "",
     `Funding: ${pct(annual, 2)} a year` +
       (interval === null ? "" : ` (settles every ${interval}h)`),

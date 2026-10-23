@@ -1,4 +1,4 @@
-import type { Candle } from "@/lib/backtest/candles";
+import type { Candle } from "@/lib/backtest/intervals";
 import { runBacktest, type BacktestConfig, type BacktestRun } from "@/lib/backtest/engine";
 import { computeMetrics, type BacktestMetrics } from "@/lib/backtest/metrics";
 import { getStrategy, defaultParams } from "@/lib/backtest/strategies";

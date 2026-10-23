@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><edgarSubmission xmlns="http://www.sec.gov/edgar/schedule13D" xmlns:com="http://www.sec.gov/edgar/common">
+  <schemaVersion>X0202</schemaVersion>
+<headerData>
+    <submissionType>SCHEDULE 13D</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <!-- Field: Pseudo-Tag; ID: Name; Data: Powell Anderson Capital Partners LLC -->
+          <cik>0002048057</cik>
+          <ccc>XXXXXXXX</ccc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+
+
+    </filerInfo>
+  </headerData>
+  <formData>
+    <coverPageHeader>
+      <securitiesClassTitle>Common Stock</securitiesClassTitle>
+      <dateOfEvent>10/06/2026</dateOfEvent>
+      <previouslyFiledFlag>false</previouslyFiledFlag>
+      <issuerInfo>
+        <issuerCIK>0001031316</issuerCIK>
+        <issuerCusips>
+          <issuerCusipNumber>35471R106</issuerCusipNumber>
+        </issuerCusips>
+        <issuerName>FRANKLIN STREET PROPERTIES CORP. /MA/</issuerName>
+        <address>
+          <com:street1>401 Edgewater Place</com:street1>
+          <com:street2>Suite 200</com:street2>
+          <com:city>Wakefield</com:city>
+          <com:stateOrCountry>MA</com:stateOrCountry>
+          <com:zipCode>01880</com:zipCode>
+        </address>
+      </issuerInfo>
+      <authorizedPersons>
+        <notificationInfo>
+          <personName>R. Adam Lindsay</personName>
+          <personPhoneNum>(801) 824-9444</personPhoneNum>
+          <personAddress>
+            <com:street1>Powell Anderson Capital Partners LLC</com:street1>
+            <com:street2>5532 Lillehammer Lane, Suite 206</com:street2>
+            <com:city>Park City</com:city>
+            <com:stateOrCountry>UT</com:stateOrCountry>
+            <com:zipCode>84098</com:zipCode>
+          </personAddress>
+        </notificationInfo>
+      </authorizedPersons>
+    </coverPageHeader>
+    <reportingPersons>
+      <reportingPersonInfo>
+        <reportingPersonCIK>0002048057</reportingPersonCIK>
+        <reportingPersonNoCIK>N</reportingPersonNoCIK>
+        <reportingPersonName>Powell Anderson Capital Partners LLC</reportingPersonName>
+        <memberOfGroup>a</memberOfGroup>
+        <fundType>WC</fundType>
+        <legalProceedings>N</legalProceedings>
+        <citizenshipOrOrganization>DE</citizenshipOrOrganization>
+        <soleVotingPower>0.00</soleVotingPower>
+        <sharedVotingPower>7057763.00</sharedVotingPower>
+        <soleDispositivePower>0.00</soleDispositivePower>
+        <sharedDispositivePower>7057763.00</sharedDispositivePower>
+        <aggregateAmountOwned>7057763.00</aggregateAmountOwned>
+        <isAggregateExcludeShares>N</isAggregateExcludeShares>
+        <percentOfClass>6.8</percentOfClass>
+        <typeOfReportingPerson>IA</typeOfReportingPerson>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonCIK>0002152425</reportingPersonCIK>
+        <reportingPersonNoCIK>N</reportingPersonNoCIK>
+        <reportingPersonName>PACP Acadia LLC</reportingPersonName>
+        <memberOfGroup>a</memberOfGroup>
+        <fundType>WC</fundType>
+        <legalProceedings>N</legalProceedings>
+        <citizenshipOrOrganization>DE</citizenshipOrOrganization>
+        <soleVotingPower>0.00</soleVotingPower>
+        <sharedVotingPower>6119400.00</sharedVotingPower>
+        <soleDispositivePower>0.00</soleDispositivePower>
+        <sharedDispositivePower>6119400.00</sharedDispositivePower>
+        <aggregateAmountOwned>6119400.00</aggregateAmountOwned>
+        <isAggregateExcludeShares>N</isAggregateExcludeShares>
+        <percentOfClass>5.9</percentOfClass>
+        <typeOfReportingPerson>OO</typeOfReportingPerson>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonCIK>0001714181</reportingPersonCIK>
+        <reportingPersonNoCIK>N</reportingPersonNoCIK>
+        <reportingPersonName>Powell Anderson Capital LP</reportingPersonName>
+        <memberOfGroup>a</memberOfGroup>
+        <fundType>WC</fundType>
+        <legalProceedings>N</legalProceedings>
+        <citizenshipOrOrganization>DE</citizenshipOrOrganization>
+        <soleVotingPower>0.00</soleVotingPower>
+        <sharedVotingPower>938363.00</sharedVotingPower>
+        <soleDispositivePower>0.00</soleDispositivePower>
+        <sharedDispositivePower>938363.00</sharedDispositivePower>
+        <aggregateAmountOwned>938363.00</aggregateAmountOwned>
+        <isAggregateExcludeShares>N</isAggregateExcludeShares>
+        <percentOfClass>0.9</percentOfClass>
+        <typeOfReportingPerson>PN</typeOfReportingPerson>
+      </reportingPersonInfo>
+      <reportingPersonInfo>
+        <reportingPersonCIK>0002048067</reportingPersonCIK>
+        <reportingPersonNoCIK>N</reportingPersonNoCIK>
+        <reportingPersonName>R. Adam Lindsay</reportingPersonName>
+        <memberOfGroup>a</memberOfGroup>
+        <fundType>WC</fundType>
+        <fundType>PF</fundType>
+        <legalProceedings>N</legalProceedings>
+        <citizenshipOrOrganization>X1</citizenshipOrOrganization>
+        <soleVotingPower>10000.00</soleVotingPower>
+        <sharedVotingPower>7057763.00</sharedVotingPower>
+        <soleDispositivePower>10000.00</soleDispositivePower>
+        <sharedDispositivePower>7057763.00</sharedDispositivePower>
+        <aggregateAmountOwned>7067763.00</aggregateAmountOwned>
+        <isAggregateExcludeShares>N</isAggregateExcludeShares>
+        <percentOfClass>6.8</percentOfClass>
+        <typeOfReportingPerson>IN</typeOfReportingPerson>
+      </reportingPersonInfo>
+    </reportingPersons>
+    <items1To7>
+      <item1>
+        <securityTitle>Common Stock</securityTitle>
+        <issuerName>FRANKLIN STREET PROPERTIES CORP. /MA/</issuerName>
+        <issuerPrincipalAddress>
+          <com:street1>401 Edgewater Place</com:street1>
+          <com:street2>Suite 200</com:street2>
+          <com:city>Wakefield</com:city>
+          <com:stateOrCountry>MA</com:stateOrCountry>
+          <com:zipCode>01880</com:zipCode>
+        </issuerPrincipalAddress>
+      </item1>
+      <item2>
+        <filingPersonName>This Schedule 13D is being filed pursuant to Rule 13d-1 under the Securities Exchange Act of 1934, as amended (the 'Exchange Act'), on behalf of each of the following reporting persons (each, a 'Reporting Person' and collectively, the 'Reporting Persons'): Powell Anderson Capital Partners LLC, a limited liability company organized in Delaware; PACP Acadia LLC, a limited liability company organized in Delaware; Powell Anderson Capital LP, a limited partnership organized in Delaware; and R. Adam Lindsay, a United States citizen.</filingPersonName>
+        <principalBusinessAddress>5532 Lillehammer Lane, Suite 206, Park City, UT 84098</principalBusinessAddress>
+        <principalJob>Each of the Reporting Persons is principally engaged in the business of acquiring, holding, voting and disposing of various public securities investments.  The principal occupation or employment of Mr. Lindsay is manager of Powell Anderson Capital Partners LLC.</principalJob>
+        <hasBeenConvicted>During the last five years, none of the Reporting Persons has been convicted in a criminal proceeding (excluding traffic violations or similar misdemeanors).</hasBeenConvicted>
+        <convictionDescription>During the last five years, none of the Reporting Persons has been a party to a civil proceeding of a judicial or administrative body of competent jurisdiction and as a result of such proceeding was or is subject to a judgment, decree or final order enjoining future violations of, or prohibiting or mandating activities subject to, federal or state securities laws or finding any violation with respect to such laws.</convictionDescription>
+        <citizenship>Powell Anderson Capital Partners LLC, PACP Acadia LLC, and Powell Anderson Capital LP are organized in the state of Delaware. R. Adam Lindsay is a United States citizen.</citizenship>
+      </item2>
+      <item3>
+        <fundsSource>The total cost for purchases of Common Stock by Reporting Persons, excluding brokerage commissions, was approximately $2,900,227. The source of funds for PACP Acadia LLC was cash capital contributions from R. Adam Lindsay, Joel B. Wittenberg, Beam Capital Holdings, LLC, Element Investments, LLC, and ERA Insurance Company, Inc.  The source of funds for Powell Anderson Capital LP was working capital.  The source of funds for the Common Stock owned directly by R. Adam Lindsay was personal funds.</fundsSource>
+      </item3>
+      <item4>
+        <transactionPurpose>The Reporting Persons purchased the Shares based on the Reporting Persons' belief that the Shares, when purchased, were undervalued and represented an attractive investment opportunity. Depending upon overall market conditions, other investment opportunities available to the Reporting Persons, and the availability of Shares at prices that would make the purchase or sale of Shares desirable, the Reporting Persons may endeavor to increase or decrease their position in the Issuer through, among other things, the purchase or sale of Shares on the open market or in private transactions or otherwise, on such terms and at such times as the Reporting Persons may deem advisable.
+
+The Reporting Persons do not have any present plan or proposal which would relate to or result in any of the matters set forth in subparagraphs (a) - (j) of Item 4 of Schedule 13D except as set forth herein or such as would occur upon or in connection with completion of, or following, any of the actions discussed herein. The Reporting Persons intend to review their investment in the Issuer on a continuing basis. Depending on various factors including, without limitation, the Issuer's financial position and investment strategy, the price levels of the Shares, conditions in the securities markets and general economic and industry conditions, the Reporting Persons may in the future take such actions with respect to their investment in the Issuer as they deem appropriate including, without limitation, engaging in communications with management and the Board of Directors of the Issuer, engaging in discussions with stockholders of the Issuer or other third parties about the Issuer and the Reporting Persons' investment, including potential business combinations or dispositions involving the Issuer or certain of its properties, making recommendations or proposals to the Issuer concerning changes to the capitalization, ownership structure, board structure (including board composition), potential business combinations or dispositions involving the Issuer or certain of its properties, or suggestions for improving the Issuer's financial and/or operational performance, purchasing additional Shares, selling some or all of their Shares, engaging in short selling of or any hedging or similar transaction with respect to the Shares, including swaps and other derivative instruments, or changing their intention with respect to any and all matters referred to in Item 4.</transactionPurpose>
+      </item4>
+      <item5>
+        <percentageOfClassSecurities>The following disclosure is based upon 104,011,708 outstanding Shares as set forth in the Issuer's Form 10-Q filed with the Securities and Exchange Commission on July 28, 2026.</percentageOfClassSecurities>
+        <numberOfShares>Powell Anderson Capital Partners LLC: 7,057,763 shares or 6.8%; a limited liability company organized in Delaware and Managing Member of PACP Acadia LLC and Investment Manager of Powell Anderson Capital LP with power to vote and dispose of shares held by each
+PACP Acadia LLC: 6,119,400 shares or 5.9%; limited liability company organized in Delaware
+Powell Anderson Capital LP: 938,363 shares or 0.9%; limited partnership organized in Delaware
+R. Adam Lindsay: 7,067,763 shares or 6.8%; managing member of Powell Anderson Capital Partners LLC with power to vote and dispose of the 7,057,763 shares held by PACP Acadia LLC and Powell Anderson Capital LP and the 10,000 shares held personally.</numberOfShares>
+        <transactionDesc>See Schedule A</transactionDesc>
+        <listOfShareholders>Not applicable</listOfShareholders>
+        <date5PercentOwnership>Not applicable</date5PercentOwnership>
+      </item5>
+      <item6>
+        <contractDescription>Except as set forth in Item 5(b) and below, there are no contracts, arrangements, understandings, or relationships among the Reporting Persons. The Reporting Persons have executed a Joint Filing Agreement as attached.</contractDescription>
+      </item6>
+      <item7>
+        <filedExhibits>Exhibit 99.1 Joint Filing Agreement
+Exhibit 99.2 Schedule A</filedExhibits>
+      </item7>
+    </items1To7>
+    <signatureInfo>
+      <signaturePerson>
+        <signatureReportingPerson>Powell Anderson Capital Partners LLC</signatureReportingPerson>
+        <signatureDetails>
+          <signature>/s/ R. Adam Lindsay</signature>
+          <title>Managing Member</title>
+          <date>10/14/2026</date>
+        </signatureDetails>
+      </signaturePerson>
+      <signaturePerson>
+        <signatureReportingPerson>PACP Acadia LLC</signatureReportingPerson>
+        <signatureDetails>
+          <signature>/s/ R. Adam Lindsay</signature>
+          <title>Managing Member of Powell Anderson Capital Partners LLC, the Managing Member of PACP Acadia LLC</title>
+          <date>10/14/2026</date>
+        </signatureDetails>
+      </signaturePerson>
+      <signaturePerson>
+        <signatureReportingPerson>Powell Anderson Capital LP</signatureReportingPerson>
+        <signatureDetails>
+          <signature>/s/ R. Adam Lindsay</signature>
+          <title>Managing Member of Powell Anderson Capital Partners LLC, the Investment Manager of Powell Anderson Capital LP</title>
+          <date>10/14/2026</date>
+        </signatureDetails>
+      </signaturePerson>
+      <signaturePerson>
+        <signatureReportingPerson>R. Adam Lindsay</signatureReportingPerson>
+        <signatureDetails>
+          <signature>/s/ R. Adam Lindsay</signature>
+          <title>R. Adam Lindsay</title>
+          <date>10/14/2026</date>
+        </signatureDetails>
+      </signaturePerson>
+    </signatureInfo>
+  </formData>
+
+</edgarSubmission>

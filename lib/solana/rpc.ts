@@ -329,3 +329,33 @@ export function getSignaturesForAddress(
     { limit, commitment: "confirmed" },
   ]);
 }
+
+/** What a landed transaction says about itself: whether it failed, and who signed it. */
+export interface TransactionSummary {
+  err: unknown;
+  /** The accounts whose signatures the transaction carries, fee payer first. */
+  signers: string[];
+}
+
+/**
+ * A landed transaction's outcome and signers, or null when this node has not
+ * seen it.
+ *
+ * Signers are the first `numRequiredSignatures` static account keys — the
+ * wire format puts them there, for legacy and v0 messages alike, so this is
+ * read without decoding instructions. `maxSupportedTransactionVersion: 0`
+ * because a Jupiter swap is a v0 transaction, and without it the node
+ * refuses to return one at all.
+ */
+export async function getTransactionSummary(signature: string): Promise<TransactionSummary | null> {
+  const result = await rpcCall<{
+    meta: { err: unknown } | null;
+    transaction: { message: { accountKeys: string[]; header: { numRequiredSignatures: number } } };
+  } | null>("getTransaction", [
+    signature,
+    { encoding: "json", commitment: "confirmed", maxSupportedTransactionVersion: 0 },
+  ]);
+  if (result === null) return null;
+  const { accountKeys, header } = result.transaction.message;
+  return { err: result.meta?.err ?? null, signers: accountKeys.slice(0, header.numRequiredSignatures) };
+}

@@ -11,9 +11,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Eyebrow } from "@/components/ui/Eyebrow";
-import { formatQty, truncateMiddle } from "@/lib/format";
+import { formatQty } from "@/lib/format";
 import { txExplorerUrl } from "@/lib/solana/address";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
+import { looksLikeAddress, sendablesFrom, signingFailure } from "@/lib/wallet/flows";
 import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
 
 /* ---------------------------------------------------------------------------
@@ -99,19 +100,6 @@ import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
       — "nothing was sent, try again" — rather than a wall-clock guess.
 --------------------------------------------------------------------------- */
 
-/** One thing that can be sent, as the wallet snapshot describes it. */
-interface Sendable {
-  /** "SOL" for the native balance, otherwise the mint address. */
-  mint: string;
-  /** What to show. Falls back to the mint when nothing has vouched for it. */
-  label: string;
-  /** Scaled. For display only — the server sizes the transfer from chain. */
-  amount: number;
-  decimals: number;
-  /** Jupiter recognises this mint. Unverified holdings are flagged, not hidden. */
-  verified: boolean;
-}
-
 interface BuiltTransfer {
   unsignedTransaction?: string;
   /** The block height past which the unsigned bytes are dead. */
@@ -141,18 +129,6 @@ function encodeBase64(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
-}
-
-/**
- * A cheap client-side shape check, to catch a bad paste before a round trip.
- *
- * Deliberately NOT the authority: base58 length and alphabet say nothing
- * about whether an address is on the ed25519 curve. The server validates
- * properly, and this only exists so the Review button can stay disabled
- * while the field is obviously incomplete.
- */
-function looksLikeAddress(value: string): boolean {
-  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value.trim());
 }
 
 export function TransferDialog({
@@ -289,30 +265,7 @@ export function TransferDialog({
   /* What this wallet can send, native balance first. Built from the snapshot
      the rest of the page is already reading, so the dropdown and the balance
      cards can never disagree about what is held. */
-  const sendables = useMemo<Sendable[]>(() => {
-    const snapshot = wallet.snapshot;
-    if (snapshot === null) return [];
-
-    const native: Sendable = {
-      mint: "SOL",
-      label: "SOL",
-      amount: snapshot.sol,
-      decimals: 9,
-      verified: true,
-    };
-
-    const tokens = snapshot.tokens
-      .filter((token) => token.amount > 0)
-      .map<Sendable>((token) => ({
-        mint: token.mint,
-        label: token.symbol ?? truncateMiddle(token.mint, 4, 4),
-        amount: token.amount,
-        decimals: token.decimals,
-        verified: token.verified,
-      }));
-
-    return [native, ...tokens];
-  }, [wallet.snapshot]);
+  const sendables = useMemo(() => sendablesFrom(wallet.snapshot), [wallet.snapshot]);
 
   const selected = sendables.find((entry) => entry.mint === mint) ?? null;
 
@@ -398,14 +351,7 @@ export function TransferDialog({
 
         setError(payload.error ?? "The transfer was not accepted.");
       } catch (caught: unknown) {
-        const message = caught instanceof Error ? caught.message : "";
-        setError(
-          /reject|denied|cancel|closed/i.test(message)
-            ? "Cancelled — nothing was signed or sent."
-            : message.length > 0
-              ? message
-              : "The transfer could not be completed.",
-        );
+        setError(signingFailure(caught, "The transfer could not be completed."));
       } finally {
         setWorking(false);
       }
@@ -420,7 +366,7 @@ export function TransferDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent side="center" surface="glass" className="flex flex-col gap-0 p-0">
+      <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
             <Eyebrow>{title}</Eyebrow>

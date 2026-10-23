@@ -1,7 +1,12 @@
 import { after, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
+import { rateLimited } from "@/lib/personalized/session";
 import { parseResearchIntent } from "@/lib/research/intent";
 import { createReport, listReports, runReport } from "@/lib/research/store";
+
+/* A report holds a function open for up to five minutes of SEC reads and a
+   PDF render. Five a minute is more than anyone reads. */
+const REPORTS_PER_MINUTE = 5;
 
 /* ---------------------------------------------------------------------------
    Research reports.
@@ -32,6 +37,12 @@ export async function POST(request: Request): Promise<Response> {
   const user = await getSessionUser(request);
   if (user === null || user.userId === null) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  if (rateLimited(`report:${user.userId}`, REPORTS_PER_MINUTE)) {
+    return NextResponse.json(
+      { error: "Too many requests. Wait a moment and try again." },
+      { status: 429 },
+    );
   }
 
   let body: { query?: unknown };

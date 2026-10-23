@@ -44,6 +44,7 @@ interface WireUniverse {
   name?: string;
   maxLeverage?: number;
   szDecimals?: number;
+  isDelisted?: boolean;
 }
 
 interface WireCtx {
@@ -128,6 +129,8 @@ export async function hyperliquidMarkets(): Promise<ToolResult<PerpMarket[]>> {
         openInterest: num(ctx.openInterest),
         volume24hUsd: num(ctx.dayNtlVlm),
         maxLeverage: num(universe[index]?.maxLeverage),
+        prevDayPrice: num(ctx.prevDayPx),
+        delisted: universe[index]?.isDelisted === true,
       });
     }
 

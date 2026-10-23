@@ -12,9 +12,11 @@ import type {
    Hyperliquid private reads — which need no key at all.
 
    The /info endpoint is public and keyed by wallet address, so a connected
-   Hyperliquid account stores an address and no secret. That address comes
-   from the verified Privy session, never from a request body: a user-supplied
-   address would attribute someone else's account to this user.
+   Hyperliquid account stores an address and no secret. By default that is
+   the verified Privy session's EVM wallet. A person may instead name another
+   address (Connections → Hyperliquid), and because a typed address could be
+   anyone's, it is read and shown to them first and only stored when they
+   confirm it — the same check-then-save rule as a Polymarket address.
 
    /info is read-only by construction. Order placement is a different host
    path entirely (/exchange) and appears nowhere in this codebase.
@@ -136,4 +138,43 @@ export function hyperliquidPortfolio(address: string): PortfolioSource {
       };
     },
   };
+}
+
+/** What is at an address, for a person to recognise before saving it. */
+export interface HyperliquidAccountCheck {
+  address: string;
+  /** Perp account value: margin plus unrealised PnL. */
+  accountValueUsd: number;
+  positionCount: number;
+  spotBalanceCount: number;
+}
+
+/**
+ * Reads an address without storing anything.
+ *
+ * A failed read is reported as a failure, never as an empty account — saving
+ * on the strength of a read that did not happen is how a typo becomes a
+ * permanent wrong link.
+ */
+export async function inspectHyperliquidAccount(
+  address: string,
+): Promise<{ ok: true; found: HyperliquidAccountCheck } | { ok: false; error: string }> {
+  const user = address.toLowerCase();
+  try {
+    const [perps, spot] = await Promise.all([
+      info<ClearinghouseState>({ type: "clearinghouseState", user }),
+      info<SpotState>({ type: "spotClearinghouseState", user }),
+    ]);
+    return {
+      ok: true,
+      found: {
+        address: user,
+        accountValueUsd: num(perps.marginSummary.accountValue),
+        positionCount: perps.assetPositions.filter((entry) => num(entry.position.szi) !== 0).length,
+        spotBalanceCount: spot.balances.filter((balance) => num(balance.total) !== 0).length,
+      },
+    };
+  } catch {
+    return { ok: false, error: "Could not reach Hyperliquid to read that address. Nothing was saved." };
+  }
 }

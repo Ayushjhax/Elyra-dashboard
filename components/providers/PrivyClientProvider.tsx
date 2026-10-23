@@ -9,6 +9,7 @@ import {
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { PRIVY_MODAL_ACCENT, PRIVY_MODAL_THEME } from "@/lib/brand";
 import { PRIVY_APP_ID_LENGTH, publicEnv } from "@/lib/env";
+import { summariseUser, type ElyraAccount, type LinkedAccountSummary } from "@/lib/account";
 
 /* Built once at module scope: rebuilding it per render would hand
    PrivyProvider a new config object every time and remount the connectors. */
@@ -76,45 +77,11 @@ const solanaRpcs = {
    `available: false` when there is no Privy to talk to.
 --------------------------------------------------------------------------- */
 
-/**
- * One entry in the account card.
- *
- * Flattened to strings here rather than passed through as Privy's union, so
- * a component rendering it does not have to narrow fifteen account types —
- * and so the rest of the app still knows nothing about Privy's model beyond
- * this file.
- */
-export interface LinkedAccountSummary {
-  /** Privy's own `LinkedAccountType`: "wallet", "email", "google_oauth"… */
-  type: string;
-  /** The address, handle or email. Null when Privy exposes none. */
-  detail: string | null;
-  /** Wallets only: "solana", "ethereum". */
-  chainType: string | null;
-  /** Wallets only. "privy" means an embedded wallet, which can be exported. */
-  walletClientType: string | null;
-  /** ISO. When this account was most recently used to log in or link. */
-  latestVerifiedAt: string | null;
-}
+/* One entry in the account card — defined in lib/account.ts, which the
+   Android app shares. */
+export type { LinkedAccountSummary };
 
-export interface ElyraAccount {
-  /** The Privy DID. */
-  id: string;
-  createdAt: string | null;
-  accounts: LinkedAccountSummary[];
-  /**
-   * The account most recently used to sign in.
-   *
-   * Privy does not publish "the method used for this session" directly, but
-   * it does record `latestVerifiedAt` per account and documents it as the
-   * last time that account was used as a login or link method. The newest
-   * one is therefore how the user got here — a reading of a documented
-   * field, not an inference from the shape of the data.
-   */
-  loginMethod: LinkedAccountSummary | null;
-  /** The Solana address is a Privy embedded wallet, so it can be exported. */
-  solanaIsEmbedded: boolean;
-}
+export type { ElyraAccount };
 
 export interface ElyraAuth {
   /** Whether Privy is configured and mounted at all. */
@@ -163,28 +130,6 @@ export function useElyraAuth(): ElyraAuth {
  * honest about the fact that these are optional: an account type that
  * carries none of them reports null, and the UI shows the type alone.
  */
-function describeAccount(account: Record<string, unknown>): string | null {
-  const keys = [
-    "address", // wallet, email
-    "number", // phone
-    "username", // twitter, discord, github, telegram, tiktok
-    "email", // google, apple, linkedin
-    "name",
-    "subject",
-  ];
-  for (const key of keys) {
-    const value = account[key];
-    if (typeof value === "string" && value.length > 0) return value;
-  }
-  return null;
-}
-
-function toIso(value: unknown): string | null {
-  return value instanceof Date && !Number.isNaN(value.getTime())
-    ? value.toISOString()
-    : null;
-}
-
 /** Lives inside PrivyProvider, so `usePrivy` is safe here and only here. */
 function PrivyBridge({ children }: { children: React.ReactNode }) {
   const privy = usePrivy();
@@ -203,75 +148,23 @@ function PrivyBridge({ children }: { children: React.ReactNode }) {
   useSolanaFundingPlugin();
 
   const value = useMemo<ElyraAuth>(() => {
-    /* `user.wallet` is whichever wallet Privy considers primary, which on a
-       Solana-first account is a Solana one. Pick each chain explicitly from
-       linkedAccounts instead — the EVM address in particular is not
-       interchangeable, since it is what Hyperliquid is keyed by. */
-    const wallets = (privy.user?.linkedAccounts ?? []).filter(
-      (account): account is typeof account & { address: string; chainType: string } =>
-        account.type === "wallet" && "address" in account,
-    );
-
-    const addressFor = (chain: string) =>
-      wallets.find((wallet) => wallet.chainType === chain)?.address ?? null;
-
-    const solanaAddress = addressFor("solana");
-
-    const linked: LinkedAccountSummary[] = (privy.user?.linkedAccounts ?? []).map(
-      (account) => {
-        const raw = account as unknown as Record<string, unknown>;
-        return {
-          type: account.type,
-          detail: describeAccount(raw),
-          chainType: typeof raw.chainType === "string" ? raw.chainType : null,
-          walletClientType:
-            typeof raw.walletClientType === "string" ? raw.walletClientType : null,
-          latestVerifiedAt: toIso(raw.latestVerifiedAt),
-        };
-      },
-    );
-
-    /* The most recently verified account is the one the user signed in with —
-       see the note on `ElyraAccount.loginMethod`. Accounts with no timestamp
-       are excluded rather than sorted to the front, since "never verified"
-       must not outrank a real login. */
-    const loginMethod =
-      linked
-        .filter(
-          (entry): entry is LinkedAccountSummary & { latestVerifiedAt: string } =>
-            entry.latestVerifiedAt !== null,
-        )
-        .sort((a, b) => (a.latestVerifiedAt < b.latestVerifiedAt ? 1 : -1))[0] ?? null;
-
-    const account: ElyraAccount | null =
+    /* Which wallet is the account's, and how it signed in — read by the same
+       function the Android app uses (lib/account.ts). */
+    const summary =
       privy.user === null || privy.user === undefined
         ? null
-        : {
-            id: privy.user.id,
-            createdAt: toIso(privy.user.createdAt),
-            accounts: linked,
-            loginMethod,
-            /* "privy" is the embedded-wallet client. Only an embedded wallet
-               has a key Privy can show the user, so this gates Export. */
-            solanaIsEmbedded: linked.some(
-              (entry) =>
-                entry.type === "wallet" &&
-                entry.chainType === "solana" &&
-                entry.detail === solanaAddress &&
-                entry.walletClientType === "privy",
-            ),
-          };
+        : summariseUser(privy.user as unknown as Parameters<typeof summariseUser>[0]);
 
     return {
       available: true,
       ready: privy.ready,
       authenticated: privy.authenticated,
-      walletAddress: addressFor("ethereum"),
-      solanaAddress,
+      walletAddress: summary?.walletAddress ?? null,
+      solanaAddress: summary?.solanaAddress ?? null,
       login: () => privy.login(),
       logout: () => privy.logout(),
       getAccessToken: () => privy.getAccessToken(),
-      account,
+      account: summary?.account ?? null,
     };
   }, [privy]);
 

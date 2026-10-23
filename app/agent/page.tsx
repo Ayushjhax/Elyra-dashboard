@@ -1,5 +1,5 @@
-import { ConnectionsPanel } from "@/components/panels/ConnectionsPanel";
+import { ConnectionsDrawer } from "@/components/connections/ConnectionsDrawer";
 
 export default function AgentPage() {
-  return <ConnectionsPanel />;
+  return <ConnectionsDrawer />;
 }

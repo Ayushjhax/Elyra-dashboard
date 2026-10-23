@@ -43,17 +43,21 @@ If a screen looks lime-heavy, it is wrong. Lime is a highlighter, not a backgrou
 
 **Surfaces**
 ```
---surface-base    #15170F   app background (Ink)
---surface-panel   #1A1D14   panel / column background
---surface-raised  #212518   cards, table rows, input fields
---surface-hover   #272B1D   row + control hover
+--surface-base    #101710   app background (dark forest)
+--surface-panel   #182117   cards, panels, column surfaces
+--surface-raised  #1E281C   rows, input fields, inset blocks
+--surface-hover   #243022   row + control hover
 --surface-active  #2E5129   selected nav / selected watchlist row (Elyra Green)
 ```
 
+Base, panel and the subtle border are the trading-workspace redesign's own
+values (October 2026). Raised and hover are the steps between the panel and
+the border, chosen so every text token still clears 1.5's floor on them.
+
 **Borders**
 ```
---border-subtle   #2A2E20   panel edges, table dividers
---border-strong   #3A3F2C   input outlines, focus containers
+--border-subtle   #33402D   panel edges, table dividers
+--border-strong   #44543C   input outlines, focus containers
 --border-accent   #7C8535   active tab underline, agent rail (Khaki)
 ```
 
@@ -61,7 +65,7 @@ If a screen looks lime-heavy, it is wrong. Lime is a highlighter, not a backgrou
 ```
 --text-primary    #F7F8EA   headings, prices, primary values (Ivory)
 --text-secondary  #B8BAA8   labels, column headers, secondary values (Stone)
---text-muted      #8A8D7B   timestamps, hints, disabled
+--text-muted      #959884   timestamps, hints, disabled
 --text-on-accent  #15170F   text sitting on a lime/citron fill (Ink)
 ```
 
@@ -75,12 +79,23 @@ If a screen looks lime-heavy, it is wrong. Lime is a highlighter, not a backgrou
 
 **Market semantics — do not improvise these**
 ```
---positive        #7A9E70   price up, long, filled buy      (Sage)
+--positive        #91AE86   price up, long, filled buy — text  (Sage, lifted)
 --positive-bg     rgba(122,158,112,0.14)
---negative        #C4633A   price down, short, loss          (Clay)
+--negative        #D3906F   price down, short, loss — text     (Clay, lifted)
 --negative-bg     rgba(196,99,58,0.14)
 --neutral-flat    #B8BAA8   unchanged / pending              (Stone)
+--caution         #E9AC64   slow, degraded, worth a look — text (Amber)
+--caution-bg      rgba(233,172,100,0.14)
 ```
+
+Caution is not a market colour: it marks infrastructure that is working but
+not well — an RPC answering slowly, a read that is late. A loss is Clay, an
+interaction is Lime, and neither stands in for it.
+
+The text tokens are Sage and Clay lifted toward Ivory (18% and 30%) — the
+smallest lift at which each clears 4.5:1 on every forest surface and inside
+its own `-bg` badge. Raw Sage (#7A9E70) and Clay (#C4633A) remain the colours
+of fills that carry no text: chart candles, status dots, sparklines.
 
 **Agent layer — the signature rule**
 
@@ -111,7 +126,13 @@ empty states). Never behind text.
 ### 1.5 Contrast floor
 
 Body text ≥ 4.5:1, large text and non-text UI ≥ 3:1. `--text-muted` on
-`--surface-panel` is the lowest permitted pairing; do not go below it.
+`--surface-hover` is the lowest text pairing in the product (4.67:1); do not go
+below it. `--text-muted` moved from #8A8D7B to #959884 with the forest surfaces,
+because the old value fell to 3.9:1 on the new hover step.
+
+Raw Clay measured 4.09:1 on `--surface-panel`, which is why market text uses
+the lifted `--negative` (≥ 4.56:1 everywhere, badges included) and raw Clay is
+kept for fills.
 
 ---
 
@@ -168,7 +189,9 @@ Body text ≥ 4.5:1, large text and non-text UI ≥ 3:1. `--text-muted` on
 
 **Radii**
 ```
---radius-panel    14px
+--radius-sheet    16px   a page's main cards where the page is spacious
+                         (Referrals), and the header's glass menus
+--radius-panel    12px
 --radius-card     10px
 --radius-control   8px
 --radius-chip      6px
@@ -183,6 +206,13 @@ border, not shadow. The only shadow permitted is on floating layers:
 
 **Borders.** 1px `--border-subtle`. Hairline dividers inside tables, full borders on
 panels. Never double-border adjacent panels — use the shell gap instead.
+
+**Glass — the search palette only.** The ⌘K palette floats over the whole
+workspace and is drawn as glass rather than a card: a pane at 30% Ink over an
+18px blur, a 1px rim and a top sheen in Ivory (`#F7F8EA`) at 6–75% alpha, a
+28px radius, over a workspace dimmed 26% and softly blurred (6px) so the
+palette holds the eye. Nothing else is glass, and it falls back to `--surface-panel`
+when the reader asks for reduced transparency.
 
 ---
 

@@ -746,15 +746,17 @@ function Defi({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/* Telegram's theme variables first, Elyra's tokens as the fallback for a
-   browser opened outside the client. */
+/* Telegram's theme variables first, Elyra's tokens (app/globals.css) as the
+   fallback for a browser opened outside the client. Lines and tints are
+   mixed from the text colour, so they hold in Telegram's light theme too. */
 const CSS = `
 .mini-root {
-  --bg: var(--tg-theme-bg-color, #05060a);
-  --fg: var(--tg-theme-text-color, #f4f1ea);
-  --muted: var(--tg-theme-hint-color, #8b8b85);
-  --card: var(--tg-theme-secondary-bg-color, #0d0f14);
-  --accent: var(--tg-theme-button-color, #c8f169);
+  --bg: var(--tg-theme-bg-color, var(--surface-base));
+  --fg: var(--tg-theme-text-color, var(--text-primary));
+  --muted: var(--tg-theme-hint-color, var(--text-muted));
+  --card: var(--tg-theme-secondary-bg-color, var(--surface-panel));
+  --mini-accent: var(--tg-theme-button-color, var(--accent));
+  --mini-on-accent: var(--tg-theme-button-text-color, var(--text-on-accent));
   min-height: 100dvh;
   background: var(--bg);
   color: var(--fg);
@@ -774,11 +776,11 @@ const CSS = `
 .mini-tabs::-webkit-scrollbar { display: none; }
 .mini-tab {
   flex: 0 0 auto; padding: 7px 12px; border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.08); background: transparent;
+  border: 1px solid color-mix(in srgb, var(--fg) 10%, transparent); background: transparent;
   color: var(--muted); font-size: 13px; font: inherit; font-size: 13px;
   cursor: pointer;
 }
-.mini-tab[aria-selected="true"] { background: var(--accent); color: #05060a; border-color: transparent; font-weight: 600; }
+.mini-tab[aria-selected="true"] { background: var(--mini-accent); color: var(--mini-on-accent); border-color: transparent; font-weight: 600; }
 .mini-body { display: flex; flex-direction: column; gap: 10px; }
 .mini-card {
   background: var(--card); border-radius: 14px; padding: 14px;
@@ -790,7 +792,7 @@ const CSS = `
 .mini-figure-sm { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mini-row {
   display: flex; justify-content: space-between; gap: 12px;
-  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 7px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
   font-size: 14px;
 }
 .mini-row:last-of-type { border-bottom: 0; }
@@ -801,20 +803,22 @@ const CSS = `
 }
 .mini-note { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
 .mini-body { font-size: 14px; line-height: 1.35; }
-/* Elyra Lime, for the probability the reader is being pointed at. Never
-   Polymarket's palette — the data is theirs, the product is not. */
+/* The accent, for the probability the reader is being pointed at: Elyra
+   Lime, or Telegram's own button colour inside Telegram, which is chosen to
+   read on its theme. Never Polymarket's palette — the data is theirs, the
+   product is not. */
 .mini-prob {
-  color: var(--accent, #D2DC76);
+  color: var(--mini-accent);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
-/* Elyra Lime at low alpha. Claimable money is good news, so it does not get
+/* The accent at low alpha. Claimable money is good news, so it does not get
    the Clay treatment reserved for real losses. */
-.mini-claim { box-shadow: inset 0 0 0 1px rgba(210, 220, 118, 0.35); }
+.mini-claim { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mini-accent) 35%, transparent); }
 .mini-muted { color: var(--muted); font-size: 14px; }
-.mini-error { color: #e2725b; font-size: 14px; }
+.mini-error { color: var(--negative); font-size: 14px; }
 .mini-warn {
-  background: rgba(226,114,91,0.12); border-radius: 10px;
-  padding: 10px 12px; font-size: 12px; color: #e8a08d; margin: 0;
+  background: var(--negative-bg); border-radius: 10px;
+  padding: 10px 12px; font-size: 12px; color: var(--negative); margin: 0;
 }
 `;

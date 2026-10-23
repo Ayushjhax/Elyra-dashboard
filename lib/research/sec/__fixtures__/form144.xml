@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><edgarSubmission xmlns="http://www.sec.gov/edgar/ownership" xmlns:com="http://www.sec.gov/edgar/common">
+  <headerData>
+    <submissionType>144</submissionType>
+    <filerInfo>
+      <filer>
+        <filerCredentials>
+          <cik>0001733278</cik>
+          <ccc>XXXXXXXX</ccc>
+        </filerCredentials>
+      </filer>
+      <liveTestFlag>LIVE</liveTestFlag>
+
+
+
+    </filerInfo>
+  </headerData>
+  <formData>
+    <issuerInfo>
+      <issuerCik>0002104204</issuerCik>
+      <issuerName>Alamar Biosciences, Inc.</issuerName>
+      <secFileNumber>001-43235</secFileNumber>
+      <issuerAddress>
+        <com:street1>47071 BAYSIDE PARKWAY</com:street1>
+        <com:city>FREMONT</com:city>
+        <com:stateOrCountry>CA</com:stateOrCountry>
+        <com:zipCode>94538</com:zipCode>
+      </issuerAddress>
+      <issuerContactPhone>510-626-9888</issuerContactPhone>
+      <nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>Qiming Venture Partners VI, L.P.</nameOfPersonForWhoseAccountTheSecuritiesAreToBeSold>
+      <relationshipsToIssuer>
+        <relationshipToIssuer>Affiliate</relationshipToIssuer>
+      </relationshipsToIssuer>
+    </issuerInfo>
+    <securitiesInformation>
+      <securitiesClassTitle>Common stock, par value $0.0001 per share</securitiesClassTitle>
+      <brokerOrMarketmakerDetails>
+        <name>J.P. Morgan Securities LLC</name>
+        <address>
+          <com:street1>270 Park Avenue</com:street1>
+          <com:city>New York</com:city>
+          <com:stateOrCountry>NY</com:stateOrCountry>
+          <com:zipCode>10117</com:zipCode>
+        </address>
+      </brokerOrMarketmakerDetails>
+      <noOfUnitsSold>1558858</noOfUnitsSold>
+      <aggregateMarketValue>36664000.00</aggregateMarketValue>
+      <noOfUnitsOutstanding>69392766</noOfUnitsOutstanding>
+      <approxSaleDate>10/14/2026</approxSaleDate>
+      <securitiesExchangeName>Nasdaq Stock Market</securitiesExchangeName>
+    </securitiesInformation>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common stock</securitiesClassTitle>
+      <acquiredDate>05/27/2020</acquiredDate>
+      <natureOfAcquisitionTransaction>Private investment in Series A-3 preferred shares, automatically converted into common stock upon IPO</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>Issuer</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>2648607</amountOfSecuritiesAcquired>
+      <paymentDate>05/26/2020</paymentDate>
+      <natureOfPayment>Check</natureOfPayment>
+    </securitiesToBeSold>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common stock</securitiesClassTitle>
+      <acquiredDate>04/30/2021</acquiredDate>
+      <natureOfAcquisitionTransaction>Private investment in Series A-4 preferred shares, automatically converted into common stock upon IPO</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>Issuer</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>2373437</amountOfSecuritiesAcquired>
+      <paymentDate>04/30/2021</paymentDate>
+      <natureOfPayment>Check</natureOfPayment>
+    </securitiesToBeSold>
+    <securitiesToBeSold>
+      <securitiesClassTitle>Common stock</securitiesClassTitle>
+      <acquiredDate>08/20/2021</acquiredDate>
+      <natureOfAcquisitionTransaction>Private investment in Series B preferred, automatically converted into common stock upon IPO</natureOfAcquisitionTransaction>
+      <nameOfPersonfromWhomAcquired>Issuer</nameOfPersonfromWhomAcquired>
+      <isGiftTransaction>N</isGiftTransaction>
+      <amountOfSecuritiesAcquired>1859366</amountOfSecuritiesAcquired>
+      <paymentDate>08/18/2021</paymentDate>
+      <natureOfPayment>Check</natureOfPayment>
+    </securitiesToBeSold>
+    <nothingToReportFlagOnSecuritiesSoldInPast3Months>Y</nothingToReportFlagOnSecuritiesSoldInPast3Months>
+    <noticeSignature>
+      <noticeDate>10/14/2026</noticeDate>
+      <signature>/s/ Ho Man Lam</signature>
+    </noticeSignature>
+  </formData>
+</edgarSubmission>

@@ -13,6 +13,8 @@ import {
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { txExplorerUrl } from "@/lib/solana/address";
 import type { PreparedAction } from "@/lib/personalized/types";
+import { useAuthedFetch } from "@/lib/useAuthedFetch";
+import { signingFailure } from "@/lib/wallet/flows";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -77,17 +79,31 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function SwapDialog({
   address,
   onClose,
+  initialFrom = "SOL",
+  initialTo = "USDC",
+  initialAmount = "",
+  onExecuted,
 }: {
   address: string | null;
   onClose: () => void;
+  /** Prefill, for a swap reviewed from a prepared action or a position row.
+      Every value stays editable, and nothing is sent without a signature. */
+  initialFrom?: string;
+  initialTo?: string;
+  initialAmount?: string;
+  /** Called once the swap has landed and returned its signature. */
+  onExecuted?: (signature: string) => void;
 }) {
   const { wallets } = useWallets();
   const { signTransaction } = useSignTransaction();
+  /* Both steps are scoped to the session's wallet, so both carry the token —
+     Privy's cookie is not something this app can count on being set. */
+  const authedFetch = useAuthedFetch();
 
   const [groups, setGroups] = useState<TokenGroup[]>([]);
-  const [fromSymbol, setFromSymbol] = useState("SOL");
-  const [toSymbol, setToSymbol] = useState("USDC");
-  const [amount, setAmount] = useState("");
+  const [fromSymbol, setFromSymbol] = useState(initialFrom);
+  const [toSymbol, setToSymbol] = useState(initialTo);
+  const [amount, setAmount] = useState(initialAmount);
 
   const [quote, setQuote] = useState<BuildResponse | null>(null);
   const [quoting, setQuoting] = useState(false);
@@ -111,9 +127,8 @@ export function SwapDialog({
   }, []);
 
   const build = useCallback(async (): Promise<BuildResponse | null> => {
-    const response = await fetch("/api/swap/build", {
+    const response = await authedFetch("/api/swap/build", {
       method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ fromSymbol, toSymbol, amount }),
     });
     const payload = (await response.json()) as BuildResponse;
@@ -122,7 +137,7 @@ export function SwapDialog({
       return null;
     }
     return payload;
-  }, [fromSymbol, toSymbol, amount]);
+  }, [authedFetch, fromSymbol, toSymbol, amount]);
 
   const onQuote = useCallback(() => {
     setError(null);
@@ -168,9 +183,8 @@ export function SwapDialog({
           wallet,
         });
 
-        const response = await fetch("/api/swap/submit", {
+        const response = await authedFetch("/api/swap/submit", {
           method: "POST",
-          headers: { "content-type": "application/json" },
           body: JSON.stringify({
             signedTransaction: encodeBase64(signedTransaction),
             quoteRef,
@@ -187,22 +201,16 @@ export function SwapDialog({
         }
 
         setSignature(payload.signature);
+        onExecuted?.(payload.signature);
       } catch (caught: unknown) {
         /* Closing Privy's modal rejects, and that is a decision rather than a
            fault — it reads as "cancelled", not as an error to investigate. */
-        const message = caught instanceof Error ? caught.message : "";
-        setError(
-          /reject|denied|cancel|closed/i.test(message)
-            ? "Cancelled — nothing was signed or sent."
-            : message.length > 0
-              ? message
-              : "The swap could not be completed.",
-        );
+        setError(signingFailure(caught, "The swap could not be completed."));
       } finally {
         setWorking(false);
       }
     })();
-  }, [build, wallets, address, signTransaction]);
+  }, [authedFetch, build, wallets, address, signTransaction, onExecuted]);
 
   const symbols = groups.flatMap((group) => group.symbols);
   const canQuote =
@@ -211,7 +219,7 @@ export function SwapDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent side="center" surface="glass" className="flex flex-col gap-0 p-0">
+      <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
             <Eyebrow>Swap</Eyebrow>

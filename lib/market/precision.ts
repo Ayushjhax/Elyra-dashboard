@@ -21,5 +21,11 @@ export function priceDecimals(price: number | null | undefined): number {
   if (magnitude >= 1) return 4;
   if (magnitude >= 0.01) return 5;
   if (magnitude >= 0.0001) return 6;
-  return 8;
+  /* Below a hundredth of a cent the decimals follow the first significant
+     digit, so three always show: PEPE near $0.0000042 renders 0.00000421,
+     and a smaller token gets more places rather than rounding to zero.
+     `toLocaleString` never switches to exponent notation, so a price can
+     never surface as 4.21e-6 either. */
+  const leadingZeros = Math.floor(-Math.log10(magnitude));
+  return Math.min(Math.max(8, leadingZeros + 3), 14);
 }

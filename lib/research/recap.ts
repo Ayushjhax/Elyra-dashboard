@@ -37,6 +37,7 @@ export interface RecapMove {
   price: number;
   changePct: number;
   asOf: string;
+  stale?: boolean;
 }
 
 export interface RecapSection {
@@ -44,6 +45,18 @@ export interface RecapSection {
   lines: string[];
   /** Set when the section could not be produced, with the reason. */
   unavailable: string | null;
+  asOf?: string;
+  stale?: boolean;
+  moves?: RecapMove[];
+  funding?: Array<{ symbol: string; annualisedPct: number }>;
+  markets?: Array<{
+    id: string;
+    question: string;
+    outcome: string | null;
+    price: number | null;
+    status: string;
+    url: string | null;
+  }>;
 }
 
 export interface MarketRecap {
@@ -61,8 +74,13 @@ const money = (value: number): string =>
     maximumFractionDigits: value < 10 ? 4 : 2,
   });
 
-async function cryptoSection(): Promise<{ section: RecapSection; moves: RecapMove[] }> {
-  const tickers = await Promise.all(WATCH.map((symbol) => binanceTicker(symbol)));
+async function cryptoSection(): Promise<{
+  section: RecapSection;
+  moves: RecapMove[];
+}> {
+  const tickers = await Promise.all(
+    WATCH.map((symbol) => binanceTicker(symbol)),
+  );
 
   const moves: RecapMove[] = [];
   for (const ticker of tickers) {
@@ -73,6 +91,7 @@ async function cryptoSection(): Promise<{ section: RecapSection; moves: RecapMov
       price: ticker.data.lastPrice,
       changePct: ticker.data.change24hPct,
       asOf: ticker.asOf,
+      stale: ticker.stale ?? false,
     });
   }
 
@@ -87,8 +106,12 @@ async function cryptoSection(): Promise<{ section: RecapSection; moves: RecapMov
     };
   }
 
-  const sorted = [...moves].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
-  const notable = sorted.filter((move) => Math.abs(move.changePct) >= NOTABLE_PCT);
+  const sorted = [...moves].sort(
+    (a, b) => Math.abs(b.changePct) - Math.abs(a.changePct),
+  );
+  const notable = sorted.filter(
+    (move) => Math.abs(move.changePct) >= NOTABLE_PCT,
+  );
 
   const lines = sorted.map(
     (move) =>
@@ -100,7 +123,16 @@ async function cryptoSection(): Promise<{ section: RecapSection; moves: RecapMov
     lines.push(`No move exceeded ${NOTABLE_PCT}% over the window.`);
   }
 
-  return { section: { title: "Crypto", lines, unavailable: null }, moves: sorted };
+  return {
+    section: {
+      title: "Crypto",
+      lines,
+      unavailable: null,
+      moves: sorted,
+      asOf: [...sorted].map((move) => move.asOf).sort()[0],
+    },
+    moves: sorted,
+  };
 }
 
 async function fundingSection(): Promise<RecapSection> {
@@ -109,7 +141,8 @@ async function fundingSection(): Promise<RecapSection> {
     return {
       title: "Perpetual funding",
       lines: [],
-      unavailable: markets.error?.message ?? "Perpetual data could not be read.",
+      unavailable:
+        markets.error?.message ?? "Perpetual data could not be read.",
     };
   }
 
@@ -119,11 +152,21 @@ async function fundingSection(): Promise<RecapSection> {
     .filter((row) => row.annual !== null);
 
   if (extremes.length === 0) {
-    return { title: "Perpetual funding", lines: [], unavailable: "No funding data." };
+    return {
+      title: "Perpetual funding",
+      lines: [],
+      unavailable: "No funding data.",
+    };
   }
 
   return {
     title: "Perpetual funding",
+    asOf: markets.asOf,
+    stale: markets.stale ?? false,
+    funding: extremes.map((row) => ({
+      symbol: row.market.symbol,
+      annualisedPct: row.annual!,
+    })),
     lines: extremes.map(
       (row) =>
         `${row.market.symbol} ${row.annual!.toFixed(1)}% annualised · ` +
@@ -145,6 +188,16 @@ async function predictionSection(): Promise<RecapSection> {
 
   return {
     title: "Prediction markets",
+    asOf: markets.asOf,
+    stale: markets.stale ?? false,
+    markets: markets.data.map((market) => ({
+      id: market.id,
+      question: market.question,
+      outcome: market.outcomes[0]?.label ?? null,
+      price: market.outcomes[0]?.price ?? null,
+      status: market.status ?? (market.closed ? "closed" : "open"),
+      url: market.url ?? null,
+    })),
     lines: markets.data.map((market) => {
       const top = market.outcomes[0];
       return `${market.question.slice(0, 64)} — ${top === undefined ? "?" : `${Math.round(top.price * 100)}% ${top.label}`}`;
@@ -155,7 +208,11 @@ async function predictionSection(): Promise<RecapSection> {
 
 async function yieldSection(): Promise<RecapSection> {
   const opportunities = await kaminoYield({ limit: 3 });
-  if (!opportunities.ok || opportunities.data === undefined || opportunities.data.length === 0) {
+  if (
+    !opportunities.ok ||
+    opportunities.data === undefined ||
+    opportunities.data.length === 0
+  ) {
     return {
       title: "Yield",
       lines: [],
@@ -200,7 +257,8 @@ export async function marketRecap(
           {
             title: "Equities",
             lines: [],
-            unavailable: caps["market.equity_price"].reason ?? "No equity provider.",
+            unavailable:
+              caps["market.equity_price"].reason ?? "No equity provider.",
           },
         ],
         sources: [],

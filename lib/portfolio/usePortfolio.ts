@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { accountKey } from "@/lib/account";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import type { PortfolioResponse, PortfolioSnapshot } from "@/lib/portfolio/types";
 
@@ -35,6 +36,8 @@ interface StoreState {
   stale: boolean;
   /** When the last successful read landed, for "Updated 8s ago". */
   fetchedAt: number | null;
+  /** A read is in flight — the first, a poll, or a refetch. */
+  refreshing: boolean;
 }
 
 const INITIAL: StoreState = {
@@ -44,6 +47,7 @@ const INITIAL: StoreState = {
   loading: true,
   stale: false,
   fetchedAt: null,
+  refreshing: false,
 };
 
 let state: StoreState = INITIAL;
@@ -53,6 +57,16 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 let subscribers = 0;
 let inFlight = false;
 let enabled = false;
+
+/**
+ * Bumped by every reset. A read that started under an earlier generation
+ * belongs to an account that is no longer signed in here, and is dropped
+ * when it lands rather than written over the new one.
+ */
+let generation = 0;
+
+/** Whose data the store holds: the account it was read for. */
+let owner: string | null = null;
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 let fetcher: Fetcher | null = null;
@@ -84,11 +98,14 @@ async function poll(): Promise<void> {
   if (inFlight || !enabled || fetcher === null) return;
 
   inFlight = true;
+  emit({ refreshing: true });
   let delay = POLL_MS;
+  const started = generation;
 
   try {
     const response = await fetcher("/api/portfolio", { cache: "no-store" });
     const body = (await response.json()) as PortfolioResponse;
+    if (started !== generation) return;
 
     if (body.portfolio !== null) {
       emit({
@@ -112,6 +129,7 @@ async function poll(): Promise<void> {
       });
     }
   } catch (error: unknown) {
+    if (started !== generation) return;
     delay = RETRY_MS;
     emit({
       error: error instanceof Error ? error.message : "Network error",
@@ -120,7 +138,12 @@ async function poll(): Promise<void> {
     });
   } finally {
     inFlight = false;
-    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), delay);
+    emit({ refreshing: false });
+    /* A refetch can land while a poll is scheduled; one timer, not two. A
+       read dropped for a switched account is followed at once by one for
+       the account now signed in. */
+    if (timer !== null) clearTimeout(timer);
+    if (subscribers > 0 && enabled) timer = setTimeout(() => void poll(), started !== generation ? 0 : delay);
     else timer = null;
   }
 }
@@ -129,8 +152,9 @@ function ensurePolling(): void {
   if (timer === null && !inFlight && enabled && subscribers > 0) void poll();
 }
 
-/** Drop everything on sign-out. Another user's portfolio must never persist. */
+/** Drop everything on sign-out or an account switch. Another user's portfolio must never persist. */
 function reset(): void {
+  generation += 1;
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
@@ -152,6 +176,7 @@ export function usePortfolio(): PortfolioFeed {
   const store = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const signedIn = auth.ready && auth.authenticated;
+  const account = accountKey(auth);
 
   useEffect(() => {
     fetcher = authedFetch;
@@ -162,10 +187,13 @@ export function usePortfolio(): PortfolioFeed {
     enabled = signedIn;
     if (!signedIn) {
       if (was) reset();
+      owner = null;
       return;
     }
+    if (owner !== null && owner !== account) reset();
+    owner = account;
     ensurePolling();
-  }, [signedIn]);
+  }, [signedIn, account]);
 
   /* A portfolio left open for an hour and then looked at must not show an
      hour-old figure for the next thirty seconds. */

@@ -1,3 +1,5 @@
+import type { QualityLevel } from "@/lib/research/reportTypes";
+
 /* ---------------------------------------------------------------------------
    The report document.
 
@@ -90,7 +92,7 @@ export interface ReportSection {
   blocks: ReportBlock[];
 }
 
-export type QualityLevel = "verified" | "verified_with_warnings" | "incomplete";
+export type { QualityLevel };
 
 export interface QualityCheck {
   id: string;

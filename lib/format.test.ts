@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatClock12 } from "./format";
+import { formatAge, formatClock12 } from "./format";
 
 /**
  * Built from a local-time string, so the expectation holds whatever timezone
@@ -36,5 +36,17 @@ describe("formatClock12", () => {
        this asserts no whitespace of any width survives. */
     expect(formatClock12(localTime("2026-09-06T15:32:00"))).not.toMatch(/\s/);
     expect(formatClock12(localTime("2026-09-06T15:32:00"))).not.toContain(" ");
+  });
+});
+
+describe("formatAge", () => {
+  const now = Date.parse("2026-10-15T12:00:00Z");
+  it("counts seconds while a reading is fresh, then minutes and hours", () => {
+    expect(formatAge(now - 2_000, now)).toBe("just now");
+    expect(formatAge(now - 8_000, now)).toBe("8s ago");
+    expect(formatAge(now - 3 * 60_000, now)).toBe("3m ago");
+    expect(formatAge(now - 2 * 3_600_000, now)).toBe("2h ago");
+    /* A clock that reads slightly behind the stamp is not "in the future". */
+    expect(formatAge(now + 1_000, now)).toBe("just now");
   });
 });

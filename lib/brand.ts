@@ -9,11 +9,10 @@
 
 /**
  * `themeColor` paints browser chrome *outside* the document, so it cannot read
- * a CSS custom property. Identical to --surface-base, which is now true black
- * rather than the palette's Ink; see the comment on that token in
- * app/globals.css for why.
+ * a CSS custom property. Identical to --surface-base, the dark forest
+ * background — see the 1.3 surfaces in app/globals.css.
  */
-export const THEME_COLOR_INK = "#000000";
+export const THEME_COLOR_INK = "#101710";
 
 /**
  * Privy's login modal.

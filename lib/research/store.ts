@@ -3,6 +3,7 @@ import "server-only";
 import { serviceClient } from "@/lib/supabase/server";
 import { buildEarningsReport, headlineFor } from "@/lib/research/earnings";
 import type { QualityLevel, ResearchReportDocument } from "@/lib/research/report";
+import type { ReportRecord, ReportStatus } from "@/lib/research/reportTypes";
 
 /* ---------------------------------------------------------------------------
    Running a report, storing it, and handing it back.
@@ -28,31 +29,7 @@ import type { QualityLevel, ResearchReportDocument } from "@/lib/research/report
 
 const BUCKET = "research-reports";
 
-export type ReportStatus =
-  | "queued"
-  | "resolving"
-  | "collecting"
-  | "analyzing"
-  | "rendering"
-  | "complete"
-  | "failed";
-
-export interface ReportRecord {
-  id: string;
-  query: string;
-  kind: string;
-  subjectName: string | null;
-  subjectTicker: string | null;
-  periodLabel: string | null;
-  status: ReportStatus;
-  statusDetail: string | null;
-  quality: QualityLevel | null;
-  hasPdf: boolean;
-  pdfBytes: number | null;
-  error: string | null;
-  createdAt: string;
-  completedAt: string | null;
-}
+export type { ReportRecord, ReportStatus };
 
 interface Row {
   id: string;

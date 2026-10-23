@@ -1,0 +1,3 @@
+# The Expo app (mobile/) is built by EAS, never by Vercel. Keeping it out of
+# the upload keeps its node_modules and native folders out of the web build.
+mobile

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { toBaseUnits } from "@/lib/telegram/trade";
+import { toBaseUnits } from "@/lib/trade";
 
 /* The module reaches the RPC on import-time-free paths only, but `readHolding`
    does — and these tests are about the arithmetic, which is what can silently

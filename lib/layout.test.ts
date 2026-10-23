@@ -2,107 +2,151 @@ import { describe, expect, it } from "vitest";
 import {
   COLUMN_BOUNDS,
   MAIN_MIN,
-  ROW_MIN,
-  SHELL_GAP,
-  SHELL_PAD,
+  MAIN_SHARE,
+  RAIL_COLLAPSED,
+  RAIL_EXPANDED,
+  WORKSPACE_GAP,
+  WORKSPACE_PAD,
+  centreShare,
   clampColumn,
   fitColumns,
   shellLayout,
-  splitRows,
+  type ShellLayoutInput,
 } from "@/lib/layout";
 
-/** What the chart is left with, given the tracks the fitter produced. */
-function mainWidth(viewport: number, sides: number[]): number {
-  const gaps = SHELL_GAP * sides.length;
-  return viewport - SHELL_PAD * 2 - gaps - sides.reduce((a, b) => a + b, 0);
+const BASE: ShellLayoutInput = {
+  /* Wide enough that nothing has to be fitted. A test about fitting sets its
+     own width. */
+  viewport: 2400,
+  widths: {},
+  railExpanded: false,
+  widgetsOpen: true,
+  agentOpen: true,
+  routeOpen: false,
+  focus: false,
+};
+
+/** Every px width in a track string, in order. */
+function px(track: string): number[] {
+  return [...track.matchAll(/(\d+)px/g)].map((match) => Number(match[1]));
+}
+
+/** What the centre is left with, given the frame and workspace tracks. */
+function centreWidth(viewport: number, frame: string, workspace: string): number {
+  const [rail] = px(frame);
+  const sides = px(workspace);
+  return (
+    viewport -
+    rail -
+    WORKSPACE_PAD * 2 -
+    WORKSPACE_GAP * sides.length -
+    sides.reduce((a, b) => a + b, 0)
+  );
 }
 
 describe("clampColumn", () => {
   it("holds a width inside the column's own bounds", () => {
-    expect(clampColumn("rail", 10)).toBe(COLUMN_BOUNDS.rail.min);
-    expect(clampColumn("rail", 9999)).toBe(COLUMN_BOUNDS.rail.max);
-    expect(clampColumn("stack", 300.4)).toBe(300);
+    expect(clampColumn("widgets", 10)).toBe(COLUMN_BOUNDS.widgets.min);
+    expect(clampColumn("agent", 9999)).toBe(COLUMN_BOUNDS.agent.max);
+    expect(clampColumn("route", 400.4)).toBe(400);
   });
 });
 
 describe("fitColumns", () => {
   it("leaves stored widths alone when there is room", () => {
-    const fitted = fitColumns(["rail", "stack"], { rail: 216, stack: 288 }, 1600);
-    expect(fitted.get("rail")).toBe(216);
-    expect(fitted.get("stack")).toBe(288);
+    const fitted = fitColumns(["widgets", "agent"], { widgets: 280, agent: 380 }, 2000);
+    expect(fitted.get("widgets")).toBe(280);
+    expect(fitted.get("agent")).toBe(380);
   });
 
   it("falls back to each column's initial width", () => {
-    const fitted = fitColumns(["rail", "assist"], {}, 2000);
-    expect(fitted.get("rail")).toBe(COLUMN_BOUNDS.rail.initial);
-    expect(fitted.get("assist")).toBe(COLUMN_BOUNDS.assist.initial);
+    const fitted = fitColumns(["widgets", "agent"], {}, 2400);
+    expect(fitted.get("widgets")).toBe(COLUMN_BOUNDS.widgets.initial);
+    expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial);
   });
 
-  it("squeezes the rail before the assistant", () => {
-    /* Only 40px short: the rail alone should cover it. */
+  it("squeezes the widgets before the agent", () => {
+    /* Only 20px short of the floor: the widgets alone should cover it. The
+       widths are the operator's, so only the floor applies to them. */
+    const widths = { widgets: COLUMN_BOUNDS.widgets.initial, agent: COLUMN_BOUNDS.agent.initial };
     const available =
-      COLUMN_BOUNDS.rail.initial +
-      COLUMN_BOUNDS.assist.initial +
+      COLUMN_BOUNDS.widgets.initial +
+      COLUMN_BOUNDS.agent.initial +
       MAIN_MIN +
-      SHELL_GAP * 2 -
-      40;
-    const fitted = fitColumns(["rail", "assist"], {}, available);
-    expect(fitted.get("rail")).toBe(COLUMN_BOUNDS.rail.initial - 40);
-    expect(fitted.get("assist")).toBe(COLUMN_BOUNDS.assist.initial);
+      WORKSPACE_GAP * 2 -
+      20;
+    const fitted = fitColumns(["widgets", "agent"], widths, available);
+    expect(fitted.get("widgets")).toBe(COLUMN_BOUNDS.widgets.initial - 20);
+    expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial);
+  });
+
+  it("squeezes the agent before a route the operator just opened", () => {
+    const widths = { agent: COLUMN_BOUNDS.agent.initial };
+    const available =
+      COLUMN_BOUNDS.route.initial +
+      COLUMN_BOUNDS.agent.initial +
+      MAIN_MIN +
+      WORKSPACE_GAP * 2 -
+      30;
+    const fitted = fitColumns(["route", "agent"], widths, available);
+    expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial - 30);
+    expect(fitted.get("route")).toBe(COLUMN_BOUNDS.route.initial);
   });
 
   it("never takes a column below its minimum", () => {
-    const fitted = fitColumns(["rail", "palette", "stack"], {}, 400);
-    expect(fitted.get("rail")).toBe(COLUMN_BOUNDS.rail.min);
-    expect(fitted.get("palette")).toBe(COLUMN_BOUNDS.palette.min);
-    expect(fitted.get("stack")).toBe(COLUMN_BOUNDS.stack.min);
+    const fitted = fitColumns(["widgets", "agent"], {}, 400);
+    expect(fitted.get("widgets")).toBe(COLUMN_BOUNDS.widgets.min);
+    expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.min);
   });
 
   it("does nothing before the shell has been measured", () => {
-    const fitted = fitColumns(["rail", "palette", "stack", "assist"], {}, null);
-    expect(fitted.get("rail")).toBe(COLUMN_BOUNDS.rail.initial);
-    expect(fitted.get("assist")).toBe(COLUMN_BOUNDS.assist.initial);
+    const fitted = fitColumns(["widgets", "agent"], {}, null);
+    expect(fitted.get("widgets")).toBe(COLUMN_BOUNDS.widgets.initial);
+    expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial);
   });
 });
 
 describe("shellLayout", () => {
-  it("keeps the chart at or above its floor, or has spent every column doing it", () => {
-    /* The floor is not a promise the arithmetic can always keep — five columns
-       and a chart do not fit in 900px at any width. What it can promise is that
-       the chart is the last thing to give: either it is above the floor, or
-       every column beside it is already at its minimum. */
-    for (const viewport of [900, 1024, 1180, 1280, 1440, 1600, 1920]) {
-      for (const paletteOpen of [false, true]) {
-        for (const stackOpen of [false, true]) {
-          for (const assistOpen of [false, true]) {
+  it("keeps the centre at or above its floor, or has spent every column doing it", () => {
+    /* The floor is not a promise the arithmetic can always keep — a rail, two
+       side columns and a 480px centre do not fit in 900px. What it can promise
+       is that the centre is the last thing to give: either it is above the
+       floor, or the rail is at its icons and every column beside the centre
+       is at its minimum. */
+    for (let viewport = 900; viewport <= 2560; viewport += 20) {
+      for (const railExpanded of [false, true]) {
+        for (const widgetsOpen of [false, true]) {
+          for (const agentOpen of [false, true]) {
             for (const routeOpen of [false, true]) {
               const layout = shellLayout({
+                ...BASE,
                 viewport,
-                widths: {},
-                paletteOpen,
-                stackOpen,
-                assistOpen,
+                railExpanded,
+                widgetsOpen,
+                agentOpen,
                 routeOpen,
               });
-              const track = viewport >= 1280 ? layout.full : layout.mid;
-              const sides = [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-              const where = `${viewport}px palette=${paletteOpen} stack=${stackOpen} assist=${assistOpen} route=${routeOpen}`;
+              const wide = viewport >= 1280;
+              const frame = wide ? layout.frame.full : layout.frame.mid;
+              const workspace = wide ? layout.workspace.full : layout.workspace.mid;
+              const where = `${viewport}px rail=${railExpanded} widgets=${widgetsOpen} agent=${agentOpen} route=${routeOpen}`;
 
-              const chart = mainWidth(viewport, sides);
-              if (chart >= MAIN_MIN) continue;
+              const centre = centreWidth(viewport, frame, workspace);
+              if (centre >= MAIN_MIN) continue;
 
+              expect(px(frame)[0], `${where} — rail should be icons`).toBe(RAIL_COLLAPSED);
               const floor =
-                COLUMN_BOUNDS.rail.min +
-                (paletteOpen ? COLUMN_BOUNDS.palette.min : 0) +
-                (stackOpen ? COLUMN_BOUNDS.stack.min : 0) +
-                (routeOpen ? COLUMN_BOUNDS.route.min : 0) +
-                (assistOpen && viewport >= 1280 ? COLUMN_BOUNDS.assist.min : 0);
+                (routeOpen
+                  ? COLUMN_BOUNDS.route.min
+                  : widgetsOpen
+                    ? COLUMN_BOUNDS.widgets.min
+                    : 0) + (agentOpen && wide ? COLUMN_BOUNDS.agent.min : 0);
               expect(
-                sides.reduce((a, b) => a + b, 0),
+                px(workspace).reduce((a, b) => a + b, 0),
                 `${where} — below the floor, so every column must be at its minimum`,
               ).toBe(floor);
-              /* And the chart is still on screen, which is the whole point. */
-              expect(chart, where).toBeGreaterThan(0);
+              /* And the centre is still on screen, which is the whole point. */
+              expect(centre, where).toBeGreaterThan(0);
             }
           }
         }
@@ -110,195 +154,179 @@ describe("shellLayout", () => {
     }
   });
 
-  it("opens a route beside the chart rather than over it", () => {
-    const home = shellLayout({
-      viewport: 1440,
-      widths: {},
-      paletteOpen: false,
-      stackOpen: true,
-      assistOpen: true,
-    });
-    const onRoute = shellLayout({
-      viewport: 1440,
-      widths: {},
-      paletteOpen: false,
-      stackOpen: true,
-      assistOpen: true,
-      routeOpen: true,
-    });
-    const sidesOf = (track: string) =>
-      [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-
-    /* One more track than at Home, and the chart is still above its floor. */
-    expect(sidesOf(onRoute.full)).toHaveLength(sidesOf(home.full).length + 1);
-    expect(mainWidth(1440, sidesOf(onRoute.full))).toBeGreaterThanOrEqual(MAIN_MIN);
-    /* Its track sits between the panels and the chart. */
-    expect(onRoute.full).toMatch(/^\d+px \d+px \d+px minmax\(0, 1fr\) \d+px$/);
+  it("puts a route in the widgets' place rather than adding a column", () => {
+    const layout = shellLayout({ ...BASE, routeOpen: true });
+    expect(layout.left).toBe("route");
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.route.initial,
+      COLUMN_BOUNDS.agent.initial,
+    ]);
   });
 
-  it("squeezes the route column last, being the one just asked for", () => {
-    /* 1600 is wide enough that the squeeze runs out before it reaches the
-       route column; at 1280 there is nothing left over and everything lands on
-       its minimum, which proves nothing about the order. */
-    const layout = shellLayout({
-      viewport: 1600,
-      widths: {},
-      paletteOpen: true,
-      stackOpen: true,
-      assistOpen: true,
-      routeOpen: true,
-    });
-    const sides = [...layout.full.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-    /* rail, palette, stack, [chart], assist — route is the 4th track. */
-    const route = sides[3];
-    expect(route).toBeGreaterThan(COLUMN_BOUNDS.route.min);
-    expect(sides[0]).toBe(COLUMN_BOUNDS.rail.min);
-  });
-
-  it("opens the palette out of the other columns, not the chart", () => {
-    const closed = shellLayout({
-      viewport: 1440,
-      widths: {},
-      paletteOpen: false,
-      stackOpen: true,
-      assistOpen: true,
-    });
-    const opened = shellLayout({
-      viewport: 1440,
-      widths: {},
-      paletteOpen: true,
-      stackOpen: true,
-      assistOpen: true,
-    });
-    const sidesOf = (track: string) =>
-      [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-
-    expect(mainWidth(1440, sidesOf(closed.full))).toBeGreaterThanOrEqual(MAIN_MIN);
-    expect(mainWidth(1440, sidesOf(opened.full))).toBeGreaterThanOrEqual(MAIN_MIN);
-    /* The palette arrived and the rail paid for most of it. */
-    expect(sidesOf(opened.full)[0]).toBeLessThan(sidesOf(closed.full)[0]);
-  });
-
-  it("puts the assistant's track after the chart's", () => {
-    const layout = shellLayout({
-      viewport: 1440,
-      widths: {},
-      paletteOpen: false,
-      stackOpen: true,
-      assistOpen: true,
-    });
-    expect(layout.full).toMatch(/^\d+px \d+px minmax\(0, 1fr\) \d+px$/);
+  it("puts the agent's track after the centre's, and only from 1280px", () => {
+    const layout = shellLayout(BASE);
+    expect(layout.workspace.full).toBe(
+      `${COLUMN_BOUNDS.widgets.initial}px minmax(0, 1fr) ${COLUMN_BOUNDS.agent.initial}px`,
+    );
+    expect(layout.workspace.mid).toBe(`${COLUMN_BOUNDS.widgets.initial}px minmax(0, 1fr)`);
   });
 
   it("drops a closed column's track entirely", () => {
-    const layout = shellLayout({
-      viewport: 1440,
-      widths: {},
-      paletteOpen: false,
-      stackOpen: false,
-      assistOpen: false,
-    });
-    expect(layout.full).toBe(`${COLUMN_BOUNDS.rail.initial}px minmax(0, 1fr)`);
-    expect(layout.mid).toBe(layout.full);
+    const layout = shellLayout({ ...BASE, widgetsOpen: false, agentOpen: false });
+    expect(layout.workspace.full).toBe("minmax(0, 1fr)");
+    expect(layout.left).toBeNull();
   });
 
-  it("collapses the rail to icons only once it is too narrow for labels", () => {
-    const wide = shellLayout({
-      viewport: 1600,
-      widths: {},
-      paletteOpen: false,
-      stackOpen: true,
-      assistOpen: true,
-    });
-    expect(wide.railIcons).toBe(false);
-
-    const tight = shellLayout({
-      viewport: 900,
-      widths: {},
-      paletteOpen: true,
-      stackOpen: true,
-      assistOpen: true,
-    });
-    expect(tight.railIcons).toBe(true);
+  it("gives the chart everything in focus mode, without touching the preferences", () => {
+    const input = { ...BASE, focus: true, routeOpen: true };
+    const layout = shellLayout(input);
+    expect(layout.workspace.full).toBe("minmax(0, 1fr)");
+    expect(layout.workspace.mid).toBe("minmax(0, 1fr)");
+    /* The flags are the caller's and come back unchanged on exit. */
+    expect(input.widgetsOpen).toBe(true);
+    expect(input.agentOpen).toBe(true);
   });
 
-  it("pins the rail to its minimum when collapsed, and makes it an icon rail", () => {
-    const layout = shellLayout({
-      viewport: 1440,
-      widths: { rail: 280 },
-      paletteOpen: false,
-      stackOpen: true,
-      assistOpen: true,
-      railCollapsed: true,
-    });
-    expect(layout.railWidth).toBe(COLUMN_BOUNDS.rail.min);
-    expect(layout.railIcons).toBe(true);
-    expect(layout.full.startsWith(`${COLUMN_BOUNDS.rail.min}px `)).toBe(true);
-  });
-
-  it("gives back the dragged width when the rail is expanded again", () => {
-    const args = {
-      viewport: 1440,
-      widths: { rail: 280 },
-      paletteOpen: false,
-      stackOpen: true,
-      assistOpen: true,
-    };
-    /* The same stored width, collapsed and not: collapsing must not spend it. */
-    expect(shellLayout({ ...args, railCollapsed: true }).railWidth).toBe(
-      COLUMN_BOUNDS.rail.min,
-    );
-    expect(shellLayout({ ...args, railCollapsed: false }).railWidth).toBe(280);
-    expect(shellLayout(args).railWidth).toBe(280);
-  });
-
-  it("still keeps the chart above its floor with the rail collapsed", () => {
-    for (const viewport of [900, 1280, 1440]) {
-      const layout = shellLayout({
-        viewport,
-        widths: {},
-        paletteOpen: true,
-        stackOpen: true,
-        assistOpen: true,
-        railCollapsed: true,
-      });
-      const track = viewport >= 1280 ? layout.full : layout.mid;
-      const sides = [...track.matchAll(/(\d+)px/g)].map((m) => Number(m[1]));
-      expect(mainWidth(viewport, sides), `${viewport}px`).toBeGreaterThanOrEqual(
-        MAIN_MIN,
-      );
-    }
-  });
-
-  it("reports no icon rail before the first measurement", () => {
-    const layout = shellLayout({
-      viewport: null,
-      widths: {},
-      paletteOpen: true,
-      stackOpen: true,
-      assistOpen: true,
-    });
+  it("keeps the rail's labels when there is room for them", () => {
+    const layout = shellLayout({ ...BASE, viewport: 1920, railExpanded: true });
+    expect(px(layout.frame.full)[0]).toBe(RAIL_EXPANDED);
     expect(layout.railIcons).toBe(false);
-    expect(layout.railWidth).toBe(COLUMN_BOUNDS.rail.initial);
+  });
+
+  it("drops the rail's labels before narrowing any column", () => {
+    /* 1280 with everything open: the expanded rail cannot fit beside two
+       side columns and the centre's floor. */
+    const layout = shellLayout({ ...BASE, viewport: 1280, railExpanded: true });
+    expect(px(layout.frame.full)[0]).toBe(RAIL_COLLAPSED);
+    expect(layout.railIcons).toBe(true);
+  });
+
+  it("is always the icon rail below 900px", () => {
+    const layout = shellLayout({ ...BASE, viewport: 800, railExpanded: true });
+    expect(layout.frame.compact).toBe(`${RAIL_COLLAPSED}px minmax(0, 1fr)`);
+    expect(layout.railIcons).toBe(true);
+  });
+
+  it("follows the stored preference before the first measurement", () => {
+    expect(shellLayout({ ...BASE, viewport: null, railExpanded: true }).railIcons).toBe(false);
+    expect(shellLayout({ ...BASE, viewport: null, railExpanded: false }).railIcons).toBe(true);
   });
 });
 
-describe("splitRows", () => {
-  it("moves weight in proportion to the pixels dragged", () => {
-    const [a, b] = splitRows([200, 200], [1, 1], 100);
-    expect(a).toBeCloseTo(1.5);
-    expect(b).toBeCloseTo(0.5);
+describe("the centre's share", () => {
+  /** The row a viewport leaves the workspace grid, with the rail at `rail`. */
+  const row = (viewport: number, rail: number) => viewport - rail - WORKSPACE_PAD * 2;
+
+  it("narrows the side columns on a laptop so the chart keeps its share", () => {
+    /* A 13-inch MacBook Air's browser window. */
+    const layout = shellLayout({ ...BASE, viewport: 1470 });
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.widgets.min,
+      COLUMN_BOUNDS.agent.min,
+    ]);
+    expect(centreWidth(1470, layout.frame.full, layout.workspace.full)).toBe(784);
   });
 
-  it("stops at the row minimum on both sides", () => {
-    const [a] = splitRows([200, 200], [1, 1], -1000);
-    expect(a).toBeCloseTo((ROW_MIN / 400) * 2);
-
-    const [, b] = splitRows([200, 200], [1, 1], 1000);
-    expect(b).toBeCloseTo((ROW_MIN / 400) * 2);
+  it("leaves a 1920px screen exactly as the columns open", () => {
+    for (const railExpanded of [false, true]) {
+      const layout = shellLayout({ ...BASE, viewport: 1920, railExpanded });
+      expect(px(layout.frame.full)[0]).toBe(railExpanded ? RAIL_EXPANDED : RAIL_COLLAPSED);
+      expect(px(layout.workspace.full)).toEqual([
+        COLUMN_BOUNDS.widgets.initial,
+        COLUMN_BOUNDS.agent.initial,
+      ]);
+    }
   });
 
-  it("leaves the weights alone when there is nothing measured to divide", () => {
-    expect(splitRows([0, 0], [1, 1], 40)).toEqual([1, 1]);
+  it("gives width back as the screen narrows, the widgets before the agent", () => {
+    /* A row 10px short of the share: the widgets alone should cover it. */
+    const sides =
+      COLUMN_BOUNDS.widgets.initial + COLUMN_BOUNDS.agent.initial + WORKSPACE_GAP * 2;
+    const available = Math.round((sides - 10) / (1 - MAIN_SHARE));
+    const short = centreShare(available) - (available - sides);
+    expect(short).toBeGreaterThan(0);
+    expect(short).toBeLessThan(COLUMN_BOUNDS.widgets.initial - COLUMN_BOUNDS.widgets.min);
+
+    const fitted = fitColumns(["widgets", "agent"], {}, available);
+    expect(fitted.get("widgets")).toBe(COLUMN_BOUNDS.widgets.initial - short);
+    expect(fitted.get("agent")).toBe(COLUMN_BOUNDS.agent.initial);
+  });
+
+  it("keeps a width the operator chose, which gives only to the floor", () => {
+    /* "Widen" on the agent, on a laptop: the agent stays wide, the widgets
+       still give what they can, and the centre is above its floor. */
+    const layout = shellLayout({
+      ...BASE,
+      viewport: 1470,
+      widths: { agent: COLUMN_BOUNDS.agent.max },
+    });
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.widgets.min,
+      COLUMN_BOUNDS.agent.max,
+    ]);
+    expect(centreWidth(1470, layout.frame.full, layout.workspace.full)).toBeGreaterThanOrEqual(
+      MAIN_MIN,
+    );
+  });
+
+  it("does not narrow a route for the share", () => {
+    const layout = shellLayout({ ...BASE, viewport: 1470, routeOpen: true });
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.route.initial,
+      COLUMN_BOUNDS.agent.min,
+    ]);
+  });
+
+  it("keeps the rail's labels the operator asked for while the floor allows", () => {
+    /* The labels are a choice, so the share does not take them; the columns
+       the screen is sizing still give what they can. */
+    const layout = shellLayout({ ...BASE, viewport: 1470, railExpanded: true });
+    expect(px(layout.frame.full)[0]).toBe(RAIL_EXPANDED);
+    expect(layout.railIcons).toBe(false);
+    expect(px(layout.workspace.full)).toEqual([
+      COLUMN_BOUNDS.widgets.min,
+      COLUMN_BOUNDS.agent.min,
+    ]);
+  });
+
+  it("keeps the centre its share, or has spent every column the screen is sizing on it", () => {
+    for (let viewport = 900; viewport <= 2560; viewport += 20) {
+      for (const railExpanded of [false, true]) {
+        for (const widgetsOpen of [false, true]) {
+          for (const agentOpen of [false, true]) {
+            for (const routeOpen of [false, true]) {
+              const layout = shellLayout({
+                ...BASE,
+                viewport,
+                railExpanded,
+                widgetsOpen,
+                agentOpen,
+                routeOpen,
+              });
+              const wide = viewport >= 1280;
+              const frame = wide ? layout.frame.full : layout.frame.mid;
+              const workspace = wide ? layout.workspace.full : layout.workspace.mid;
+              const where = `${viewport}px rail=${railExpanded} widgets=${widgetsOpen} agent=${agentOpen} route=${routeOpen}`;
+
+              const [rail] = px(frame);
+              const centre = centreWidth(viewport, frame, workspace);
+              if (centre >= centreShare(row(viewport, rail))) continue;
+
+              /* The columns come back left first, then the agent. A route and
+                 the rail's labels are not the screen's to size, so only the
+                 floor binds them. */
+              const [first, second] = px(workspace);
+              const agent = agentOpen && wide ? (layout.left === null ? first : second) : null;
+              if (layout.left === "widgets") {
+                expect(first, `${where} — widgets at their minimum`).toBe(COLUMN_BOUNDS.widgets.min);
+              }
+              if (agent !== null) {
+                expect(agent, `${where} — agent at its minimum`).toBe(COLUMN_BOUNDS.agent.min);
+              }
+            }
+          }
+        }
+      }
+    }
   });
 });

@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ChevronDown, ExternalLink, RefreshCw } from "lucide-react";
-import { CoinMark } from "@/components/ui/CoinMark";
+import { ChevronDown, ExternalLink, RefreshCw } from "lucide-react";
+import { LiveFilings } from "@/components/agent/LiveFilings";
+import { CompanyMark } from "@/components/ui/CompanyMark";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/Panel";
 import { formatRelativeTime } from "@/lib/format";
+import { useMinute } from "@/lib/useClock";
 import { KIND_LABEL, type SmartMoneyFinding } from "@/lib/smartmoney/types";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +75,7 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-function FindingCard({ finding }: { finding: SmartMoneyFinding }) {
+function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number | null }) {
   const [open, setOpen] = useState(false);
   const risk = finding.kind === "disclosure_risk";
 
@@ -83,7 +85,7 @@ function FindingCard({ finding }: { finding: SmartMoneyFinding }) {
         <div className="flex items-center gap-2">
           {/* Ticker-keyed logo. A 404 falls back to the lettered chip, which
               is the same place an unknown symbol lands. */}
-          <CoinMark symbol={finding.ticker} logo={finding.logo} size={18} />
+          <CompanyMark ticker={finding.ticker} name={finding.company} logo={finding.logo} size={24} />
           <span className="type-data truncate text-text-primary">{finding.ticker}</span>
           <span className="type-label min-w-0 flex-1 truncate text-text-muted">
             {finding.company}
@@ -103,7 +105,7 @@ function FindingCard({ finding }: { finding: SmartMoneyFinding }) {
             {KIND_LABEL[finding.kind]}
           </span>
           <span className="type-label text-text-muted">
-            evidence knowable {formatRelativeTime(finding.observedAt)}
+            evidence knowable {now === null ? "—" : formatRelativeTime(finding.observedAt, now)}
           </span>
           <span className="type-label ml-auto text-text-muted">
             confidence {finding.confidence.toFixed(2)}
@@ -204,14 +206,22 @@ function FindingCard({ finding }: { finding: SmartMoneyFinding }) {
   );
 }
 
-export function SmartMoneyPanel() {
+export function SmartMoneyPanel({
+  bare = false,
+  findingsOnly = false,
+}: {
+  bare?: boolean;
+  /** Render only when the scan has findings — for a view that already shows
+      the live filings itself, where this panel's fallback would repeat them. */
+  findingsOnly?: boolean;
+}) {
   const [state, setState] = useState<FeedState>(INITIAL);
+  const now = useMinute();
 
-  /* Pure fetch, no setState of its own — see the note in EngineSignalPanel
-     for why: a setState call reachable before the effect's first await
-     trips react-hooks/set-state-in-effect regardless of which function it
-     is textually written in, so every setState here lives behind a real
-     .then() boundary instead. */
+  /* Pure fetch, no setState of its own: a setState call reachable before
+     the effect's first await trips react-hooks/set-state-in-effect
+     regardless of which function it is textually written in, so every
+     setState here lives behind a real .then() boundary instead. */
   const load = useCallback(async (): Promise<FeedState> => {
     try {
       const response = await fetch("/api/smart-money?limit=50", { cache: "no-store" });
@@ -241,17 +251,27 @@ export function SmartMoneyPanel() {
     };
   }, [load]);
 
+  const findingsUnavailable =
+    state.unreachable || state.needsMigration || state.error !== null;
+  /* No findings to show — unavailable, or the scan has written none yet — so
+     the filings themselves stand in. */
+  const showLive = !state.loading && (findingsUnavailable || state.findings.length === 0);
+
+  /* `bare` drops the panel's own frame, for when it is one view inside the
+     agent panel and a second border would sit inside the first. */
+  const Frame = bare ? BareFrame : Panel;
+
+  if (findingsOnly && state.findings.length === 0) return null;
+
   return (
-    <Panel label="Smart money">
+    <Frame label="Smart money">
       <PanelHeader>
-        <Eyebrow>Smart money</Eyebrow>
+        <Eyebrow>Filings</Eyebrow>
         <span className="type-label ml-auto text-text-muted">
           {/* "0 findings" is a statement about the filings. It must not be
-              shown when no filing was ever consulted — that is precisely
-              what this panel read during the outage, beside an error. */}
-          {state.error === null
-            ? `${state.findings.length} findings`
-            : "unavailable"}
+              shown when no filing was ever consulted — so while the scan's
+              store is down this names what IS shown instead. */}
+          {showLive ? "Live from EDGAR" : `${state.findings.length} findings`}
         </span>
         <button
           type="button"
@@ -279,48 +299,27 @@ export function SmartMoneyPanel() {
           or stop: filings contain no prices, so those cannot be computed here.
         </p>
 
-        {state.needsMigration && (
-          <div
-            role="alert"
-            className="m-3 rounded-card border border-negative/40 bg-negative-bg px-2.5 py-2"
-          >
-            <p className="type-label text-negative">Table not created yet</p>
-            <p className="type-label mt-0.5 text-text-muted">
-              Run <code>elyra-signals/migrations/0002_smart_money.sql</code> in
-              the Supabase SQL editor, then run the scan.
+        {/* When the scan's findings cannot be shown, say why in a line and
+            show the filings themselves instead — live from EDGAR, which needs
+            no database. The technical reason is one click away. */}
+        {findingsUnavailable && (
+          <details className="mx-4 mt-3 rounded-control border border-border-subtle bg-surface-raised px-3 py-2">
+            <summary className="type-label cursor-pointer text-text-secondary">
+              {state.needsMigration
+                ? "Findings need a database table that has not been created."
+                : "Findings need the database, which can't be reached — showing live filings instead."}
+            </summary>
+            <p className="type-label mt-1.5 break-words text-text-muted">
+              {state.needsMigration ? (
+                <>
+                  Run <code>elyra-signals/migrations/0002_smart_money.sql</code> in the
+                  Supabase SQL editor, then run the scan.
+                </>
+              ) : (
+                state.error
+              )}
             </p>
-          </div>
-        )}
-
-        {state.unreachable && (
-          <div
-            role="alert"
-            className="m-3 rounded-card border border-negative/40 bg-negative-bg px-2.5 py-2"
-          >
-            <p className="type-label text-negative">Database unreachable</p>
-            <p className="type-label mt-0.5 break-words text-text-muted">
-              {state.error}
-            </p>
-            <p className="type-label mt-1 text-text-muted">
-              Findings are read from Supabase, so none can be shown. The chart,
-              the wallet and market data do not use it and are unaffected.
-            </p>
-          </div>
-        )}
-
-        {state.error !== null && !state.needsMigration && !state.unreachable && (
-          <div
-            role="alert"
-            className="m-3 flex items-start gap-2 rounded-card border border-negative/40 bg-negative-bg px-2.5 py-2"
-          >
-            <AlertTriangle
-              size={14}
-              strokeWidth={1.5}
-              aria-hidden
-              className="mt-0.5 shrink-0 text-negative"
-            />
-            <p className="type-label break-words text-text-muted">{state.error}</p>
-          </div>
+          </details>
         )}
 
         {state.rejected.length > 0 && (
@@ -339,30 +338,28 @@ export function SmartMoneyPanel() {
           </div>
         )}
 
-        {!state.loading &&
-          state.error === null &&
-          state.findings.length === 0 && (
-            <div className="px-3 py-6">
-              <p className="type-body-sm text-text-secondary">No findings yet.</p>
-              <p className="type-label mt-1 text-text-muted">
-                The scan runs on a schedule and writes here. Nothing has been
-                written yet, or every candidate had no material change to report.
-              </p>
-            </div>
-          )}
+        {showLive && <LiveFilings />}
 
         <ul className="list-none">
           {state.findings.map((finding) => (
-            <FindingCard key={finding.id} finding={finding} />
+            <FindingCard key={finding.id} finding={finding} now={now} />
           ))}
         </ul>
 
         {state.lastScanAt !== null && (
           <p className="type-label px-3 py-2 text-text-muted">
-            Last scan {formatRelativeTime(state.lastScanAt)}
+            Last scan {now === null ? "—" : formatRelativeTime(state.lastScanAt, now)}
           </p>
         )}
       </PanelBody>
-    </Panel>
+    </Frame>
+  );
+}
+
+function BareFrame({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div role="region" aria-label={label} className="flex min-h-0 flex-1 flex-col">
+      {children}
+    </div>
   );
 }

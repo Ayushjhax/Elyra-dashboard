@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionUser, hasProfile } from "@/lib/auth/session";
+import { databaseUnavailableMessage, getSessionUser, hasProfile } from "@/lib/auth/session";
 import { runActivationCheck } from "@/lib/referrals/activation";
 import { isSolanaAddress } from "@/lib/solana/address";
 import { referralList, referralStats, type ReferralListItem, type ReferralStats } from "@/lib/referrals/stats";
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   /* The programme is entirely rows: a code, referrals, a ledger. Without a
      profile row there is nothing to key any of it to. */
   if (!hasProfile(user)) {
-    return fail("Referrals need the database, which could not be reached.", 503, true);
+    return fail(databaseUnavailableMessage("Referrals"), 503, true);
   }
 
   try {

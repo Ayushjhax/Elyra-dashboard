@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolve } from "@/lib/personalized/session";
-import { parseSwapCommand, previewSwap } from "@/lib/telegram/trade";
+import { parseSwapCommand, previewSwap } from "@/lib/trade";
 
 /* ---------------------------------------------------------------------------
    Step one of a swap: quote it, and hand back something signable.
@@ -61,5 +61,9 @@ export async function POST(request: Request) {
     note: preview.note,
     unsignedTransaction: preview.unsignedTransaction ?? null,
     quoteRef: preview.quoteRef ?? null,
+    /* The address the order was built for. A wallet holding a different
+       address must refuse to sign: Jupiter would reject the bytes anyway,
+       and a person with two wallets deserves to be told which one. */
+    signer: session.solanaAddress,
   });
 }

@@ -40,13 +40,13 @@ beforeEach(() => {
 });
 
 async function store(userId = USER_A) {
-  const { storePreparedAction } = await import("@/lib/telegram/actions");
+  const { storePreparedAction } = await import("@/lib/actions/store");
   return storePreparedAction({ userId, action: ACTION, surface: "telegram" });
 }
 
 describe("callback data", () => {
   it("carries an opaque handle and nothing else", async () => {
-    const { callbackDataFor } = await import("@/lib/telegram/actions");
+    const { callbackDataFor } = await import("@/lib/telegram/buttons");
     const record = await store();
 
     const data = callbackDataFor(record!.token);
@@ -58,7 +58,7 @@ describe("callback data", () => {
   });
 
   it("stays inside Telegram's 64-byte limit", async () => {
-    const { callbackDataFor } = await import("@/lib/telegram/actions");
+    const { callbackDataFor } = await import("@/lib/telegram/buttons");
     const record = await store();
 
     /* Telegram rejects an over-long keyboard SILENTLY — the message arrives
@@ -76,7 +76,7 @@ describe("callback data", () => {
   });
 
   it("recognises only its own callbacks", async () => {
-    const { tokenFromCallback } = await import("@/lib/telegram/actions");
+    const { tokenFromCallback } = await import("@/lib/telegram/buttons");
 
     expect(tokenFromCallback("action:abcdefghijklmnop")).toBe("abcdefghijklmnop");
     expect(tokenFromCallback("swap:SOL:USDC:21.25")).toBeNull();
@@ -88,7 +88,7 @@ describe("callback data", () => {
 
 describe("resolution is scoped to the caller", () => {
   it("resolves for the user it was prepared for", async () => {
-    const { resolvePreparedAction } = await import("@/lib/telegram/actions");
+    const { resolvePreparedAction } = await import("@/lib/actions/store");
     const record = await store(USER_A);
 
     const found = await resolvePreparedAction(record!.token, USER_A);
@@ -98,14 +98,14 @@ describe("resolution is scoped to the caller", () => {
   it("does not resolve someone else's token", async () => {
     /* The service-role client bypasses RLS, so this filter IS the tenant
        boundary. The token being unguessable is not a substitute for it. */
-    const { resolvePreparedAction } = await import("@/lib/telegram/actions");
+    const { resolvePreparedAction } = await import("@/lib/actions/store");
     const record = await store(USER_A);
 
     expect(await resolvePreparedAction(record!.token, USER_B)).toBeNull();
   });
 
   it("answers the same way for an unknown token as for someone else's", async () => {
-    const { resolvePreparedAction } = await import("@/lib/telegram/actions");
+    const { resolvePreparedAction } = await import("@/lib/actions/store");
     const record = await store(USER_A);
 
     /* Telling the two apart would confirm which handles exist. */
@@ -114,7 +114,7 @@ describe("resolution is scoped to the caller", () => {
   });
 
   it("rejects a malformed token without querying", async () => {
-    const { resolvePreparedAction } = await import("@/lib/telegram/actions");
+    const { resolvePreparedAction } = await import("@/lib/actions/store");
     await store();
     const before = state.db.queries.length;
 
@@ -125,7 +125,7 @@ describe("resolution is scoped to the caller", () => {
 
 describe("expiry", () => {
   it("reports an expired action as expired rather than usable", async () => {
-    const { resolvePreparedAction } = await import("@/lib/telegram/actions");
+    const { resolvePreparedAction } = await import("@/lib/actions/store");
     const record = await store();
 
     /* Enforced on read, not by a sweeper: a row that outlived its window is
@@ -138,7 +138,7 @@ describe("expiry", () => {
   });
 
   it("will not acknowledge an expired action", async () => {
-    const { acknowledgePreparedAction } = await import("@/lib/telegram/actions");
+    const { acknowledgePreparedAction } = await import("@/lib/actions/store");
     const record = await store();
 
     state.db.rows("prepared_actions")[0].expires_at = new Date(Date.now() - 1).toISOString();
@@ -151,7 +151,7 @@ describe("expiry", () => {
 
 describe("a tap acknowledges, it does not authorise", () => {
   it("moves the row to acknowledged, never to confirmed", async () => {
-    const { acknowledgePreparedAction } = await import("@/lib/telegram/actions");
+    const { acknowledgePreparedAction } = await import("@/lib/actions/store");
     const record = await store();
 
     expect(await acknowledgePreparedAction(record!.token, USER_A)).toBe(true);
@@ -164,7 +164,7 @@ describe("a tap acknowledges, it does not authorise", () => {
   });
 
   it("is idempotent under a double tap", async () => {
-    const { acknowledgePreparedAction } = await import("@/lib/telegram/actions");
+    const { acknowledgePreparedAction } = await import("@/lib/actions/store");
     const record = await store();
 
     /* Telegram redelivers callbacks, and people tap twice. */
@@ -173,7 +173,7 @@ describe("a tap acknowledges, it does not authorise", () => {
   });
 
   it("will not acknowledge another user's action", async () => {
-    const { acknowledgePreparedAction } = await import("@/lib/telegram/actions");
+    const { acknowledgePreparedAction } = await import("@/lib/actions/store");
     const record = await store(USER_A);
 
     expect(await acknowledgePreparedAction(record!.token, USER_B)).toBe(false);
@@ -187,7 +187,7 @@ describe("handleCallback", () => {
   });
 
   it("says nothing was sent, and why Telegram cannot confirm", async () => {
-    const { callbackDataFor } = await import("@/lib/telegram/actions");
+    const { callbackDataFor } = await import("@/lib/telegram/buttons");
     const { handleCallback } = await import("@/lib/telegram/commands");
     const record = await store(USER_A);
 
@@ -204,7 +204,7 @@ describe("handleCallback", () => {
   });
 
   it("refuses a token belonging to another user", async () => {
-    const { callbackDataFor } = await import("@/lib/telegram/actions");
+    const { callbackDataFor } = await import("@/lib/telegram/buttons");
     const { handleCallback } = await import("@/lib/telegram/commands");
     const record = await store(USER_A);
 
@@ -219,7 +219,7 @@ describe("handleCallback", () => {
   });
 
   it("explains an expired preview rather than silently failing", async () => {
-    const { callbackDataFor } = await import("@/lib/telegram/actions");
+    const { callbackDataFor } = await import("@/lib/telegram/buttons");
     const { handleCallback } = await import("@/lib/telegram/commands");
     const record = await store(USER_A);
 
@@ -249,7 +249,7 @@ describe("handleCallback", () => {
 
 describe("notification dedupe", () => {
   it("lets exactly one caller claim a given alert", async () => {
-    const { claimNotification } = await import("@/lib/telegram/notifications");
+    const { claimNotification } = await import("@/lib/notifications/preferences");
 
     /* A unique constraint, not a check-then-insert: two workers racing on the
        same alert both pass a "has this been sent?" read. */
@@ -258,7 +258,7 @@ describe("notification dedupe", () => {
   });
 
   it("scopes the claim per user", async () => {
-    const { claimNotification } = await import("@/lib/telegram/notifications");
+    const { claimNotification } = await import("@/lib/notifications/preferences");
 
     expect(await claimNotification(USER_A, "liquidation", "pos-1:0.9")).toBe(true);
     expect(await claimNotification(USER_B, "liquidation", "pos-1:0.9")).toBe(true);
@@ -267,7 +267,7 @@ describe("notification dedupe", () => {
 
 describe("notification preferences", () => {
   it("returns everything off when there is no row", async () => {
-    const { notificationPreferences } = await import("@/lib/telegram/notifications");
+    const { notificationPreferences } = await import("@/lib/notifications/preferences");
     const preferences = await notificationPreferences(USER_A);
 
     /* Linking a chat is consent to ASK questions, not consent to be told
@@ -280,7 +280,7 @@ describe("notification preferences", () => {
 
   it("does not reset the other flags when one is changed", async () => {
     const { notificationPreferences, savePreferences } = await import(
-      "@/lib/telegram/notifications"
+      "@/lib/notifications/preferences"
     );
 
     await savePreferences(USER_A, { liquidationAlerts: true, dailySummary: true });
@@ -292,5 +292,50 @@ describe("notification preferences", () => {
     expect(preferences.priceAlerts).toBe(true);
     expect(preferences.liquidationAlerts).toBe(true);
     expect(preferences.dailySummary).toBe(true);
+  });
+});
+
+describe("the web's side: open actions", () => {
+  it("lists only this user's prepared or acknowledged, unexpired actions", async () => {
+    const { acknowledgePreparedAction, cancelPreparedAction, listOpenActions } = await import(
+      "@/lib/actions/store"
+    );
+    const prepared = await store(USER_A);
+    const acknowledged = await store(USER_A);
+    const cancelled = await store(USER_A);
+    await store(USER_B);
+    await acknowledgePreparedAction(acknowledged!.token, USER_A);
+    await cancelPreparedAction(cancelled!.token, USER_A);
+
+    const open = await listOpenActions(USER_A);
+    expect(open.map((entry) => entry.id).sort()).toEqual([prepared!.id, acknowledged!.id].sort());
+    expect(open.every((entry) => entry.userId === USER_A)).toBe(true);
+  });
+
+  it("leaves out an action whose window has passed", async () => {
+    const { listOpenActions } = await import("@/lib/actions/store");
+    const record = await store(USER_A);
+    state.db.rows("prepared_actions")[0].expires_at = new Date(Date.now() - 1000).toISOString();
+    expect(record).not.toBeNull();
+    expect(await listOpenActions(USER_A)).toEqual([]);
+  });
+
+  it("settles an open action once, and never another user's", async () => {
+    const { settleOpenAction } = await import("@/lib/actions/store");
+    const record = await store(USER_A);
+
+    expect(await settleOpenAction(record!.id, USER_B, { outcome: "cancelled" })).toBe("closed");
+    expect(state.db.rows("prepared_actions")[0].status).toBe("prepared");
+
+    expect(
+      await settleOpenAction(record!.id, USER_A, { outcome: "confirmed", signature: "5igSig" }),
+    ).toBe("settled");
+    expect(state.db.rows("prepared_actions")[0].status).toBe("confirmed");
+    /* The evidence is kept with the row. */
+    expect(state.db.rows("prepared_actions")[0].confirmed_signature).toBe("5igSig");
+
+    /* Settled rows are closed: a second write changes nothing. */
+    expect(await settleOpenAction(record!.id, USER_A, { outcome: "cancelled" })).toBe("closed");
+    expect(state.db.rows("prepared_actions")[0].status).toBe("confirmed");
   });
 });

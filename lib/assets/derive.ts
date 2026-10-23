@@ -23,7 +23,7 @@ import type {
   SourceNote,
   SpotHolding,
 } from "@/lib/portfolio/types";
-import type { AssetAccount, AssetAccountType, AssetScope } from "@/lib/assets/types";
+import type { AssetAccount, AssetAccountType } from "@/lib/assets/types";
 
 /** Holdings below this are noise in a capital view. */
 const DUST_USD = 0.01;
@@ -43,8 +43,14 @@ const WALLET_VENUE = "wallet";
 --------------------------------------------------------------------------- */
 
 const NOT_INTEGRATED: Partial<Record<AssetAccountType, string>> = {
-  "solana-perps": "No Solana perps venue is connected to Elyra yet.",
-  prediction: "No prediction-market venue is connected to Elyra yet.",
+  "solana-perps": "No Solana perps venue is integrated with Elyra yet.",
+};
+
+/** What an account that could be linked, but is not, says instead of a value. */
+const NOT_LINKED: Partial<Record<AssetAccountType, string>> = {
+  spot: "Link a Solana wallet to read its token balances.",
+  hyperliquid: "Connect Hyperliquid to read its equity and positions.",
+  prediction: "Link a prediction-market account to read its positions.",
 };
 
 const LABEL: Record<AssetAccountType, string> = {
@@ -129,9 +135,16 @@ export function deriveAccounts(snapshot: PortfolioSnapshot): AssetAccount[] {
   const counted = spot.filter(
     (holding) => holding.verified && holding.valueUsd !== null && holding.valueUsd >= DUST_USD,
   );
-  const spotValue =
-    counted.length > 0 ? counted.reduce((sum, h) => sum + (h.valueUsd ?? 0), 0) : null;
   const spotFailure = failureFor(snapshot.notes, ["wallet", "wallet tokens"]);
+  const walletLinked =
+    snapshot.scopes.some((scope) => scope.venue === WALLET_VENUE) ||
+    spot.length > 0 ||
+    spotFailure !== undefined;
+  /* A wallet that was read and holds nothing is worth $0.00 — a reading, not
+     an absence. Only an unlinked or unreadable wallet has no value. */
+  const spotValue = walletLinked
+    ? counted.reduce((sum, h) => sum + (h.valueUsd ?? 0), 0)
+    : null;
   const spotChange = change24hOf(spot);
 
   const spotDetail =
@@ -169,14 +182,25 @@ export function deriveAccounts(snapshot: PortfolioSnapshot): AssetAccount[] {
             .filter((part): part is string => part !== null)
             .join(" · ");
 
+  /* ---- Prediction markets: linked through the connections console ---- */
+  const prediction = snapshot.prediction;
+  const pmFailure = failureFor(snapshot.notes, ["prediction"]);
+  const pmLinked = prediction.connected || pmFailure !== undefined;
+  const pmValue = prediction.connected ? (prediction.valueUsd ?? 0) : null;
+  const pmPositions = prediction.connected ? (prediction.activeMarkets ?? 0) : null;
+  const pmDetail = prediction.connected
+    ? `${pmPositions} active market${pmPositions === 1 ? "" : "s"}`
+    : null;
+
   const account = (
     type: AssetAccountType,
+    connection: AssetAccount["connection"],
     valueUsd: number | null,
     availableUsd: number | null,
+    positions: number | null,
     detail: string | null,
     failure: SourceNote | undefined,
   ): AssetAccount => {
-    const missing = NOT_INTEGRATED[type];
     const status: AssetAccount["status"] =
       failure !== undefined ? "error" : valueUsd === null ? "empty" : "ready";
     return {
@@ -187,41 +211,60 @@ export function deriveAccounts(snapshot: PortfolioSnapshot): AssetAccount[] {
       availableUsd: status === "ready" ? availableUsd : null,
       allocationPct: status === "ready" ? share(valueUsd) : null,
       status,
+      connection,
+      positions: status === "ready" ? positions : null,
       errorReason: failure?.reason ?? null,
-      /* An un-integrated venue explains itself where a value would go; an
-         integrated one that is simply empty says nothing extra. */
-      detail: status === "ready" ? detail : (missing ?? null),
+      /* An account with nothing behind it explains itself where a value
+         would go; one that was read says what it holds. */
+      detail:
+        status === "ready"
+          ? detail
+          : connection === "unsupported"
+            ? (NOT_INTEGRATED[type] ?? null)
+            : connection === "disconnected"
+              ? (NOT_LINKED[type] ?? null)
+              : null,
     };
   };
 
   return [
-    account("spot", spotValue, spotValue, spotDetail, spotFailure),
-    account("solana-perps", null, null, null, undefined),
-    account("hyperliquid", hlValue, hlAvailable, hlDetail, hlFailure),
-    account("prediction", null, null, null, undefined),
+    account("spot", walletLinked ? "connected" : "disconnected", spotValue, spotValue, null, spotDetail, spotFailure),
+    account("solana-perps", "unsupported", null, null, null, null, undefined),
+    account(
+      "hyperliquid",
+      /* A read that failed naming Hyperliquid itself was a read of a linked
+         account; a generic "venues" failure says nothing about linking. */
+      hlScope !== undefined || hlFailure?.scope.toLowerCase() === "hyperliquid" ? "connected" : "disconnected",
+      hlValue,
+      hlAvailable,
+      hlScope !== undefined ? hlPositions.length : null,
+      hlDetail,
+      hlFailure,
+    ),
+    account("prediction", pmLinked ? "connected" : "disconnected", pmValue, null, pmPositions, pmDetail, pmFailure),
   ];
-}
-
-/** Accounts holding real capital, ranked — the Wallet Allocation rows. */
-export function allocationRows(accounts: AssetAccount[]): AssetAccount[] {
-  return accounts
-    .filter((entry) => entry.status === "ready" && (entry.valueUsd ?? 0) > 0)
-    .sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
 }
 
 /** "3 of 4 synced", plus whatever went wrong. For the allocation footer. */
 export function syncSummary(accounts: AssetAccount[]): {
   ready: number;
   total: number;
+  /** Linked, whether or not the last read worked. */
+  connected: number;
+  /** Not linked, or with nothing Elyra can link yet. */
+  notConnected: number;
   failed: string[];
   unintegrated: string[];
 } {
+  const connected = accounts.filter((entry) => entry.connection === "connected").length;
   return {
     ready: accounts.filter((entry) => entry.status === "ready").length,
     total: accounts.length,
+    connected,
+    notConnected: accounts.length - connected,
     failed: accounts.filter((entry) => entry.status === "error").map((entry) => entry.label),
     unintegrated: accounts
-      .filter((entry) => entry.status === "empty" && NOT_INTEGRATED[entry.type] !== undefined)
+      .filter((entry) => entry.connection === "unsupported")
       .map((entry) => entry.label),
   };
 }
@@ -235,19 +278,6 @@ export function syncSummary(accounts: AssetAccount[]): {
 --------------------------------------------------------------------------- */
 
 export const ALL_ACCOUNTS = "all";
-
-export function accountScopes(snapshot: PortfolioSnapshot, accounts: AssetAccount[]): AssetScope[] {
-  const walletAddress =
-    snapshot.scopes.find((scope) => scope.venue === WALLET_VENUE)?.address ?? null;
-
-  return accounts
-    .filter((entry) => entry.status !== "empty" || entry.valueUsd !== null)
-    .map((entry) => ({
-      id: entry.id,
-      label: entry.label,
-      address: entry.type === "spot" ? walletAddress : null,
-    }));
-}
 
 /** The snapshot as one account sees it. `ALL_ACCOUNTS` passes it through. */
 export function scopeSnapshot(
@@ -301,4 +331,106 @@ export function orderBalances(
   }
 
   return [...holdings].sort((a, b) => a.symbol.localeCompare(b.symbol) || byValue(a, b));
+}
+
+/* ---------------------------------------------------------------------------
+   Allocation — where the total is held
+
+   Equity terms throughout, so the slices add up to the figure printed above
+   them: a wallet token at its value, a perp at its margin plus open PnL (never
+   its notional), a DeFi deposit and prediction shares at their value — the
+   same terms `composePortfolio` totals. Across every account the slices are
+   accounts; within one account they are what that account holds.
+
+   The one place the client's sum can exceed the server's total is a DeFi
+   receipt token sitting in the wallet: the server nets it out because the
+   protocol already reports those dollars. The overlap is taken from Spot,
+   which is where it sits, so the ring and the total never disagree.
+--------------------------------------------------------------------------- */
+
+export interface CapitalSlice {
+  key: string;
+  label: string;
+  valueUsd: number;
+  /** Share of `totalUsd`, 0–100. */
+  pct: number;
+}
+
+export interface CapitalAllocation {
+  totalUsd: number;
+  slices: CapitalSlice[];
+  /** What the slices are: accounts, or one account's assets. */
+  by: "account" | "asset";
+}
+
+const MAX_SLICES = 6;
+
+function ranked(buckets: Map<string, { label: string; valueUsd: number }>, total: number): CapitalSlice[] {
+  const rows = [...buckets.entries()]
+    .filter(([, bucket]) => bucket.valueUsd > 0)
+    .map(([key, bucket]) => ({ key, label: bucket.label, valueUsd: bucket.valueUsd, pct: (bucket.valueUsd / total) * 100 }))
+    .sort((a, b) => b.valueUsd - a.valueUsd);
+  if (rows.length <= MAX_SLICES) return rows;
+  const rest = rows.slice(MAX_SLICES - 1).reduce((sum, row) => sum + row.valueUsd, 0);
+  return [
+    ...rows.slice(0, MAX_SLICES - 1),
+    { key: "other", label: "Other", valueUsd: rest, pct: (rest / total) * 100 },
+  ];
+}
+
+function add(buckets: Map<string, { label: string; valueUsd: number }>, key: string, label: string, value: number): void {
+  const existing = buckets.get(key);
+  if (existing) existing.valueUsd += value;
+  else buckets.set(key, { label, valueUsd: value });
+}
+
+export function capitalAllocation(snapshot: PortfolioSnapshot, scope: string): CapitalAllocation | null {
+  const buckets = new Map<string, { label: string; valueUsd: number }>();
+  const counted = (holding: SpotHolding) => holding.verified && holding.valueUsd !== null && holding.valueUsd > 0;
+
+  if (scope === ALL_ACCOUNTS) {
+    for (const holding of snapshot.spot.filter(counted)) {
+      add(buckets, holding.venue === WALLET_VENUE ? "spot" : holding.venue, venueLabel(holding.venue), holding.valueUsd ?? 0);
+    }
+    for (const position of snapshot.perps) {
+      const equity = (position.marginUsd ?? 0) + (position.unrealizedPnlUsd ?? 0);
+      if (equity > 0) add(buckets, position.venue, venueLabel(position.venue), equity);
+    }
+    for (const position of snapshot.defi) {
+      if ((position.valueUsd ?? 0) > 0) add(buckets, "defi", "DeFi", position.valueUsd ?? 0);
+    }
+    if ((snapshot.prediction.valueUsd ?? 0) > 0) {
+      add(buckets, "prediction", LABEL.prediction, snapshot.prediction.valueUsd ?? 0);
+    }
+
+    const total = snapshot.summary.totalValueUsd;
+    if (total === null || total <= 0) return null;
+    const sum = [...buckets.values()].reduce((acc, bucket) => acc + bucket.valueUsd, 0);
+    const spot = buckets.get("spot");
+    if (sum > total && spot !== undefined) spot.valueUsd = Math.max(0, spot.valueUsd - (sum - total));
+    const slices = ranked(buckets, total);
+    return slices.length === 0 ? null : { totalUsd: total, slices, by: "account" };
+  }
+
+  const view = scopeSnapshot(snapshot, scope);
+  for (const holding of view.spot.filter(counted)) add(buckets, holding.symbol, holding.symbol, holding.valueUsd ?? 0);
+  for (const position of view.perps) {
+    const equity = (position.marginUsd ?? 0) + (position.unrealizedPnlUsd ?? 0);
+    if (equity > 0) add(buckets, `perp:${position.market}`, position.market, equity);
+  }
+  if (scope === "prediction" && (snapshot.prediction.valueUsd ?? 0) > 0) {
+    add(buckets, "prediction", "Open markets", snapshot.prediction.valueUsd ?? 0);
+  }
+  /* A venue's equity is its positions plus the collateral not yet behind
+     any of them. Shown as its own slice, so the account's breakdown adds up
+     to the equity on its card. */
+  const venue = snapshot.scopes.find((entry) => entry.venue === scope && scope !== WALLET_VENUE);
+  if (venue?.valueUsd != null) {
+    const held = [...buckets.values()].reduce((acc, bucket) => acc + bucket.valueUsd, 0);
+    const free = venue.valueUsd - held;
+    if (free > 0.005) add(buckets, "free", "Free collateral", free);
+  }
+  const total = [...buckets.values()].reduce((acc, bucket) => acc + bucket.valueUsd, 0);
+  if (total <= 0) return null;
+  return { totalUsd: total, slices: ranked(buckets, total), by: "asset" };
 }

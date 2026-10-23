@@ -97,7 +97,12 @@ const MAX_RUNS_PER_WINDOW = 20;
 
 const windows = new Map<string, { count: number; resetAt: number }>();
 
-export function rateLimited(userKey: string): boolean {
+/**
+ * Whether `userKey` has used up its window. `max` is per feature — callers
+ * other than chat prefix the key with the feature's name, so one feature's
+ * use never counts against another's.
+ */
+export function rateLimited(userKey: string, max: number = MAX_RUNS_PER_WINDOW): boolean {
   const now = Date.now();
   const current = windows.get(userKey);
 
@@ -107,7 +112,7 @@ export function rateLimited(userKey: string): boolean {
   }
 
   current.count += 1;
-  if (current.count > MAX_RUNS_PER_WINDOW) return true;
+  if (current.count > max) return true;
 
   /* Bounded: without this the map grows once per user per process forever. */
   if (windows.size > 5_000) {

@@ -1,4 +1,4 @@
-import { INTERVAL_MS } from "@/lib/backtest/candles";
+import { INTERVAL_MS } from "@/lib/backtest/intervals";
 import type { BacktestRun, Trade } from "@/lib/backtest/engine";
 
 /* ---------------------------------------------------------------------------

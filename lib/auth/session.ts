@@ -3,8 +3,8 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { LinkedAccount } from "@privy-io/node";
 import { PRIVY_TIMEOUT_MS, privyClient } from "@/lib/auth/privy";
-import { bindReferral, readAttributionCookie } from "@/lib/referrals/attribution";
-import { unreachableReason } from "@/lib/supabase/reachability";
+import { bindReferral, readAttribution } from "@/lib/referrals/attribution";
+import { supabaseHost, unreachableReason } from "@/lib/supabase/reachability";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
 
@@ -569,7 +569,7 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
 
   /* Only consulted when a profile is created below; an established account
      ignores it entirely. See lib/referrals/attribution.ts. */
-  return resolveProfile(privyDid, readAttributionCookie(req));
+  return resolveProfile(privyDid, readAttribution(req));
 }
 
 /** As `getSessionUser`, but throws instead of returning null. */
@@ -615,12 +615,24 @@ export function hasProfile(user: SessionUser): user is StoredSessionUser {
  * `feature` names what is unavailable, so the message is useful in a panel
  * that has no other context.
  */
+/**
+ * Why a database-backed feature is down, and what fixes it — named, because
+ * "could not be reached" alone sends whoever reads it looking in the wrong
+ * place. The host is public by construction (it is in the client bundle).
+ */
+export function databaseUnavailableMessage(feature: string): string {
+  return (
+    `${feature} needs the database, and the Supabase project at ${supabaseHost()} ` +
+    "could not be reached — it was deleted, paused, or the URL is wrong. Point " +
+    "NEXT_PUBLIC_SUPABASE_URL and both keys at a live project (pnpm supabase:setup) " +
+    "and apply supabase/migrations. Signing in, the wallet and market data are unaffected."
+  );
+}
+
 export function profileUnavailable(feature: string): NextResponse {
   return NextResponse.json(
     {
-      error:
-        `${feature} needs the database, which could not be reached. ` +
-        "Signing in, the wallet and market data are unaffected.",
+      error: databaseUnavailableMessage(feature),
       /* Distinguishes "the service is not set up" from "the request failed",
          which the panels render differently — one is an instruction to the
          operator, the other an error at the user. */

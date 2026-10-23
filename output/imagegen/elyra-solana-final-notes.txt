@@ -1,0 +1,5 @@
+Final campaign image: elyra-solana-final.png
+Art layer: elyra-solana-metallic-art.png, created with built-in image_gen (prompt: elyra-solana-metallic-prompt.txt).
+Headline and wordmark typeset using actual local Fustat; launch copy and ticker footer typeset using actual local General Sans.
+Solana dApp Store icon uses public/images/dApp_Store_Icon.svg unmodified.
+Final composition rendered at 3840 x 2160 with Chromium from elyra-solana-final.html.

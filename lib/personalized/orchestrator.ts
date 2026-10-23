@@ -8,6 +8,7 @@ import {
   type ProviderRequest,
   type ProviderResult,
 } from "@/lib/agent/providers/types";
+import type { Attachment } from "@/lib/attachments";
 import { optional } from "@/lib/env";
 import { parseAnswer } from "@/lib/personalized/answer";
 import { buildPrompt, buildSynthesisPrompt } from "@/lib/personalized/prompt";
@@ -52,6 +53,8 @@ export interface RunOptions {
   message: string;
   /** Aborted when the operator presses Stop. Passed through to every call. */
   signal?: AbortSignal;
+  /** Files sent with this question — validated by the route, never stored. */
+  attachments?: Attachment[];
   /** High-level progress only. Never internal reasoning. */
   onStatus?: (status: string) => void;
 }
@@ -128,13 +131,16 @@ function request(
   system: ReturnType<typeof buildPrompt>,
   message: string,
   signal?: AbortSignal,
+  attachments: Attachment[] = [],
 ): ProviderRequest {
   /* No tools. The context is already assembled; a model that cannot fetch
      cannot fetch the wrong thing, and every figure it can state was put in
-     front of it deterministically. */
+     front of it deterministically. Attachments ride on the question itself,
+     to every model that reads it — the checker cannot check a figure it
+     cannot see. */
   return {
     system,
-    messages: [{ role: "user", content: message }],
+    messages: [{ role: "user", content: message, ...(attachments.length > 0 ? { attachments } : {}) }],
     tools: [],
     maxTokens: 2_048,
     timeoutMs: signal === undefined ? undefined : 45_000,
@@ -154,7 +160,7 @@ export async function runPersonalized(options: RunOptions): Promise<RunResult> {
   const secondary = gemini();
 
   const prompt = buildPrompt({ intent, context, conversation, message });
-  const single = request(prompt, message, options.signal);
+  const single = request(prompt, message, options.signal, options.attachments);
 
   onStatus?.("Reading your portfolio…");
 
@@ -247,7 +253,7 @@ export async function runPersonalized(options: RunOptions): Promise<RunResult> {
   });
   const second = await attempt(
     secondary,
-    request(critiquePrompt, message, options.signal),
+    request(critiquePrompt, message, options.signal, options.attachments),
   );
   calls.push({
     provider: secondary.id,
@@ -287,6 +293,7 @@ export async function runPersonalized(options: RunOptions): Promise<RunResult> {
       }),
       message,
       options.signal,
+      options.attachments,
     ),
   );
   calls.push({

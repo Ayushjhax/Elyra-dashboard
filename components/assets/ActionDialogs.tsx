@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useFundWallet } from "@privy-io/react-auth/solana";
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpRight, Send } from "lucide-react";
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpRight, Send, type LucideIcon } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
-import { ActionButton } from "@/components/assets/primitives";
+import { Tip } from "@/components/shell/RouteDrawer";
 import { SwapDialog } from "@/components/assets/SwapDialog";
 import { TransferDialog } from "@/components/assets/TransferDialog";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,61 @@ import { cn } from "@/lib/utils";
 
 export type AssetAction = "deposit" | "swap" | "transfer" | "withdraw";
 
+const BASE = cn(
+  "type-body-sm inline-flex h-10 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-control px-3 font-medium",
+  "transition-colors duration-[var(--dur-fast)] ease-brand",
+);
+
+const TONE = {
+  primary: "bg-accent text-text-on-accent hover:bg-accent-hover active:bg-accent-quiet active:text-text-primary",
+  secondary: "border border-border-strong text-text-primary hover:border-accent-quiet hover:bg-surface-hover active:bg-surface-panel",
+};
+
+/**
+ * One capital action. Unavailable ones stay focusable and say why — a
+ * disabled button can be neither reached nor hovered, so its reason would
+ * be invisible to exactly the people who need it.
+ */
+function CapitalAction({
+  icon: Icon,
+  label,
+  tone,
+  reason,
+  busy,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  tone: keyof typeof TONE;
+  /** Why it cannot be used right now. Null when it can. */
+  reason: string | null;
+  busy?: boolean;
+  onClick: () => void;
+}) {
+  const unavailable = reason !== null;
+  const button = (
+    <button
+      type="button"
+      aria-disabled={unavailable || busy ? true : undefined}
+      aria-label={unavailable ? `${label} — ${reason}` : undefined}
+      onClick={() => {
+        if (!unavailable && !busy) onClick();
+      }}
+      className={cn(
+        BASE,
+        unavailable
+          ? "cursor-not-allowed border border-border-subtle text-text-muted"
+          : TONE[tone],
+        busy && "opacity-70",
+      )}
+    >
+      <Icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0" />
+      <span className="truncate">{busy ? `${label}…` : label}</span>
+    </button>
+  );
+  return unavailable ? <Tip openOnTap label={reason}>{button}</Tip> : button;
+}
+
 /**
  * Split out because it calls a Privy hook.
  *
@@ -62,11 +117,12 @@ function DepositAction({ address }: { address: string }) {
   const [busy, setBusy] = useState(false);
 
   return (
-    <ActionButton
+    <CapitalAction
       icon={ArrowDownToLine}
       label="Deposit"
       tone="primary"
-      disabled={busy}
+      reason={null}
+      busy={busy}
       onClick={() => {
         setBusy(true);
         /* Resolves when the flow completes and rejects when the user closes
@@ -81,100 +137,69 @@ function DepositAction({ address }: { address: string }) {
 }
 
 /**
- * The action bar, and whatever dialog it has open.
+ * The action row, and whatever dialog it has open.
  *
  * Deposit is a direct hand-off with no dialog of Elyra's own — Privy renders
  * its own funding UI, and wrapping it in a second modal would be two modals
- * to close.
+ * to close. Swap, Transfer and Withdraw move what is in the Solana wallet,
+ * so they need one, holding something.
  */
-export function AssetActionBar({ address }: { address: string | null }) {
+export function AssetActionBar({
+  address,
+  walletFunded,
+  onExecuted,
+}: {
+  address: string | null;
+  /** The wallet holds a counted balance — something to swap or send. */
+  walletFunded: boolean;
+  /** A swap or transfer landed; the caller refreshes what it shows. */
+  onExecuted?: () => void;
+}) {
   const auth = useElyraAuth();
   const [open, setOpen] = useState<Exclude<AssetAction, "deposit"> | null>(null);
 
-  const canFund = auth.available && address !== null;
-
   /* Swap, Transfer and Withdraw all sign in this browser, so all three call
      Privy hooks — which THROW when `PrivyClientProvider` did not mount a
-     provider, as it does not when the app id is malformed. Opening one of
-     those dialogs in that state replaces the page with an error boundary
-     rather than telling anyone what is wrong, so the buttons carry the same
-     guard Deposit already had: disabled, with a title that says why. */
-  const canSign = auth.available && address !== null;
-  const signHint =
-    address === null ? "Connect a Solana wallet first" : "Wallet signing is unavailable";
+     provider. They carry the same guard Deposit does, with the reason. */
+  const signReason =
+    address === null
+      ? "Link a Solana wallet first."
+      : !auth.available
+        ? "Wallet signing is unavailable on this deployment."
+        : !walletFunded
+          ? "The wallet holds nothing to move yet — deposit first."
+          : null;
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {canFund ? (
+      <div className="grid grid-cols-2 gap-2 @[36rem]:grid-cols-[1.15fr_1fr_1fr_1fr]">
+        {auth.available && address !== null ? (
           <DepositAction address={address} />
         ) : (
-          <ActionButton
+          <CapitalAction
             icon={ArrowDownToLine}
             label="Deposit"
             tone="primary"
-            disabled
-            title={
-              address === null
-                ? "Connect a wallet to deposit"
-                : "Wallet funding is unavailable"
-            }
+            reason={address === null ? "Link a Solana wallet to deposit into." : "Wallet funding is unavailable on this deployment."}
             onClick={() => {}}
           />
         )}
-
-        <ActionButton
-          icon={ArrowLeftRight}
-          label="Swap"
-          tone="secondary"
-          disabled={!canSign}
-          title={canSign ? undefined : signHint}
-          onClick={() => setOpen("swap")}
-        />
-        <ActionButton
-          icon={Send}
-          label="Transfer"
-          tone="secondary"
-          disabled={!canSign}
-          title={canSign ? undefined : signHint}
-          onClick={() => setOpen("transfer")}
-        />
-        <ActionButton
-          icon={ArrowUpRight}
-          label="Withdraw"
-          tone="subtle"
-          disabled={!canSign}
-          title={canSign ? undefined : signHint}
-          onClick={() => setOpen("withdraw")}
-        />
+        <CapitalAction icon={ArrowLeftRight} label="Swap" tone="secondary" reason={signReason} onClick={() => setOpen("swap")} />
+        <CapitalAction icon={Send} label="Transfer" tone="secondary" reason={signReason} onClick={() => setOpen("transfer")} />
+        <CapitalAction icon={ArrowUpRight} label="Withdraw" tone="secondary" reason={signReason} onClick={() => setOpen("withdraw")} />
       </div>
 
-      {canSign && open === "swap" && (
-        <SwapDialog address={address} onClose={() => setOpen(null)} />
+      {signReason === null && address !== null && open === "swap" && (
+        <SwapDialog address={address} onExecuted={() => onExecuted?.()} onClose={() => setOpen(null)} />
       )}
 
       {/* One component, two names. `intent` changes the wording; the address
           handling, the confirm step and the build/sign/submit path are the
           same, because a second implementation of "send money somewhere" is a
           second place for the careful parts to be missing. */}
-      {canSign && (open === "transfer" || open === "withdraw") && (
-        <TransferDialog
-          address={address}
-          intent={open}
-          onClose={() => setOpen(null)}
-        />
+      {signReason === null && address !== null && (open === "transfer" || open === "withdraw") && (
+        <TransferDialog address={address} intent={open} onClose={() => setOpen(null)} />
       )}
     </>
-  );
-}
-
-/** Shared by the empty state, which offers funding without the whole bar. */
-export function DepositOnlyButton({ address }: { address: string | null }) {
-  const auth = useElyraAuth();
-  if (!auth.available || address === null) return null;
-  return (
-    <div className={cn("flex")}>
-      <DepositAction address={address} />
-    </div>
   );
 }

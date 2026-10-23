@@ -77,12 +77,18 @@ export function Money({
     );
   }
 
-  const text = compact
-    ? `${value < 0 ? "-" : sign ? "+" : ""}$${Math.abs(value).toLocaleString("en-US", {
-        notation: "compact",
-        maximumFractionDigits: 1,
-      })}`
-    : formatUsd(value, { decimals, sign });
+  /* A balance worth less than the smallest step shown is not zero, and
+     printing "$0.00" for it says it is. */
+  const step = 10 ** -decimals;
+  const text =
+    value !== 0 && Math.abs(value) < step
+      ? `${value < 0 ? "-" : sign ? "+" : ""}<$${step.toFixed(decimals)}`
+      : compact
+        ? `${value < 0 ? "-" : sign ? "+" : ""}$${Math.abs(value).toLocaleString("en-US", {
+            notation: "compact",
+            maximumFractionDigits: 1,
+          })}`
+        : formatUsd(value, { decimals, sign });
 
   return <span className={cn("tabular-nums", className)}>{text}</span>;
 }
@@ -160,7 +166,7 @@ export function Delta({
  *
  * `--surface-panel` on `--border-subtle` at `--radius-card`, which is the
  * shell's own card and not a new one. No shadow: §34 asks for almost none,
- * and the rim hairline already separates a card from the ground.
+ * and the hairline already separates a card from the ground.
  */
 export function Card({
   className,
@@ -170,7 +176,7 @@ export function Card({
   return (
     <section
       className={cn(
-        "rim flex min-w-0 flex-col rounded-card border border-border-subtle bg-surface-panel",
+        "flex min-w-0 flex-col rounded-card border border-border-subtle bg-surface-panel",
         className,
       )}
       {...props}

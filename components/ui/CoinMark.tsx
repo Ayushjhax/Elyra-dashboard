@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Monogram } from "@/components/ui/Monogram";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,6 +18,9 @@ import { cn } from "@/lib/utils";
  * answers an unknown id with a 403, so a broken image is a normal outcome
  * rather than an error worth surfacing.
  *
+ * `fallbackLogo` is a second source tried when the first fails — a ticker
+ * Pyth does not list can still have its venue's own icon — before the chip.
+ *
  * A plain `<img>` rather than `next/image`: these are 64px PNGs from a CDN
  * that already serves them at the right size, and routing thousands of
  * possible logos through the image optimiser would cost far more than it
@@ -25,16 +29,25 @@ import { cn } from "@/lib/utils";
 export function CoinMark({
   symbol,
   logo = null,
+  fallbackLogo = null,
+  fallback,
   size = 20,
   className,
 }: {
   symbol: string;
   logo?: string | null;
+  fallbackLogo?: string | null;
+  /** Drawn instead of the lettered chip once every source has failed. */
+  fallback?: React.ReactNode;
   size?: number;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const showImage = logo !== null && !failed;
+  /* How many sources have failed: 0 the logo, 1 the fallback, then the chip. */
+  const [failures, setFailures] = useState(0);
+  const sources = [logo, fallbackLogo].filter((source): source is string => source !== null);
+  const source = sources[failures] ?? null;
+  const showImage = source !== null;
+  if (!showImage && fallback !== undefined) return <>{fallback}</>;
 
   return (
     <span
@@ -52,22 +65,18 @@ export function CoinMark({
            every asset Pyth carries. Routing them through the image optimiser
            would add cost and latency to fetch the same bytes back. */
         <img
-          src={logo}
+          key={source}
+          src={source}
           alt=""
           width={size}
           height={size}
           loading="lazy"
           decoding="async"
-          onError={() => setFailed(true)}
+          onError={() => setFailures((count) => count + 1)}
           className="size-full object-contain"
         />
       ) : (
-        <span
-          className="type-label font-semibold leading-none text-text-secondary"
-          style={{ fontSize: Math.max(9, Math.round(size * 0.44)) }}
-        >
-          {symbol.slice(0, 1)}
-        </span>
+        <Monogram name={symbol} size={size} />
       )}
     </span>
   );

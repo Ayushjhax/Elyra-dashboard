@@ -96,13 +96,13 @@ The API column says `same` when the app calls the existing route unchanged.
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Ask Elyra chat, streaming, sources | `components/agent/AgentPanel.tsx`, `lib/agentChat.ts`, `lib/agent/sources.ts` | Elyra → Ask | `/api/agent/chat` same | todo |
-| Attachments | `lib/attachments.ts`, `AgentPanel.tsx` | document and image pickers | same | todo |
-| Dictation | `lib/voice/useDictation.ts` | expo-audio → transcribe | `/api/agent/transcribe` same | todo |
-| Suggestion chips | `lib/agent/suggestions.ts` | chat | — | todo |
-| Elyra signals tab | `components/agent/ElyraSignals.tsx` | Elyra → Signals | same | todo |
-| Capital Intelligence (context, answers, history, memory) | `components/personalized/*`, `lib/personalized/client.ts` | Elyra → Capital Intelligence | `/api/personalized/*` same | todo |
-| Prepared actions from answers | `lib/personalized/actions.ts`, `/api/personalized/actions/*` | inline review card → Swap | stored as `agent`, `preparedActionId` returned (done) | todo |
+| Ask Elyra chat, streaming, sources | `components/agent/AgentPanel.tsx`, `lib/agentChat.ts`, `lib/agent/sources.ts` | Elyra → Ask: `mobile/src/lib/agentChat.ts` (shared fold `lib/agent/reply.ts`), `mobile/src/components/agent/*` | `/api/agent/chat` same; `prepared_action` event (`lib/agent/events.ts`) | done — verified on a Seeker: streamed a long answer, backgrounded mid-stream, came back to the finished answer and its sources; forced error + retry in place |
+| Attachments | `lib/attachments.ts`, `AgentPanel.tsx` | `mobile/src/lib/attachments.ts` (photo + document pickers, shared `stagingError`) | same | done — verified on a Seeker: an image (scaled to WebP) and a CSV, answered from both |
+| Dictation | `lib/voice/useDictation.ts` | `mobile/src/lib/voice.ts` (expo-audio → transcribe → draft only; reason shown before the system prompt; clip deleted after) | `/api/agent/transcribe` same | done — verified on a Seeker |
+| Suggestion chips | `lib/agent/suggestions.ts` | Elyra → Ask composer | — | done |
+| Elyra signals tab | `components/agent/ElyraSignals.tsx` | Elyra → Signals (`mobile/src/components/agent/ElyraSignals.tsx`) | same | done — verified on a Seeker |
+| Capital Intelligence (context, answers, history, memory) | `components/personalized/*`, `lib/personalized/client.ts` | Elyra → Capital | `/api/personalized/*` same; existing account stores supply context | done — funded Seeker verified; see `verification/2026-10-23-capital-intelligence.md` |
+| Prepared actions from answers | `lib/personalized/actions.ts`, `/api/personalized/actions/*` | inline review card → Swap | stored as `agent`, `preparedActionId` returned; fresh confirm check before quote/sign | done — funded Seeker pre-sign review verified; no transaction signed |
 
 ## Research
 
@@ -137,18 +137,18 @@ The website keeps Telegram. The app replaces every part of it.
 | Telegram | In the app | Server work | Status |
 |---|---|---|---|
 | Linking a chat (`/link`, `/start CODE`, `/unlink`, link codes) | not needed — sign-in is the identity; the push device registers itself | `/api/devices` (done) | todo |
-| Free text and `/ask` | Elyra → Ask | same | todo |
+| Free text and `/ask` | Elyra → Ask; any line that is not a shortcut is asked as typed (`lib/agent/shortcuts.ts`) | same | done — verified on a Seeker |
 | `/portfolio` `/wallet` `/positions` `/defi` | Portfolio overview, Holdings, Risk, DeFi | `/api/app/views` (done) | in progress — built; phone check pending |
 | `/orders` `/activity` (`/fills`) | Portfolio → Orders, Fills | `/api/app/views` (done) | in progress — built; phone check pending |
 | `/markets` `/price` | Markets tab, asset screen | same | in progress — built |
 | `/watch` (`/watchlist`) | Markets watchlist | `/api/watchlist` (done) | done — the same table the chat's /watch writes |
-| `/swap` preview + "Review in Elyra" | Swap screen, review cards | ready previews stored as `agent` actions, id returned (done) | todo |
-| `/alert` `/alerts` | alert editor, Alerts & automation | same | todo |
-| `/research` `/report` | Research → Reports | same | todo |
-| `/recap` `/signals` `/yield` `/unlocks` | Research tabs | same | todo |
-| `/backtest` | Research → Backtests | same | todo |
+| `/swap` preview + "Review in Elyra" | `/swap 1.5 SOL to USDC` opens Swap prefilled; a plain-language swap answer carries its review card inline and in Elyra → Actions | ready previews stored as `agent` actions; Ask Elyra prepares them too (`lib/personalized/plan.ts`) | done — verified on a Seeker (no swap signed) |
+| `/alert` `/alerts` | `/alert SOL > 120` opens the asset's alert editor prefilled; `/alerts` opens notifications; Alerts & automation still to come | same | in progress — shortcut verified on a Seeker |
+| `/research` `/report` | `/report NVDA` starts a report followed in the chat (PDF via `/download?as=json`); `/research` is asked in plain language; Research → Reports still to come | same | in progress — started and completed on a Seeker; PDF not stored locally (no `research-reports` bucket) |
+| `/recap` `/signals` `/yield` `/unlocks` | asked in plain language for now; `/signals` opens Elyra → Signals; Research tabs still to come | same | in progress |
+| `/backtest` | asked in plain language for now; Research → Backtests still to come | same | in progress |
 | `/predictions` `/book` (`/orderbook`) `/basket` (`/fair`) | Research → Prediction markets | same | todo |
-| `/settings` `/help` | Account → Settings; `/` shortcuts in the chat composer | — | todo |
+| `/settings` `/help` | Account; `/` lists every shortcut in the composer | — | done — verified on a Seeker |
 | Notification: price alert crossed | push + inbox | one pass, every channel (done, `lib/notifications/deliver.ts`) | todo |
 | Notification: liquidation warning | push + inbox | one pass, every channel (done) | todo |
 | Notification: large move on a watched symbol | push + inbox | one pass, every channel (done) | todo |

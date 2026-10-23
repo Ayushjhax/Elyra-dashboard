@@ -4,6 +4,9 @@ import { serviceClient } from "@/lib/supabase/server";
 import { buildEarningsReport, headlineFor } from "@/lib/research/earnings";
 import type { QualityLevel, ResearchReportDocument } from "@/lib/research/report";
 import type { ReportRecord, ReportStatus } from "@/lib/research/reportTypes";
+import type { FullReport } from "@/lib/research/reportTypes";
+
+export type { FullReport };
 
 /* ---------------------------------------------------------------------------
    Running a report, storing it, and handing it back.
@@ -261,10 +264,6 @@ export async function listReports(
     .limit(Math.min(Math.max(limit, 1), 100));
 
   return (data ?? []).map((row) => toRecord(row as unknown as Row));
-}
-
-export interface FullReport extends ReportRecord {
-  document: ResearchReportDocument | null;
 }
 
 /**

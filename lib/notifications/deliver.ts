@@ -1,4 +1,5 @@
 import "server-only";
+import { formatPriceUsd } from "@/lib/format";
 
 import {
   armedAlerts,
@@ -148,7 +149,7 @@ export async function send(
   if (channels.push) {
     const pushed = await pushToDevices(
       recipient.devices,
-      { kind: message.kind, title: message.title, body, data: { notificationId, route: message.route } },
+      { kind: message.kind, title: message.title, body, data: { notificationId, route: message.route, accountId: recipient.userId } },
       notificationId,
     );
     if (pushed.sent > 0) delivered = true;
@@ -208,11 +209,11 @@ async function recipients(): Promise<Map<string, Recipient>> {
   }
 
   const devices = await devicesFor(appUsers);
-  for (const [userId, rows] of devices) {
+  for (const userId of appUsers) {
     const recipient = map.get(userId);
     if (recipient === undefined) continue;
     recipient.hasApp = true;
-    recipient.devices = rows;
+    recipient.devices = devices.get(userId) ?? [];
   }
 
   return map;
@@ -233,8 +234,7 @@ function preferencesReader(): (userId: string) => Promise<NotificationPreference
 
 type Preferences = ReturnType<typeof preferencesReader>;
 
-const money = (value: number): string =>
-  value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 });
+const money = formatPriceUsd;
 
 /* ---------------------------------------------------------------------------
    Price alerts

@@ -1,22 +1,47 @@
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowDown, ArrowLeftRight, ExternalLink } from "lucide-react-native";
 import { formatAge } from "@/lib/format";
 import { txExplorerUrl } from "@/lib/solana/address";
-import { signingFailure, type SwapQuote, type SwapSubmitted, type TokenGroup } from "@/lib/wallet/flows";
+import {
+  signingFailure,
+  type SwapQuote,
+  type SwapSubmitted,
+  type TokenGroup,
+} from "@/lib/wallet/flows";
 import { Button, OptionMenu } from "~/components/ui/controls";
 import { Eyebrow } from "~/components/ui/layout";
 import { Text } from "~/components/ui/Text";
 import { TextField } from "~/components/ui/TextField";
-import { Field, Notice, openExternal, outcomeHaptic, SheetHeader } from "~/components/wallet/parts";
+import {
+  Field,
+  Notice,
+  openExternal,
+  outcomeHaptic,
+  SheetHeader,
+} from "~/components/wallet/parts";
 import { api, ApiError } from "~/lib/api";
 import { useOpenActions } from "~/lib/stores/actions";
 import { refetchActivity } from "~/lib/stores/activity";
 import { refetchWallet, useWalletDashboard } from "~/lib/stores/wallet";
 import { useSecond } from "~/lib/useClock";
 import { SigningError, useSigners } from "~/lib/wallet/signer";
+import type { PreparedAction } from "@/lib/personalized/types";
+import {
+  matchingSwapInputs,
+  revalidateSwap,
+  sameReview,
+} from "~/lib/personalized/actions";
+import { swapPrefill } from "@/lib/actions/prefill";
+import { formatAnswerText } from "~/lib/personalized/format";
+import { currentAccount } from "~/lib/session";
 import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -47,7 +72,15 @@ import { color, radius } from "~/theme/tokens";
 const FRESH_MS = 20_000;
 
 export default function SwapScreen() {
-  const params = useLocalSearchParams<{ from?: string; to?: string; amount?: string; actionId?: string }>();
+  const params = useLocalSearchParams<{
+    from?: string;
+    to?: string;
+    amount?: string;
+    actionId?: string;
+    personalized?: string;
+  }>();
+  const needsRevalidation =
+    Boolean(params.actionId) || params.personalized === "1";
   const wallet = useWalletDashboard();
   const actions = useOpenActions();
   const { signerFor } = useSigners();
@@ -59,11 +92,15 @@ export default function SwapScreen() {
   const [toSymbol, setToSymbol] = useState(params.to ?? "USDC");
   const [amount, setAmount] = useState(params.amount ?? "");
 
-  const [quote, setQuote] = useState<{ payload: SwapQuote; at: number } | null>(null);
+  const [quote, setQuote] = useState<{ payload: SwapQuote; at: number } | null>(
+    null,
+  );
   const [quoting, setQuoting] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
+  const [revalidation, setRevalidation] = useState<PreparedAction | null>(null);
+  const requestBusy = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,31 +120,86 @@ export default function SwapScreen() {
   /* Recorded once, whichever way the screen is left afterwards. */
   const recorded = useRef(false);
 
-  const symbols = Array.from(new Set([...groups.flatMap((group) => group.symbols), fromSymbol, toSymbol]));
+  const symbols = Array.from(
+    new Set([
+      ...groups.flatMap((group) => group.symbols),
+      fromSymbol,
+      toSymbol,
+    ]),
+  );
   const choices = symbols.map((symbol) => ({ value: symbol, label: symbol }));
 
   const build = async (): Promise<SwapQuote | null> => {
     try {
-      return await api.post<SwapQuote>("/api/swap/build", { fromSymbol, toSymbol, amount: amount.trim() });
+      return await api.post<SwapQuote>("/api/swap/build", {
+        fromSymbol,
+        toSymbol,
+        amount: amount.trim(),
+      });
     } catch (failure) {
-      setError(failure instanceof ApiError ? failure.message : "That could not be quoted.");
+      setError(
+        failure instanceof ApiError
+          ? failure.message
+          : "That could not be quoted.",
+      );
       return null;
     }
   };
 
   const requote = async () => {
+    if (requestBusy.current) return;
+    requestBusy.current = true;
+    const account = currentAccount();
     setError(null);
     setQuoting(true);
-    const payload = await build();
-    if (payload !== null) setQuote({ payload, at: Date.now() });
-    setQuoting(false);
+    setQuote(null);
+    try {
+      if (needsRevalidation) {
+        const result = await revalidateSwap(fromSymbol, toSymbol, amount);
+        if (currentAccount() !== account) return;
+        setRevalidation(result.action!);
+        if (result.action?.readiness !== "ready" || !result.signingRequired) {
+          setError(
+            result.action?.reason ??
+              result.error ??
+              "This action is no longer ready.",
+          );
+          return;
+        }
+        if (!matchingSwapInputs(result.action, fromSymbol, toSymbol, amount)) {
+          const resolved = swapPrefill(result.action);
+          if (resolved) {
+            setFromSymbol(resolved.from);
+            setToSymbol(resolved.to);
+            setAmount(resolved.amount);
+          }
+          setError(
+            "The fresh account check changed the swap inputs. Review the updated amount and get a new quote.",
+          );
+          return;
+        }
+      }
+      const payload = await build();
+      if (currentAccount() === account && payload !== null)
+        setQuote({ payload, at: Date.now() });
+    } catch (failure) {
+      if (currentAccount() === account)
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : "Could not re-validate this action.",
+        );
+    } finally {
+      requestBusy.current = false;
+      setQuoting(false);
+    }
   };
 
   const ready = quote?.payload.action?.readiness === "ready";
   const fresh = quote !== null && now - quote.at < FRESH_MS;
 
   const sign = async () => {
-    if (quote === null) return;
+    if (quote === null || requestBusy.current) return;
     /* An aged quote is never signed: re-quote, and let the person see the
        new numbers first. */
     if (Date.now() - quote.at >= FRESH_MS) {
@@ -116,18 +208,66 @@ export default function SwapScreen() {
     }
     setError(null);
     setWorking(true);
+    requestBusy.current = true;
+    const account = currentAccount();
     try {
+      if (needsRevalidation) {
+        const result = await revalidateSwap(fromSymbol, toSymbol, amount);
+        if (currentAccount() !== account) return;
+        const checked = result.action!;
+        setRevalidation(checked);
+        if (checked.readiness !== "ready" || !result.signingRequired) {
+          setQuote(null);
+          setError(
+            checked.reason ?? result.error ?? "This action is no longer ready.",
+          );
+          return;
+        }
+        if (
+          !matchingSwapInputs(checked, fromSymbol, toSymbol, amount) ||
+          !revalidation ||
+          !sameReview(revalidation, checked)
+        ) {
+          setQuote(null);
+          setError(
+            "Your account changed. Review the updated validation and get a new quote before signing.",
+          );
+          return;
+        }
+        if (Date.now() - quote.at >= FRESH_MS) {
+          setQuote(null);
+          setError(
+            "The quote aged during re-validation. Get a fresh quote before signing.",
+          );
+          return;
+        }
+      }
       const { unsignedTransaction, quoteRef, signer } = quote.payload;
-      if (typeof unsignedTransaction !== "string" || unsignedTransaction.length === 0 || typeof quoteRef !== "string") {
-        setError(quote.payload.action?.reason ?? "There is nothing to sign for that route.");
+      if (
+        typeof unsignedTransaction !== "string" ||
+        unsignedTransaction.length === 0 ||
+        typeof quoteRef !== "string"
+      ) {
+        setError(
+          quote.payload.action?.reason ??
+            "There is nothing to sign for that route.",
+        );
         return;
       }
       if (typeof signer !== "string") {
-        setError("The server did not say which wallet must sign. Nothing was signed.");
+        setError(
+          "The server did not say which wallet must sign. Nothing was signed.",
+        );
         return;
       }
-      const signed = await signerFor(signer).signTransaction(unsignedTransaction);
-      const result = await api.post<SwapSubmitted>("/api/swap/submit", { signedTransaction: signed, quoteRef });
+      const signed =
+        await signerFor(signer).signTransaction(unsignedTransaction);
+      if (currentAccount() !== account) return;
+      const result = await api.post<SwapSubmitted>("/api/swap/submit", {
+        signedTransaction: signed,
+        quoteRef,
+      });
+      if (currentAccount() !== account) return;
       if (typeof result.signature !== "string") {
         setError(result.error ?? "The swap did not land.");
         outcomeHaptic("error");
@@ -145,35 +285,58 @@ export default function SwapScreen() {
       if (failure instanceof SigningError && failure.cancelled) {
         setError("Cancelled — nothing was signed or sent.");
       } else {
-        setError(failure instanceof ApiError ? failure.message : signingFailure(failure, "The swap could not be completed."));
+        setError(
+          failure instanceof ApiError
+            ? failure.message
+            : signingFailure(failure, "The swap could not be completed."),
+        );
         outcomeHaptic("error");
       }
     } finally {
+      requestBusy.current = false;
       setWorking(false);
     }
   };
 
   const edit = (apply: () => void) => {
+    if (requestBusy.current) return;
     apply();
     setQuote(null);
+    setRevalidation(null);
     setError(null);
   };
 
-  const canQuote = amount.trim().length > 0 && fromSymbol !== toSymbol && wallet.address !== null && !working;
+  const canQuote =
+    amount.trim().length > 0 &&
+    fromSymbol !== toSymbol &&
+    wallet.address !== null &&
+    !working &&
+    !quoting;
 
   return (
     <KeyboardAvoidingView behavior="height" style={styles.screen}>
       <SheetHeader title="Swap" icon={ArrowLeftRight} closeLabel="Close swap" />
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+      >
         {signature !== null ? (
           <View style={styles.stack}>
             <Notice tone="positive">Swap landed.</Notice>
-            {params.actionId !== undefined && actions.error !== null && <Notice tone="caution">{actions.error}</Notice>}
+            {params.actionId !== undefined && actions.error !== null && (
+              <Notice tone="caution">{actions.error}</Notice>
+            )}
             <Button
               label="View on explorer"
               variant="ghost"
               size="sm"
-              icon={<ExternalLink size={14} strokeWidth={1.5} color={color["text-secondary"]} />}
+              icon={
+                <ExternalLink
+                  size={14}
+                  strokeWidth={1.5}
+                  color={color["text-secondary"]}
+                />
+              }
               onPress={() => openExternal(txExplorerUrl(signature))}
             />
           </View>
@@ -185,24 +348,40 @@ export default function SwapScreen() {
                   <TextField
                     label="You pay"
                     value={amount}
-                    onChangeText={(next) => edit(() => setAmount(next.replace(",", ".")))}
+                    onChangeText={(next) =>
+                      edit(() => setAmount(next.replace(",", ".")))
+                    }
                     placeholder="0.00"
                     keyboardType="decimal-pad"
                     style={styles.amountInput}
                   />
                 </View>
                 <View style={styles.picker}>
-                  <OptionMenu label="Token to sell" value={fromSymbol} choices={choices} onChange={(next) => edit(() => setFromSymbol(next))} />
+                  <OptionMenu
+                    label="Token to sell"
+                    value={fromSymbol}
+                    choices={choices}
+                    onChange={(next) => edit(() => setFromSymbol(next))}
+                  />
                 </View>
               </View>
               <View style={styles.arrow}>
-                <ArrowDown size={16} strokeWidth={1.5} color={color["text-muted"]} />
+                <ArrowDown
+                  size={16}
+                  strokeWidth={1.5}
+                  color={color["text-muted"]}
+                />
               </View>
               <View style={styles.pair}>
                 <Text variant="label" tone="secondary" style={styles.flex}>
                   You receive
                 </Text>
-                <OptionMenu label="Token to receive" value={toSymbol} choices={choices} onChange={(next) => edit(() => setToSymbol(next))} />
+                <OptionMenu
+                  label="Token to receive"
+                  value={toSymbol}
+                  choices={choices}
+                  onChange={(next) => edit(() => setToSymbol(next))}
+                />
               </View>
             </View>
 
@@ -212,17 +391,42 @@ export default function SwapScreen() {
               </Text>
             )}
 
+            {revalidation !== null && (
+              <View style={styles.box}>
+                <Text variant="h2">Fresh account validation</Text>
+                <Text variant="label" tone="secondary">
+                  Re-checked against your current balances and saved
+                  concentration limit. Checked again before signing.
+                </Text>
+                {revalidation.fields.map((field) => (
+                  <Field key={field.label} label={field.label}>
+                    {formatAnswerText(field.value)}
+                  </Field>
+                ))}
+                {revalidation.warnings.map((warning) => (
+                  <Notice key={warning} tone="caution">
+                    {formatAnswerText(warning)}
+                  </Notice>
+                ))}
+                {revalidation.reason && (
+                  <Notice tone="negative">{revalidation.reason}</Notice>
+                )}
+              </View>
+            )}
+
             {quote?.payload.action !== undefined && (
               <View style={styles.box}>
                 <View style={styles.quoteHead}>
                   <Eyebrow>Quote</Eyebrow>
                   <Text variant="label" tone={fresh ? "muted" : "caution"}>
-                    {fresh ? `Quoted ${formatAge(quote.at, now)}` : "Out of date — re-quoted before signing"}
+                    {fresh
+                      ? `Quoted ${formatAge(quote.at, now)}`
+                      : "Out of date — re-quoted before signing"}
                   </Text>
                 </View>
                 {quote.payload.action.fields.map((row) => (
                   <Field key={row.label} label={row.label}>
-                    {row.value}
+                    {formatAnswerText(row.value)}
                   </Field>
                 ))}
               </View>
@@ -235,7 +439,9 @@ export default function SwapScreen() {
             ))}
 
             {quote?.payload.action !== undefined && !ready && (
-              <Notice tone="negative">Cannot be executed. {quote.payload.action.reason}</Notice>
+              <Notice tone="negative">
+                Cannot be executed. {quote.payload.action.reason}
+              </Notice>
             )}
 
             {quote !== null && ready && (
@@ -256,13 +462,27 @@ export default function SwapScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.flex}>
-          <Button label={signature === null ? "Cancel" : "Done"} variant={signature === null ? "quiet" : "accent"} onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} />
+          <Button
+            label={signature === null ? "Cancel" : "Done"}
+            variant={signature === null ? "quiet" : "accent"}
+            onPress={() =>
+              router.canGoBack() ? router.back() : router.replace("/")
+            }
+          />
         </View>
         {signature === null && (
           <View style={styles.flex}>
             {ready ? (
               <Button
-                label={working ? "Confirming" : quoting ? "Re-quoting" : fresh ? "Confirm swap" : "Re-quote"}
+                label={
+                  working
+                    ? "Confirming"
+                    : quoting
+                      ? "Re-quoting"
+                      : fresh
+                        ? "Confirm swap"
+                        : "Re-quote"
+                }
                 variant="accent"
                 loading={working || quoting}
                 onPress={() => void sign()}
@@ -300,7 +520,13 @@ const styles = StyleSheet.create({
   picker: { paddingBottom: 6 },
   amountInput: { fontSize: 20 },
   arrow: { alignItems: "center", paddingVertical: 4 },
-  quoteHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingBottom: 2 },
+  quoteHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    paddingBottom: 2,
+  },
   footer: {
     flexDirection: "row",
     gap: 8,

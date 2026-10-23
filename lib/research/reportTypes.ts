@@ -1,3 +1,5 @@
+import type { ResearchReportDocument } from "@/lib/research/report";
+
 /* ---------------------------------------------------------------------------
    A research report's row, as /api/research/reports returns it — apart from
    the store, which is server-only, so the website and the Android app read
@@ -36,4 +38,8 @@ export interface ReportRecord {
 /** Whether a report has stopped moving. */
 export function reportSettled(status: ReportStatus): boolean {
   return status === "complete" || status === "failed";
+}
+
+export interface FullReport extends ReportRecord {
+  document: ResearchReportDocument | null;
 }

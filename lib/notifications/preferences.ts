@@ -18,26 +18,8 @@ import { serviceClient } from "@/lib/supabase/server";
    Failing open here would mean a database blip broadcasts portfolios.
 --------------------------------------------------------------------------- */
 
-export interface NotificationPreferences {
-  priceAlerts: boolean;
-  liquidationAlerts: boolean;
-  largeMoves: boolean;
-  dailySummary: boolean;
-  /** Minutes past local midnight. */
-  dailySummaryMinute: number;
-  timezone: string;
-  moveThresholdPct: number;
-  /** Probability moves on prediction markets the user holds. */
-  predictionAlerts: boolean;
-  predictionOrderUpdates: boolean;
-  predictionResolutionAlerts: boolean;
-  /**
-   * In percentage POINTS. 54% to 64% is a 10-point move and an 18.5%
-   * relative one; people mean the first, and using the second makes the
-   * alert fire roughly twice as often as asked.
-   */
-  predictionMoveThresholdPoints: number;
-}
+import type { NotificationPreferences } from "@/lib/notifications/types";
+export type { NotificationPreferences } from "@/lib/notifications/types";
 
 /** Everything off. The answer whenever we are not certain of the opposite. */
 export const NOTIFICATIONS_OFF: NotificationPreferences = {

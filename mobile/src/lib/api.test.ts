@@ -1,9 +1,18 @@
-import { ApiError, errorFor, onUnauthorized, request, setTokenGetter } from "~/lib/api";
+import { setAccount } from "~/lib/session";
+import {
+  ApiError,
+  errorFor,
+  onUnauthorized,
+  request,
+  setTokenGetter,
+} from "~/lib/api";
 
 const originalFetch = global.fetch;
 
 function answer(status: number, body: unknown) {
-  global.fetch = jest.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+  global.fetch = jest.fn(
+    async () => new Response(JSON.stringify(body), { status }),
+  ) as unknown as typeof fetch;
 }
 
 afterEach(() => {
@@ -13,11 +22,16 @@ afterEach(() => {
 
 describe("errorFor", () => {
   it("uses the server's own words", () => {
-    expect(errorFor(400, { error: "That is not a symbol." }).message).toBe("That is not a symbol.");
+    expect(errorFor(400, { error: "That is not a symbol." }).message).toBe(
+      "That is not a symbol.",
+    );
   });
 
   it("marks an unconfigured deployment, so the screen can say what is missing", () => {
-    const error = errorFor(503, { error: "Alerts need the database.", unconfigured: true });
+    const error = errorFor(503, {
+      error: "Alerts need the database.",
+      unconfigured: true,
+    });
     expect(error.unconfigured).toBe(true);
     expect(error.status).toBe(503);
   });
@@ -32,7 +46,10 @@ describe("request", () => {
     answer(200, { ok: true });
     setTokenGetter(async () => "token-123");
     await request("/api/health");
-    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [string, RequestInit];
+    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
     const headers = init.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer token-123");
     expect(headers["x-elyra-app"]).toBeTruthy();
@@ -42,8 +59,13 @@ describe("request", () => {
     answer(200, {});
     setTokenGetter(async () => "token-123");
     await request("/api/app/config", { auth: false });
-    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [string, RequestInit];
-    expect((init.headers as Record<string, string>).authorization).toBeUndefined();
+    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(
+      (init.headers as Record<string, string>).authorization,
+    ).toBeUndefined();
   });
 
   it("tells every listener when the session ends", async () => {
@@ -59,6 +81,30 @@ describe("request", () => {
     global.fetch = jest.fn(async () => {
       throw new TypeError("Network request failed");
     }) as unknown as typeof fetch;
-    await expect(request("/api/portfolio")).rejects.toMatchObject({ status: 0, message: expect.stringMatching(/reach Elyra/) });
+    await expect(request("/api/portfolio")).rejects.toMatchObject({
+      status: 0,
+      message: expect.stringMatching(/reach Elyra/),
+    });
   });
+});
+
+it("does not send a mutation if the account changes while obtaining its bearer", async () => {
+  answer(200, {});
+  setAccount("a");
+  let release!: (token: string) => void;
+  setTokenGetter(
+    () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  );
+  const pending = request("/api/notifications/preferences", {
+    method: "PATCH",
+    body: { priceAlerts: true },
+  });
+  setAccount("b");
+  release("token-b");
+  await expect(pending).rejects.toThrow("Your account changed");
+  expect(global.fetch).not.toHaveBeenCalled();
+  setAccount(null);
 });

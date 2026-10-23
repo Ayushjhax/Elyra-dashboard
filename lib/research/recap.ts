@@ -8,6 +8,9 @@ import { capabilities } from "@/lib/research/capabilities";
 import { kaminoYield } from "@/lib/research/yield";
 import { unlocksConfigured, UNLOCKS_UNAVAILABLE } from "@/lib/research/unlocks";
 import { ok, type ToolResult } from "@/lib/providers/types";
+import type { MarketRecap, RecapMove, RecapScope, RecapSection } from "@/lib/research/types";
+
+export type { MarketRecap, RecapMove, RecapScope, RecapSection };
 
 /* ---------------------------------------------------------------------------
    The market recap.
@@ -31,41 +34,6 @@ const WATCH = ["BTC", "ETH", "SOL"] as const;
 
 /** Below this a 24h move is not worth a line. */
 const NOTABLE_PCT = 3;
-
-export interface RecapMove {
-  symbol: string;
-  price: number;
-  changePct: number;
-  asOf: string;
-  stale?: boolean;
-}
-
-export interface RecapSection {
-  title: string;
-  lines: string[];
-  /** Set when the section could not be produced, with the reason. */
-  unavailable: string | null;
-  asOf?: string;
-  stale?: boolean;
-  moves?: RecapMove[];
-  funding?: Array<{ symbol: string; annualisedPct: number }>;
-  markets?: Array<{
-    id: string;
-    question: string;
-    outcome: string | null;
-    price: number | null;
-    status: string;
-    url: string | null;
-  }>;
-}
-
-export interface MarketRecap {
-  generatedAt: string;
-  windowHours: number;
-  sections: RecapSection[];
-  /** Sources that were read. For provenance. */
-  sources: string[];
-}
 
 const money = (value: number): string =>
   value.toLocaleString("en-US", {
@@ -229,8 +197,6 @@ async function yieldSection(): Promise<RecapSection> {
     unavailable: null,
   };
 }
-
-export type RecapScope = "crypto" | "equities" | "portfolio";
 
 /**
  * The recap.

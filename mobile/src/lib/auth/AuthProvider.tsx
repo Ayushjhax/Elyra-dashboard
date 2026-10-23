@@ -93,7 +93,11 @@ function Bridge({ children }: { children: ReactNode }) {
       walletAddress: summary?.walletAddress ?? null,
       account: summary?.account ?? null,
       getAccessToken: () => privy.getAccessToken(),
-      logout: () => privy.logout(),
+      logout: async () => {
+        const leaving = accountKey({ ready: privy.isReady, authenticated: privy.user !== null, account: summary?.account ?? null, solanaAddress: summary?.solanaAddress ?? null });
+        if (leaving !== null) await accountLeft(leaving);
+        await privy.logout();
+      },
       startError: privy.error?.message ?? null,
       endedReason,
       clearEndedReason: () => setEndedReason(null),

@@ -209,13 +209,13 @@ describe("the delivery pass", () => {
     expect(report.sent).toBe(1);
     const inbox = state.db.rows("notifications");
     expect(inbox).toHaveLength(1);
-    expect(inbox[0]).toMatchObject({ user_id: USER_A, kind: "price_alert", title: "SOL crossed above $120.00" });
+    expect(inbox[0]).toMatchObject({ user_id: USER_A, kind: "price_alert", title: "SOL crossed above $120.0000" });
     /* Never a figure without its chain: the level, the price now, what changed. */
     expect(String(inbox[0].body)).toContain("Now: $150.00");
     expect(String(inbox[0].body)).toContain("+50.0%");
 
     expect(state.pushes).toHaveLength(1);
-    expect(state.pushes[0].data).toEqual({ notificationId: inbox[0].id, route: "/asset/SOL" });
+    expect(state.pushes[0].data).toEqual({ notificationId: inbox[0].id, route: "/asset/SOL", accountId: USER_A, kind: "price_alert" });
     expect(state.db.rows("push_tickets")).toHaveLength(1);
     expect(state.db.rows("price_alerts")[0].triggered_at).not.toBeNull();
   });
@@ -287,4 +287,17 @@ describe("the watchlist", () => {
     for (let index = 0; index < WATCHLIST_MAX; index += 1) await addToWatchlist(USER_B, `T${index}`);
     expect(await addToWatchlist(USER_B, "ONEMORE")).toMatchObject({ status: 400 });
   });
+});
+
+
+it("delivers requested alerts to the app inbox when permission was denied and no push token exists", async () => {
+  const { rememberAppAccount } = await import("@/lib/notifications/devices");
+  await rememberAppAccount(USER_A);
+  crossingAlert(USER_A);
+  preferences(USER_A, false);
+  const { deliverNotifications } = await import("@/lib/notifications/deliver");
+  await deliverNotifications();
+  expect(state.db.rows("notifications")).toHaveLength(1);
+  expect(state.db.rows("notifications")[0].user_id).toBe(USER_A);
+  expect(state.pushes).toHaveLength(0);
 });

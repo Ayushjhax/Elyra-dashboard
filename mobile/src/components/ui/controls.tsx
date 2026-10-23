@@ -139,7 +139,9 @@ export function SegmentedControl<T extends string>({
             accessibilityState={{ selected }}
             style={[styles.segment, selected && styles.segmentSelected]}
           >
-            <Text variant="label" tone={selected ? "primary" : "secondary"}>
+            {/* Keyed on the state: Android reused the selected label's text
+                layout after the selection moved and clipped "Ask" to "As". */}
+            <Text key={selected ? "on" : "off"} variant="label" tone={selected ? "primary" : "secondary"} numberOfLines={1} style={styles.segmentLabel}>
               {choice.label}
             </Text>
           </Pressable>
@@ -240,6 +242,9 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   segmentSelected: { backgroundColor: color["surface-hover"], borderColor: color["border-accent"] },
+  // Give Android the segment width: intrinsic custom-font measurements can
+  // clip the final glyph of short labels after a density change.
+  segmentLabel: { alignSelf: "stretch", textAlign: "center" },
   menuTrigger: {
     minHeight: TOUCH_TARGET,
     flexDirection: "row",

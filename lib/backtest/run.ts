@@ -12,7 +12,12 @@ import {
 import { runBacktest, type BacktestConfig, ENGINE_VERSION } from "@/lib/backtest/engine";
 import { assessQuality, computeMetrics, type BacktestMetrics } from "@/lib/backtest/metrics";
 import { assessRobustness, type RobustnessReport } from "@/lib/backtest/robustness";
-import { defaultParams, getStrategy, resolveStrategy } from "@/lib/backtest/strategies";
+import { defaultParams, getStrategy } from "@/lib/backtest/strategies";
+import { parseBacktestRequest, type ParsedRequest } from "@/lib/backtest/parse";
+import type { BacktestRecord, ComparisonResult, ComparisonRow } from "@/lib/backtest/types";
+
+export type { BacktestRecord, ComparisonResult, ComparisonRow, ParsedRequest };
+export { parseBacktestRequest };
 
 /* ---------------------------------------------------------------------------
    Running a backtest end to end: data in, verified result out.
@@ -217,39 +222,6 @@ export async function runOne(
    Comparison
 --------------------------------------------------------------------------- */
 
-export interface ComparisonRow {
-  strategyId: string;
-  strategyName: string;
-  ok: boolean;
-  error?: string;
-  totalReturnPct?: number;
-  benchmarkReturnPct?: number | null;
-  maxDrawdownPct?: number;
-  sharpe?: number | null;
-  trades?: number;
-  winRatePct?: number | null;
-  quality?: string;
-}
-
-export interface ComparisonResult {
-  ok: boolean;
-  error?: string;
-  /** The assumptions every row shares. Shown once, above the table. */
-  assumptions?: {
-    symbol: string;
-    timeframe: string;
-    startAt: string;
-    endAt: string;
-    bars: number;
-    coverage: number;
-    feeBps: number;
-    slippageBps: number;
-    initialCapitalUsd: number;
-  };
-  rows: ComparisonRow[];
-  warnings: string[];
-}
-
 /**
  * Runs several strategies over ONE dataset.
  *
@@ -373,19 +345,6 @@ export async function compareStrategies(input: {
    Persistence
 --------------------------------------------------------------------------- */
 
-export interface BacktestRecord {
-  id: string;
-  query: string | null;
-  instrument: string;
-  timeframe: string;
-  strategyId: string;
-  status: string;
-  statusDetail: string | null;
-  quality: string | null;
-  createdAt: string;
-  metrics: BacktestMetrics | null;
-}
-
 export async function saveResult(input: {
   userId: string;
   query: string | null;
@@ -465,89 +424,4 @@ export async function getResult(id: string, userId: string): Promise<unknown | n
     .maybeSingle();
 
   return data ?? null;
-}
-
-/* ---------------------------------------------------------------------------
-   Natural language
---------------------------------------------------------------------------- */
-
-const TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
-
-const PERIODS: Record<string, number> = {
-  "1m": 30,
-  "3m": 90,
-  "6m": 182,
-  "1y": 365,
-  "2y": 730,
-};
-
-export interface ParsedRequest {
-  symbol: string;
-  timeframe: string;
-  days: number;
-  strategyIds: string[];
-  feeBps?: number;
-  params: Record<string, number>;
-}
-
-const SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "AVAX", "LINK", "ADA", "SUI"];
-
-/**
- * Reads a backtest request out of plain language.
- *
- * Deliberately permissive about ORDER and strict about meaning: people write
- * "backtest rsi 12 on sol 1h for a year" and "sol rsi 1y 1h" and mean the
- * same thing. What it will not do is guess a strategy — an unrecognised name
- * returns no strategy rather than a plausible one, because running the wrong
- * strategy and labelling it correctly is worse than asking.
- */
-export function parseBacktestRequest(text: string): ParsedRequest {
-  const lower = text.toLowerCase();
-
-  const symbol = SYMBOLS.find((s) => new RegExp(`\\b${s}\\b`, "i").test(text)) ?? "SOL";
-
-  const timeframe =
-    TIMEFRAMES.find((tf) => new RegExp(`\\b${tf}\\b`).test(lower)) ??
-    (/\bhourly\b/.test(lower) ? "1h" : /\bdaily\b/.test(lower) ? "1d" : "1h");
-
-  let days = 365;
-  for (const [token, value] of Object.entries(PERIODS)) {
-    if (new RegExp(`\\b${token}\\b`).test(lower)) {
-      days = value;
-      break;
-    }
-  }
-  if (/\bsix months\b/.test(lower)) days = 182;
-  else if (/\bthree months\b/.test(lower)) days = 90;
-  else if (/\bone year\b|\ba year\b/.test(lower)) days = 365;
-  else if (/\btwo years\b/.test(lower)) days = 730;
-
-  const feeMatch = /(\d+)\s*bps/.exec(lower);
-  const feeBps = feeMatch === null ? undefined : Number.parseInt(feeMatch[1], 10);
-
-  /* Split on comparison separators so "macd, rsi and bollinger" yields three.
-
-     The comma is handled SEPARATELY from the keywords. Putting it inside
-     `\b(?:,|and|...)\b` looks tidy and silently fails: a comma is not a word
-     character, so there is no boundary after it and the alternation never
-     matches. "macd, rs 12" then stayed as one chunk and only the last alias
-     in it was found — the comparison quietly ran one strategy short. */
-  const parts = text
-    .split(/\s*,\s*|\b(?:and|vs\.?|versus|compare|against)\b/i)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 1);
-
-  const strategyIds: string[] = [];
-  const params: Record<string, number> = {};
-
-  for (const part of parts) {
-    const match = resolveStrategy(part);
-    if (match === null) continue;
-    if (!strategyIds.includes(match.strategy.id)) {
-      strategyIds.push(match.strategy.id);
-      Object.assign(params, match.params);
-    }
-  }
-
-  return { symbol, timeframe, days, strategyIds, feeBps, params };
 }

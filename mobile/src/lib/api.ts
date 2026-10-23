@@ -2,6 +2,7 @@ import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { fetch as streamingFetch } from "expo/fetch";
 import { createLineSplitter, createSseParser, parseNdjsonLine, type SseEvent } from "~/lib/stream";
+import { sessionVersion } from "~/lib/session";
 
 /* ---------------------------------------------------------------------------
    Talking to Elyra's API — the only server the app talks to.
@@ -84,10 +85,20 @@ async function headersFor(options: RequestOptions): Promise<Record<string, strin
   };
   if (options.body !== undefined) headers["content-type"] = "application/json";
   if (options.auth !== false) {
+    const version = sessionVersion();
     const token = await getToken();
+    if (version !== sessionVersion()) throw new ApiError("Your account changed. Try again.", 0);
     if (token !== null) headers.authorization = `Bearer ${token}`;
   }
   return headers;
+}
+
+/**
+ * The headers an authenticated request carries, for a native transfer that
+ * does not go through `request` — a PDF downloaded straight to a file.
+ */
+export function authHeaders(accept: string): Promise<Record<string, string>> {
+  return headersFor({ headers: { accept } });
 }
 
 /** Joins an outer signal and a timeout into one. */

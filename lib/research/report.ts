@@ -208,13 +208,13 @@ export interface VerificationResult {
  * evidence in a report that carries a source appendix is worse than no
  * number, because the appendix implies everything in it was checked.
  */
-export function verifyReport(document: ResearchReportDocument): VerificationResult {
+export function verifyReport(report: ResearchReportDocument): VerificationResult {
   const checks: QualityCheck[] = [];
   const removed: string[] = [];
-  const sourceIds = new Set(document.sources.map((source) => source.id));
+  const sourceIds = new Set(report.sources.map((source) => source.id));
 
   /* ---- Every metric must cite a source that exists ---- */
-  for (const section of document.sections) {
+  for (const section of report.sections) {
     for (const block of section.blocks) {
       if (block.kind !== "metrics") continue;
 
@@ -252,20 +252,20 @@ export function verifyReport(document: ResearchReportDocument): VerificationResu
   checks.push({
     id: "entity",
     label: "Company identified against SEC records",
-    passed: document.subject.cik !== null,
-    detail: document.subject.cik === null ? "No CIK was resolved." : null,
+    passed: report.subject.cik !== null,
+    detail: report.subject.cik === null ? "No CIK was resolved." : null,
   });
 
   checks.push({
     id: "period",
     label: "Reporting period established",
-    passed: document.period !== null,
-    detail: document.period === null ? "No reporting period was determined." : null,
+    passed: report.period !== null,
+    detail: report.period === null ? "No reporting period was determined." : null,
   });
 
   /* ---- Conflicts are surfaced, never hidden ---- */
   const conflicts: string[] = [];
-  for (const section of document.sections) {
+  for (const section of report.sections) {
     for (const block of section.blocks) {
       if (block.kind !== "metrics") continue;
       for (const metric of block.metrics) {
@@ -283,7 +283,7 @@ export function verifyReport(document: ResearchReportDocument): VerificationResu
   });
 
   /* ---- GAAP and non-GAAP must not be presented as the same thing ---- */
-  const nonGaap = document.sections.flatMap((section) =>
+  const nonGaap = report.sections.flatMap((section) =>
     section.blocks.flatMap((block) =>
       block.kind === "metrics" ? block.metrics.filter((m) => m.nonGaap === true) : [],
     ),
@@ -299,8 +299,8 @@ export function verifyReport(document: ResearchReportDocument): VerificationResu
   checks.push({
     id: "appendix",
     label: "Source appendix present",
-    passed: document.sources.length > 0,
-    detail: document.sources.length === 0 ? "No sources were recorded." : null,
+    passed: report.sources.length > 0,
+    detail: report.sources.length === 0 ? "No sources were recorded." : null,
   });
 
   const failed = checks.filter((check) => !check.passed);
@@ -312,7 +312,7 @@ export function verifyReport(document: ResearchReportDocument): VerificationResu
   return {
     level: structural
       ? "incomplete"
-      : failed.length > 0 || document.quality.omissions.length > 0
+      : failed.length > 0 || report.quality.omissions.length > 0
         ? "verified_with_warnings"
         : "verified",
     checks,

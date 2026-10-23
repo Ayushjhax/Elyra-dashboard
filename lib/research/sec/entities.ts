@@ -2,6 +2,9 @@ import "server-only";
 
 import { fail, ok, type ToolResult } from "@/lib/providers/types";
 import { SEC_TTL, secJson } from "@/lib/research/sec/client";
+import type { SecEntity } from "@/lib/research/sec/types";
+
+export type { SecEntity };
 
 /* ---------------------------------------------------------------------------
    Ticker or company name to a CIK.
@@ -17,13 +20,6 @@ import { SEC_TTL, secJson } from "@/lib/research/sec/client";
    So resolution is a lookup against the SEC's own published mapping, and the
    mapping is the only thing allowed to produce a CIK.
 --------------------------------------------------------------------------- */
-
-export interface SecEntity {
-  /** Ten digits, zero-padded, as the JSON APIs want it. */
-  cik: string;
-  ticker: string;
-  companyName: string;
-}
 
 interface TickerRow {
   cik_str?: number;

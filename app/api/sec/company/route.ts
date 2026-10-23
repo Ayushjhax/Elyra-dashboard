@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { secConfigured } from "@/lib/research/sec/client";
-import { companyProfile, type CompanyProfile } from "@/lib/research/sec/company";
+import { companyProfile } from "@/lib/research/sec/company";
+import type { CompanyResponse } from "@/lib/research/sec/types";
+
+export type { CompanyResponse };
 
 /* ---------------------------------------------------------------------------
    GET /api/sec/company?q=NVDA
@@ -12,11 +15,6 @@ import { companyProfile, type CompanyProfile } from "@/lib/research/sec/company"
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-export interface CompanyResponse {
-  company: CompanyProfile | null;
-  error: string | null;
-}
 
 const QUERY = /^[A-Za-z0-9 .&'-]{1,60}$/;
 

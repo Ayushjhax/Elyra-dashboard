@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
-import { ChevronRight, LayoutDashboard, Wallet, type LucideIcon } from "lucide-react-native";
+import { Bell, ChevronRight, LayoutDashboard, Wallet, type LucideIcon } from "lucide-react-native";
 import { EmptyState, Screen } from "~/components/ui/layout";
 import { Text } from "~/components/ui/Text";
 import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
@@ -10,6 +10,7 @@ import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
    reachable from here. */
 
 const ROWS: { href: Href; label: string; note: string; icon: LucideIcon }[] = [
+  { href: "/notification-settings", label: "Notifications", note: "Push, inbox and the updates you want", icon: Bell },
   { href: "/dashboard", label: "Dashboard", note: "Holdings, network, account and linked logins", icon: LayoutDashboard },
   { href: "/wallet", label: "Wallet", note: "Balance, assets and actions", icon: Wallet },
 ];
@@ -31,7 +32,7 @@ export default function AccountScreen() {
           </Pressable>
         ))}
       </View>
-      <EmptyState title="Settings" body="Notifications, alerts, connections, security and deletion arrive here." />
+      <EmptyState title="Settings" body="Connections, security and account controls arrive here." />
     </Screen>
   );
 }

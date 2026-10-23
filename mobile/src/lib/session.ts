@@ -14,15 +14,20 @@
 type Listener = (key: string | null) => void;
 
 let current: string | null = null;
+let version = 0;
 const listeners = new Set<Listener>();
 
 export function currentAccount(): string | null {
   return current;
 }
+export function sessionVersion(): number {
+  return version;
+}
 
 export function setAccount(key: string | null): void {
   if (key === current) return;
   current = key;
+  version++;
   for (const listener of [...listeners]) listener(key);
 }
 

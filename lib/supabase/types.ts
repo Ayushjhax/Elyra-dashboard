@@ -69,16 +69,8 @@ export interface PushDeviceRow {
   disabled_reason: string | null;
 }
 
-export type NotificationKind =
-  | "price_alert"
-  | "liquidation"
-  | "large_move"
-  | "prediction_move"
-  | "prediction_order"
-  | "prediction_resolution"
-  | "prediction_signal"
-  | "daily_summary"
-  | "system";
+export type { NotificationKind } from "@/lib/notifications/types";
+import type { NotificationKind } from "@/lib/notifications/types";
 
 /** A push Expo accepted, waiting for its receipt (0015). The id is Expo's. */
 export interface PushTicketRow {
@@ -550,6 +542,7 @@ export interface Database {
         "id" | "device_name" | "created_at" | "last_seen_at" | "disabled_at" | "disabled_reason"
       >;
       notifications: Table<NotificationRow, "id" | "data" | "created_at" | "read_at">;
+      app_notification_accounts: Table<{ user_id: string; last_seen_at: string }, "last_seen_at">;
       push_tickets: Table<
         PushTicketRow,
         "notification_id" | "created_at" | "checked_at" | "receipt_status" | "receipt_message"

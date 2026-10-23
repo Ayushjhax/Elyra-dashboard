@@ -66,18 +66,18 @@ export function sourceStatuses(input: SourceInputs): Record<SourceKey, SourceSta
     ? { state: "loading", label: "Checking…" }
     : !portfolio.read
       ? { state: "failed", label: "Couldn't read" }
-      : portfolio.positions > 0
-        ? { state: "connected", label: `${portfolio.positions} open` }
-        : portfolio.positionsFailed
-          ? { state: "failed", label: "Partly unread" }
+      : portfolio.positionsFailed || portfolio.error !== null
+        ? { state: "failed", label: portfolio.positions > 0 ? `${portfolio.positions} open · partly unread` : "Partly unread" }
+        : portfolio.positions > 0
+          ? { state: "connected", label: `${portfolio.positions} open` }
           : { state: "empty", label: "None yet" };
 
   const activityStatus: SourceStatus = activity.loading
     ? { state: "loading", label: "Checking…" }
     : activity.unconfigured
       ? { state: "unavailable", label: "Not configured" }
-      : activity.error !== null && activity.count === 0
-        ? { state: "failed", label: "Couldn't read" }
+      : activity.error !== null
+        ? { state: "failed", label: activity.count > 0 ? "Last read failed" : "Couldn't read" }
         : activity.count > 0
           ? { state: "available", label: "Available" }
           : { state: "empty", label: "None yet" };

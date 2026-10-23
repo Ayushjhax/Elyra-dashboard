@@ -337,3 +337,19 @@ export function parseResearchIntent(message: string): ResearchTask {
     venues,
   });
 }
+
+/** What the report form's type picker offers. */
+export type ReportKind = "auto" | "earnings" | "10-Q" | "10-K";
+
+/**
+ * The query a report form sends. A bare company or ticker defaults to its
+ * latest earnings; an explicit question keeps its own intent; a chosen type
+ * is named outright. Shared by the website's and the app's report forms.
+ */
+export function reportRequest(typed: string, kind: ReportKind): string {
+  const value = typed.trim();
+  if (kind !== "auto") return `${value} ${kind === "earnings" ? "latest earnings" : kind}`;
+  return /^[A-Za-z][A-Za-z.&'-]*$/.test(value) && parseResearchIntent(value).intent === "custom_research"
+    ? `${value} latest earnings`
+    : value;
+}

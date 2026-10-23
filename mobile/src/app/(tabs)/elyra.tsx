@@ -8,6 +8,7 @@ import { Composer } from "~/components/agent/Composer";
 import { Conversation } from "~/components/agent/Conversation";
 import { ElyraSignals } from "~/components/agent/ElyraSignals";
 import { ReviewCards } from "~/components/actions/ReviewCards";
+import { CapitalIntelligence } from "~/components/personalized/CapitalIntelligence";
 import { SegmentedControl } from "~/components/ui/controls";
 import { EmptyState, Screen } from "~/components/ui/layout";
 import { sendToAgent } from "~/lib/agentChat";
@@ -69,6 +70,7 @@ export default function ElyraScreen() {
           onChange={setTab}
           choices={[
             { value: "ask", label: "Ask" },
+            { value: "capital-intelligence", label: "Capital" },
             { value: "signals", label: "Signals" },
             { value: "actions", label: open > 0 ? `Actions · ${open}` : "Actions" },
           ]}
@@ -80,6 +82,8 @@ export default function ElyraScreen() {
           <Conversation symbol={symbol} onAsk={ask} />
           <Composer symbol={symbol} onAsk={ask} />
         </KeyboardLifted>
+      ) : tab === "capital-intelligence" ? (
+        <KeyboardLifted><CapitalIntelligence /></KeyboardLifted>
       ) : tab === "signals" ? (
         <ElyraSignals active={focused} onAsk={ask} />
       ) : (

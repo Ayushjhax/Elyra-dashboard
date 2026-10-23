@@ -10,6 +10,7 @@ import { useElyraAuth } from "~/lib/auth/AuthProvider";
 import { useOpenActions } from "~/lib/stores/actions";
 import { useSecond } from "~/lib/useClock";
 import { color, radius } from "~/theme/tokens";
+import { formatAnswerText } from "~/lib/personalized/format";
 
 /* ---------------------------------------------------------------------------
    Actions awaiting review — the website's PendingActions, as cards.
@@ -85,7 +86,7 @@ export function ReviewCard({
         <View style={styles.fields}>
           {action.fields.map((field) => (
             <Field key={field.label} label={field.label}>
-              {field.value}
+              {formatAnswerText(field.value)}
             </Field>
           ))}
         </View>
@@ -93,7 +94,7 @@ export function ReviewCard({
 
       {action.warnings.map((warning) => (
         <Text key={warning} variant="label" tone="negative">
-          {warning}
+          {formatAnswerText(warning)}
         </Text>
       ))}
 

@@ -10,6 +10,7 @@ import { ElyraMark, Identicon } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
 import { useWalletDashboard } from "~/lib/stores/wallet";
 import { color } from "~/theme/tokens";
+import { useInbox } from "~/lib/notifications/stores";
 
 /* ---------------------------------------------------------------------------
    The header every tab shares: the mark and the screen's name, search, the
@@ -20,7 +21,8 @@ import { color } from "~/theme/tokens";
    neutral mark until the wallet's address is known.
 --------------------------------------------------------------------------- */
 
-export function AppHeader({ title, unread = 0 }: { title: string; unread?: number }) {
+export function AppHeader({ title }: { title: string }) {
+  const unread = useInbox().unread;
   const insets = useSafeAreaInsets();
   const wallet = useWalletDashboard();
   const account = useRef<AccountSheetHandle>(null);

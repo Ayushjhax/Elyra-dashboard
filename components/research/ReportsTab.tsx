@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Download, FileText, Search } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import { parseResearchIntent } from "@/lib/research/intent";
+import { reportRequest, type ReportKind } from "@/lib/research/intent";
 import type { FullReport, ReportRecord } from "@/lib/research/store";
 import {
   Loading,
@@ -22,7 +22,7 @@ export function ReportsTab({ active }: { active: boolean }) {
     active && auth.authenticated,
   );
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState("auto");
+  const [kind, setKind] = useState<ReportKind>("auto");
   const [filter, setFilter] = useState("all");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,18 +54,7 @@ export function ReportsTab({ active }: { active: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const typed = query.trim();
-      // A bare company/ticker defaults to earnings; explicit questions keep
-      // the existing intent parser and its supported public-company scope.
-      const automatic =
-        /^[A-Za-z][A-Za-z.&'-]*$/.test(typed) &&
-        parseResearchIntent(typed).intent === "custom_research"
-          ? `${typed} latest earnings`
-          : typed;
-      const value =
-        kind === "auto"
-          ? automatic
-          : `${query.trim()} ${kind === "earnings" ? "latest earnings" : kind}`;
+      const value = reportRequest(query, kind);
       const response = await request("/api/research/reports", {
         method: "POST",
         signal: controller.signal,
@@ -274,7 +263,7 @@ export function ReportsTab({ active }: { active: boolean }) {
             <span className="sr-only">Report type</span>
             <select
               value={kind}
-              onChange={(event) => setKind(event.target.value)}
+              onChange={(event) => setKind(event.target.value as ReportKind)}
             >
               <option value="auto">Auto</option>
               <option value="earnings">Earnings</option>

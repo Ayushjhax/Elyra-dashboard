@@ -58,9 +58,12 @@ async function telegramLinked(userId: string): Promise<boolean> {
 
 /** The app's devices for this account: whether it has the app, and whether any can take a push. */
 async function appDevices(userId: string): Promise<{ hasApp: boolean; canPush: boolean }> {
-  const { data } = await serviceClient().from("push_devices").select("disabled_at").eq("user_id", userId);
+  const [{ data }, presence] = await Promise.all([
+    serviceClient().from("push_devices").select("disabled_at").eq("user_id", userId),
+    serviceClient().from("app_notification_accounts").select("user_id").eq("user_id", userId).maybeSingle(),
+  ]);
   const rows = data ?? [];
-  return { hasApp: rows.length > 0, canPush: rows.some((row) => row.disabled_at === null) };
+  return { hasApp: rows.length > 0 || presence.data != null, canPush: rows.some((row) => row.disabled_at === null) };
 }
 
 export async function GET(request: Request): Promise<Response> {

@@ -1,9 +1,13 @@
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { ClipboardCheck } from "lucide-react-native";
+import { router } from "expo-router";
+import { swapPrefill } from "@/lib/actions/prefill";
 import type { PreparedAction } from "@/lib/personalized/types";
 import { ReviewCard } from "~/components/actions/ReviewCards";
 import { Text } from "~/components/ui/Text";
+import { Button } from "~/components/ui/controls";
+import { formatAnswerText } from "~/lib/personalized/format";
 import { Field } from "~/components/wallet/parts";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
 import { refreshActions, useOpenActions } from "~/lib/stores/actions";
@@ -24,33 +28,61 @@ import { color, radius } from "~/theme/tokens";
 --------------------------------------------------------------------------- */
 
 function Preview({ action }: { action: PreparedAction }) {
+  const prefill = swapPrefill(action);
   return (
-    <View accessibilityLabel={`Prepared, not ready: ${action.summary}`} style={styles.card}>
+    <View
+      accessibilityLabel={`Prepared action: ${action.summary}`}
+      style={styles.card}
+    >
       <View style={styles.head}>
-        <ClipboardCheck size={14} strokeWidth={1.5} color={color["text-muted"]} />
+        <ClipboardCheck
+          size={14}
+          strokeWidth={1.5}
+          color={color["text-muted"]}
+        />
         <Text variant="eyebrow" tone="muted">
-          Prepared · not ready
+          {prefill ? "Prepared action" : "Prepared · not ready"}
         </Text>
       </View>
       <Text variant="body">{action.summary}</Text>
       {action.fields.map((field) => (
         <Field key={field.label} label={field.label}>
-          {field.value}
+          {formatAnswerText(field.value)}
         </Field>
       ))}
       {action.warnings.map((warning) => (
         <Text key={warning} variant="label" tone="negative">
-          {warning}
+          {formatAnswerText(warning)}
         </Text>
       ))}
-      <Text variant="label" tone="secondary">
-        {action.reason ?? "This kind of action cannot be carried out in Elyra."}
-      </Text>
+      {prefill ? (
+        <Button
+          label="Review and sign"
+          variant="accent"
+          onPress={() =>
+            router.push({
+              pathname: "/swap",
+              params: { ...prefill, personalized: "1" },
+            })
+          }
+        />
+      ) : (
+        <Text variant="label" tone="secondary">
+          {action.reason ??
+            "This kind of action cannot be carried out in Elyra."}
+        </Text>
+      )}
     </View>
   );
 }
 
-export function InlineAction({ action, id }: { action: PreparedAction; id: string | null }) {
+export function InlineAction({
+  action,
+  id,
+}: {
+  action: PreparedAction;
+  id: string | null;
+}) {
   const feed = useOpenActions();
   const auth = useElyraAuth();
   const now = useSecond();
@@ -61,7 +93,16 @@ export function InlineAction({ action, id }: { action: PreparedAction; id: strin
   }, [id]);
 
   if (id === null) return <Preview action={action} />;
-  const open = feed.actions.find((entry) => entry.id === id && Date.parse(entry.expiresAt) > now);
+  if (feed.error !== null)
+    return (
+      <View style={styles.card}>
+        <Text tone="negative">{feed.error}</Text>
+        <Button label="Reload action" onPress={() => void refreshActions()} />
+      </View>
+    );
+  const open = feed.actions.find(
+    (entry) => entry.id === id && Date.parse(entry.expiresAt) > now,
+  );
   if (open !== undefined) {
     return (
       <ReviewCard
@@ -75,7 +116,8 @@ export function InlineAction({ action, id }: { action: PreparedAction; id: strin
   if (feed.loading || feed.refreshing) return null;
   return (
     <Text variant="label" tone="muted">
-      {action.summary} — no longer open: it was finished, dismissed or has expired.
+      {action.summary} — no longer open: it was finished, dismissed or has
+      expired.
     </Text>
   );
 }

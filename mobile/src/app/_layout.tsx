@@ -17,6 +17,7 @@ import { useAppStore } from "~/lib/store";
 import { useVersionGate } from "~/lib/versionGate";
 import { FONT_FILES } from "~/theme/fonts";
 import { color } from "~/theme/tokens";
+import { NotificationRuntime } from "~/components/notifications/NotificationRuntime";
 
 /* ---------------------------------------------------------------------------
    The root: fonts (the splash stays up until they load, so text never
@@ -60,6 +61,7 @@ export default function RootLayout() {
             <ToastProvider>
               <BottomSheetModalProvider>
                 <Navigator />
+                <NotificationRuntime />
               </BottomSheetModalProvider>
             </ToastProvider>
           </AuthProvider>
@@ -73,7 +75,7 @@ export default function RootLayout() {
 const MODALS = ["wallet", "swap", "transfer", "receive", "search", "notifications", "alert"] as const;
 
 /* Pushed screens: the portfolio's detail views and the account dashboard. */
-const DETAILS = ["capital", "holdings", "risk", "defi", "orders", "fills", "activity", "dashboard", "asset/[symbol]"] as const;
+const DETAILS = ["capital", "holdings", "risk", "defi", "orders", "fills", "activity", "dashboard", "asset/[symbol]", "notification-settings", "report/[id]", "company/[query]", "prediction/[id]"] as const;
 
 function Navigator() {
   const auth = useElyraAuth();

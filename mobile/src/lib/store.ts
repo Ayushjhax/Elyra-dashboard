@@ -23,9 +23,9 @@ import { DEFAULT_ASSET_ID } from "@/lib/market/defaults";
 
 /** The Elyra tab's header tabs: the chat, Elyra's signals, and the actions
     awaiting review. */
-export type ElyraTab = "ask" | "signals" | "actions";
+export type ElyraTab = "ask" | "capital-intelligence" | "signals" | "actions";
 
-const ELYRA_TABS: readonly ElyraTab[] = ["ask", "signals", "actions"];
+const ELYRA_TABS: readonly ElyraTab[] = ["ask", "capital-intelligence", "signals", "actions"];
 
 export interface AppState {
   /* ---- markets (persisted) ---- */

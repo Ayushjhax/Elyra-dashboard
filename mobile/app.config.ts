@@ -18,6 +18,8 @@ const version = "1.0.0";
 
 /** --surface-base, the forest every native surface starts on. */
 export const SURFACE = "#101710";
+/** --accent; config plugins run outside Metro's shared token resolver. */
+export const NOTIFICATION_ACCENT = "#D2DC76";
 
 const config: ExpoConfig = {
   name: "Elyra",
@@ -30,6 +32,7 @@ const config: ExpoConfig = {
   icon: "./assets/images/icon.png",
   android: {
     package: "xyz.getelyra.app",
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
     adaptiveIcon: {
       backgroundColor: SURFACE,
       foregroundImage: "./assets/images/android-icon-foreground.png",
@@ -42,7 +45,11 @@ const config: ExpoConfig = {
        only when Scan is pressed. Notifications and the microphone
        (dictation) are added by the prompts that need them, each asked for in
        context. */
-    permissions: ["android.permission.USE_BIOMETRIC", "android.permission.CAMERA"],
+    permissions: [
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.CAMERA",
+      "android.permission.POST_NOTIFICATIONS",
+    ],
     blockedPermissions: [
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
@@ -53,6 +60,15 @@ const config: ExpoConfig = {
     bundleIdentifier: "xyz.getelyra.app",
   },
   plugins: [
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/images/notification-icon.png",
+        color: NOTIFICATION_ACCENT,
+        defaultChannel: "system",
+      },
+    ],
+    "expo-localization",
     "expo-router",
     "expo-dev-client",
     [
@@ -67,12 +83,16 @@ const config: ExpoConfig = {
     "expo-secure-store",
     [
       "expo-local-authentication",
-      { faceIDPermission: "Elyra asks for Face ID before your wallet signs anything." },
+      {
+        faceIDPermission:
+          "Elyra asks for Face ID before your wallet signs anything.",
+      },
     ],
     [
       "expo-camera",
       {
-        cameraPermission: "Elyra uses the camera to scan a wallet address's QR code.",
+        cameraPermission:
+          "Elyra uses the camera to scan a wallet address's QR code.",
         microphonePermission: false,
         recordAudioAndroid: false,
       },
@@ -83,7 +103,8 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
+        microphonePermission:
+          "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
         recordAudioAndroid: true,
       },
     ],
@@ -92,9 +113,12 @@ const config: ExpoConfig = {
     [
       "expo-image-picker",
       {
-        photosPermission: "Elyra opens your photos only to attach an image to a question you ask.",
-        cameraPermission: "Elyra uses the camera to scan a wallet address's QR code.",
-        microphonePermission: "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
+        photosPermission:
+          "Elyra opens your photos only to attach an image to a question you ask.",
+        cameraPermission:
+          "Elyra uses the camera to scan a wallet address's QR code.",
+        microphonePermission:
+          "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
       },
     ],
   ],
@@ -103,10 +127,10 @@ const config: ExpoConfig = {
     reactCompiler: true,
   },
   extra: {
-  eas: {
-    projectId: "df86cf17-1eaa-438b-a29e-0b8f2e61a462",
+    eas: {
+      projectId: "df86cf17-1eaa-438b-a29e-0b8f2e61a462",
+    },
   },
-},
 };
 
 export default config;

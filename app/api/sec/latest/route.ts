@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { secConfigured } from "@/lib/research/sec/client";
-import { latestFilings, type LatestFilings } from "@/lib/research/sec/current";
+import { latestFilings } from "@/lib/research/sec/current";
 import { isCategory } from "@/lib/research/sec/forms";
+import type { LatestResponse } from "@/lib/research/sec/types";
+
+export type { LatestResponse };
 
 /* ---------------------------------------------------------------------------
    GET /api/sec/latest?category=insiders
@@ -15,10 +18,6 @@ import { isCategory } from "@/lib/research/sec/forms";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-export interface LatestResponse extends LatestFilings {
-  configured: boolean;
-}
 
 export async function GET(request: NextRequest): Promise<NextResponse<LatestResponse>> {
   if (!secConfigured()) {

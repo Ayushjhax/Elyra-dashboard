@@ -2,6 +2,9 @@ import "server-only";
 
 import { fail, type ToolResult } from "@/lib/providers/types";
 import { supplyRatio } from "@/lib/research/calculations";
+import type { TokenUnlock, UnlockEventType, UnlockSummary } from "@/lib/research/types";
+
+export type { TokenUnlock, UnlockEventType, UnlockSummary };
 
 /* ---------------------------------------------------------------------------
    Token unlock intelligence.
@@ -26,26 +29,6 @@ import { supplyRatio } from "@/lib/research/calculations";
    compute how much is unlocking and what share of float it represents, and
    stop there. "Token will dump" is not something this data supports.
 --------------------------------------------------------------------------- */
-
-export type UnlockEventType = "cliff" | "linear" | "unknown";
-
-export interface TokenUnlock {
-  token: string;
-  unlockAt: string;
-  eventType: UnlockEventType;
-  tokenAmount: number | null;
-  valueUsd: number | null;
-  /** Share of circulating supply, percent. The figure that matters most. */
-  percentOfCirculating: number | null;
-  percentOfTotal: number | null;
-  /** "Team", "Investors", "Ecosystem" — as the provider labels it. */
-  allocation: string | null;
-  /** True when the provider derived the date rather than reading a schedule. */
-  estimated: boolean;
-  provider: string;
-  sourceUrl: string | null;
-  asOf: string;
-}
 
 export interface UnlockProvider {
   readonly id: string;
@@ -131,18 +114,6 @@ export async function upcomingUnlocks(
 
    Pure, so they are testable now and correct the day a provider is connected.
 --------------------------------------------------------------------------- */
-
-export interface UnlockSummary {
-  total: number;
-  within24h: number;
-  within7d: number;
-  within30d: number;
-  totalValueUsd: number | null;
-  /** The single largest event by share of float. */
-  largest: TokenUnlock | null;
-  /** Events meeting the major threshold. */
-  major: TokenUnlock[];
-}
 
 /**
  * What counts as "major", stated rather than felt.

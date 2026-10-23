@@ -6,6 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { Restoring } from "~/components/shell/Restoring";
@@ -49,6 +50,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
+        {/* The chat's composer rides the keyboard (react-native-keyboard-controller). */}
+        <KeyboardProvider>
         <StatusBar style="light" />
         {gate.status === "blocked" ? (
           <UpdateRequired minimum={gate.config.minSupportedVersion} />
@@ -61,12 +64,16 @@ export default function RootLayout() {
             </ToastProvider>
           </AuthProvider>
         )}
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
 const MODALS = ["wallet", "swap", "transfer", "receive", "search", "notifications", "alert"] as const;
+
+/* Pushed screens: the portfolio's detail views and the account dashboard. */
+const DETAILS = ["capital", "holdings", "risk", "defi", "orders", "fills", "activity", "dashboard", "asset/[symbol]"] as const;
 
 function Navigator() {
   const auth = useElyraAuth();
@@ -83,6 +90,9 @@ function Navigator() {
         <Stack.Screen name="(tabs)" />
         {MODALS.map((name) => (
           <Stack.Screen key={name} name={name} options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+        ))}
+        {DETAILS.map((name) => (
+          <Stack.Screen key={name} name={name} options={{ animation: "slide_from_right" }} />
         ))}
         {/* Development builds only (the screen redirects in a release). */}
         <Stack.Screen name="dev" options={{ presentation: "modal", animation: "slide_from_bottom" }} />

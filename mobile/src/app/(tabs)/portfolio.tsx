@@ -1,213 +1,116 @@
-import { useMemo, useState } from "react";
-import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
-import { router } from "expo-router";
-import { ArrowLeftRight, ArrowUpRight, QrCode, Send, type LucideIcon } from "lucide-react-native";
-import { DEFAULT_FILTERS, type ActivityFilters } from "@/lib/activity/filter";
-import { formatRelativeTime } from "@/lib/format";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { router, type Href } from "expo-router";
+import { Activity, ChevronRight, Coins, Database, History, Layers, ListOrdered, ShieldAlert, type LucideIcon } from "lucide-react-native";
 import { ReviewCards } from "~/components/actions/ReviewCards";
-import { Button } from "~/components/ui/controls";
-import { Skeleton } from "~/components/ui/layout";
+import { ActionBar } from "~/components/portfolio/ActionBar";
+import { OverviewCard } from "~/components/portfolio/Overview";
+import { TradingActivity } from "~/components/portfolio/TradingActivity";
 import { Text } from "~/components/ui/Text";
-import {
-  ActivityFilterBar,
-  ActivityRow,
-  DayHeader,
-  emptyMessage,
-  filtered,
-  groupByDay,
-  useActivityEvents,
-} from "~/components/wallet/Activity";
-import { InfoTip } from "~/components/ui/InfoTip";
-import { useWalletDashboard } from "~/lib/stores/wallet";
-import { useMinute } from "~/lib/useClock";
+import { refetchActivity } from "~/lib/stores/activity";
+import { refreshPrices } from "~/lib/stores/market";
+import { usePortfolio } from "~/lib/stores/portfolio";
+import { refetchWallet } from "~/lib/stores/wallet";
 import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
-   Portfolio — for now, the wallet's side of it: the four capital actions
-   (the website's AssetActionBar), actions awaiting review, and the wallet's
-   activity. Venue positions join this screen when the portfolio store does.
+   Portfolio — the account across every venue.
 
-   One virtualised list: the actions and the filters are its header, and
-   each day is a section, so a long history scrolls without rendering it all.
+   The overview first (the website's OverviewStrip, with every figure the
+   chat's /portfolio and the Mini App's Overview showed), the four capital
+   actions and anything awaiting review, then the detail screens — Capital
+   accounts, Holdings, Risk, DeFi, Orders, Fills, Wallet activity — and the
+   trading activity itself.
+
+   One snapshot (/api/portfolio) feeds all of it through the shared store,
+   so the overview, the ledger and the detail screens never disagree. Pull
+   to refresh reads everything again.
 --------------------------------------------------------------------------- */
 
-function CapitalAction({
-  icon: Icon,
-  label,
-  primary = false,
-  reason,
-  onPress,
-}: {
-  icon: LucideIcon;
-  label: string;
-  primary?: boolean;
-  /** Why it cannot be used right now. Null when it can. */
-  reason: string | null;
-  onPress: () => void;
-}) {
-  return (
-    <View style={styles.action}>
-      <Button
-        label={label}
-        variant={primary ? "accent" : "quiet"}
-        disabled={reason !== null}
-        accessibilityLabel={reason === null ? label : `${label} — ${reason}`}
-        icon={<Icon size={16} strokeWidth={1.5} color={reason !== null ? color["text-muted"] : primary ? color["text-on-accent"] : color["text-primary"]} />}
-        onPress={onPress}
-      />
-    </View>
-  );
-}
-
-function ActionBar() {
-  const wallet = useWalletDashboard();
-  /* A wallet with nothing counted in it has nothing to move yet. */
-  const funded = (wallet.snapshot?.sol ?? 0) > 0 || (wallet.snapshot?.tokenCount ?? 0) > 0;
-  const signReason =
-    wallet.address === null
-      ? "Link a Solana wallet first."
-      : wallet.snapshot === null
-        ? wallet.isLoading
-          ? "Reading the wallet…"
-          : "The wallet couldn't be read."
-        : !funded
-          ? "The wallet holds nothing to move yet — receive first."
-          : null;
-
-  return (
-    <View style={styles.actionsBlock}>
-      <View style={styles.actions}>
-        <CapitalAction icon={QrCode} label="Receive" primary reason={wallet.address === null ? "Link a Solana wallet to receive into." : null} onPress={() => router.push("/receive")} />
-        <CapitalAction icon={ArrowLeftRight} label="Swap" reason={signReason} onPress={() => router.push("/swap")} />
-        <CapitalAction icon={Send} label="Transfer" reason={signReason} onPress={() => router.push("/transfer")} />
-        <CapitalAction
-          icon={ArrowUpRight}
-          label="Withdraw"
-          reason={signReason}
-          onPress={() => router.push({ pathname: "/transfer", params: { intent: "withdraw" } })}
-        />
-      </View>
-      {signReason !== null && wallet.address !== null && (
-        <View style={styles.reason}>
-          <Text variant="label" tone="muted" style={styles.flex}>
-            Swap, Transfer and Withdraw: {signReason}
-          </Text>
-          <InfoTip text="Each of these signs in your wallet. Nothing is sent without your signature." />
-        </View>
-      )}
-    </View>
-  );
-}
+const DETAILS: { href: Href; label: string; note: string; icon: LucideIcon }[] = [
+  { href: "/capital", label: "Capital accounts", note: "Equity, allocation, venues and balances", icon: Database },
+  { href: "/holdings", label: "Holdings", note: "Every token, with its value and share", icon: Coins },
+  { href: "/risk", label: "Risk", note: "Exposure and concentration across venues", icon: ShieldAlert },
+  { href: "/defi", label: "DeFi", note: "Lending, leverage and vaults, with liquidation headroom", icon: Layers },
+  { href: "/orders", label: "Orders", note: "What is resting on a venue", icon: ListOrdered },
+  { href: "/fills", label: "Fills", note: "What executed, with realised PnL", icon: History },
+  { href: "/activity", label: "Wallet activity", note: "The wallet's transactions", icon: Activity },
+];
 
 export default function PortfolioScreen() {
-  const now = useMinute();
-  const { feed, events } = useActivityEvents();
-  const wallet = useWalletDashboard();
-  const [filters, setFilters] = useState<ActivityFilters>(DEFAULT_FILTERS);
-
-  const shown = useMemo(() => filtered(events, filters, now), [events, filters, now]);
-  const sections = useMemo(() => groupByDay(shown, now), [shown, now]);
-  const isFiltered = filters.direction !== "all" || filters.range !== "all" || filters.network !== "all";
-
-  const header = (
-    <View style={styles.header}>
-      <ActionBar />
-      <ReviewCards />
-      <View style={styles.activityHead}>
-        <Text variant="h2" accessibilityRole="header" style={styles.flex}>
-          Activity
-        </Text>
-        <Text variant="label" tone="muted" accessibilityLiveRegion="polite">
-          {feed.refreshing
-            ? "Updating…"
-            : feed.fetchedAt !== null
-              ? `Updated ${formatRelativeTime(new Date(feed.fetchedAt).toISOString(), Math.max(now, feed.fetchedAt))}`
-              : feed.error !== null
-                ? "Not updated"
-                : ""}
-        </Text>
-      </View>
-      <ActivityFilterBar filters={filters} onChange={setFilters} />
-    </View>
-  );
-
-  let empty: React.ReactNode = null;
-  if (feed.loading) {
-    empty = (
-      <View accessibilityLabel="Loading activity" style={styles.skeletons}>
-        {[0, 1, 2, 3].map((row) => (
-          <View key={row} style={styles.skeletonRow}>
-            <Skeleton width={30} height={30} rounded={radius.pill} />
-            <View style={styles.flex}>
-              <Skeleton width={110} />
-            </View>
-            <Skeleton width={70} />
-          </View>
-        ))}
-      </View>
-    );
-  } else if (feed.error !== null && events.length === 0) {
-    empty = (
-      <View accessibilityRole="alert" style={styles.empty}>
-        <Text variant="body-sm" tone="secondary">
-          Activity could not be loaded.
-        </Text>
-        <Text variant="label" tone="muted">
-          {feed.error}
-        </Text>
-        <Button label={feed.refreshing ? "Retrying…" : "Retry"} size="sm" disabled={feed.refreshing} onPress={feed.refetch} />
-      </View>
-    );
-  } else if (shown.length === 0) {
-    empty = (
-      <View style={styles.empty}>
-        <Text variant="body-sm" tone="secondary">
-          {events.length === 0 ? "No activity yet. Transfers and swaps from this wallet land here." : emptyMessage(filters)}
-        </Text>
-        {isFiltered && events.length > 0 && <Button label="Clear filters" size="sm" onPress={() => setFilters(DEFAULT_FILTERS)} />}
-      </View>
-    );
-  }
+  const feed = usePortfolio();
 
   return (
-    <SectionList
+    <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
-      sections={sections}
-      keyExtractor={(event) => event.id}
-      renderItem={({ item }) => <ActivityRow event={item} />}
-      renderSectionHeader={({ section }) => <DayHeader title={section.title} />}
-      ListHeaderComponent={header}
-      ListEmptyComponent={empty === null ? undefined : <>{empty}</>}
-      stickySectionHeadersEnabled
-      initialNumToRender={12}
       refreshControl={
         <RefreshControl
           refreshing={false}
           onRefresh={() => {
             feed.refetch();
-            wallet.refetch();
+            void refetchWallet();
+            void refetchActivity();
+            refreshPrices();
           }}
           tintColor={color.accent}
           colors={[color.accent]}
           progressBackgroundColor={color["surface-raised"]}
         />
       }
-    />
+    >
+      <OverviewCard feed={feed} />
+      <ActionBar />
+      <ReviewCards />
+
+      <View style={styles.links} accessibilityLabel="Portfolio details">
+        {DETAILS.map((entry) => (
+          <Pressable
+            key={entry.label}
+            onPress={() => router.push(entry.href)}
+            accessibilityRole="button"
+            accessibilityHint={entry.note}
+            android_ripple={{ color: color["surface-hover"] }}
+            style={styles.link}
+          >
+            <entry.icon size={18} strokeWidth={1.5} color={color["text-secondary"]} />
+            <View style={styles.flex}>
+              <Text variant="body">{entry.label}</Text>
+              <Text variant="label" tone="muted" numberOfLines={1}>
+                {entry.note}
+              </Text>
+            </View>
+            <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />
+          </Pressable>
+        ))}
+      </View>
+
+      <Text variant="h2" accessibilityRole="header" style={styles.heading}>
+        Trading activity
+      </Text>
+      <TradingActivity feed={feed} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color["surface-base"] },
-  content: { paddingHorizontal: 16, paddingBottom: 32 },
-  flex: { flex: 1 },
-  header: { gap: 16, paddingTop: 16, paddingBottom: 4 },
-  actionsBlock: { gap: 8 },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  action: { flexGrow: 1, flexBasis: "45%", minHeight: TOUCH_TARGET },
-  reason: { flexDirection: "row", alignItems: "center", gap: 4 },
-  activityHead: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 4 },
-  skeletons: { paddingVertical: 8 },
-  skeletonRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
-  empty: { alignItems: "center", gap: 8, paddingVertical: 24 },
+  content: { padding: 16, gap: 16, paddingBottom: 32 },
+  flex: { flex: 1, minWidth: 0 },
+  links: {
+    borderRadius: radius.panel,
+    borderWidth: 1,
+    borderColor: color["border-subtle"],
+    backgroundColor: color["surface-panel"],
+    overflow: "hidden",
+  },
+  link: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: TOUCH_TARGET + 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth * 2,
+    borderBottomColor: color["border-subtle"],
+  },
+  heading: { marginTop: 4 },
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import type { AgentEvent } from "@/lib/agent/events";
 
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { route, type RoutedResult } from "@/lib/agent/providers/router";
@@ -71,18 +72,7 @@ export interface RunAgentInput {
   onEvent?: (event: AgentEvent) => void;
 }
 
-/**
- * What a run reports while it works.
- *
- * `text` is the model's words as it writes them. `tools` means the turn so
- * far was the model deciding what to look up, not its answer: the surface
- * should set that text aside and show what is being read. The finished
- * reply — which may differ, on a timeout or a failure — comes back from
- * `runAgent` itself and is the one to keep.
- */
-export type AgentEvent =
-  | { type: "text"; delta: string }
-  | { type: "tools"; labels: string[] };
+export type { AgentEvent };
 
 export interface RunAgentResult {
   reply: string;

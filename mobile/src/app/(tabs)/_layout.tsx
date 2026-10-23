@@ -15,6 +15,8 @@ const ICON = { size: 22, strokeWidth: 1.5 } as const;
 export default function TabsLayout() {
   return (
     <Tabs
+      /* Back from an asset returns to the tab it was opened from. */
+      backBehavior="history"
       screenOptions={{
         header: ({ options }) => <AppHeader title={options.title ?? "Elyra"} />,
         sceneStyle: { backgroundColor: color["surface-base"] },

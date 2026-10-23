@@ -104,7 +104,7 @@ async function confirmAction(id: string, signature: string): Promise<boolean> {
     /* The signature proves nothing, so the action is genuinely still open. */
     unrecorded.delete(id);
     writeError = error;
-    void actionsStore.refetch();
+    void actionsStore.refresh();
     return false;
   }
   writeError = "Your swap went through, but Elyra couldn't record it against this action yet. It will keep trying.";
@@ -137,4 +137,9 @@ export function useOpenActions(): OpenActionsFeed {
 }
 
 /** For tests. */
+/** Reads the open actions now — an answer has just prepared one. */
+export function refreshActions(): Promise<void> {
+  return actionsStore.refresh();
+}
+
 export const __actionsStore = { store: actionsStore, unrecorded };

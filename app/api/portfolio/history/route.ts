@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { composePortfolio } from "@/lib/portfolio/compose";
-import { isRangeKey, portfolioHistory, type HistoryBasis } from "@/lib/portfolio/history";
+import { isRangeKey, portfolioHistory } from "@/lib/portfolio/history";
 import { isSolanaAddress } from "@/lib/solana/address";
-import type { PortfolioHistoryPoint } from "@/lib/portfolio/types";
 
 /* ---------------------------------------------------------------------------
    The performance series, on its own route.
@@ -19,15 +18,9 @@ import type { PortfolioHistoryPoint } from "@/lib/portfolio/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export interface HistoryResponse {
-  points: PortfolioHistoryPoint[];
-  /** Which of the two sources produced this — the UI must say which. */
-  basis: HistoryBasis;
-  /** Holdings the series could not price, named so the panel can say so. */
-  uncovered: string[];
-  coveragePct: number;
-  error: string | null;
-}
+/* The response type is shared with the website and the app. */
+export type { HistoryResponse } from "@/lib/portfolio/types";
+import type { HistoryResponse } from "@/lib/portfolio/types";
 
 function empty(error: string | null, status = 200): NextResponse<HistoryResponse> {
   return NextResponse.json(

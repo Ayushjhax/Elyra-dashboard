@@ -5,7 +5,7 @@ import { accountKey, summariseUser, type ElyraAccount } from "@/lib/account";
 import { accountLeft, onAccountLeave } from "~/lib/auth/accountChange";
 import { onUnauthorized, setTokenGetter } from "~/lib/api";
 import { setAccount } from "~/lib/session";
-import { useAppStore } from "~/lib/store";
+import { endConversation } from "~/lib/agentChat";
 import { forgetWallet } from "~/lib/wallet/mwa";
 import { color } from "~/theme/tokens";
 
@@ -72,9 +72,7 @@ export function useElyraAuth(): ElyraAuth {
 }
 
 /* What every account change clears, registered once for the app's life. */
-onAccountLeave(() => {
-  useAppStore.getState().clearConversation();
-});
+onAccountLeave(() => endConversation());
 onAccountLeave(() => forgetWallet());
 
 function Bridge({ children }: { children: ReactNode }) {

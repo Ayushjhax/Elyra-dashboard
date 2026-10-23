@@ -4,8 +4,10 @@ import {
   base64Bytes,
   cleanName,
   describeAttachments,
+  describeSize,
   matchesSignature,
   mediaTypeFor,
+  stagingError,
   validateAttachments,
 } from "@/lib/attachments";
 
@@ -78,5 +80,25 @@ describe("helpers", () => {
       "[Attached: a.png (image), b.pdf (PDF)]",
     );
     expect(cleanName("")).toBe("file");
+  });
+});
+
+describe("stagingError", () => {
+  it("refuses a fifth file, an empty one, and anything past the budgets", () => {
+    const four = Array.from({ length: 4 }, () => ({ kind: "image" as const, size: 10 }));
+    expect(stagingError({ name: "e.png", kind: "image", size: 10 }, four)).toBe("Up to 4 files at a time — e.png was not added.");
+    expect(stagingError({ name: "a.csv", kind: "text", size: 0 }, [])).toBe("a.csv is empty.");
+    expect(stagingError({ name: "big.png", kind: "image", size: 2 * 1024 * 1024 }, [{ kind: "pdf", size: 1.5 * 1024 * 1024 }])).toBe(
+      "big.png is too large — attachments can be 3MB together.",
+    );
+    expect(stagingError({ name: "long.txt", kind: "text", size: 100_000 }, [{ kind: "text", size: 30_000 }])).toMatch(/too long/);
+    /* Text is counted in characters, apart from the byte budget. */
+    expect(stagingError({ name: "a.csv", kind: "text", size: 50_000 }, [{ kind: "image", size: 2.9 * 1024 * 1024 }])).toBeNull();
+  });
+
+  it("describes a size the way the chip shows it", () => {
+    expect(describeSize({ kind: "text", size: 3201 })).toBe("3,201 chars");
+    expect(describeSize({ kind: "image", size: 84 * 1024 })).toBe("84 KB");
+    expect(describeSize({ kind: "pdf", size: 1.25 * 1024 * 1024 })).toBe("1.3 MB");
   });
 });

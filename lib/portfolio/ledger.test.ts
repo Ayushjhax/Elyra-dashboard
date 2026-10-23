@@ -144,6 +144,24 @@ describe("ledgerHistory", () => {
     expect(events[0]).toMatchObject({ status: "failed", href: "https://explorer/sig", summary: "Wallet transaction" });
     expect(events[1].market).toBe("perps");
   });
+
+  it("names a wallet transaction by what it did, where the RPC decoded it", () => {
+    const events = ledgerHistory(
+      null,
+      [
+        {
+          signature: "sig",
+          status: "confirmed",
+          slot: 1,
+          at: "2026-10-14T00:00:00Z",
+          memo: null,
+          summary: { kind: "receive", title: "Received 250 USDC", amounts: [], counterparty: null, via: null, feeSol: null, unverifiedOnly: false },
+        },
+      ],
+      (signature) => `https://explorer/${signature}`,
+    );
+    expect(events[0]?.summary).toBe("Received 250 USDC");
+  });
 });
 
 describe("venueUrl", () => {

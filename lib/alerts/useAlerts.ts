@@ -25,13 +25,14 @@ const RETRY_MS = 120_000;
 interface StoreState {
   alerts: PriceAlert[];
   delivery: AlertsResponse["delivery"];
+  appDelivery: AlertsResponse["appDelivery"];
   error: string | null;
   /** The last change that could not be saved, in words. Cleared by the next one. */
   writeError: string | null;
   loading: boolean;
 }
 
-const INITIAL: StoreState = { alerts: [], delivery: null, error: null, writeError: null, loading: true };
+const INITIAL: StoreState = { alerts: [], delivery: null, appDelivery: "none", error: null, writeError: null, loading: true };
 
 let state: StoreState = INITIAL;
 const listeners = new Set<() => void>();
@@ -101,7 +102,13 @@ function poll(): Promise<void> {
       const body = (await response.json()) as Partial<AlertsResponse>;
       if (started !== generation || writesAtStart !== writes) return;
       if (response.ok) {
-        emit({ alerts: body.alerts ?? [], delivery: body.delivery ?? null, error: null, loading: false });
+        emit({
+          alerts: body.alerts ?? [],
+          delivery: body.delivery ?? null,
+          appDelivery: body.appDelivery ?? "none",
+          error: null,
+          loading: false,
+        });
       } else {
         delay = RETRY_MS;
         emit({ error: body.error ?? `Alerts unavailable (${response.status})`, loading: false });

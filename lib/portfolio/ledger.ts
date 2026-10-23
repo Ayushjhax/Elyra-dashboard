@@ -266,7 +266,8 @@ export function ledgerHistory(
     events.push({
       id: `tx:${item.signature}`,
       market: "spot",
-      summary: item.memo ?? "Wallet transaction",
+      /* What the transaction did, where the RPC could decode it. */
+      summary: item.summary?.title ?? item.memo ?? "Wallet transaction",
       venue: "wallet",
       status: item.status,
       at: item.at,

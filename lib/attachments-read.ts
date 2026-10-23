@@ -2,10 +2,14 @@ import {
   ATTACHMENT_LIMITS,
   base64Bytes,
   cleanName,
+  describeSize,
   kindOf,
   mediaTypeFor,
+  stagingError,
   type ComposerAttachment,
 } from "@/lib/attachments";
+
+export { describeSize };
 
 /* ---------------------------------------------------------------------------
    Turning picked, dropped or pasted files into staged attachments.
@@ -81,13 +85,13 @@ export async function readAttachments(
 ): Promise<ReadResult> {
   const added: ComposerAttachment[] = [];
   const errors: string[] = [];
-  let count = staged.length;
-  let bytes = staged.filter((file) => file.kind !== "text").reduce((sum, file) => sum + file.size, 0);
-  let chars = staged.filter((file) => file.kind === "text").reduce((sum, file) => sum + file.size, 0);
+  /* What is staged, plus what this call has added so far. */
+  const sizes = () => [...staged, ...added];
 
   for (const file of files) {
     const name = cleanName(file.name || "pasted-image.png");
-    if (count >= ATTACHMENT_LIMITS.maxFiles) {
+    /* Counted before the file is read: a fifth file is refused unread. */
+    if (sizes().length >= ATTACHMENT_LIMITS.maxFiles) {
       errors.push(`Up to ${ATTACHMENT_LIMITS.maxFiles} files at a time — ${name} was not added.`);
       continue;
     }
@@ -101,26 +105,22 @@ export async function readAttachments(
     try {
       if (kind === "text") {
         const text = await file.text();
-        if (text.trim().length === 0) {
-          errors.push(`${name} is empty.`);
+        const refused = stagingError({ name, kind, size: text.trim().length === 0 ? 0 : text.length }, sizes());
+        if (refused !== null) {
+          errors.push(refused);
           continue;
         }
-        if (chars + text.length > ATTACHMENT_LIMITS.maxTextChars) {
-          errors.push(`${name} is too long — text files can carry ${ATTACHMENT_LIMITS.maxTextChars.toLocaleString("en-US")} characters in all.`);
-          continue;
-        }
-        chars += text.length;
         added.push({ id: nextId(), name, mediaType, kind, data: text, size: text.length, previewUrl: null });
       } else {
         const blob = kind === "image" ? await prepareImage(file, mediaType) : file;
         const url = await dataUrl(blob);
         const data = url.slice(url.indexOf(",") + 1);
         const size = base64Bytes(data);
-        if (bytes + size > ATTACHMENT_LIMITS.maxTotalBytes) {
-          errors.push(`${name} is too large — attachments can be 3MB together.`);
+        const refused = stagingError({ name, kind, size }, sizes());
+        if (refused !== null) {
+          errors.push(refused);
           continue;
         }
-        bytes += size;
         const sentType = kind === "image" ? blob.type || mediaType : mediaType;
         added.push({
           id: nextId(),
@@ -132,18 +132,10 @@ export async function readAttachments(
           previewUrl: kind === "image" ? `data:${sentType};base64,${data}` : null,
         });
       }
-      count += 1;
     } catch {
       errors.push(`${name} could not be read.`);
     }
   }
 
   return { added, errors };
-}
-
-/** "1.2 MB", "84 KB", "3,201 chars". */
-export function describeSize(file: ComposerAttachment): string {
-  if (file.kind === "text") return `${file.size.toLocaleString("en-US")} chars`;
-  if (file.size >= 1024 * 1024) return `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
-  return `${Math.max(1, Math.round(file.size / 1024))} KB`;
 }

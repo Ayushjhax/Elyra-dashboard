@@ -91,6 +91,11 @@ export function Text({
 }: TextProps & { variant?: TypeVariant; tone?: TextTone }) {
   return (
     <NativeText
+      /* Android's default ("highQuality") line breaking measures the brand's
+         custom fonts a few pixels short, so a short label loses its last
+         letters or word ("Transfe", "just"). "simple" measures them right.
+         A caller can still choose otherwise. */
+      textBreakStrategy="simple"
       {...props}
       maxFontSizeMultiplier={maxFontSizeMultiplier ?? MAX_SCALE[variant]}
       style={[STYLES[variant], { color: color[TONE[tone]] }, style]}

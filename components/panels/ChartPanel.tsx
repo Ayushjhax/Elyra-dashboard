@@ -31,7 +31,6 @@ import { useLevels } from "@/lib/market/useLevels";
 import { useAssets, usePrice, type FeedStatus } from "@/lib/market/usePrices";
 import type { PriceRow } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
-import type { ChartStyle, Interval } from "@/lib/types";
 import { useSecond } from "@/lib/useClock";
 import { useFirstScreenFit } from "@/lib/useFirstScreenFit";
 import { useFlash } from "@/lib/useFlash";

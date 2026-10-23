@@ -68,7 +68,7 @@ export function Button({
       ]}
     >
       {loading ? <ActivityIndicator size="small" color={color["text-muted"]} /> : icon}
-      <Text variant="label" tone={inactive ? "muted" : fill.text}>
+      <Text variant="label" tone={inactive ? "muted" : fill.text} numberOfLines={1} style={styles.buttonLabel}>
         {label}
       </Text>
     </Pressable>
@@ -206,6 +206,7 @@ export function OptionMenu<T extends string>({
 }
 
 const styles = StyleSheet.create({
+  buttonLabel: { flexShrink: 1 },
   button: {
     flexDirection: "row",
     alignItems: "center",

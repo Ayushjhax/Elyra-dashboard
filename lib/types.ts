@@ -7,6 +7,7 @@
 --------------------------------------------------------------------------- */
 
 import type { SentAttachment } from "@/lib/attachments";
+import type { PreparedAction } from "@/lib/personalized/types";
 
 /** The four venues the ledger filters by. */
 export type MarketType = "spot" | "perps" | "prediction" | "defi";
@@ -66,4 +67,12 @@ export interface ChatMessage {
   sources?: string[];
   /** Files sent with a question. Held for this session only, never stored. */
   attachments?: SentAttachment[];
+  /** The reply is an error, not an answer — what a retry is offered on. */
+  failed?: boolean;
+  /** A server-built preview of the capital move the question asked for. */
+  preparedAction?: PreparedAction;
+  /** The stored action a review card finishes; null when it was not ready. */
+  preparedActionId?: string | null;
+  /** A research report this message started, followed to completion. */
+  report?: { id: string; query: string };
 }

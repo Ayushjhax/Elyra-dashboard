@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { signalsFor, type MarketSignal } from "@/lib/research/signals";
+import { signalsFor } from "@/lib/research/signals";
+import type { MarketSignalsResponse, SymbolSignals } from "@/lib/research/signalTypes";
+
+export type { MarketSignalsResponse, SymbolSignals };
 
 /* ---------------------------------------------------------------------------
    Elyra's own market signals, for the workspace.
@@ -24,18 +27,6 @@ export const dynamic = "force-dynamic";
 const MAX_SYMBOLS = 6;
 const TTL_MS = 60_000;
 const SYMBOL = /^[A-Z0-9]{1,12}$/;
-
-export interface SymbolSignals {
-  symbol: string;
-  signals: MarketSignal[];
-  asOf: string;
-  warnings: string[];
-}
-
-export interface MarketSignalsResponse {
-  results: SymbolSignals[];
-  generatedAt: string;
-}
 
 const cache = new Map<string, { at: number; value: Promise<SymbolSignals> }>();
 

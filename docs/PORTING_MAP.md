@@ -42,7 +42,7 @@ The API column says `same` when the app calls the existing route unchanged.
 | Wallet sign-in (Seeker / Phantom / Solflare) | — | MWA + `useLoginWithSiws` (`mobile/src/lib/wallet/mwa.ts`) | same | done — verified on a Seeker with its own wallet |
 | Embedded Solana wallet | `PrivyClientProvider.tsx` (createOnLogin) | Privy Expo embedded wallet | same | todo |
 | Account identicon and menu | `components/shell/RailAccount.tsx`, `lib/account.ts` | header identicon → account sheet | — | todo |
-| Account card (user id, linked accounts) | `components/dashboard/DashboardDrawer.tsx` | Account → Settings | — | todo |
+| Account card (user id, linked accounts) | `components/dashboard/DashboardDrawer.tsx` | `mobile/src/app/dashboard.tsx` (Account tab → Dashboard) | — | done — verified on a Seeker |
 | Store reset on account change | `lib/account.ts` (`accountKey`), all stores, `lib/agentChat.ts` (`endConversation`) | same rule | — | todo |
 | Sign out | `RailAccount.tsx`, `components/wallet/WalletActions.tsx` | Account tab, wallet sheet | — | todo |
 | Account and data deletion | — (store policy requirement) | Account → Delete account | new `DELETE /api/account` | todo |
@@ -60,7 +60,7 @@ The API column says `same` when the app calls the existing route unchanged.
 | Transfer / withdraw | `components/assets/TransferDialog.tsx` | `mobile/src/app/transfer.tsx` (`?intent=withdraw`), QR scan in `ScanAddress.tsx`; shared rules in `lib/wallet/flows.ts` | `/api/transfer/*` same; status now says `expired` | in progress — built; on-chain test pending |
 | Swap | `components/assets/SwapDialog.tsx` | `mobile/src/app/swap.tsx` | `/api/swap/*` same | in progress — built; on-chain test pending |
 | Action dialogs | `components/assets/ActionDialogs.tsx` | Portfolio action bar (Receive, Swap, Transfer, Withdraw) | — | done |
-| Wallet activity | `components/workspace/ActivityWidget.tsx`, `lib/wallet/useWalletActivity.ts`, `lib/activity/*` | Portfolio tab (`mobile/src/components/wallet/Activity.tsx`, `mobile/src/lib/stores/activity.ts`); fired alerts and venue activity join with their stores | `/api/wallet/activity` same | in progress — built; device check pending |
+| Wallet activity | `components/workspace/ActivityWidget.tsx`, `lib/wallet/useWalletActivity.ts`, `lib/activity/*` | `mobile/src/app/activity.tsx` (Portfolio → Wallet activity), `mobile/src/lib/stores/activity.ts`; fired alerts and venue activity join with their stores | `/api/wallet/activity` same | in progress — verified on a Seeker with real history; moved to its own screen |
 | Actions awaiting review | `components/agent/PendingActions.tsx`, `lib/actions/useOpenActions.ts` | `mobile/src/components/actions/ReviewCards.tsx` (Portfolio and Elyra tabs), `mobile/src/lib/stores/actions.ts` | `/api/actions` same | in progress — built and unit-tested; device check pending |
 | On-chain proof of a confirmed action | `lib/actions/proof.ts` | — | same | done (server) |
 
@@ -68,29 +68,29 @@ The API column says `same` when the app calls the existing route unchanged.
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Watchlist (market types, favorites, order) | `components/workspace/WatchlistWidget.tsx`, `lib/store.ts` | Markets tab | `/api/watchlist` (done, `lib/watchlist.ts`) | todo |
-| Asset search | `components/panels/AssetSelectDialog.tsx`, `lib/market/useAssetSearch.ts` | Search screen | `/api/market/assets` same | todo |
-| Command palette | `components/shell/CommandPalette.tsx` | Search screen (assets, screens, actions) | — | todo |
-| Prices (Pyth) | `lib/market/usePrices.ts` | prices store | `/api/market/prices` same | todo |
-| Price header (24h, high, low, volume) | `components/panels/ChartPanel.tsx` | Asset screen header | same | todo |
-| Chart (TradingView embed) | `components/panels/ChartPanel.tsx`, `lib/useFirstScreenFit.ts` | WebView chart, allowlisted origins | — | todo |
-| Pivot levels | `lib/market/levels.ts`, `useLevels.ts` | Asset screen | `/api/market/levels` same | todo |
-| Chart alerts | `components/panels/ChartAlerts.tsx`, `lib/alerts/useAlerts.ts` | Asset screen → alerts | `/api/alerts` same | todo |
-| Decision brief | `components/agent/DecisionBrief.tsx` | Asset screen | same | todo |
-| Market pulse | `components/agent/MarketPulse.tsx` | Markets tab | `/api/market/pulse` same | todo |
-| Live signals (market) | `components/workspace/SignalsWidget.tsx` | Markets → Signals | `/api/market/signals`, `/api/signals` same | todo |
-| Smart money | `components/panels/SmartMoneyPanel.tsx` | Markets → Smart money | `/api/smart-money` same | todo |
-| Tracker stream (SSE) | `components/agent/ElyraSignals.tsx` | streaming helper | `/api/tracker/*` same | todo |
+| Watchlist (market types, favorites, order) | `components/workspace/WatchlistWidget.tsx`, `lib/store.ts` | Markets → Watchlist (`mobile/src/components/market/Watchlist.tsx`, `WatchRow.tsx`, `mobile/src/lib/stores/watchlist.ts`); favourites are kept on the phone — the server stores none | `/api/watchlist` (done, `lib/watchlist.ts`) | in progress — add and live prices verified on a Seeker; reorder pending |
+| Asset search | `components/panels/AssetSelectDialog.tsx`, `lib/market/useAssetSearch.ts` | `mobile/src/app/search.tsx`, `useAssetSearch` in `mobile/src/lib/stores/market.ts` | `/api/market/assets` same | done — verified on a Seeker |
+| Command palette | `components/shell/CommandPalette.tsx` | `mobile/src/app/search.tsx` (markets, screens and actions, recent) | — | done — verified on a Seeker |
+| Prices (Pyth) | `lib/market/usePrices.ts` | `usePrices` in `mobile/src/lib/stores/market.ts` (batched, stops in the background) | `/api/market/prices` same | done — live on a Seeker |
+| Price header (24h, high, low, volume) | `components/panels/ChartPanel.tsx` | `mobile/src/app/asset/[symbol].tsx` | same | done — verified on a Seeker |
+| Chart (TradingView embed) | `components/panels/ChartPanel.tsx`, `lib/useFirstScreenFit.ts` | `mobile/src/components/market/ChartView.tsx`; one widget config for both in `lib/market/chartWidget.ts`; origins allowlisted there | — | done — verified on a Seeker |
+| Pivot levels | `lib/market/levels.ts`, `useLevels.ts` | Asset screen | `/api/market/levels` same | done — verified on a Seeker |
+| Chart alerts | `components/panels/ChartAlerts.tsx`, `lib/alerts/useAlerts.ts` | `mobile/src/components/market/AlertsSheet.tsx`, `mobile/src/lib/stores/alerts.ts`; shared rules in `lib/alerts/rules.ts` | `/api/alerts` same, plus `appDelivery` | done — verified on a Seeker |
+| Decision brief | `components/agent/DecisionBrief.tsx` | `mobile/src/components/market/DecisionBrief.tsx`; shared lines in `lib/market/brief.ts` | same | in progress — built; phone check pending |
+| Market pulse | `components/agent/MarketPulse.tsx` | Markets → Pulse | `/api/market/pulse` same | done — verified on a Seeker |
+| Live signals (market) | `components/workspace/SignalsWidget.tsx` | Markets → Signals → Market | `/api/market/prices` same | done — verified on a Seeker |
+| Smart money | `components/panels/SmartMoneyPanel.tsx` (SEC filing findings), `SignalsWidget.tsx` (wallet consensus) | wallet consensus: Markets → Signals → Smart money; the SEC findings panel goes with Research | `/api/tracker/signals` same; `/api/smart-money` with Research | in progress — consensus built; SEC findings todo |
+| Tracker stream (SSE) | `components/agent/ElyraSignals.tsx`, `SignalsWidget.tsx` | `useSmartMoney` in `mobile/src/lib/stores/signals.ts` (reconnect backoff, stops in the background) | `/api/tracker/*` same | done — verified on a Seeker |
 
 ## Portfolio
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Overview strip (value, 24h, available, positions, 7-day) | `components/workspace/OverviewStrip.tsx`, `lib/portfolio/useHistory.ts` | Portfolio tab header | `/api/portfolio`, `/history` same | todo |
-| Trading activity (positions, orders, history, filters) | `components/workspace/TradingActivity.tsx`, `lib/portfolio/ledger.ts` | Portfolio → Activity | same | todo |
-| Portfolio drawer (holdings, risk, DeFi) | `components/portfolio/PortfolioDrawer.tsx`, `lib/portfolio/drawer.ts` | Portfolio detail screens | same | todo |
-| Capital accounts (equity, allocation, venues, balances) | `components/assets/CapitalAccounts.tsx`, `tables.tsx`, `lib/assets/*` | Portfolio → Accounts | same | todo |
-| Dashboard (holdings, network, account) | `components/dashboard/DashboardDrawer.tsx` | Account → Settings | same | todo |
+| Overview strip (value, 24h, available, positions, 7-day) | `components/workspace/OverviewStrip.tsx`, `lib/portfolio/useHistory.ts` | `mobile/src/components/portfolio/Overview.tsx` (also open PnL, counts and per-venue values, from the chat and Mini App) | `/api/portfolio`, `/history` same | done — verified on a Seeker |
+| Trading activity (positions, orders, history, filters) | `components/workspace/TradingActivity.tsx`, `lib/portfolio/ledger.ts` | `mobile/src/components/portfolio/TradingActivity.tsx` (cards on phones, column-priority tables on tablets) | same | done — verified on a Seeker |
+| Portfolio drawer (holdings, risk, DeFi) | `components/portfolio/PortfolioDrawer.tsx`, `lib/portfolio/drawer.ts` | `mobile/src/app/holdings.tsx`, `risk.tsx`, `defi.tsx`, `orders.tsx`, `fills.tsx` | `/api/app/views` (new: the agent's own tools, as the Mini App used) | done — verified on a Seeker |
+| Capital accounts (equity, allocation, venues, balances) | `components/assets/CapitalAccounts.tsx`, `tables.tsx`, `lib/assets/*` | `mobile/src/app/capital.tsx` | same | done — verified on a Seeker |
+| Dashboard (holdings, network, account) | `components/dashboard/DashboardDrawer.tsx` | `mobile/src/app/dashboard.tsx` | same | done — verified on a Seeker |
 
 ## Elyra (AI)
 
@@ -138,10 +138,10 @@ The website keeps Telegram. The app replaces every part of it.
 |---|---|---|---|
 | Linking a chat (`/link`, `/start CODE`, `/unlink`, link codes) | not needed — sign-in is the identity; the push device registers itself | `/api/devices` (done) | todo |
 | Free text and `/ask` | Elyra → Ask | same | todo |
-| `/portfolio` `/wallet` `/positions` `/defi` | Portfolio screens | same | todo |
-| `/orders` `/activity` (`/fills`) | Portfolio → Activity | same | todo |
-| `/markets` `/price` | Markets tab, asset screen | same | todo |
-| `/watch` (`/watchlist`) | Markets watchlist | `/api/watchlist` (done) | todo |
+| `/portfolio` `/wallet` `/positions` `/defi` | Portfolio overview, Holdings, Risk, DeFi | `/api/app/views` (done) | in progress — built; phone check pending |
+| `/orders` `/activity` (`/fills`) | Portfolio → Orders, Fills | `/api/app/views` (done) | in progress — built; phone check pending |
+| `/markets` `/price` | Markets tab, asset screen | same | in progress — built |
+| `/watch` (`/watchlist`) | Markets watchlist | `/api/watchlist` (done) | done — the same table the chat's /watch writes |
 | `/swap` preview + "Review in Elyra" | Swap screen, review cards | ready previews stored as `agent` actions, id returned (done) | todo |
 | `/alert` `/alerts` | alert editor, Alerts & automation | same | todo |
 | `/research` `/report` | Research → Reports | same | todo |
@@ -158,7 +158,7 @@ The website keeps Telegram. The app replaces every part of it.
 | Notification: prediction signal alert | push + inbox | one pass, every channel (done) | todo |
 | Notification: daily summary | push + inbox | one pass, every channel (done) | todo |
 | Notification preferences | Account → Notifications | `/api/notifications/preferences` (done), shared validation | todo |
-| Mini App: Overview, Holdings, Risk, DeFi | Portfolio screens | same | todo |
+| Mini App: Overview, Holdings, Risk, DeFi | Portfolio overview, Holdings, Risk, DeFi | `/api/app/views` (done) | in progress — built; phone check pending |
 | Mini App: Prediction, Trending, Signals, Alerts | Research → Prediction markets | same | todo |
 | Mini App: Backtests | Research → Backtests | same | todo |
 | Header Telegram link, Telegram connection card | dropped — no Telegram in the app | — | dropped — not part of the app |

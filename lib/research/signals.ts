@@ -41,52 +41,22 @@ import { ok, type ToolResult } from "@/lib/providers/types";
    no method behind it, and its precision would imply one.
 --------------------------------------------------------------------------- */
 
-export type EvaluationState =
-  "evaluated" | "unavailable" | "stale" | "unsupported";
-export interface SignalEvaluation {
-  price: EvaluationState;
-  funding: EvaluationState;
-  divergence: EvaluationState;
-  generatedAt: string;
-}
-
-export type SignalType =
-  | "price_momentum"
-  | "volatility_expansion"
-  | "volume_confirmation"
-  | "funding_dislocation"
-  | "spot_perp_basis"
-  | "cross_venue_divergence";
-
-export type SignalStrength = "low" | "medium" | "high";
-export type SignalDirection = "positive" | "negative" | "neutral";
-
-export interface SignalEvidence {
-  /** Where the reading came from. */
-  source: string;
-  label: string;
-  value: string;
-  /** When this reading was taken. Staleness is visible, not implied. */
-  asOf: string;
-}
-
-export interface MarketSignal {
-  instrumentId: string;
-  symbol: string;
-  type: SignalType;
-  direction: SignalDirection;
-  strength: SignalStrength;
-  title: string;
-  summary: string;
-  evidence: SignalEvidence[];
-  /** Independent readings that agree. */
-  confirmationCount: number;
-  /** Readings that point the other way. Listed, never suppressed. */
-  contradictions: string[];
-  generatedAt: string;
-  /** Oldest reading used, so a caller can judge freshness. */
-  dataFreshness: string;
-}
+export type {
+  EvaluationState,
+  MarketSignal,
+  SignalDirection,
+  SignalEvaluation,
+  SignalEvidence,
+  SignalStrength,
+  SignalType,
+} from "@/lib/research/signalTypes";
+import type {
+  EvaluationState,
+  MarketSignal,
+  SignalEvaluation,
+  SignalEvidence,
+  SignalStrength,
+} from "@/lib/research/signalTypes";
 
 /** Beyond this, a reading describes a market that may have moved on. */
 const STALE_MS = SIGNAL_CRITERIA.staleMs;

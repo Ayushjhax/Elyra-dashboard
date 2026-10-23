@@ -12,6 +12,10 @@ import { signedPdfUrl } from "@/lib/research/store";
 
    Redirects to a signed URL valid for sixty seconds: long enough to follow,
    short enough that a forwarded link is already dead.
+
+   `?as=json` answers with the signed URL instead of redirecting to it, for
+   the Android app, which opens it in the system browser rather than pulling
+   the PDF through its own request.
 --------------------------------------------------------------------------- */
 
 export const runtime = "nodejs";
@@ -36,5 +40,8 @@ export async function GET(
     );
   }
 
+  if (new URL(request.url).searchParams.get("as") === "json") {
+    return NextResponse.json({ url }, { headers: { "cache-control": "no-store" } });
+  }
   return NextResponse.redirect(url, { status: 302 });
 }

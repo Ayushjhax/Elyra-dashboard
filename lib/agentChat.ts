@@ -1,6 +1,7 @@
 "use client";
 
-import type { ChatStreamEvent } from "@/app/api/agent/chat/route";
+import type { ChatStreamEvent } from "@/lib/agent/events";
+import { createReplyFold, type ReplyUpdate } from "@/lib/agent/reply";
 import { nextMessageId, useElyraStore } from "@/lib/store";
 
 /* ---------------------------------------------------------------------------
@@ -21,7 +22,8 @@ import { nextMessageId, useElyraStore } from "@/lib/store";
    read something — the words before it were the model deciding what to look
    up, so they are set aside and the bubble says what is being read — and a
    final `done` whose reply is the one kept, with the sources the tools
-   actually returned.
+   actually returned. How each event changes the bubble is lib/agent/reply.ts,
+   which the Android app follows too.
 --------------------------------------------------------------------------- */
 
 /** Privy's token getter, handed in by the caller: only a hook can reach it. */
@@ -116,18 +118,33 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
   const setStreamingId: typeof store.setStreamingId = (id) => {
     if (!controller.signal.aborted) useElyraStore.getState().setStreamingId(id);
   };
-  let draft = "";
-  let finished = false;
+  const fold = createReplyFold();
 
-  const settle = (reply: string, sources: string[] = []) => {
-    finished = true;
-    patch(replyId, {
-      text: reply,
-      sources,
-      activity: undefined,
-      /* Stamped when the answer arrived, not when it was asked for. */
-      at: new Date().toISOString(),
-    });
+  const apply = (update: ReplyUpdate | null) => {
+    if (update === null) return;
+    switch (update.kind) {
+      case "text":
+        setStreamingId(replyId);
+        patch(replyId, { text: update.text, activity: undefined });
+        break;
+      case "reading":
+        setStreamingId(null);
+        patch(replyId, { text: "", activity: update.activity });
+        break;
+      case "action":
+        patch(replyId, { preparedAction: update.action, preparedActionId: update.id });
+        break;
+      case "settled":
+        patch(replyId, {
+          text: update.text,
+          sources: update.sources,
+          activity: undefined,
+          ...(update.failed ? { failed: true } : {}),
+          /* Stamped when the answer arrived, not when it was asked for. */
+          at: new Date().toISOString(),
+        });
+        break;
+    }
   };
 
   try {
@@ -157,39 +174,17 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
       const payload = (await response.json().catch(() => null)) as
         | { reply?: string; error?: string; sources?: string[] }
         | null;
-      settle(
+      apply(
         response.ok
-          ? (payload?.reply ?? "No reply came back.")
-          : (payload?.error ?? "The agent could not complete that request."),
-        payload?.sources ?? [],
+          ? fold.event({ type: "done", reply: payload?.reply ?? "No reply came back.", runId: "", sources: payload?.sources ?? [] })
+          : fold.event({ type: "error", message: payload?.error ?? "The agent could not complete that request." }),
       );
     } else {
-      for await (const event of events(response.body)) {
-        if (event.type === "text") {
-          draft += event.delta;
-          setStreamingId(replyId);
-          patch(replyId, { text: draft, activity: undefined });
-        } else if (event.type === "tools") {
-          /* What came before was the model choosing what to read. */
-          draft = "";
-          setStreamingId(null);
-          patch(replyId, { text: "", activity: event.labels.join(", ").toLowerCase() });
-        } else if (event.type === "done") {
-          settle(event.reply, event.sources);
-        } else if (event.type === "error") {
-          settle(event.message);
-        }
-      }
-      if (!finished) {
-        settle(draft.length > 0 ? `${draft}\n\n(The connection closed before the answer finished.)` : "The connection closed before an answer arrived.");
-      }
+      for await (const event of events(response.body)) apply(fold.event(event));
+      apply(fold.ended());
     }
   } catch {
-    settle(
-      draft.length > 0
-        ? `${draft}\n\n(The connection dropped before the answer finished.)`
-        : "Could not reach the agent. Check your connection.",
-    );
+    if (!fold.finished) apply(fold.dropped());
   } finally {
     if (active === controller) active = null;
     if (!controller.signal.aborted) {

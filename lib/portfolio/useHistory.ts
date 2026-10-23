@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import type { HistoryResponse } from "@/app/api/portfolio/history/route";
+import type { HistoryResponse } from "@/lib/portfolio/types";
 import type { PortfolioHistoryPoint } from "@/lib/portfolio/types";
 
 /* ---------------------------------------------------------------------------

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import { UsageLimitError, ensureConversation, runAgent, type AgentEvent } from "@/lib/agent";
+import { UsageLimitError, ensureConversation, runAgent } from "@/lib/agent";
+import type { ChatStreamEvent } from "@/lib/agent/events";
 import { validateAttachments } from "@/lib/attachments";
 import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/session";
+import { buildContext } from "@/lib/personalized/context";
+import { classifyIntent } from "@/lib/personalized/intent";
+import { planPreparedAction } from "@/lib/personalized/plan";
+import type { PreparedAction } from "@/lib/personalized/types";
 
 /* ---------------------------------------------------------------------------
    The web surface.
@@ -23,12 +28,47 @@ import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/sessi
    something, then one `done` with the finished reply and its sources (or
    one `error`). Everything that can be refused — no session, no database,
    a bad message — is refused before the stream opens, with a status code.
+   The events are typed in lib/agent/events.ts, shared with both readers.
+
+   A question that asks to move capital ("swap half my SOL to USDC") also
+   gets a server-built preview, the same one Personalized prepares
+   (lib/personalized/plan.ts): a `prepared_action` event before `done`, and
+   a stored action a review card can finish. It is read alongside the
+   answer, and only for such a question — the context read is not paid for
+   on every turn.
 --------------------------------------------------------------------------- */
 
-export type ChatStreamEvent =
-  | AgentEvent
-  | { type: "done"; reply: string; runId: string; sources: string[] }
-  | { type: "error"; message: string };
+export type { ChatStreamEvent };
+
+/** The preview for a request to move capital, or null for any other question. */
+async function planFor(
+  message: string,
+  user: { userId: string | null; solanaAddress: string | null; walletAddress: string | null },
+): Promise<{ action: PreparedAction; id: string | null } | null> {
+  const intent = classifyIntent(message);
+  if (intent.task !== "ACTION_PLANNING") return null;
+  try {
+    const built = await buildContext({
+      userId: user.userId,
+      solanaAddress: user.solanaAddress,
+      sessionWallet: user.walletAddress,
+      intent,
+    });
+    if (built.snapshot === null) return null;
+    return await planPreparedAction({
+      message,
+      symbols: intent.symbols,
+      snapshot: built.snapshot,
+      memories: built.context.memories,
+      userId: user.userId,
+      surface: "agent",
+    });
+  } catch (error) {
+    /* The answer still arrives; only the card is missing. */
+    console.error("[agent/chat] action preview", error);
+    return null;
+  }
+}
 
 /* node:crypto and the exchange signing path need the Node runtime. */
 export const runtime = "nodejs";
@@ -92,6 +132,8 @@ export async function POST(request: Request) {
             /* The reader went away; the run still finishes and is saved. */
           }
         };
+        /* Read beside the answer, so the preview costs no extra wait. */
+        const planning = planFor(trimmed, user);
         try {
           const conversationId = await ensureConversation({ userId, surface: "web" });
           const { reply, runId, sources } = await runAgent({
@@ -104,6 +146,8 @@ export async function POST(request: Request) {
             attachments,
             onEvent: send,
           });
+          const planned = await planning;
+          if (planned !== null) send({ type: "prepared_action", action: planned.action, id: planned.id });
           send({ type: "done", reply, runId, sources });
         } catch (error) {
           if (error instanceof UsageLimitError) {
@@ -133,6 +177,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const planning = planFor(trimmed, user);
     const conversationId = await ensureConversation({
       userId: user.userId,
       surface: "web",
@@ -148,7 +193,14 @@ export async function POST(request: Request) {
       attachments,
     });
 
-    return NextResponse.json({ reply, runId, conversationId, sources });
+    const planned = await planning;
+    return NextResponse.json({
+      reply,
+      runId,
+      conversationId,
+      sources,
+      ...(planned === null ? {} : { preparedAction: planned.action, preparedActionId: planned.id }),
+    });
   } catch (error) {
     if (error instanceof UsageLimitError) {
       return NextResponse.json({ error: error.message }, { status: 429 });

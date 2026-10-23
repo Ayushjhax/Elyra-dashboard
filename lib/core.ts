@@ -53,6 +53,7 @@ export const CORE_MODULES = [
   "lib/portfolio/ledger.ts",
   "lib/portfolio/ledgerEmpty.ts",
   "lib/portfolio/drawer.ts",
+  "lib/portfolio/views.ts",
   "lib/assets/types.ts",
   "lib/assets/derive.ts",
   "lib/wallet/types.ts",
@@ -74,6 +75,10 @@ export const CORE_MODULES = [
   "lib/attachments.ts",
 
   /* the assistant */
+  "lib/agent/events.ts",
+  "lib/agent/reply.ts",
+  "lib/agent/shortcuts.ts",
+  "lib/agent/suggestions.ts",
   "lib/personalized/types.ts",
   "lib/personalized/calculations.ts",
   "lib/personalized/intent.ts",
@@ -82,6 +87,8 @@ export const CORE_MODULES = [
   "lib/prediction/analytics.ts",
   "lib/prediction/signal-types.ts",
   "lib/research/calculations.ts",
+  "lib/research/signalTypes.ts",
+  "lib/research/reportTypes.ts",
   "lib/backtest/metrics.ts",
 
   /* brand */

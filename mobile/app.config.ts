@@ -47,8 +47,6 @@ const config: ExpoConfig = {
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.WRITE_EXTERNAL_STORAGE",
-      /* expo-camera adds it by default; the camera here only reads QR codes. */
-      "android.permission.RECORD_AUDIO",
     ],
   },
   ios: {
@@ -77,6 +75,26 @@ const config: ExpoConfig = {
         cameraPermission: "Elyra uses the camera to scan a wallet address's QR code.",
         microphonePermission: false,
         recordAudioAndroid: false,
+      },
+    ],
+    /* The microphone is for dictating a question to Ask Elyra, asked for on
+       the first press of the microphone. The recording goes to the API to be
+       written out and is not kept. */
+    [
+      "expo-audio",
+      {
+        microphonePermission: "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
+        recordAudioAndroid: true,
+      },
+    ],
+    /* The system photo picker needs no storage permission on Android; the
+       library is opened only to attach an image to a question. */
+    [
+      "expo-image-picker",
+      {
+        photosPermission: "Elyra opens your photos only to attach an image to a question you ask.",
+        cameraPermission: "Elyra uses the camera to scan a wallet address's QR code.",
+        microphonePermission: "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
       },
     ],
   ],

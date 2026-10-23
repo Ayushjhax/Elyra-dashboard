@@ -4,7 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AlertTriangle, Check, ChevronRight, Info, RefreshCw, X, type LucideIcon } from "lucide-react-native";
+import { AlertTriangle, ArrowLeft, Check, ChevronRight, Info, RefreshCw, X, type LucideIcon } from "lucide-react-native";
 import { IconButton } from "~/components/ui/controls";
 import { useToast } from "~/components/ui/overlays";
 import { Text, type TextTone } from "~/components/ui/Text";
@@ -23,16 +23,25 @@ export function SheetHeader({
   onRefresh,
   refreshing = false,
   closeLabel,
+  back = false,
 }: {
   title: string;
   icon?: LucideIcon;
   onRefresh?: () => void;
   refreshing?: boolean;
   closeLabel: string;
+  /** A pushed screen: a back arrow at the start instead of a close at the end. */
+  back?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
   return (
-    <View style={[styles.header, { paddingTop: insets.top }]}>
+    <View style={[styles.header, back && styles.headerBack, { paddingTop: insets.top }]}>
+      {back && (
+        <IconButton accessibilityLabel={closeLabel} onPress={leave}>
+          <ArrowLeft size={20} strokeWidth={1.5} color={color["text-secondary"]} />
+        </IconButton>
+      )}
       {Icon !== undefined && <Icon size={18} strokeWidth={1.5} color={color["text-secondary"]} />}
       <Text variant="h2" accessibilityRole="header" numberOfLines={1} style={styles.flex}>
         {title}
@@ -50,9 +59,11 @@ export function SheetHeader({
           )}
         </IconButton>
       )}
-      <IconButton accessibilityLabel={closeLabel} onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}>
-        <X size={20} strokeWidth={1.5} color={color["text-secondary"]} />
-      </IconButton>
+      {!back && (
+        <IconButton accessibilityLabel={closeLabel} onPress={leave}>
+          <X size={20} strokeWidth={1.5} color={color["text-secondary"]} />
+        </IconButton>
+      )}
     </View>
   );
 }
@@ -204,6 +215,7 @@ const styles = StyleSheet.create({
     borderBottomColor: color["border-subtle"],
     borderBottomWidth: StyleSheet.hairlineWidth * 2,
   },
+  headerBack: { paddingLeft: 0 },
   flex: { flex: 1 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: TOUCH_TARGET, paddingVertical: 8 },
   notice: {

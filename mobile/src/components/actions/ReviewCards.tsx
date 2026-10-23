@@ -45,7 +45,7 @@ function countdown(expiresAt: string, now: number): string {
   return `Expires in ${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function ReviewCard({
+export function ReviewCard({
   entry,
   now,
   canSign,

@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { AgentTab, ChartIndicators, ChartStyle, ChatMessage, Interval, MarketFilter } from "@/lib/types";
+import type { ChartIndicators, ChartStyle, ChatMessage, Interval, MarketFilter } from "@/lib/types";
 import type { ComposerAttachment } from "@/lib/attachments";
 import { DEFAULT_ASSET_ID } from "@/lib/market/defaults";
 
@@ -21,12 +21,29 @@ import { DEFAULT_ASSET_ID } from "@/lib/market/defaults";
    the first frame and the restored state cannot disagree mid-render.
 --------------------------------------------------------------------------- */
 
+/** The Elyra tab's header tabs: the chat, Elyra's signals, and the actions
+    awaiting review. */
+export type ElyraTab = "ask" | "signals" | "actions";
+
+const ELYRA_TABS: readonly ElyraTab[] = ["ask", "signals", "actions"];
+
 export interface AppState {
   /* ---- markets (persisted) ---- */
   selectedAssetId: number;
   setSelectedAssetId: (id: number) => void;
   marketType: MarketFilter;
   setMarketType: (market: MarketFilter) => void;
+  /** Starred markets, by symbol. On this phone only: the watchlist itself is
+      the account's (/api/watchlist), but the server keeps no favourites. */
+  favorites: string[];
+  toggleFavorite: (symbol: string) => void;
+  /** The last few markets opened from search, newest first. */
+  recentSearches: { id: number; symbol: string }[];
+  addRecentSearch: (entry: { id: number; symbol: string }) => void;
+  clearRecentSearches: () => void;
+  /** Whether the asset screen's decision brief is open. */
+  decisionBriefOpen: boolean;
+  setDecisionBriefOpen: (open: boolean) => void;
 
   /* ---- chart (persisted) ---- */
   interval: Interval;
@@ -35,14 +52,17 @@ export interface AppState {
   setChartStyle: (style: ChartStyle) => void;
   chartIndicators: ChartIndicators;
   setChartIndicators: (indicators: ChartIndicators) => void;
+  /** TradingView's own drawing tools, shown in the chart. */
+  chartDrawing: boolean;
+  setChartDrawing: (on: boolean) => void;
 
   /* ---- privacy (persisted) ---- */
   balancesHidden: boolean;
   setBalancesHidden: (hidden: boolean) => void;
 
   /* ---- the agent (only the tab is persisted) ---- */
-  agentTab: AgentTab;
-  setAgentTab: (tab: AgentTab) => void;
+  agentTab: ElyraTab;
+  setAgentTab: (tab: ElyraTab) => void;
   messages: ChatMessage[];
   appendMessage: (message: ChatMessage) => void;
   patchMessage: (id: string, patch: Partial<ChatMessage>) => void;
@@ -55,6 +75,7 @@ export interface AppState {
   composerAttachments: ComposerAttachment[];
   addComposerAttachments: (files: ComposerAttachment[]) => void;
   removeComposerAttachment: (id: string) => void;
+  clearComposerAttachments: () => void;
   /** Ends the conversation: the account it belonged to has gone. */
   clearConversation: () => void;
 
@@ -75,6 +96,21 @@ export const useAppStore = create<AppState>()(
       setSelectedAssetId: (selectedAssetId) => set({ selectedAssetId }),
       marketType: "all",
       setMarketType: (marketType) => set({ marketType }),
+      favorites: [],
+      toggleFavorite: (symbol) =>
+        set((state) => ({
+          favorites: state.favorites.includes(symbol)
+            ? state.favorites.filter((entry) => entry !== symbol)
+            : [...state.favorites, symbol],
+        })),
+      recentSearches: [],
+      addRecentSearch: (entry) =>
+        set((state) => ({
+          recentSearches: [entry, ...state.recentSearches.filter((item) => item.id !== entry.id)].slice(0, 8),
+        })),
+      clearRecentSearches: () => set({ recentSearches: [] }),
+      decisionBriefOpen: true,
+      setDecisionBriefOpen: (decisionBriefOpen) => set({ decisionBriefOpen }),
 
       interval: "1H",
       setInterval: (interval) => set({ interval }),
@@ -82,6 +118,8 @@ export const useAppStore = create<AppState>()(
       setChartStyle: (chartStyle) => set({ chartStyle }),
       chartIndicators: { ema: true, volume: true, levels: true },
       setChartIndicators: (chartIndicators) => set({ chartIndicators }),
+      chartDrawing: false,
+      setChartDrawing: (chartDrawing) => set({ chartDrawing }),
 
       balancesHidden: false,
       setBalancesHidden: (balancesHidden) => set({ balancesHidden }),
@@ -105,6 +143,7 @@ export const useAppStore = create<AppState>()(
         set((state) => ({ composerAttachments: [...state.composerAttachments, ...files] })),
       removeComposerAttachment: (id) =>
         set((state) => ({ composerAttachments: state.composerAttachments.filter((file) => file.id !== id) })),
+      clearComposerAttachments: () => set({ composerAttachments: [] }),
       clearConversation: () =>
         set({ messages: [], agentPending: false, streamingId: null, composerDraft: "", composerAttachments: [] }),
 
@@ -121,6 +160,10 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         selectedAssetId: state.selectedAssetId,
         marketType: state.marketType,
+        favorites: state.favorites,
+        recentSearches: state.recentSearches,
+        decisionBriefOpen: state.decisionBriefOpen,
+        chartDrawing: state.chartDrawing,
         interval: state.interval,
         chartStyle: state.chartStyle,
         chartIndicators: state.chartIndicators,
@@ -130,6 +173,11 @@ export const useAppStore = create<AppState>()(
         requireAuthToSign: state.requireAuthToSign,
       }),
       skipHydration: true,
+      /* A tab this build no longer has opens the chat. */
+      merge: (persisted, current) => {
+        const restored = { ...current, ...(persisted as Partial<AppState>) };
+        return ELYRA_TABS.includes(restored.agentTab) ? restored : { ...restored, agentTab: "ask" };
+      },
     },
   ),
 );

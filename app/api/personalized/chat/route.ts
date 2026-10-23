@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { describeAttachments, validateAttachments } from "@/lib/attachments";
-import { prepareAction } from "@/lib/personalized/actions";
-import { inferProposal } from "@/lib/personalized/proposal";
+import { planPreparedAction } from "@/lib/personalized/plan";
 import { buildContext } from "@/lib/personalized/context";
 import {
   appendMessage,
@@ -23,7 +22,6 @@ import {
   type PersonalizedAnswer,
   type PersonalizedStreamEvent,
 } from "@/lib/personalized/types";
-import { storePreparedAction } from "@/lib/actions/store";
 
 /* ---------------------------------------------------------------------------
    One turn of Personalized, streamed.
@@ -230,37 +228,24 @@ export async function POST(request: Request): Promise<Response> {
         let answer: PersonalizedAnswer = run.answer;
 
         /* ---- Action planning attaches a SERVER-BUILT preview ----
-
-           The model's prose is kept; its proposed numbers are not. The
-           proposal below is derived from the question and resolved against
-           the live snapshot by `prepareAction`, which re-reads every balance.
-           Nothing the model wrote reaches the preview as a value. */
+           (lib/personalized/plan.ts): numbers re-resolved against the live
+           snapshot, never the model's; stored only when it is ready. */
         if (intent.task === "ACTION_PLANNING" && built.snapshot !== null) {
-          const proposal = inferProposal(message, intent.symbols);
-          if (proposal !== null) {
-            const limit = built.context.memories.find(
-              (memory) => memory.type === "concentration_limit",
-            );
-            const action = prepareAction(proposal, built.snapshot, {
-              concentrationLimit:
-                typeof limit?.value === "number" ? limit.value : null,
-            });
-            /* A ready preview is stored, like Telegram's "Review in Elyra",
-               so the app can show it as a review card and the confirmation
-               can be recorded against it once a wallet signs. A preview
-               that is not ready is shown with its reason and never stored —
-               a card offering what nothing can execute is a promise the
-               product cannot keep. */
-            const stored =
-              action.readiness === "ready" && session.userId !== null
-                ? await storePreparedAction({ userId: session.userId, action, surface: "agent" })
-                : null;
+          const planned = await planPreparedAction({
+            message,
+            symbols: intent.symbols,
+            snapshot: built.snapshot,
+            memories: built.context.memories,
+            userId: session.userId,
+            surface: "agent",
+          });
+          if (planned !== null) {
             answer = {
               ...answer,
-              preparedAction: action,
-              ...(stored === null ? {} : { preparedActionId: stored.id }),
+              preparedAction: planned.action,
+              ...(planned.id === null ? {} : { preparedActionId: planned.id }),
             };
-            send({ type: "prepared_action", action, id: stored?.id ?? null });
+            send({ type: "prepared_action", action: planned.action, id: planned.id });
           }
         }
 

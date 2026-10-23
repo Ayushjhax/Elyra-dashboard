@@ -5,7 +5,7 @@ import {
   hasProfile,
 } from "@/lib/auth/session";
 import { serviceClient } from "@/lib/supabase/server";
-import { createAlert, deleteAlert, listAlerts, type PriceAlert } from "@/lib/alerts/store";
+import { createAlert, deleteAlert, listAlerts } from "@/lib/alerts/store";
 import { appDeliveryFor } from "@/lib/alerts/rules";
 import type { AlertsResponse } from "@/lib/alerts/types";
 import { notificationPreferences } from "@/lib/notifications/preferences";

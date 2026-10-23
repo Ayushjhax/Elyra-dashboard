@@ -239,6 +239,23 @@ export interface PortfolioSnapshot {
   partial: boolean;
 }
 
+/** Which source produced a history series: stored snapshots, or rebuilt from candles. */
+export type HistoryBasis = "recorded" | "reconstructed" | "none";
+
+/** The periods /api/portfolio/history serves. */
+export type HistoryRange = "1D" | "1W" | "1M" | "3M" | "1Y" | "ALL";
+
+/** /api/portfolio/history. */
+export interface HistoryResponse {
+  points: PortfolioHistoryPoint[];
+  /** Which of the two sources produced this — the UI must say which. */
+  basis: HistoryBasis;
+  /** Holdings the series could not price, named so the panel can say so. */
+  uncovered: string[];
+  coveragePct: number;
+  error: string | null;
+}
+
 export interface PortfolioResponse {
   portfolio: PortfolioSnapshot | null;
   error: string | null;

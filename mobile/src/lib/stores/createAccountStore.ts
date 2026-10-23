@@ -46,9 +46,16 @@ export interface AccountFeed<T> extends AccountState<T> {
   refetch: () => void;
 }
 
+/**
+ * What a read returns to step aside: it overlapped a write, so what it saw
+ * may be from before the write. Nothing is changed; the write reads again
+ * once it has finished.
+ */
+export const SKIP: unique symbol = Symbol("skip");
+
 export interface AccountStoreOptions<T> {
   /** Reads the data for the signed-in account. Throws an ApiError on failure. */
-  load: (signal: AbortSignal) => Promise<T>;
+  load: (signal: AbortSignal) => Promise<T | typeof SKIP>;
   /** Between successful reads. */
   pollMs: number;
   /** After a failure — never shorter than pollMs. */
@@ -62,8 +69,14 @@ export interface AccountStoreOptions<T> {
 export interface AccountStore<T> {
   /** Subscribe from a component. */
   useFeed: () => AccountFeed<T>;
-  /** Read now, outside React (after a write, say). */
+  /** Read now, outside React. Joins a read already in flight. */
   refetch: () => Promise<void>;
+  /**
+   * A read that starts after now — after a write, so it includes it. Waits
+   * out a read already in flight (which may have started before the write)
+   * and then reads again.
+   */
+  refresh: () => Promise<void>;
   /** The current state, outside React. */
   snapshot: () => AccountState<T>;
   /**
@@ -73,6 +86,8 @@ export interface AccountStore<T> {
    * the next account's data.
    */
   update: (change: (data: T) => T) => { current: () => boolean };
+  /** Installs a whole answer the server gave to a write, even before the first read. */
+  replace: (data: T) => void;
 }
 
 /** The app's state now. Anything that is not a known status counts as active. */
@@ -140,7 +155,7 @@ export function createAccountStore<T>(options: AccountStoreOptions<T>): AccountS
       let delay = options.pollMs;
       try {
         const data = await options.load(signal);
-        if (started !== generation) return;
+        if (started !== generation || data === SKIP) return;
         emit({ data, error: null, unconfigured: false, loading: false, stale: false, fetchedAt: Date.now() });
         options.afterLoad?.(data);
       } catch (error) {
@@ -227,5 +242,14 @@ export function createAccountStore<T>(options: AccountStoreOptions<T>): AccountS
     return { current: () => started === generation };
   }
 
-  return { useFeed, refetch: poll, snapshot, update };
+  function replace(data: T): void {
+    emit({ data, error: null, unconfigured: false, loading: false, stale: false, fetchedAt: Date.now() });
+  }
+
+  async function refresh(): Promise<void> {
+    if (inFlight !== null) await inFlight;
+    await poll();
+  }
+
+  return { useFeed, refetch: poll, refresh, snapshot, update, replace };
 }

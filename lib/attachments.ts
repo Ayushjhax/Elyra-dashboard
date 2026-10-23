@@ -196,3 +196,40 @@ export function describeAttachments(attachments: ReadonlyArray<{ name: string; k
   const kinds: Record<AttachmentKind, string> = { image: "image", pdf: "PDF", text: "text file" };
   return `[Attached: ${attachments.map((entry) => `${entry.name} (${kinds[entry.kind]})`).join(", ")}]`;
 }
+
+/**
+ * Whether one more file fits beside what is already staged, checked before
+ * it is sent so the person hears why at the moment they add it. `size` is
+ * decoded bytes for an image or PDF and characters for a text file. Null
+ * when it fits; the sentence to show when it does not. The route checks
+ * again — this is a courtesy, not the authority.
+ */
+export function stagingError(
+  candidate: { name: string; kind: AttachmentKind; size: number },
+  staged: ReadonlyArray<{ kind: AttachmentKind; size: number }>,
+): string | null {
+  const name = cleanName(candidate.name);
+  if (staged.length >= ATTACHMENT_LIMITS.maxFiles) {
+    return `Up to ${ATTACHMENT_LIMITS.maxFiles} files at a time — ${name} was not added.`;
+  }
+  if (candidate.size <= 0) return `${name} is empty.`;
+  if (candidate.kind === "text") {
+    const chars = staged.filter((file) => file.kind === "text").reduce((sum, file) => sum + file.size, 0);
+    if (chars + candidate.size > ATTACHMENT_LIMITS.maxTextChars) {
+      return `${name} is too long — text files can carry ${ATTACHMENT_LIMITS.maxTextChars.toLocaleString("en-US")} characters in all.`;
+    }
+    return null;
+  }
+  const bytes = staged.filter((file) => file.kind !== "text").reduce((sum, file) => sum + file.size, 0);
+  if (bytes + candidate.size > ATTACHMENT_LIMITS.maxTotalBytes) {
+    return `${name} is too large — attachments can be 3MB together.`;
+  }
+  return null;
+}
+
+/** "1.2 MB", "84 KB", "3,201 chars". */
+export function describeSize(file: { kind: AttachmentKind; size: number }): string {
+  if (file.kind === "text") return `${file.size.toLocaleString("en-US")} chars`;
+  if (file.size >= 1024 * 1024) return `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(file.size / 1024))} KB`;
+}

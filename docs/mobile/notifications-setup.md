@@ -92,7 +92,9 @@ low importance. Users can change channel settings in Android.
 1. Apply `supabase/migrations/0016_app_notification_accounts.sql` in the Supabase
    SQL editor. This keeps inbox delivery independent of a push token or permission.
 2. Deploy the API changes together with the app. Push payloads include the
-   verified account ID so notifications cannot be opened under a different login. Older pushes without it are opened only when their notification ID is found in the authenticated inbox; their destination comes from that saved row.
+   verified account ID so notifications cannot be opened under a different login.
+   Older pushes without it are opened only when their notification ID is found
+   in the authenticated inbox; their destination comes from that saved row.
 3. Set up the five-minute job and Vault secrets described in
    [the scheduler instructions](../../supabase/SCHEDULER.md). Vercel Hobby's daily
    fallback is not the five-minute delivery schedule.

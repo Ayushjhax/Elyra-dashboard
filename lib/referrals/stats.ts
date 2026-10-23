@@ -5,6 +5,9 @@ import { referralConfig } from "@/lib/referrals/config";
 import { referralUrlFor } from "@/lib/referrals/url";
 import { serviceClient } from "@/lib/supabase/server";
 import type { ReferralStatus } from "@/lib/supabase/types";
+import type { PoolState, ReferralListItem, ReferralStats } from "@/lib/referrals/types";
+
+export type { PoolState, ReferralListItem, ReferralStats };
 
 /* ---------------------------------------------------------------------------
    One aggregate, computed on the server.
@@ -17,55 +20,6 @@ import type { ReferralStatus } from "@/lib/supabase/types";
    The balance is a SUM over the ledger rather than a stored total, so the
    figure on the page is by construction the same one an audit would reach.
 --------------------------------------------------------------------------- */
-
-export interface ReferralListItem {
-  id: string;
-  /** A display name, or a masked handle. Never a full email or an address. */
-  name: string;
-  /** Two initials for the avatar fallback. */
-  initials: string;
-  status: ReferralStatus;
-  joinedAt: string;
-  activatedAt: string | null;
-  /** Points this referral earned the viewer. Null when it has not activated. */
-  pointsAwarded: number | null;
-}
-
-export interface PoolState {
-  target: number;
-  /** Slots filled in the CURRENT pool, 0..target-1 (target means complete). */
-  progress: number;
-  completedPools: number;
-  nextBonusPoints: number;
-  totalBonusPoints: number;
-  /** Lifetime activated referrals, across every pool. */
-  lifetimeActivations: number;
-}
-
-export interface ReferralStats {
-  referralCode: string | null;
-  referralUrl: string | null;
-  totalPoints: number;
-  referralPoints: number;
-  bonusPoints: number;
-  totalReferrals: number;
-  activatedReferrals: number;
-  pendingReferrals: number;
-  /** 0–100, one decimal. Null when there is nothing to divide by. */
-  activationRate: number | null;
-  pool: PoolState;
-  /** What the referred account has to do, for the How It Works copy. */
-  activationRequirement: string;
-  /**
-   * Points per activation.
-   *
-   * Sent rather than read from config in the browser: the config module reads
-   * `process.env`, which is empty in a client bundle for anything not
-   * NEXT_PUBLIC_. A component reading it would silently fall back to the
-   * default and promise a reward the server might not pay.
-   */
-  activationPoints: number;
-}
 
 /**
  * How activation is described to users.

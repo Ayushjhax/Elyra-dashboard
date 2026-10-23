@@ -91,11 +91,11 @@ it("creates all Android channels with deliberate importance before requesting pe
   const channels = Notifications.setNotificationChannelAsync as jest.Mock;
   expect(channels.mock.calls.map(([id]) => id)).toEqual(
     expect.arrayContaining([
-      "price-alerts",
-      "liquidation",
-      "market-moves",
-      "prediction-markets",
-      "daily-summary",
+      "price-alerts-v2",
+      "liquidation-v2",
+      "market-moves-v2",
+      "prediction-markets-v2",
+      "daily-summary-v2",
     ]),
   );
   expect(channels.mock.invocationCallOrder[0]).toBeLessThan(

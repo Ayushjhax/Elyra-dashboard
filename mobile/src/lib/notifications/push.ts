@@ -12,7 +12,7 @@ import { api, APP_VERSION } from "~/lib/api";
 import { currentAccount, onAccountChange } from "~/lib/session";
 import { onAccountLeave } from "~/lib/auth/accountChange";
 import { saveNotificationPreferences } from "~/lib/notifications/stores";
-import type { NotificationFlag } from "@/lib/notifications/types";
+import { ANDROID_CHANNEL, type NotificationFlag } from "@/lib/notifications/types";
 import { color } from "~/theme/tokens";
 
 export type PushStatus = "checking" | "on" | "off" | "not-registered";
@@ -59,12 +59,12 @@ const enqueue = <T>(work: () => Promise<T>): Promise<T> => {
 export async function createNotificationChannels() {
   if (Platform.OS !== "android") return;
   const channels = [
-    ["price-alerts", "Price alerts", AndroidImportance.HIGH],
-    ["liquidation", "Liquidation warnings", AndroidImportance.HIGH],
-    ["market-moves", "Market moves", AndroidImportance.DEFAULT],
-    ["prediction-markets", "Prediction markets", AndroidImportance.DEFAULT],
-    ["daily-summary", "Daily summary", AndroidImportance.LOW],
-    ["system", "System", AndroidImportance.DEFAULT],
+    [ANDROID_CHANNEL.price_alert, "Price alerts", AndroidImportance.HIGH],
+    [ANDROID_CHANNEL.liquidation, "Liquidation warnings", AndroidImportance.HIGH],
+    [ANDROID_CHANNEL.large_move, "Market moves", AndroidImportance.DEFAULT],
+    [ANDROID_CHANNEL.prediction_move, "Prediction markets", AndroidImportance.DEFAULT],
+    [ANDROID_CHANNEL.daily_summary, "Daily summary", AndroidImportance.LOW],
+    [ANDROID_CHANNEL.system, "System", AndroidImportance.DEFAULT],
   ] as const;
   await Promise.all(
     channels.map(([id, name, importance]) =>
@@ -72,7 +72,7 @@ export async function createNotificationChannels() {
         name,
         importance,
         lightColor: color.accent,
-        sound: importance >= AndroidImportance.DEFAULT ? "default" : undefined,
+        ...(importance === AndroidImportance.LOW ? { sound: null } : {}),
         lockscreenVisibility: AndroidNotificationVisibility.PRIVATE,
       }),
     ),
@@ -169,7 +169,7 @@ export async function refreshPushStatus(
       await createNotificationChannels();
       if (Platform.OS === "android") {
         const channel =
-          await Notifications.getNotificationChannelAsync("price-alerts");
+          await Notifications.getNotificationChannelAsync(ANDROID_CHANNEL.price_alert);
         if (!current()) return;
         usePushState.setState({
           priceChannelEnabled:

@@ -7,6 +7,9 @@ import type {
   PortfolioSource,
   SpotBalance,
 } from "@/lib/exchange/types";
+import type { HyperliquidAccountCheck } from "@/lib/connections/types";
+
+export type { HyperliquidAccountCheck };
 
 /* ---------------------------------------------------------------------------
    Hyperliquid private reads — which need no key at all.
@@ -138,15 +141,6 @@ export function hyperliquidPortfolio(address: string): PortfolioSource {
       };
     },
   };
-}
-
-/** What is at an address, for a person to recognise before saving it. */
-export interface HyperliquidAccountCheck {
-  address: string;
-  /** Perp account value: margin plus unrealised PnL. */
-  accountValueUsd: number;
-  positionCount: number;
-  spotBalanceCount: number;
 }
 
 /**

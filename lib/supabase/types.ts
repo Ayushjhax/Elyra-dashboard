@@ -7,11 +7,14 @@
    changes with it in the same commit.
 --------------------------------------------------------------------------- */
 
+import type { ConnectedExchange } from "@/lib/connections/types";
+import type { ReferralStatus } from "@/lib/referrals/types";
+
 import type { PreparedActionSurface } from "@/lib/actions/types";
 
 export type Surface = "web" | "telegram";
 export type MessageRole = "user" | "assistant" | "tool";
-export type ExchangeId = "binance" | "okx" | "hyperliquid";
+export type ExchangeId = ConnectedExchange;
 
 export interface Profile {
   id: string;
@@ -187,7 +190,7 @@ export interface PointsLedgerRow {
   created_at: string;
 }
 
-export type ReferralStatus = "pending" | "activated" | "not_eligible";
+export type { ReferralStatus };
 
 export interface ReferralRow {
   id: string;

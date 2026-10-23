@@ -5,7 +5,10 @@ import { binancePortfolio } from "@/lib/exchange/binance";
 import { hyperliquidPortfolio } from "@/lib/exchange/hyperliquid";
 import type { PortfolioSource, SourceFailure } from "@/lib/exchange/types";
 import { serviceClient } from "@/lib/supabase/server";
-import type { ExchangeAccount, ExchangeId } from "@/lib/supabase/types";
+import type { ExchangeAccount } from "@/lib/supabase/types";
+import type { ConnectionSummary } from "@/lib/connections/types";
+
+export type { ConnectionSummary };
 
 /* ---------------------------------------------------------------------------
    Turning stored credentials into readable accounts.
@@ -19,15 +22,6 @@ import type { ExchangeAccount, ExchangeId } from "@/lib/supabase/types";
    `userId` must come from lib/auth/session.ts (web) or a telegram_links
    lookup (Telegram). Never from a request body or message text.
 --------------------------------------------------------------------------- */
-
-/** A connected exchange, as the UI describes it. No secret material. */
-export interface ConnectionSummary {
-  exchange: ExchangeId;
-  label: string | null;
-  keyLastFour: string | null;
-  walletAddress: string | null;
-  connectedAt: string;
-}
 
 /** Rows for one user. Every caller here goes through this function. */
 async function accountRows(userId: string): Promise<ExchangeAccount[]> {

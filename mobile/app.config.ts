@@ -40,6 +40,21 @@ const config: ExpoConfig = {
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
+    /* Android App Links: a referral link opens the app rather than the
+       browser, once the website's /.well-known/assetlinks.json names this
+       package and its signing key (served from ANDROID_CERT_SHA256). The
+       elyra:// scheme is registered from `scheme` above. */
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [
+          { scheme: "https", host: "getelyra.xyz", pathPrefix: "/r/" },
+          { scheme: "https", host: "www.getelyra.xyz", pathPrefix: "/r/" },
+        ],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
     /* Only what the app uses. Biometrics gate every signature (the plugin
        below declares it); the camera scans a recipient's QR code, asked for
        only when Scan is pressed. Notifications and the microphone
@@ -65,7 +80,7 @@ const config: ExpoConfig = {
       {
         icon: "./assets/images/notification-icon.png",
         color: NOTIFICATION_ACCENT,
-        defaultChannel: "system",
+        defaultChannel: "system-v2",
       },
     ],
     "expo-localization",

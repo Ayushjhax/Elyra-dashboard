@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Linking, Platform, StyleSheet, View } from "react-native";
 import { Buffer } from "buffer";
 import { useLoginWithEmail, useLoginWithOAuth, useLoginWithSiws } from "@privy-io/expo";
 import { useLoginWithPasskey } from "@privy-io/expo/passkey";
-import { Fingerprint, Mail, Wallet } from "lucide-react-native";
+import { Fingerprint, Gift, Mail, Wallet } from "lucide-react-native";
 import { Button } from "~/components/ui/controls";
 import { Divider, Panel, Screen } from "~/components/ui/layout";
 import { ElyraMark } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
 import { TextField } from "~/components/ui/TextField";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
+import { PRIVACY_URL, TERMS_URL } from "~/lib/legal";
+import { useHeldReferral } from "~/lib/referral";
 import { APP_IDENTITY, signatureFrom, withWallet } from "~/lib/wallet/mwa";
-import { color } from "~/theme/tokens";
+import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
    Sign in.
@@ -36,6 +38,7 @@ function message(error: unknown, fallback: string): string {
 
 export default function SignIn() {
   const auth = useElyraAuth();
+  const invitedBy = useHeldReferral();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +98,19 @@ export default function SignIn() {
           Your capital across every venue, an analyst that shows its sources, and swaps signed in your own wallet.
         </Text>
       </View>
+
+      {/* A referral link brought this phone here; the code is sent when the new account is created. */}
+      {invitedBy !== null && (
+        <View style={styles.invited} accessibilityLiveRegion="polite">
+          <Gift size={16} strokeWidth={1.5} color={color.accent} />
+          <Text variant="body-sm" style={styles.flex}>
+            Invited by a friend
+          </Text>
+          <Text variant="data-sm" tone="muted">
+            {invitedBy}
+          </Text>
+        </View>
+      )}
 
       {(auth.endedReason ?? error) !== null && (
         <Panel style={styles.notice}>
@@ -186,6 +202,10 @@ export default function SignIn() {
       <Text variant="label" tone="muted" style={styles.center}>
         Elyra never holds your keys. Not financial advice.
       </Text>
+      <View style={styles.legal}>
+        <Button label="Privacy policy" size="sm" variant="ghost" onPress={() => void Linking.openURL(PRIVACY_URL)} />
+        <Button label="Terms" size="sm" variant="ghost" onPress={() => void Linking.openURL(TERMS_URL)} />
+      </View>
     </Screen>
   );
 }
@@ -195,7 +215,19 @@ const styles = StyleSheet.create({
   head: { alignItems: "center", gap: 10, paddingBottom: 8 },
   center: { textAlign: "center" },
   notice: { padding: 12 },
+  invited: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 48,
+    paddingHorizontal: 12,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: color["accent-quiet"],
+    backgroundColor: color["surface-raised"],
+  },
   block: { gap: 12, padding: 16 },
   or: { flexDirection: "row", alignItems: "center", gap: 12 },
+  legal: { flexDirection: "row", justifyContent: "center", gap: 8 },
   flex: { flex: 1 },
 });

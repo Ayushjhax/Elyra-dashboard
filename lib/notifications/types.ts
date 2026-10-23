@@ -85,13 +85,13 @@ export const NOTIFICATION_FLAGS: ReadonlyArray<{
   },
 ];
 export const ANDROID_CHANNEL: Record<NotificationKind, string> = {
-  price_alert: "price-alerts",
-  liquidation: "liquidation",
-  large_move: "market-moves",
-  prediction_move: "prediction-markets",
-  prediction_order: "prediction-markets",
-  prediction_resolution: "prediction-markets",
-  prediction_signal: "prediction-markets",
-  daily_summary: "daily-summary",
-  system: "system",
+  price_alert: "price-alerts-v2",
+  liquidation: "liquidation-v2",
+  large_move: "market-moves-v2",
+  prediction_move: "prediction-markets-v2",
+  prediction_order: "prediction-markets-v2",
+  prediction_resolution: "prediction-markets-v2",
+  prediction_signal: "prediction-markets-v2",
+  daily_summary: "daily-summary-v2",
+  system: "system-v2",
 };

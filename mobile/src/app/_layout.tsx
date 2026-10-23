@@ -75,7 +75,7 @@ export default function RootLayout() {
 const MODALS = ["wallet", "swap", "transfer", "receive", "search", "notifications", "alert"] as const;
 
 /* Pushed screens: the portfolio's detail views and the account dashboard. */
-const DETAILS = ["capital", "holdings", "risk", "defi", "orders", "fills", "activity", "dashboard", "asset/[symbol]", "notification-settings", "report/[id]", "company/[query]", "prediction/[id]"] as const;
+const DETAILS = ["capital", "holdings", "risk", "defi", "orders", "fills", "activity", "dashboard", "asset/[symbol]", "notification-settings", "report/[id]", "company/[query]", "prediction/[id]", "connections", "referrals", "automation", "settings", "legal", "licenses", "delete-account"] as const;
 
 function Navigator() {
   const auth = useElyraAuth();

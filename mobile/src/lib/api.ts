@@ -2,6 +2,7 @@ import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { fetch as streamingFetch } from "expo/fetch";
 import { createLineSplitter, createSseParser, parseNdjsonLine, type SseEvent } from "~/lib/stream";
+import { forgetReferral, referralForRequest } from "~/lib/referral";
 import { sessionVersion } from "~/lib/session";
 
 /* ---------------------------------------------------------------------------
@@ -88,9 +89,23 @@ async function headersFor(options: RequestOptions): Promise<Record<string, strin
     const version = sessionVersion();
     const token = await getToken();
     if (version !== sessionVersion()) throw new ApiError("Your account changed. Try again.", 0);
-    if (token !== null) headers.authorization = `Bearer ${token}`;
+    if (token !== null) {
+      headers.authorization = `Bearer ${token}`;
+      /* A referral link's code rides along until an authenticated request
+         succeeds: the server binds it only when this request creates a new
+         account's profile, and ignores it otherwise (lib/referral.ts). */
+      const referral = await referralForRequest();
+      if (referral !== null) headers[REFERRAL_HEADER] = referral;
+    }
   }
   return headers;
+}
+
+const REFERRAL_HEADER = "x-elyra-referral";
+
+/** The server has had the referral code once a request that carried it succeeded. */
+function settleReferral(headers: Record<string, string>, ok: boolean): void {
+  if (ok && headers[REFERRAL_HEADER] !== undefined) void forgetReferral();
 }
 
 /**
@@ -134,10 +149,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const url = apiUrl(path);
   const { signal, done } = withTimeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS, options.signal);
   let response: Response;
+  let headers: Record<string, string>;
   try {
+    headers = await headersFor(options);
     response = await fetch(url, {
       method: options.method ?? "GET",
-      headers: await headersFor(options),
+      headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal,
     });
@@ -158,6 +175,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     done();
   }
 
+  settleReferral(headers, response.ok);
   if (!response.ok) {
     const error = errorFor(response.status, body);
     if (response.status === 401 && options.auth !== false) {
@@ -186,12 +204,14 @@ export const api = {
  * when the server ends it or the caller aborts.
  */
 async function openStream(path: string, options: RequestOptions): Promise<ReadableStream<Uint8Array>> {
+  const headers = await headersFor(options);
   const response = await streamingFetch(apiUrl(path), {
     method: options.method ?? "GET",
-    headers: await headersFor(options),
+    headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     signal: options.signal,
   });
+  settleReferral(headers, response.ok);
   if (!response.ok || response.body === null) {
     const text = await response.text().catch(() => "");
     let body: unknown = null;

@@ -6,6 +6,7 @@ import { accountLeft, onAccountLeave } from "~/lib/auth/accountChange";
 import { onUnauthorized, setTokenGetter } from "~/lib/api";
 import { setAccount } from "~/lib/session";
 import { endConversation } from "~/lib/agentChat";
+import { clearCachedReports } from "~/lib/localData";
 import { forgetWallet } from "~/lib/wallet/mwa";
 import { color } from "~/theme/tokens";
 
@@ -40,7 +41,8 @@ export interface ElyraAuth {
   walletAddress: string | null;
   account: ElyraAccount | null;
   getAccessToken: () => Promise<string | null>;
-  logout: () => Promise<void>;
+  /** Signs out. A reason is said on the sign-in screen — "Your account was deleted." */
+  logout: (reason?: string) => Promise<void>;
   /** Privy could not start — storage unreadable, the app ID refused. */
   startError: string | null;
   /** Why the last session ended, when it was not the person's own choice. */
@@ -74,6 +76,7 @@ export function useElyraAuth(): ElyraAuth {
 /* What every account change clears, registered once for the app's life. */
 onAccountLeave(() => endConversation());
 onAccountLeave(() => forgetWallet());
+onAccountLeave(() => clearCachedReports());
 
 function Bridge({ children }: { children: ReactNode }) {
   const privy = usePrivy();
@@ -93,7 +96,8 @@ function Bridge({ children }: { children: ReactNode }) {
       walletAddress: summary?.walletAddress ?? null,
       account: summary?.account ?? null,
       getAccessToken: () => privy.getAccessToken(),
-      logout: async () => {
+      logout: async (reason) => {
+        if (reason !== undefined) setEndedReason(reason);
         const leaving = accountKey({ ready: privy.isReady, authenticated: privy.user !== null, account: summary?.account ?? null, solanaAddress: summary?.solanaAddress ?? null });
         if (leaving !== null) await accountLeft(leaving);
         await privy.logout();
@@ -135,7 +139,9 @@ function Bridge({ children }: { children: ReactNode }) {
       onUnauthorized(() => {
         /* Only a session that exists can end. */
         if (!live.current.authenticated) return;
-        setEndedReason("Your session ended. Sign in again to carry on.");
+        /* A reason already given wins: after a deletion, a request still
+           in flight answers 401 too, and "deleted" is the truth. */
+        setEndedReason((given) => given ?? "Your session ended. Sign in again to carry on.");
         void live.current.logout();
       }),
     [],

@@ -75,6 +75,10 @@ export const CORE_MODULES = [
   "lib/appVersion.ts",
   "lib/referrals/display.ts",
   "lib/referrals/config.ts",
+  "lib/referrals/types.ts",
+  "lib/referrals/applinks.ts",
+  "lib/connections/state.ts",
+  "lib/connections/types.ts",
   "lib/attachments.ts",
 
   /* the assistant */

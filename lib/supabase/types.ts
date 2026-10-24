@@ -550,6 +550,7 @@ export interface Database {
         "id" | "device_name" | "created_at" | "last_seen_at" | "disabled_at" | "disabled_reason"
       >;
       notifications: Table<NotificationRow, "id" | "data" | "created_at" | "read_at">;
+      app_notification_accounts: Table<{ user_id: string; last_seen_at: string }, "last_seen_at">;
       push_tickets: Table<
         PushTicketRow,
         "notification_id" | "created_at" | "checked_at" | "receipt_status" | "receipt_message"

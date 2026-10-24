@@ -21,18 +21,8 @@ import type { NotificationKind, PushDeviceRow } from "@/lib/supabase/types";
    written beside still stands; sending again would only risk a duplicate.
 --------------------------------------------------------------------------- */
 
-/** Android channels. The app creates them with these ids and names. */
-export const ANDROID_CHANNEL: Record<NotificationKind, string> = {
-  price_alert: "price-alerts",
-  liquidation: "liquidation",
-  large_move: "market-moves",
-  prediction_move: "prediction-markets",
-  prediction_order: "prediction-markets",
-  prediction_resolution: "prediction-markets",
-  prediction_signal: "prediction-markets",
-  daily_summary: "daily-summary",
-  system: "system",
-};
+import { ANDROID_CHANNEL } from "@/lib/notifications/types";
+export { ANDROID_CHANNEL } from "@/lib/notifications/types";
 
 /** Expo asks for receipts to be read no sooner than this after the send. */
 const RECEIPT_DELAY_MS = 15 * 60_000;
@@ -76,7 +66,7 @@ export async function pushToDevices(
     to: device.expo_push_token,
     title: content.title,
     body: content.body,
-    data: content.data,
+    data: { ...content.data, kind: content.kind },
     channelId: ANDROID_CHANNEL[content.kind],
     priority: "high",
     sound: "default",

@@ -28,7 +28,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!(await registerDevice(session.userId, registration))) {
     return NextResponse.json({ error: "Could not register this device." }, { status: 503 });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, accountId: session.userId });
 }
 
 export async function DELETE(request: Request): Promise<Response> {

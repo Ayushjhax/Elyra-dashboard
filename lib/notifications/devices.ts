@@ -94,8 +94,19 @@ export async function devicesFor(userIds: readonly string[]): Promise<Map<string
 
 /** Every account that has the app — anyone who has registered a device, even one since disabled. */
 export async function accountsWithApp(): Promise<string[]> {
-  const { data } = await serviceClient().from("push_devices").select("user_id").limit(5000);
-  return [...new Set((data ?? []).map((row) => String(row.user_id)))];
+  const [devices, accounts] = await Promise.all([
+    serviceClient().from("push_devices").select("user_id").limit(5000),
+    serviceClient().from("app_notification_accounts").select("user_id").limit(5000),
+  ]);
+  return [...new Set([...(devices.data ?? []), ...(accounts.data ?? [])].map((row) => String(row.user_id)))];
+}
+
+/** Reading the native inbox establishes reachability even with push denied. */
+export async function rememberAppAccount(userId: string): Promise<boolean> {
+  const { error } = await serviceClient().from("app_notification_accounts").upsert(
+    { user_id: userId, last_seen_at: new Date().toISOString() }, { onConflict: "user_id" },
+  );
+  return !error;
 }
 
 export async function disableDevice(deviceId: string, reason: string): Promise<void> {

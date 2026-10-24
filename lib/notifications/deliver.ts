@@ -1,5 +1,6 @@
 import "server-only";
 import { formatPriceUsd } from "@/lib/format";
+import { pricesForSymbols } from "@/lib/market/pyth/client";
 
 import {
   armedAlerts,
@@ -271,15 +272,12 @@ async function deliverPriceAlerts(
   const alerts = await armedAlerts();
   if (alerts.length === 0) return;
 
-  /* Priced once per symbol, not once per alert. Fifty users watching SOL is
-     one upstream call, not fifty. */
+  /* The alert editor shows Pyth prices, so the crossing must use that same
+     feed. Binance can differ enough to leave an already-crossed rule armed. */
   const symbols = [...new Set(alerts.map((alert) => alert.symbol))];
-  const prices = new Map<string, number>();
-
-  for (const symbol of symbols) {
-    const ticker = await binanceTicker(symbol);
-    if (ticker.ok && ticker.data !== undefined) prices.set(symbol, ticker.data.lastPrice);
-  }
+  const prices = new Map(
+    (await pricesForSymbols(symbols)).map((feed) => [feed.symbol.toUpperCase(), feed.price]),
+  );
 
   for (const alert of alerts) {
     report.scanned += 1;

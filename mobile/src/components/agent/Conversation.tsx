@@ -93,6 +93,7 @@ export function Conversation({ symbol, onAsk }: { symbol: string; onAsk: (prompt
           onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}
           accessibilityRole="button"
           accessibilityLabel="Jump to the latest message"
+          hitSlop={4}
           style={styles.jump}
         >
           <ArrowDown size={14} strokeWidth={1.5} color={color["text-primary"]} />

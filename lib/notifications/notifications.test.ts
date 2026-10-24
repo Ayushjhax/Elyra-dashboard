@@ -9,6 +9,7 @@ import { FakeSupabase } from "@/lib/test/supabase-fake";
 const state = vi.hoisted(() => ({
   db: null as unknown as import("@/lib/test/supabase-fake").FakeSupabase,
   price: 150,
+  binancePrice: 150,
   pushes: [] as Array<{ to: string; title: string; data: Record<string, unknown> }>,
   telegram: [] as Array<{ chatId: number; text: string }>,
   ticket: { status: "ok", id: "ticket-1" } as Record<string, unknown>,
@@ -36,7 +37,11 @@ vi.mock("expo-server-sdk", () => ({
   },
 }));
 vi.mock("@/lib/providers/binance-public", () => ({
-  binanceTicker: async () => ({ ok: true, data: { lastPrice: state.price, change24hPct: 0 } }),
+  binanceTicker: async () => ({ ok: true, data: { lastPrice: state.binancePrice, change24hPct: 0 } }),
+}));
+vi.mock("@/lib/market/pyth/client", () => ({
+  pricesForSymbols: async (symbols: string[]) =>
+    symbols.map((symbol) => ({ symbol, price: state.price })),
 }));
 vi.mock("@/lib/telegram/api", () => ({
   sendMessage: async (chatId: number, text: string) => {
@@ -110,6 +115,7 @@ beforeEach(async () => {
   state.telegram = [];
   state.ticket = { status: "ok", id: "ticket-1" };
   state.price = 150;
+  state.binancePrice = 150;
   const { resetPushClient } = await import("@/lib/notifications/push");
   resetPushClient();
 });
@@ -198,6 +204,24 @@ describe("channels", () => {
 });
 
 describe("the delivery pass", () => {
+  it("evaluates a price alert against Pyth, the same feed shown when it was set", async () => {
+    preferences(USER_A, true);
+    device(USER_A);
+    crossingAlert(USER_A);
+    state.binancePrice = 110;
+    const { deliverNotifications } = await import("@/lib/notifications/deliver");
+    await deliverNotifications();
+    expect(state.db.rows("price_alerts")[0].triggered_price).toBe(150);
+
+    state.db.seed("price_alerts", [
+      { id: "alert-2", user_id: USER_A, symbol: "SOL", direction: "above", target: 120, created_price: 100, triggered_at: null },
+    ]);
+    state.price = 110;
+    state.binancePrice = 150;
+    await deliverNotifications();
+    expect(state.db.rows("price_alerts").find((row) => row.id === "alert-2")?.triggered_at).toBeNull();
+  });
+
   it("sends a crossing to the inbox and as a push, with where a tap goes", async () => {
     preferences(USER_A, true);
     device(USER_A);

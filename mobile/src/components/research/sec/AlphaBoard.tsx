@@ -421,7 +421,7 @@ export function AlphaBoard({ active }: { active: boolean }) {
         {BOARDS.map((entry) => {
           const on = entry.id === board;
           return (
-            <Pressable key={entry.id} onPress={() => select(entry.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={[styles.board, on && styles.boardOn]}>
+            <Pressable key={entry.id} onPress={() => select(entry.id)} accessibilityRole="tab" accessibilityState={{ selected: on }} hitSlop={6} style={[styles.board, on && styles.boardOn]}>
               <Text key={on ? "on" : "off"} variant="label" tone={on ? "primary" : "secondary"}>
                 {entry.label}{" "}
                 <Text variant="data-sm" tone="muted">

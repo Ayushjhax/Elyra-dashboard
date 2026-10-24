@@ -11,7 +11,9 @@ import { DEFAULT_ASSET_ID } from "@/lib/market/defaults";
 
    Persisted (AsyncStorage): preferences a person would be annoyed to lose —
    the selected market, the chart's settings, whether balances are hidden,
-   which agent tab was open, when notifications were last seen.
+   which agent tab was open, when notifications were last seen. Starred
+   markets, recent searches and the seen time are the signed-in person's:
+   another account signing in starts without them (`claimPhoneFor`).
 
    Never persisted: tokens (Privy keeps its own session in secure storage),
    the agent conversation, the draft's attachments. A conversation is that
@@ -87,6 +89,10 @@ export interface AppState {
   /* ---- notifications (persisted) ---- */
   notificationsSeenAt: string | null;
   setNotificationsSeenAt: (at: string) => void;
+
+  /* ---- whose they are (persisted) ---- */
+  /** The account the per-person preferences above belong to. */
+  owner: string | null;
 }
 
 export const useAppStore = create<AppState>()(
@@ -152,6 +158,8 @@ export const useAppStore = create<AppState>()(
 
       notificationsSeenAt: null,
       setNotificationsSeenAt: (notificationsSeenAt) => set({ notificationsSeenAt }),
+
+      owner: null,
     }),
     {
       name: "elyra-app",
@@ -171,6 +179,7 @@ export const useAppStore = create<AppState>()(
         agentTab: state.agentTab,
         notificationsSeenAt: state.notificationsSeenAt,
         requireAuthToSign: state.requireAuthToSign,
+        owner: state.owner,
       }),
       skipHydration: true,
       /* A tab this build no longer has opens the chat. */
@@ -185,4 +194,30 @@ export const useAppStore = create<AppState>()(
 /** Whether figures are masked — read by every money primitive. */
 export function useBalancesHidden(): boolean {
   return useAppStore((state) => state.balancesHidden);
+}
+
+/**
+ * Hands the phone's per-person preferences to the account signing in.
+ *
+ * Starred markets, recent searches and when the inbox was last seen are a
+ * person's, not the phone's: the same person signing back in keeps them,
+ * and anyone else starts without them. Waits for the persisted state, so
+ * it compares against the owner that was saved, not the default.
+ */
+export function claimPhoneFor(account: string): void {
+  const claim = () => {
+    const { owner } = useAppStore.getState();
+    if (owner === account) return;
+    useAppStore.setState({
+      owner: account,
+      ...(owner === null ? {} : { favorites: [], recentSearches: [], notificationsSeenAt: null }),
+    });
+  };
+  if (useAppStore.persist.hasHydrated()) claim();
+  else {
+    const stop = useAppStore.persist.onFinishHydration(() => {
+      stop();
+      claim();
+    });
+  }
 }

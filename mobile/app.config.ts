@@ -40,6 +40,9 @@ const config: ExpoConfig = {
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
+    /* No Android backup of app data: the session, the wallet adapter's
+       authorization and the preferences stay on this phone. */
+    allowBackup: false,
     /* Android App Links: a referral link opens the app rather than the
        browser, once the website's /.well-known/assetlinks.json names this
        package and its signing key (served from ANDROID_CERT_SHA256). The

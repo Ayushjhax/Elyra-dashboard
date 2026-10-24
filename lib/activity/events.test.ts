@@ -6,6 +6,7 @@ const explorer = (signature: string) => `https://explorer/${signature}`;
 describe("accountEvents", () => {
   it("merges every source newest first, pending-without-time on top", () => {
     const events = accountEvents({
+      alertNote: "alert sent to Telegram",
       wallet: [
         { signature: "old", status: "confirmed", slot: 1, at: "2026-10-12T00:00:00Z", memo: null },
         { signature: "new", status: "pending", slot: 2, at: null, memo: null },
@@ -49,6 +50,7 @@ describe("accountEvents", () => {
 
   it("rings the bell for failures, fired alerts and actions, not routine transactions", () => {
     const events = accountEvents({
+      alertNote: "alert sent to Telegram",
       wallet: [
         { signature: "ok", status: "confirmed", slot: 1, at: "2026-10-12T00:00:00Z", memo: null },
         { signature: "bad", status: "failed", slot: 2, at: "2026-10-12T01:00:00Z", memo: null },

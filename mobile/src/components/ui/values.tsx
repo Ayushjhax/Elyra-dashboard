@@ -1,4 +1,4 @@
-import { formatPct, formatUsd } from "@/lib/format";
+import { formatCompactUsd, formatPct, formatUsd } from "@/lib/format";
 import { Text, type TextTone } from "~/components/ui/Text";
 import { useBalancesHidden } from "~/lib/store";
 import type { TypeVariant } from "~/theme/tokens";
@@ -68,10 +68,8 @@ export function Money({
     value !== 0 && Math.abs(value) < step
       ? `${value < 0 ? "-" : sign ? "+" : ""}<$${step.toFixed(decimals)}`
       : compact
-        ? `${value < 0 ? "-" : sign ? "+" : ""}$${Math.abs(value).toLocaleString("en-US", {
-            notation: "compact",
-            maximumFractionDigits: 1,
-          })}`
+        ? /* Not Intl's compact notation, which Hermes ignores. */
+          `${sign && value > 0 ? "+" : ""}${formatCompactUsd(value)}`
         : formatUsd(value, { decimals, sign });
 
   return (

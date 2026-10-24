@@ -193,8 +193,9 @@ const DEPENDENCIES: { key: string; label: string }[] = [
   { key: "prices", label: "Prices" },
   { key: "solanaRpc", label: "Solana network" },
   { key: "agent", label: "Ask Elyra" },
-  { key: "push", label: "Push notifications" },
 ];
+/* Not "push": its flag is EXPO_ACCESS_TOKEN, which push works without
+   (lib/notifications/push.ts), so it is no measure of whether pushes arrive. */
 
 export default function SettingsScreen() {
   const toast = useToast();

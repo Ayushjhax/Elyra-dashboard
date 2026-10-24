@@ -5,6 +5,7 @@ import { accountKey, summariseUser, type ElyraAccount } from "@/lib/account";
 import { accountLeft, onAccountLeave } from "~/lib/auth/accountChange";
 import { onUnauthorized, setTokenGetter } from "~/lib/api";
 import { setAccount } from "~/lib/session";
+import { claimPhoneFor } from "~/lib/store";
 import { endConversation } from "~/lib/agentChat";
 import { clearCachedReports } from "~/lib/localData";
 import { forgetWallet } from "~/lib/wallet/mwa";
@@ -125,6 +126,7 @@ function Bridge({ children }: { children: ReactNode }) {
     const left = previous.current;
     previous.current = key;
     setAccount(key);
+    if (key !== null) claimPhoneFor(key);
     if (left !== null && left !== key) void accountLeft(left);
   }, [auth.ready, key]);
 

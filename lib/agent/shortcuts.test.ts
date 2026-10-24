@@ -20,7 +20,8 @@ describe("parseShortcut", () => {
     expect(parseShortcut("/alert SOL > 120")).toEqual({ kind: "alert", symbol: "SOL", direction: "above", target: "120" });
     expect(parseShortcut("/alert btc below 95000")).toEqual({ kind: "alert", symbol: "BTC", direction: "below", target: "95000" });
     expect(parseShortcut("/alert ETH")).toEqual({ kind: "alert", symbol: "ETH", direction: null, target: null });
-    expect(parseShortcut("/alert")).toEqual({ kind: "open", screen: "notifications" });
+    expect(parseShortcut("/alert")).toEqual({ kind: "open", screen: "automation" });
+    expect(parseShortcut("/alerts")).toEqual({ kind: "open", screen: "automation" });
   });
 
   it("starts a report for a ticker", () => {
@@ -34,8 +35,18 @@ describe("parseShortcut", () => {
     expect(parseShortcut("/watch")).toEqual({ kind: "open", screen: "markets" });
   });
 
-  it("asks the agent where the app has no screen, in plain language", () => {
-    expect(parseShortcut("/yield")).toEqual({ kind: "ask", prompt: "What are the current Kamino vault yields?" });
+  it("opens Research's tabs", () => {
+    expect(parseShortcut("/yield")).toEqual({ kind: "research", tab: "yield" });
+    expect(parseShortcut("/recap")).toEqual({ kind: "research", tab: "recap" });
+    expect(parseShortcut("/unlocks")).toEqual({ kind: "research", tab: "unlocks" });
+    expect(parseShortcut("/predictions")).toEqual({ kind: "research", tab: "prediction" });
+    expect(parseShortcut("/book")).toEqual({ kind: "research", tab: "prediction" });
+    expect(parseShortcut("/basket")).toEqual({ kind: "research", tab: "prediction" });
+    expect(parseShortcut("/backtest")).toEqual({ kind: "research", tab: "backtests" });
+    expect(parseShortcut("/research")).toEqual({ kind: "research", tab: "reports" });
+  });
+
+  it("asks the agent what is said in words", () => {
     expect(parseShortcut("/ask what moved?")).toEqual({ kind: "ask", prompt: "what moved?" });
     expect(parseShortcut("/backtest SOL rsi 12 1h 1y")).toEqual({ kind: "ask", prompt: "Backtest this strategy: SOL rsi 12 1h 1y." });
   });

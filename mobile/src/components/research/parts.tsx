@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
+import { formatCompactUsd, formatUsd } from "@/lib/format";
 import type { File } from "expo-file-system";
 import { FileDown, RefreshCw, Share2, Sparkles } from "lucide-react-native";
 import { Button } from "~/components/ui/controls";
@@ -299,12 +300,11 @@ export const percentage = (value: number | null | undefined, digits = 2): string
 
 export const dollars = (value: number | null | undefined): string =>
   typeof value === "number" && Number.isFinite(value)
-    ? new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        notation: Math.abs(value) >= 1e6 ? "compact" : "standard",
-        maximumFractionDigits: Math.abs(value) >= 1e6 ? 1 : 2,
-      }).format(value)
+    ? /* Hermes ignores Intl's compact notation, so millions use the shared
+         formatter: $53.1M, not $53,084,444.6. */
+      Math.abs(value) >= 1e6
+      ? formatCompactUsd(value)
+      : formatUsd(value)
     : "—";
 
 export const styles = StyleSheet.create({

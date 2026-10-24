@@ -38,6 +38,7 @@ export function useAccountEvents(): AccountFeed {
         alerts: alerts.alerts,
         actions: actions.actions,
         explorer: txExplorerUrl,
+        alertNote: "alert sent to Telegram",
       }),
     [wallet.items, portfolio.snapshot, alerts.alerts, actions.actions],
   );

@@ -229,7 +229,7 @@ function SmartMoneyCard({ signal, now, logo }: { signal: TrackerSignal; now: num
           </View>
         ))}
       </View>
-      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={styles.toggle}>
+      <Pressable onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} hitSlop={2} style={styles.toggle}>
         <Text variant="label" tone="secondary" style={styles.flex}>
           {open ? "Hide" : "Show"} {signal.participants.length} wallets{inApp ? "" : ` · ${signal.archetypeCount} archetypes`}
         </Text>
@@ -380,17 +380,21 @@ function metric(view: BoardView, row: PulseRow): number {
   }
 }
 
+/* The server ranks only rows that have the figure (lib/market/pulse.ts), so
+   a null here should not happen — and if it does it reads as a dash, never
+   as $0. */
 function metricText(view: BoardView, row: PulseRow): string {
+  const missing = "—";
   switch (view) {
     case "gainers":
     case "losers":
-      return formatPct(row.change24hPct ?? 0, { decimals: 1 });
+      return row.change24hPct === null ? missing : formatPct(row.change24hPct, { decimals: 1 });
     case "funding":
-      return `${formatPct(row.fundingAprPct ?? 0, { decimals: 1 })} APR`;
+      return row.fundingAprPct === null ? missing : `${formatPct(row.fundingAprPct, { decimals: 1 })} APR`;
     case "openInterest":
-      return formatCompactUsd(row.openInterestUsd ?? 0);
+      return row.openInterestUsd === null ? missing : formatCompactUsd(row.openInterestUsd);
     case "volume":
-      return formatCompactUsd(row.volume24hUsd ?? 0);
+      return row.volume24hUsd === null ? missing : formatCompactUsd(row.volume24hUsd);
   }
 }
 

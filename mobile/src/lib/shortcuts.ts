@@ -24,6 +24,7 @@ const ROUTES: Record<Exclude<ShortcutScreen, "signals">, Href> = {
   fills: "/fills",
   notifications: "/notifications",
   settings: "/account",
+  automation: "/automation",
 };
 
 export interface ShortcutEffects {
@@ -72,6 +73,10 @@ export async function runShortcut(shortcut: Shortcut, typed: string, effects: Sh
       clear();
       if (shortcut.screen === "signals") store.setAgentTab("signals");
       else router.push(ROUTES[shortcut.screen]);
+      return;
+    case "research":
+      clear();
+      router.push({ pathname: "/research", params: { tab: shortcut.tab } });
       return;
     case "asset":
       clear();

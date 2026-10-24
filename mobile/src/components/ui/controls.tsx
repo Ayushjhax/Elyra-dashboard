@@ -137,6 +137,7 @@ export function SegmentedControl<T extends string>({
             }}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
+            hitSlop={{ top: 2, bottom: 2 }}
             style={[styles.segment, selected && styles.segmentSelected]}
           >
             {/* Keyed on the state: Android reused the selected label's text
@@ -232,9 +233,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     padding: 2,
   },
+  /* 44 tall plus a 2dp hit slop above and below: a 48dp target inside the
+     control's 2dp inset. */
   segment: {
     flex: 1,
-    minHeight: 40,
+    minHeight: TOUCH_TARGET - 4,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.control - 2,

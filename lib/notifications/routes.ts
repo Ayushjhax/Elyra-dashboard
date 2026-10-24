@@ -32,13 +32,18 @@ export function notificationRoute(value: unknown): string {
     "/elyra": "/elyra",
     "/notifications": "/notifications",
     "/notification-settings": "/notification-settings",
-    "/alerts": "/alert",
+    "/alerts": "/automation",
+    "/automation": "/automation",
   };
   if (aliases[path]) return aliases[path];
   const prediction = /^\/prediction\/(signal\/)?([A-Za-z0-9_-]{1,160})$/.exec(
     path,
   );
+  /* A market opens itself; a signal has no screen of its own in the app, so
+     it opens the prediction tab, where the signal shows on its market. */
   if (prediction)
-    return `/research?${prediction[1] ? "signalId" : "marketId"}=${encodeURIComponent(prediction[2])}`;
+    return prediction[1]
+      ? "/research?tab=prediction"
+      : `/research?marketId=${encodeURIComponent(prediction[2])}`;
   return "/notifications";
 }

@@ -41,14 +41,14 @@ const HYPOTHETICAL = /\b(should|would|could|what if|how do i|how would|is it wor
 const CHANGE_WORDS = /\b(chang(e|ed|es)|since|yesterday|today|so far|moved|move[dn]?|happen(ed)?|new)\b/i;
 
 const RISK_WORDS =
-  /\b(risk|risky|riskiest|exposed|exposure|concentrat|liquidat|margin|leverage|safe|danger|drawdown|buffer)\b/i;
+  /\b(risk|risky|riskiest|exposed|exposure|concentrat(?:ion|ed|ing|e)?|liquidat|margin|leverage|safe|danger|drawdown|buffer)\b/i;
 
 const POSITION_WORDS = /\b(position|perp|perpetual|long|short|leverage|margin|open)\b/i;
 const ORDER_WORDS = /\b(order|limit|trigger|resting|pending|fill)\b/i;
 const ACTIVITY_WORDS = /\b(activit|transaction|history|deposit|withdraw|transfer|swap|trade[ds]?|recent)\b/i;
 const ALLOCATION_WORDS = /\b(allocat|split|breakdown|weight|percent|%|diversif|where.*(capital|money))\b/i;
 const MEMORY_WORDS = /\b(prefer|limit|remember|rule|always|never|threshold|setting)\b/i;
-const BALANCE_WORDS = /\b(balance|equity|worth|holding|own|have|capital|available|cash|stable)\b/i;
+const BALANCE_WORDS = /\b(balances?|equity|worth|holdings?|own|have|capital|available|cash|stable)\b/i;
 
 /**
  * Questions answerable from one deterministic figure.

@@ -1,0 +1,19 @@
+# A streamed Ask Elyra answer: sent, working, then finished with its copy action.
+appId: xyz.getelyra.app
+name: Ask Elyra streams an answer
+tags: [signed-in]
+---
+- runFlow: _shared/signed-in.yaml
+- tapOn: "Elyra"
+- tapOn: "Ask"
+- tapOn: "Ask Elyra"
+- inputText: "In one sentence, what is the price of SOL right now?"
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Elyra is working.*"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: "Elyra is working.*"
+    timeout: 120000
+- assertVisible: "Copy Elyra's answer"
+- assertNotVisible: ".*could not complete.*"

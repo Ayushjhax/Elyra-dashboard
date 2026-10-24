@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { AlertsResponse, AppDelivery, PriceAlert } from "@/lib/alerts/types";
+import { sessionVersion } from "~/lib/session";
 import { api, ApiError } from "~/lib/api";
 import { createAccountStore, SKIP, type AccountFeed } from "~/lib/stores/createAccountStore";
+import { offerPushForFirstAlert } from "~/lib/notifications/push";
 
 /* ---------------------------------------------------------------------------
    The account's price alerts — the app's useAlerts (lib/alerts/useAlerts.ts
@@ -64,6 +66,7 @@ export interface NewAlert {
 
 /** Null on success, otherwise what went wrong in words. Re-arming a fired alert is the same call. */
 async function createAlert(alert: NewAlert): Promise<string | null> {
+  const ticket = sessionVersion();
   setWriteError(null);
   const failure = await writing(async () => {
     try {
@@ -73,7 +76,10 @@ async function createAlert(alert: NewAlert): Promise<string | null> {
       return error instanceof ApiError ? error.message : "The alert could not be saved.";
     }
   });
-  if (failure === null) await alertsStore.refresh();
+  if (failure === null) {
+    await alertsStore.refresh();
+    if (sessionVersion() === ticket) void offerPushForFirstAlert().catch(() => {});
+  }
   else setWriteError(failure);
   return failure;
 }

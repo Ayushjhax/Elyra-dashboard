@@ -1,0 +1,39 @@
+# The wallet sheet in each state of its read, switched from the development
+# build's tool screen (elyra://dev, development builds only).
+appId: xyz.getelyra.app
+name: Wallet sheet states
+tags: [signed-in, dev-build]
+---
+- runFlow: _shared/signed-in.yaml
+
+- runFlow:
+    file: _shared/wallet-state.yaml
+    env:
+      STATE: "Failed"
+      EXPECT: "Dev preview: the wallet read failed\\..*"
+- runFlow:
+    file: _shared/wallet-state.yaml
+    env:
+      STATE: "Loading"
+      EXPECT: "Assets loading"
+- runFlow:
+    file: _shared/wallet-state.yaml
+    env:
+      STATE: "Stale"
+      EXPECT: "Last good read.*"
+- runFlow:
+    file: _shared/wallet-state.yaml
+    env:
+      STATE: "No SOL price"
+      EXPECT: "No SOL price right now.*"
+- runFlow:
+    file: _shared/wallet-state.yaml
+    env:
+      STATE: "Zero"
+      EXPECT: "\\$0\\.00"
+# Back to the live reading.
+- runFlow:
+    file: _shared/wallet-state.yaml
+    env:
+      STATE: "Live"
+      EXPECT: "Wallet"

@@ -1,6 +1,6 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
-import { Activity, ChevronRight, Coins, Database, History, Layers, ListOrdered, ShieldAlert, type LucideIcon } from "lucide-react-native";
+import { Activity, ChevronRight, Coins, Database, History, Layers, ListOrdered, ShieldAlert, Sparkles, type LucideIcon } from "lucide-react-native";
 import { ReviewCards } from "~/components/actions/ReviewCards";
 import { ActionBar } from "~/components/portfolio/ActionBar";
 import { OverviewCard } from "~/components/portfolio/Overview";
@@ -8,6 +8,7 @@ import { TradingActivity } from "~/components/portfolio/TradingActivity";
 import { Text } from "~/components/ui/Text";
 import { refetchActivity } from "~/lib/stores/activity";
 import { refreshPrices } from "~/lib/stores/market";
+import { useAppStore } from "~/lib/store";
 import { usePortfolio } from "~/lib/stores/portfolio";
 import { refetchWallet } from "~/lib/stores/wallet";
 import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
@@ -38,6 +39,7 @@ const DETAILS: { href: Href; label: string; note: string; icon: LucideIcon }[] =
 
 export default function PortfolioScreen() {
   const feed = usePortfolio();
+  const setAgentTab = useAppStore((state) => state.setAgentTab);
 
   return (
     <ScrollView
@@ -59,9 +61,30 @@ export default function PortfolioScreen() {
       }
     >
       <OverviewCard feed={feed} />
-      <ActionBar />
+      <ActionBar compact />
       <ReviewCards />
 
+      <Text variant="h2" accessibilityRole="header" style={styles.heading}>Positions &amp; activity</Text>
+      <TradingActivity feed={feed} />
+
+      <Pressable
+        onPress={() => {
+          setAgentTab("capital-intelligence");
+          router.push("/(tabs)/elyra");
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Ask Elyra about this portfolio"
+        style={styles.ask}
+      >
+        <Sparkles size={20} strokeWidth={1.5} color={color.accent} />
+        <View style={styles.flex}>
+          <Text variant="h2">Ask about this portfolio</Text>
+          <Text variant="label" tone="secondary">Answers with your account as context</Text>
+        </View>
+        <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />
+      </Pressable>
+
+      <Text variant="h2" accessibilityRole="header" style={styles.heading}>Explore your portfolio</Text>
       <View style={styles.links} accessibilityLabel="Portfolio details">
         {DETAILS.map((entry) => (
           <Pressable
@@ -70,24 +93,18 @@ export default function PortfolioScreen() {
             accessibilityRole="button"
             accessibilityHint={entry.note}
             android_ripple={{ color: color["surface-hover"] }}
-            style={styles.link}
+            style={({ pressed }) => [styles.link, pressed && styles.linkPressed]}
           >
             <entry.icon size={18} strokeWidth={1.5} color={color["text-secondary"]} />
             <View style={styles.flex}>
-              <Text variant="body">{entry.label}</Text>
+              <Text variant="panel-title">{entry.label}</Text>
               <Text variant="label" tone="muted" numberOfLines={1}>
                 {entry.note}
               </Text>
             </View>
-            <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />
           </Pressable>
         ))}
       </View>
-
-      <Text variant="h2" accessibilityRole="header" style={styles.heading}>
-        Trading activity
-      </Text>
-      <TradingActivity feed={feed} />
     </ScrollView>
   );
 }
@@ -97,20 +114,22 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 16, paddingBottom: 32 },
   flex: { flex: 1, minWidth: 0 },
   links: {
-    borderRadius: radius.panel,
-    borderWidth: 1,
-    borderColor: color["border-subtle"],
-    backgroundColor: color["surface-panel"],
-    overflow: "hidden",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   link: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexGrow: 1,
+    flexBasis: "45%",
     gap: 12,
-    minHeight: TOUCH_TARGET + 8,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth * 2,
-    borderBottomColor: color["border-subtle"],
+    minHeight: TOUCH_TARGET * 2,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: color["border-subtle"],
+    borderRadius: radius.panel,
+    backgroundColor: color["surface-panel"],
   },
+  linkPressed: { backgroundColor: color["surface-hover"] },
+  ask: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, minHeight: TOUCH_TARGET + 24, borderWidth: 1, borderLeftWidth: 2, borderColor: color["border-subtle"], borderLeftColor: color["agent-accent"], borderRadius: radius.panel, backgroundColor: color["surface-panel"] },
   heading: { marginTop: 4 },
 });

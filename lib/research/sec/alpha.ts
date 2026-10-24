@@ -6,7 +6,6 @@ import {
   insiderMoves,
   plannedSaleFrom,
   stakeFrom,
-  type AlphaBoard,
   type DocMeta,
   type InsiderMove,
   type Ipo,
@@ -28,6 +27,9 @@ import {
   type Form4,
   type Schedule13,
 } from "@/lib/research/sec/parse";
+import type { AlphaResponse, CompanyInsiders } from "@/lib/research/sec/types";
+
+export type { AlphaResponse, CompanyInsiders };
 
 /* ---------------------------------------------------------------------------
    Reading today's filings for alpha.
@@ -146,17 +148,6 @@ function metaFor(entry: FeedEntry, tickers: Map<string, { ticker: string }>): Do
   };
 }
 
-export interface AlphaResponse extends AlphaBoard {
-  /** Filings read so far, and still to read, of the latest window. */
-  read: number;
-  pending: number;
-  /** The oldest insider filing in the window, so the board can say what "latest" means. */
-  since: string | null;
-  errors: string[];
-  asOf: string;
-  configured: boolean;
-}
-
 export async function alphaFeed(options: { budgetMs: number }): Promise<AlphaResponse> {
   const pages = await Promise.all([
     feedPage("4", 0, 100),
@@ -254,18 +245,6 @@ export async function alphaFeed(options: { budgetMs: number }): Promise<AlphaRes
 /* ---------------------------------------------------------------------------
    One company's insiders
 --------------------------------------------------------------------------- */
-
-export interface CompanyInsiders {
-  ticker: string | null;
-  company: string | null;
-  moves: InsiderMove[];
-  /** Form 4s still to read; the client asks again. */
-  pending: number;
-  /** How many of the company's recent Form 4s these come from. */
-  filings: number;
-  since: string | null;
-  summary: { buys: number; buyValue: number; sells: number; sellValue: number; buyers: number; sellers: number };
-}
 
 const companyReads = new Map<string, Promise<void>>();
 const COMPANY_FILINGS = 30;

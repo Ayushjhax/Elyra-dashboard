@@ -162,6 +162,7 @@ export function Composer({ symbol, onAsk }: { symbol: string; onAsk: (prompt: st
               disabled={pending}
               onPress={() => onAsk(chip)}
               accessibilityRole="button"
+              hitSlop={6}
               style={({ pressed }) => [styles.suggestion, { opacity: pending ? 0.5 : pressed ? 0.8 : 1 }]}
             >
               <Text variant="label" tone="secondary">

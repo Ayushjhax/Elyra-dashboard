@@ -32,6 +32,7 @@
 --------------------------------------------------------------------------- */
 
 import { holdingFor, riskiestPosition, underlyingSymbol } from "@/lib/personalized/calculations";
+import { formatPriceUsd } from "@/lib/format";
 import type {
   PreparedAction,
   PreparedActionField,
@@ -242,7 +243,7 @@ export function prepareAction(
       field("Amount", `${quantityText(quantity)} ${symbol}`, true),
       field(
         "Value",
-        valueUsd === null ? "unknown — no price source" : `$${valueUsd.toFixed(2)}`,
+        valueUsd === null ? "unknown — no price source" : formatPriceUsd(valueUsd),
         true,
       ),
       field("Balance after", `${quantityText(holding.quantity - quantity)} ${symbol}`, true),

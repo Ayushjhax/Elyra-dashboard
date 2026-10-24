@@ -3,7 +3,8 @@
 The Expo app published on the Solana dApp Store. It talks only to Elyra's API
 (this repo's Next app) and shares the pure modules in `../lib` through the
 `@/` alias. Rules live in the repo's `CLAUDE.md` ("The Android dApp") and in
-`AGENTS.md` here.
+`AGENTS.md` here. The repo's `README.md` covers the app in full — screens,
+signing, push, and building and releasing for the dApp Store.
 
 ## Run it
 

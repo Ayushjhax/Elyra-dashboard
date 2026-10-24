@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { databaseUnavailableMessage, getSessionUser, hasProfile } from "@/lib/auth/session";
 import { runActivationCheck } from "@/lib/referrals/activation";
 import { isSolanaAddress } from "@/lib/solana/address";
-import { referralList, referralStats, type ReferralListItem, type ReferralStats } from "@/lib/referrals/stats";
+import { referralList, referralStats } from "@/lib/referrals/stats";
+import type { ReferralsResponse } from "@/lib/referrals/types";
+
+export type { ReferralsResponse };
 
 /* ---------------------------------------------------------------------------
    The referral page's one read.
@@ -28,14 +31,6 @@ import { referralList, referralStats, type ReferralListItem, type ReferralStats 
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-export interface ReferralsResponse {
-  stats: ReferralStats | null;
-  referrals: ReferralListItem[];
-  error: string | null;
-  /** True when the tables are not migrated yet. */
-  unconfigured: boolean;
-}
 
 function fail(error: string, status = 200, unconfigured = false) {
   return NextResponse.json<ReferralsResponse>(

@@ -9,6 +9,14 @@ const READ: SourceInputs = {
 };
 
 describe("sourceStatuses", () => {
+  it("does not call cached activity or partial positions included successfully after a failure", () => {
+    const statuses = sourceStatuses({ ...READ,
+      portfolio: { ...READ.portfolio, positions: 2, positionsFailed: true },
+      activity: { ...READ.activity, count: 4, error: "Refresh failed" },
+    });
+    expect(statuses.positions).toEqual({ state: "failed", label: "2 open · partly unread" });
+    expect(statuses.activity).toEqual({ state: "failed", label: "Last read failed" });
+  });
   it("reads a connected, empty account the way the reference shows it", () => {
     const statuses = sourceStatuses(READ);
     expect(statuses.wallet).toEqual({ state: "connected", label: "Connected" });
@@ -30,8 +38,8 @@ describe("sourceStatuses", () => {
 
   it("says positions may be missing when a venue failed and none were read", () => {
     expect(sourceStatuses({ ...READ, portfolio: { ...READ.portfolio, positionsFailed: true } }).positions.label).toBe("Partly unread");
-    /* Positions that were read are still reported. */
-    expect(sourceStatuses({ ...READ, portfolio: { ...READ.portfolio, positions: 2, positionsFailed: true } }).positions.label).toBe("2 open");
+    /* Keep the known count and the incomplete-read reason together. */
+    expect(sourceStatuses({ ...READ, portfolio: { ...READ.portfolio, positions: 2, positionsFailed: true } }).positions.label).toBe("2 open · partly unread");
   });
 
   it("tells not configured and no wallet apart from a failure", () => {

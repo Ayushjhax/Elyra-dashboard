@@ -1,0 +1,13 @@
+# Opens the tool screen, picks STATE, and expects EXPECT on the wallet sheet.
+appId: xyz.getelyra.app
+---
+- openLink: elyra://dev
+- scrollUntilVisible:
+    element: "Wallet state: ${STATE}"
+    direction: DOWN
+- tapOn: "Wallet state: ${STATE}"
+- extendedWaitUntil:
+    visible: "${EXPECT}"
+    timeout: 15000
+- tapOn: "Close wallet"
+- back   # the tool screen is a modal with no header

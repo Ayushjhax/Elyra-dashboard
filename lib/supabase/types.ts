@@ -7,11 +7,14 @@
    changes with it in the same commit.
 --------------------------------------------------------------------------- */
 
+import type { ConnectedExchange } from "@/lib/connections/types";
+import type { ReferralStatus } from "@/lib/referrals/types";
+
 import type { PreparedActionSurface } from "@/lib/actions/types";
 
 export type Surface = "web" | "telegram";
 export type MessageRole = "user" | "assistant" | "tool";
-export type ExchangeId = "binance" | "okx" | "hyperliquid";
+export type ExchangeId = ConnectedExchange;
 
 export interface Profile {
   id: string;
@@ -69,16 +72,8 @@ export interface PushDeviceRow {
   disabled_reason: string | null;
 }
 
-export type NotificationKind =
-  | "price_alert"
-  | "liquidation"
-  | "large_move"
-  | "prediction_move"
-  | "prediction_order"
-  | "prediction_resolution"
-  | "prediction_signal"
-  | "daily_summary"
-  | "system";
+export type { NotificationKind } from "@/lib/notifications/types";
+import type { NotificationKind } from "@/lib/notifications/types";
 
 /** A push Expo accepted, waiting for its receipt (0015). The id is Expo's. */
 export interface PushTicketRow {
@@ -195,7 +190,7 @@ export interface PointsLedgerRow {
   created_at: string;
 }
 
-export type ReferralStatus = "pending" | "activated" | "not_eligible";
+export type { ReferralStatus };
 
 export interface ReferralRow {
   id: string;

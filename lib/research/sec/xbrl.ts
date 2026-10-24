@@ -2,6 +2,9 @@ import "server-only";
 
 import { fail, ok, type ToolResult } from "@/lib/providers/types";
 import { padCik, SEC_TTL, secJson } from "@/lib/research/sec/client";
+import type { MetricId } from "@/lib/research/sec/types";
+
+export type { MetricId };
 
 /* ---------------------------------------------------------------------------
    XBRL company facts — the numbers, with their provenance attached.
@@ -113,18 +116,6 @@ export async function companyFacts(cik: string): Promise<ToolResult<CompanyFactS
 /* ---------------------------------------------------------------------------
    Metrics
 --------------------------------------------------------------------------- */
-
-export type MetricId =
-  | "revenue"
-  | "grossProfit"
-  | "operatingIncome"
-  | "netIncome"
-  | "dilutedEps"
-  | "cash"
-  | "totalAssets"
-  | "totalDebt"
-  | "operatingCashFlow"
-  | "capex";
 
 interface MetricDefinition {
   label: string;

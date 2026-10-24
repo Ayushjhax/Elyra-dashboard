@@ -66,12 +66,19 @@ export const CORE_MODULES = [
   "lib/activity/events.ts",
   "lib/activity/filter.ts",
   "lib/activity/notifications.ts",
+  "lib/notifications/types.ts",
+  "lib/notifications/routes.ts",
+  "lib/notifications/time.ts",
 
   /* account, referrals, attachments */
   "lib/account.ts",
   "lib/appVersion.ts",
   "lib/referrals/display.ts",
   "lib/referrals/config.ts",
+  "lib/referrals/types.ts",
+  "lib/referrals/applinks.ts",
+  "lib/connections/state.ts",
+  "lib/connections/types.ts",
   "lib/attachments.ts",
 
   /* the assistant */
@@ -82,13 +89,31 @@ export const CORE_MODULES = [
   "lib/personalized/types.ts",
   "lib/personalized/calculations.ts",
   "lib/personalized/intent.ts",
+  "lib/personalized/insights.ts",
+  "lib/personalized/sources.ts",
 
   /* prediction markets, research, backtests */
   "lib/prediction/analytics.ts",
   "lib/prediction/signal-types.ts",
+  "lib/prediction/api.ts",
+  "lib/prediction/appViews.ts",
+  "lib/prediction/alertTypes.ts",
+  "lib/prediction/book.ts",
+  "lib/prediction/book-analytics.ts",
+  "lib/prediction/basket.ts",
+  "lib/providers/types.ts",
   "lib/research/calculations.ts",
   "lib/research/signalTypes.ts",
   "lib/research/reportTypes.ts",
+  "lib/research/report.ts",
+  "lib/research/intent.ts",
+  "lib/research/types.ts",
+  "lib/research/signalCriteria.ts",
+  "lib/research/sec/types.ts",
+  "lib/research/sec/forms.ts",
+  "lib/research/sec/alpha-build.ts",
+  "lib/backtest/types.ts",
+  "lib/backtest/parse.ts",
   "lib/backtest/metrics.ts",
 
   /* brand */

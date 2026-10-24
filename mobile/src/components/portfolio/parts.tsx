@@ -30,7 +30,8 @@ export function DetailScreen({
   children,
 }: {
   title: string;
-  onRefresh: () => void;
+  /** Omitted on a screen with nothing to read again (settings, legal). */
+  onRefresh?: () => void;
   refreshing?: boolean;
   children: ReactNode;
 }) {
@@ -39,14 +40,17 @@ export function DetailScreen({
       <SheetHeader title={title} back closeLabel="Back" onRefresh={onRefresh} refreshing={refreshing} />
       <ScrollView
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl
-            refreshing={false}
-            onRefresh={onRefresh}
-            tintColor={color.accent}
-            colors={[color.accent]}
-            progressBackgroundColor={color["surface-raised"]}
-          />
+          onRefresh === undefined ? undefined : (
+            <RefreshControl
+              refreshing={false}
+              onRefresh={onRefresh}
+              tintColor={color.accent}
+              colors={[color.accent]}
+              progressBackgroundColor={color["surface-raised"]}
+            />
+          )
         }
       >
         {children}

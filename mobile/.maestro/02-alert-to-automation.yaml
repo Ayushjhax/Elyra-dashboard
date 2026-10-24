@@ -1,0 +1,49 @@
+# Markets → SOL → set an alert → it is listed in Alerts & automation.
+# Uses a level far below the price (1.23) so it never fires, and removes it
+# at the end, leaving the account as it was.
+appId: xyz.getelyra.app
+name: Alert to Automation
+tags: [signed-in]
+---
+- runFlow: _shared/signed-in.yaml
+- tapOn: "SOL"
+- extendedWaitUntil:
+    visible: "Price alerts.*"
+    timeout: 30000
+- tapOn: "Price alerts.*"
+- assertVisible: "SOL price alerts"
+# A test alert left by an interrupted run is removed first.
+- runFlow:
+    when:
+      visible: "Remove the below \\$1\\.23.*"
+    commands:
+      - tapOn: "Remove the below \\$1\\.23.*"
+- tapOn: "Falls below"
+- tapOn: "Alert price in USD"
+- eraseText: 20
+- inputText: "1.23"
+- hideKeyboard
+- tapOn: "Set alert"
+# The first alert on a phone without push asks for it, in context.
+- runFlow:
+    when:
+      visible: "Inbox only for now"
+    commands:
+      - tapOn: "Inbox only for now"
+- extendedWaitUntil:
+    visible: "Below \\$1\\.23.*"
+    timeout: 20000
+- tapOn: "Close sol price alerts"
+- tapOn: "Back"
+- tapOn: "Account"
+- tapOn: "Alerts & automation.*"
+- extendedWaitUntil:
+    visible: "SOL falls below \\$1\\.23.*"
+    timeout: 20000
+- assertVisible: "Armed.*"
+# Clean up.
+- tapOn: "Remove SOL falls below \\$1\\.23.*"
+- extendedWaitUntil:
+    notVisible: "SOL falls below \\$1\\.23.*"
+    timeout: 20000
+- tapOn: "Back"

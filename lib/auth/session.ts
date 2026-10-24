@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import type { LinkedAccount } from "@privy-io/node";
+import { NotFoundError, type LinkedAccount } from "@privy-io/node";
 import { PRIVY_TIMEOUT_MS, privyClient } from "@/lib/auth/privy";
 import { bindReferral, readAttribution } from "@/lib/referrals/attribution";
 import { supabaseHost, unreachableReason } from "@/lib/supabase/reachability";
@@ -60,6 +60,14 @@ export interface SessionUser {
    * touching the database at all.
    */
   profileStore: "ready" | "unreachable";
+}
+
+/** The token names a Privy user that no longer exists. */
+class AccountDeletedError extends Error {
+  constructor() {
+    super("This account was deleted.");
+    this.name = "AccountDeletedError";
+  }
 }
 
 export class UnauthenticatedError extends Error {
@@ -133,7 +141,9 @@ function firstAddress(
  */
 type AddressLookup =
   | { ok: true; evm: string | null; solana: string | null }
-  | { ok: false };
+  /* `gone`: Privy answered that the user does not exist — the account was
+     deleted (lib/account/deletion.ts) while a token for it was still live. */
+  | { ok: false; gone?: true };
 
 /**
  * Privy's answer, briefly remembered.
@@ -195,8 +205,8 @@ function noteAddressLookupFailure(privyDid: string, error: unknown): void {
  * sign-in: the EVM address is only needed by the Hyperliquid portfolio
  * source, which reports its own absence rather than guessing.
  */
-async function fetchAddresses(privyDid: string): Promise<AddressLookup> {
-  const cached = addressCache.get(privyDid);
+async function fetchAddresses(privyDid: string, fresh = false): Promise<AddressLookup> {
+  const cached = fresh ? undefined : addressCache.get(privyDid);
   if (cached !== undefined && cached.expiresAt > Date.now()) {
     return { ok: true, evm: cached.evm, solana: cached.solana };
   }
@@ -213,6 +223,7 @@ async function fetchAddresses(privyDid: string): Promise<AddressLookup> {
     addressCache.set(privyDid, { evm, solana, expiresAt: Date.now() + ttl });
     return { ok: true, evm, solana };
   } catch (error: unknown) {
+    if (error instanceof NotFoundError) return { ok: false, gone: true };
     noteAddressLookupFailure(privyDid, error);
     return { ok: false };
   }
@@ -371,7 +382,16 @@ async function resolveStoredProfile(
     };
   }
 
-  const found = await fetchAddresses(privyDid);
+  /* Fresh, never from the cache: this runs once per account, and it is the
+     check below that an account exists at all. */
+  const found = await fetchAddresses(privyDid, true);
+
+  /* A deleted account's token stays verifiable until it expires, because
+     verification is local. A request still in flight from the phone that
+     deleted it must not bring an empty profile back — Privy no longer has the
+     user, so there is no account to make a row for. Another server instance
+     may still cache its addresses, which is why the lookup above is fresh. */
+  if (!found.ok && found.gone === true) throw new AccountDeletedError();
 
   const insert: Partial<Profile> & { privy_did: string } = {
     privy_did: privyDid,
@@ -569,7 +589,34 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
 
   /* Only consulted when a profile is created below; an established account
      ignores it entirely. See lib/referrals/attribution.ts. */
-  return resolveProfile(privyDid, readAttribution(req));
+  try {
+    return await resolveProfile(privyDid, readAttribution(req));
+  } catch (error: unknown) {
+    if (error instanceof AccountDeletedError) return null;
+    throw error;
+  }
+}
+
+/**
+ * The Privy DID a valid token names, and nothing else — no profile is read
+ * or created. For deleting an account, which must never make the row it is
+ * about to remove, and must still work when the row is already gone.
+ */
+export async function verifiedPrivyDid(req: Request): Promise<string | null> {
+  const token = extractToken(req);
+  if (token === null) return null;
+  try {
+    const claims = await privyClient().utils().auth().verifyAccessToken(token);
+    return claims.user_id;
+  } catch (error: unknown) {
+    noteVerificationFailure(error);
+    return null;
+  }
+}
+
+/** Forgets what this instance cached about an account that was deleted. */
+export function forgetAddresses(privyDid: string): void {
+  addressCache.delete(privyDid);
 }
 
 /** As `getSessionUser`, but throws instead of returning null. */

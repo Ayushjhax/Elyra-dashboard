@@ -1,3 +1,4 @@
+import { Text } from "react-native";
 import { Tabs } from "expo-router";
 import { ChartCandlestick, ChartPie, CircleUser, FileSearch, Sparkles } from "lucide-react-native";
 import { AppHeader } from "~/components/shell/AppHeader";
@@ -23,11 +24,18 @@ export default function TabsLayout() {
         tabBarActiveTintColor: color.accent,
         tabBarInactiveTintColor: color["text-muted"],
         tabBarStyle: { backgroundColor: color["surface-panel"], borderTopColor: color["border-subtle"] },
-        tabBarLabelStyle: {
-          fontFamily: fontFamily("sans", 500),
-          fontSize: type.label.size,
-          letterSpacing: type.label.letterSpacing,
-        },
+        /* Five labels share one fixed row, so their growth with the system
+           font size is capped (CLAUDE.md: capped on dense rows) — past it,
+           "Portfolio" and "Research" no longer fit at 360dp. */
+        tabBarLabel: ({ color: tint, children }) => (
+          <Text
+            numberOfLines={1}
+            maxFontSizeMultiplier={1.15}
+            style={{ color: tint, fontFamily: fontFamily("sans", 500), fontSize: type.label.size, letterSpacing: type.label.letterSpacing }}
+          >
+            {children}
+          </Text>
+        ),
       }}
     >
       <Tabs.Screen

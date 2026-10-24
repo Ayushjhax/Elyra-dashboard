@@ -18,6 +18,8 @@ const version = "1.0.0";
 
 /** --surface-base, the forest every native surface starts on. */
 export const SURFACE = "#101710";
+/** --accent; config plugins run outside Metro's shared token resolver. */
+export const NOTIFICATION_ACCENT = "#D2DC76";
 
 const config: ExpoConfig = {
   name: "Elyra",
@@ -30,6 +32,7 @@ const config: ExpoConfig = {
   icon: "./assets/images/icon.png",
   android: {
     package: "xyz.getelyra.app",
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
     adaptiveIcon: {
       backgroundColor: SURFACE,
       foregroundImage: "./assets/images/android-icon-foreground.png",
@@ -37,12 +40,34 @@ const config: ExpoConfig = {
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
+    /* No Android backup of app data: the session, the wallet adapter's
+       authorization and the preferences stay on this phone. */
+    allowBackup: false,
+    /* Android App Links: a referral link opens the app rather than the
+       browser, once the website's /.well-known/assetlinks.json names this
+       package and its signing key (served from ANDROID_CERT_SHA256). The
+       elyra:// scheme is registered from `scheme` above. */
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [
+          { scheme: "https", host: "getelyra.xyz", pathPrefix: "/r/" },
+          { scheme: "https", host: "www.getelyra.xyz", pathPrefix: "/r/" },
+        ],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
     /* Only what the app uses. Biometrics gate every signature (the plugin
        below declares it); the camera scans a recipient's QR code, asked for
        only when Scan is pressed. Notifications and the microphone
        (dictation) are added by the prompts that need them, each asked for in
        context. */
-    permissions: ["android.permission.USE_BIOMETRIC", "android.permission.CAMERA"],
+    permissions: [
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.CAMERA",
+      "android.permission.POST_NOTIFICATIONS",
+    ],
     blockedPermissions: [
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
@@ -53,6 +78,15 @@ const config: ExpoConfig = {
     bundleIdentifier: "xyz.getelyra.app",
   },
   plugins: [
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/images/notification-icon.png",
+        color: NOTIFICATION_ACCENT,
+        defaultChannel: "system-v2",
+      },
+    ],
+    "expo-localization",
     "expo-router",
     "expo-dev-client",
     [
@@ -65,14 +99,31 @@ const config: ExpoConfig = {
     ],
     "expo-font",
     "expo-secure-store",
+    /* Crash reporting (src/lib/crash): the native SDK is always built in,
+       and reports only when EXPO_PUBLIC_SENTRY_DSN is set. Source maps are
+       uploaded only when SENTRY_AUTH_TOKEN is (an EAS secret), so a build
+       without one still succeeds. */
+    [
+      "@sentry/react-native/expo",
+      {
+        organization: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        url: "https://sentry.io/",
+        disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN,
+      },
+    ],
     [
       "expo-local-authentication",
-      { faceIDPermission: "Elyra asks for Face ID before your wallet signs anything." },
+      {
+        faceIDPermission:
+          "Elyra asks for Face ID before your wallet signs anything.",
+      },
     ],
     [
       "expo-camera",
       {
-        cameraPermission: "Elyra uses the camera to scan a wallet address's QR code.",
+        cameraPermission:
+          "Elyra uses the camera to scan a wallet address's QR code.",
         microphonePermission: false,
         recordAudioAndroid: false,
       },
@@ -83,7 +134,8 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
+        microphonePermission:
+          "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
         recordAudioAndroid: true,
       },
     ],
@@ -92,9 +144,12 @@ const config: ExpoConfig = {
     [
       "expo-image-picker",
       {
-        photosPermission: "Elyra opens your photos only to attach an image to a question you ask.",
-        cameraPermission: "Elyra uses the camera to scan a wallet address's QR code.",
-        microphonePermission: "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
+        photosPermission:
+          "Elyra opens your photos only to attach an image to a question you ask.",
+        cameraPermission:
+          "Elyra uses the camera to scan a wallet address's QR code.",
+        microphonePermission:
+          "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
       },
     ],
   ],
@@ -103,10 +158,10 @@ const config: ExpoConfig = {
     reactCompiler: true,
   },
   extra: {
-  eas: {
-    projectId: "df86cf17-1eaa-438b-a29e-0b8f2e61a462",
+    eas: {
+      projectId: "df86cf17-1eaa-438b-a29e-0b8f2e61a462",
+    },
   },
-},
 };
 
 export default config;

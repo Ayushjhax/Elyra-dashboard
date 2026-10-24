@@ -4,6 +4,9 @@ import { fail, ok, type ToolResult } from "@/lib/providers/types";
 import { secText } from "@/lib/research/sec/client";
 import { entitiesByCik } from "@/lib/research/sec/entities";
 import { CATEGORIES, ITEM_LABELS, formLabel, type EdgarCategory } from "@/lib/research/sec/forms";
+import type { EdgarFiling, LatestFilings } from "@/lib/research/sec/types";
+
+export type { EdgarFiling, LatestFilings };
 
 /* ---------------------------------------------------------------------------
    What the whole US market is filing, as it files it.
@@ -39,21 +42,6 @@ export interface FeedEntry {
   accession: string;
   filedAt: string;
   items: string[];
-}
-
-export interface EdgarFiling {
-  accession: string;
-  form: string;
-  label: string;
-  company: string;
-  cik: string;
-  ticker: string | null;
-  /** Who filed it about the company: the insider on a Form 4, the holder on a 13D/G. */
-  filer: string | null;
-  /** 8-K items as "2.02 Results of operations". */
-  items: Array<{ code: string; label: string }>;
-  filedAt: string;
-  url: string;
 }
 
 function decode(text: string): string {
@@ -155,13 +143,6 @@ export async function feedPage(form: string, start: number, count: number): Prom
     return base === form || (form === "10-K" && base === "10-KT");
   };
   return ok(parseCurrentFeed(result.data).filter(wanted), "sec", { asOf: result.asOf });
-}
-
-export interface LatestFilings {
-  filings: EdgarFiling[];
-  /** Forms that could not be read, by name. */
-  errors: string[];
-  asOf: string;
 }
 
 /** The newest filings across the market for a category. Never throws. */

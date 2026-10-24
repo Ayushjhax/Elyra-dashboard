@@ -2,10 +2,13 @@ import "server-only";
 
 import { serviceClient } from "@/lib/supabase/server";
 import type {
+  ForwardRecord,
   PredictionSignalRecord,
   PredictionTechnicalSignal,
   SignalStatus,
 } from "@/lib/prediction/signal-types";
+
+export type { ForwardRecord };
 
 /* ---------------------------------------------------------------------------
    Storing signals, and tracking what became of them.
@@ -300,18 +303,6 @@ export function evaluateLifecycle(
 /* ---------------------------------------------------------------------------
    Forward track record
 --------------------------------------------------------------------------- */
-
-export interface ForwardRecord {
-  entered: number;
-  targetHit: number;
-  invalidated: number;
-  expiredWithoutEntry: number;
-  /** Over DECIDED trades only. Null below the reporting floor. */
-  winRatePct: number | null;
-  averageResultPoints: number | null;
-  /** Always stated, so this can never be read as the backtested figure. */
-  basis: string;
-}
 
 /** Signals must be decided before a forward rate is worth showing. */
 export const FORWARD_MIN_SAMPLE = 20;

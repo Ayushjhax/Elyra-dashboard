@@ -137,9 +137,12 @@ export function SegmentedControl<T extends string>({
             }}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
+            hitSlop={{ top: 2, bottom: 2 }}
             style={[styles.segment, selected && styles.segmentSelected]}
           >
-            <Text variant="label" tone={selected ? "primary" : "secondary"}>
+            {/* Keyed on the state: Android reused the selected label's text
+                layout after the selection moved and clipped "Ask" to "As". */}
+            <Text key={selected ? "on" : "off"} variant="label" tone={selected ? "primary" : "secondary"} numberOfLines={1} style={styles.segmentLabel}>
               {choice.label}
             </Text>
           </Pressable>
@@ -230,9 +233,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     padding: 2,
   },
+  /* 44 tall plus a 2dp hit slop above and below: a 48dp target inside the
+     control's 2dp inset. */
   segment: {
     flex: 1,
-    minHeight: 40,
+    minHeight: TOUCH_TARGET - 4,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.control - 2,
@@ -240,6 +245,9 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   segmentSelected: { backgroundColor: color["surface-hover"], borderColor: color["border-accent"] },
+  // Give Android the segment width: intrinsic custom-font measurements can
+  // clip the final glyph of short labels after a density change.
+  segmentLabel: { alignSelf: "stretch", textAlign: "center" },
   menuTrigger: {
     minHeight: TOUCH_TARGET,
     flexDirection: "row",

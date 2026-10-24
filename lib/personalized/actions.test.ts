@@ -66,6 +66,12 @@ function memory(over: Partial<PersonalizedMemory> = {}): PersonalizedMemory {
 describe('"Sell half my SOL"', () => {
   const base = snapshot({ spot: [holding({ quantity: 42.5, priceUsd: 100 })] });
 
+  it("preserves the value of a small prepared swap instead of rounding it to zero", () => {
+    const action = prepareAction({ kind: "swap", symbol: "SOL", quantity: 0.00001 }, base);
+    const value = action.fields.find((field) => field.label === "Value")?.value;
+    expect(value).toBe("$0.001000");
+  });
+
   it("computes the amount from the real balance, not from the request", () => {
     const action = prepareAction({ kind: "swap", symbol: "SOL", fraction: 0.5 }, base);
     expect(action.summary).toContain("21.25");

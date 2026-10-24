@@ -2,6 +2,9 @@ import "server-only";
 
 import { cached, providerFetch } from "@/lib/providers/http";
 import { fail, ok, type ToolResult } from "@/lib/providers/types";
+import type { YieldOpportunity, YieldStrategy } from "@/lib/research/types";
+
+export type { YieldOpportunity, YieldStrategy };
 
 /* ---------------------------------------------------------------------------
    Yield discovery — Kamino vaults.
@@ -43,32 +46,6 @@ const TTL_MS = 5 * 60_000;
  * in any practical sense.
  */
 const MIN_TVL_USD = 250_000;
-
-export type YieldStrategy = "lending" | "vault" | "liquidity";
-
-export interface YieldOpportunity {
-  provider: "kamino";
-  /** Vault address. Stable, and what a detail view would fetch. */
-  id: string;
-  name: string;
-  /** Token symbol where known, else the mint. */
-  asset: string;
-  mint: string;
-  strategy: YieldStrategy;
-  /** PERCENT, converted from the provider's fraction. */
-  apyPct: number | null;
-  /** Thirty-day trailing APY, percent. Steadier than the spot figure. */
-  apy30dPct: number | null;
-  /** The part of APY that is token emissions rather than interest. */
-  rewardApyPct: number | null;
-  tvlUsd: number | null;
-  /** Capital not currently deployed. Indicates room to exit. */
-  availableUsd: number | null;
-  holders: number | null;
-  /** Stated caveats. Never a numeric risk score. */
-  flags: string[];
-  asOf: string;
-}
 
 interface WireVaultState {
   name?: string;

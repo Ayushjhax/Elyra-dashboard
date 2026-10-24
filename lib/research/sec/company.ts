@@ -11,6 +11,9 @@ import {
   resolvePriorYear,
   type MetricId,
 } from "@/lib/research/sec/xbrl";
+import type { CompanyFiling, CompanyProfile, Fundamental } from "@/lib/research/sec/types";
+
+export type { CompanyFiling, CompanyProfile, Fundamental };
 
 /* ---------------------------------------------------------------------------
    One company, as EDGAR describes it.
@@ -24,44 +27,6 @@ import {
    resolved is absent rather than estimated — `resolveMetric` returns nothing
    before it would return the wrong period.
 --------------------------------------------------------------------------- */
-
-export interface Fundamental {
-  id: MetricId | "shares";
-  label: string;
-  value: number;
-  unit: "USD" | "USD/shares" | "shares";
-  /** "Q2 FY2026", or "Period ended 2026-06-30". */
-  period: string;
-  /** Change against the same period a year earlier, percent. Null without one. */
-  yoyPct: number | null;
-}
-
-export interface CompanyFiling {
-  accession: string;
-  form: string;
-  label: string;
-  items: Array<{ code: string; label: string }>;
-  filedAt: string;
-  periodEnd: string | null;
-  url: string;
-}
-
-export interface CompanyProfile {
-  cik: string;
-  name: string;
-  ticker: string;
-  tickers: string[];
-  exchanges: string[];
-  industry: string | null;
-  category: string | null;
-  state: string | null;
-  fiscalYearEnd: string | null;
-  fundamentals: Fundamental[];
-  /** Why there are none, when there are none. */
-  fundamentalsNote: string | null;
-  filings: CompanyFiling[];
-  edgarUrl: string;
-}
 
 interface SubmissionsExtra {
   tickers?: string[];

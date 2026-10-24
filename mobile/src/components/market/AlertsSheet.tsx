@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { Bell, BellRing, RotateCcw, Trash2 } from "lucide-react-native";
-import { alertState, APP_DELIVERY_LINE, suggestedTarget } from "@/lib/alerts/rules";
+import { alertState, suggestedTarget } from "@/lib/alerts/rules";
 import { formatPriceUsd } from "@/lib/format";
 import { Button, IconButton, SegmentedControl } from "~/components/ui/controls";
 import { BottomSheet, type BottomSheetHandle } from "~/components/ui/overlays";
@@ -11,6 +11,8 @@ import { TextField } from "~/components/ui/TextField";
 import { Notice, outcomeHaptic } from "~/components/wallet/parts";
 import { useAlerts } from "~/lib/stores/alerts";
 import { color, radius } from "~/theme/tokens";
+import { notificationDeliveryLine, usePushState } from "~/lib/notifications/push";
+import { useNotificationPreferences } from "~/lib/notifications/stores";
 
 /* ---------------------------------------------------------------------------
    Price alerts on the market on screen — the website's ChartAlerts, as a
@@ -36,6 +38,8 @@ export const AlertsSheet = forwardRef<AlertsSheetHandle, { symbol: string; price
 ) {
   const sheet = useRef<BottomSheetHandle>(null);
   const feed = useAlerts();
+  const push = usePushState();
+  const preferences = useNotificationPreferences();
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [target, setTarget] = useState("");
   const [saving, setSaving] = useState(false);
@@ -56,7 +60,7 @@ export const AlertsSheet = forwardRef<AlertsSheetHandle, { symbol: string; price
   const alerts = feed.alerts.filter((alert) => alert.symbol === symbol.toUpperCase());
   const shownError = error ?? feed.writeError ?? feed.error;
   const value = Number(target);
-  const delivery = APP_DELIVERY_LINE[feed.appDelivery];
+  const delivery = notificationDeliveryLine(preferences.data?.priceAlerts, push.status, push.priceChannelEnabled);
 
   const create = async (input: { direction: "above" | "below"; target: number }) => {
     setSaving(true);
@@ -161,7 +165,7 @@ export const AlertsSheet = forwardRef<AlertsSheetHandle, { symbol: string; price
             variant="ghost"
             onPress={() => {
               sheet.current?.dismiss();
-              router.push("/notifications");
+              router.push("/notification-settings");
             }}
           />
         </View>

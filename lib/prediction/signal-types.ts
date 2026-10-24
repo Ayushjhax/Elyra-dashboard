@@ -207,3 +207,19 @@ export interface PredictionSignalRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+/* ---------------------------------------------------------------------------
+   Forward track record — the caller's own signals, decided after the fact.
+--------------------------------------------------------------------------- */
+
+export interface ForwardRecord {
+  entered: number;
+  targetHit: number;
+  invalidated: number;
+  expiredWithoutEntry: number;
+  /** Over DECIDED trades only. Null below the reporting floor. */
+  winRatePct: number | null;
+  averageResultPoints: number | null;
+  /** Always stated, so this can never be read as the backtested figure. */
+  basis: string;
+}

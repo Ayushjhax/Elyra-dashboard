@@ -48,10 +48,10 @@ export function accountEvents(input: {
   explorer: (signature: string) => string;
   /**
    * How a fired alert's row ends: where it went, on the surface showing it.
-   * The website says Telegram; the Android app, which has no Telegram, says
-   * it fired.
+   * Each surface says it in its own words, so this shared module names no
+   * channel of its own.
    */
-  alertNote?: string;
+  alertNote: string;
 }): AccountEvent[] {
   const events: AccountEvent[] = [];
 
@@ -98,7 +98,7 @@ export function accountEvents(input: {
     events.push({
       id: `alert:${alert.id}:${alert.triggeredAt}`,
       kind: "alert",
-      text: `${alert.symbol} crossed ${alert.direction} ${formatPriceUsd(alert.target)}${seen} — ${input.alertNote ?? "alert sent to Telegram"}`,
+      text: `${alert.symbol} crossed ${alert.direction} ${formatPriceUsd(alert.target)}${seen} — ${input.alertNote}`,
       at: alert.triggeredAt,
       status: "confirmed",
       href: null,

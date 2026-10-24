@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseResearchIntent } from "@/lib/research/intent";
+import { parseResearchIntent, reportRequest } from "@/lib/research/intent";
 import {
   agreementOf,
   agreesWithinRounding,
@@ -650,5 +650,13 @@ describe("unlocks", () => {
     expect(summary.within30d).toBe(2);
     /* Unpriced is not worthless. */
     expect(summary.totalValueUsd).toBeNull();
+  });
+});
+
+describe("reportRequest", () => {
+  it("makes a bare ticker an earnings report and keeps a question's intent", () => {
+    expect(reportRequest("NVDA", "auto")).toBe("NVDA latest earnings");
+    expect(reportRequest("NVDA 10-Q", "auto")).toBe("NVDA 10-Q");
+    expect(reportRequest(" MSFT ", "10-K")).toBe("MSFT 10-K");
   });
 });

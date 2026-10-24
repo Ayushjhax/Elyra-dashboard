@@ -2,6 +2,9 @@ import "server-only";
 
 import { serviceClient } from "@/lib/supabase/server";
 import type { BookAnalytics } from "@/lib/prediction/book-analytics";
+import type { AlertKind, AlertState, PredictionAlertRule } from "@/lib/prediction/alertTypes";
+
+export type { AlertKind, AlertState, PredictionAlertRule };
 
 /* ---------------------------------------------------------------------------
    Prediction alerts.
@@ -26,40 +29,6 @@ import type { BookAnalytics } from "@/lib/prediction/book-analytics";
    Tenancy: `serviceClient()` bypasses RLS, so `.eq("user_id", …)` IS the
    boundary. The evaluator's global read returns no rule to any user.
 --------------------------------------------------------------------------- */
-
-export type AlertKind =
-  | "price_above"
-  | "price_below"
-  | "probability_change"
-  | "orderbook_imbalance"
-  | "spread_expansion"
-  | "spread_compression"
-  | "liquidity_change"
-  | "signal_new"
-  | "signal_entry"
-  | "signal_target"
-  | "signal_invalidated"
-  | "signal_expired"
-  | "market_resolution";
-
-export type AlertState = "armed" | "triggered" | "disabled";
-
-export interface PredictionAlertRule {
-  id: string;
-  userId: string;
-  marketId: string;
-  tokenId: string | null;
-  marketQuestion: string | null;
-  outcomeLabel: string | null;
-  kind: AlertKind;
-  threshold: number | null;
-  signalId: string | null;
-  state: AlertState;
-  lastValue: number | null;
-  triggeredAt: string | null;
-  cooldownSeconds: number;
-  createdAt: string;
-}
 
 interface Row {
   id: string;

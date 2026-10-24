@@ -14,6 +14,9 @@ import {
 } from "@/lib/prediction/realtime";
 import { polymarketBooks, polymarketTrades } from "@/lib/providers/polymarket";
 import type { PredictionTrade } from "@/lib/providers/types";
+import type { MarketPhase } from "@/lib/prediction/api";
+
+export type { MarketPhase };
 
 /* ---------------------------------------------------------------------------
    Live market state, and who is watching it.
@@ -45,14 +48,6 @@ import type { PredictionTrade } from "@/lib/providers/types";
    update-to-update persistence declines rather than pretending a single frame
    demonstrated it. Spec §93: polling is not represented as realtime.
 --------------------------------------------------------------------------- */
-
-export type MarketPhase =
-  | "disconnected"
-  | "connecting"
-  | "snapshot"
-  | "live"
-  | "stale"
-  | "reconnecting";
 
 /** A book older than this cannot support an actionable signal. */
 export const STALE_AFTER_MS = 30_000;

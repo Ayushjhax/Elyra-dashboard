@@ -22,10 +22,16 @@ export type ShortcutScreen =
   | "fills"
   | "notifications"
   | "settings"
-  | "signals";
+  | "signals"
+  | "automation";
+
+/** A Research tab a shortcut opens. */
+export type ResearchTab = "reports" | "backtests" | "prediction" | "recap" | "signals" | "yield" | "unlocks" | "sec";
 
 export type Shortcut =
   | { kind: "open"; screen: ShortcutScreen }
+  /** One of Research's tabs. */
+  | { kind: "research"; tab: ResearchTab }
   /** A market's own screen. */
   | { kind: "asset"; symbol: string }
   /** The swap form, prefilled with whatever was given. */
@@ -57,7 +63,7 @@ export const SHORTCUTS: readonly ShortcutEntry[] = [
   { command: "price", example: "SOL", description: "A market's price and chart" },
   { command: "swap", example: "1.5 SOL to USDC", description: "The swap form, filled in" },
   { command: "alert", example: "SOL > 120", description: "Tell me when it crosses" },
-  { command: "alerts", example: "", description: "Where your alerts are sent" },
+  { command: "alerts", example: "", description: "Your price rules, and where they're sent" },
   { command: "watch", example: "add SOL", description: "Your watchlist, or add and remove" },
   { command: "report", example: "NVDA", description: "A sourced company report" },
   { command: "research", example: "", description: "Filings, recap, signals, yield, unlocks" },
@@ -152,7 +158,7 @@ export function parseShortcut(raw: string): Shortcut {
     case "activity":
       return { kind: "open", screen: "fills" };
     case "alerts":
-      return { kind: "open", screen: "notifications" };
+      return { kind: "open", screen: "automation" };
     case "settings":
       return { kind: "open", screen: "settings" };
     case "help":
@@ -167,7 +173,7 @@ export function parseShortcut(raw: string): Shortcut {
     case "swap":
       return swapOf(words);
     case "alert":
-      return alertOf(rest) ?? (rest.length === 0 ? { kind: "open", screen: "notifications" } : asked);
+      return alertOf(rest) ?? (rest.length === 0 ? { kind: "open", screen: "automation" } : asked);
     case "watch": {
       const op = words[0]?.toLowerCase();
       if ((op === "add" || op === "remove") && symbolOf(words[1]) !== null) {
@@ -182,17 +188,23 @@ export function parseShortcut(raw: string): Shortcut {
     case "ask":
       return rest.length > 0 ? { kind: "ask", prompt: rest } : { kind: "help" };
     case "research":
-      return { kind: "ask", prompt: rest.length > 0 ? `Research ${rest}.` : "What research can you do for me — filings, a recap, signals, yields and unlocks?" };
+      return rest.length > 0 ? { kind: "ask", prompt: `Research ${rest}.` } : { kind: "research", tab: "reports" };
     case "recap":
-      return { kind: "ask", prompt: "Give me a recap of what moved in the markets today." };
+      return { kind: "research", tab: "recap" };
     case "yield":
-      return { kind: "ask", prompt: "What are the current Kamino vault yields?" };
+      return { kind: "research", tab: "yield" };
     case "unlocks":
-      return { kind: "ask", prompt: "What token unlocks are coming up?" };
+      return { kind: "research", tab: "unlocks" };
     case "predictions":
-      return { kind: "ask", prompt: "Show me what prediction markets are pricing, and my exposure to them." };
+    case "book":
+    case "orderbook":
+    case "basket":
+    case "fair":
+      return { kind: "research", tab: "prediction" };
     case "backtest":
-      return { kind: "ask", prompt: rest.length > 0 ? `Backtest this strategy: ${rest}.` : "What strategies can you backtest for me?" };
+      /* A strategy in words is the agent's to parse and run; the bare
+         command opens the tab with its picker. */
+      return rest.length > 0 ? { kind: "ask", prompt: `Backtest this strategy: ${rest}.` } : { kind: "research", tab: "backtests" };
     default:
       return asked;
   }

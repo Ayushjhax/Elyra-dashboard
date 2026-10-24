@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { ExternalLink } from "lucide-react-native";
-import { formatCompactUsd, formatPct, formatPrice, formatQty, formatRelativeTime, formatTimestamp, formatUsd } from "@/lib/format";
-import { priceDecimals } from "@/lib/market/precision";
+import { deriveAccounts } from "@/lib/assets/derive";
+import { formatCompactUsd, formatPct, formatPriceUsd, formatRelativeTime, formatTimestamp } from "@/lib/format";
 import {
   ledgerHistory,
   ledgerOrders,
@@ -20,7 +20,9 @@ import type { LedgerTab, MarketFilter, MarketType } from "@/lib/types";
 import { Button } from "~/components/ui/controls";
 import { DataList, type DataColumn } from "~/components/ui/DataList";
 import { EmptyState, Skeleton } from "~/components/ui/layout";
+import { CoinMark } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
+import { Money, Quantity } from "~/components/ui/values";
 import { Notice, openExternal } from "~/components/wallet/parts";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
 import { useWalletActivity } from "~/lib/stores/activity";
@@ -72,7 +74,7 @@ function venueLabel(venue: string): string {
 }
 
 function price(value: number | null): string | null {
-  return value === null ? null : formatPrice(value, priceDecimals(value));
+  return value === null ? null : formatPriceUsd(value);
 }
 
 function SideBadge({ side }: { side: "long" | "short" | "buy" | "sell" }) {
@@ -90,7 +92,7 @@ function PositionKind({ row }: { row: LedgerPosition }) {
   if (row.side !== null) return <SideBadge side={row.side} />;
   return (
     <Text variant="label" tone="secondary">
-      {row.category ? row.category.charAt(0).toUpperCase() + row.category.slice(1) : "Hold"}
+      {row.category ? row.category.charAt(0).toUpperCase() + row.category.slice(1) : "Spot"}
     </Text>
   );
 }
@@ -146,14 +148,10 @@ function Action({ action, canSign }: { action: LedgerAction; canSign: boolean })
 }
 
 function Pnl({ usd, pct }: { usd: number | null; pct: number | null }) {
-  const hidden = useBalancesHidden();
-  if (usd === null) return null;
-  const tone = usd > 0 ? "positive" : usd < 0 ? "negative" : "secondary";
+  const tone = usd !== null && usd > 0 ? "positive" : usd !== null && usd < 0 ? "negative" : "secondary";
   return (
     <View style={styles.pnl}>
-      <Text variant="data" tone={tone}>
-        {hidden ? "▒▒▒▒" : formatUsd(usd, { sign: true })}
-      </Text>
+      <Money value={usd} sign tone={tone} reason="The venue has not reported a PnL for this position." />
       {pct !== null && (
         <Text variant="data-sm" tone={tone}>
           {formatPct(pct)}
@@ -169,7 +167,7 @@ function MaskedCompact({ value }: { value: number | null }) {
   return <Text variant="data">{hidden ? "▒▒▒▒" : formatCompactUsd(value)}</Text>;
 }
 
-export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
+export function TradingActivity({ feed, limit = 5 }: { feed: PortfolioFeed; limit?: number }) {
   const auth = useElyraAuth();
   const marketType = useAppStore((state) => state.marketType);
   const setMarketType = useAppStore((state) => state.setMarketType);
@@ -180,6 +178,7 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
   const selectedSymbol = useAssets([selectedAssetId]).byId.get(selectedAssetId)?.symbol.toUpperCase() ?? "";
   const snapshot = feed.snapshot;
   const canSign = auth.solanaAddress !== null;
+  const perpAccount = useMemo(() => snapshot === null ? null : deriveAccounts(snapshot).find((account) => account.id === "hyperliquid") ?? null, [snapshot]);
 
   const basePositions = useMemo(() => (snapshot === null ? [] : ledgerPositions(snapshot)), [snapshot]);
   const symbols = useMemo(() => [...new Set(basePositions.map((row) => row.symbol))], [basePositions]);
@@ -217,7 +216,7 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
   const positionColumns: DataColumn<LedgerPosition>[] = [
     { key: "market", header: "Market", width: 140, render: (row) => <Text variant="data" numberOfLines={1}>{row.label}</Text> },
     { key: "side", header: "Side", width: 70, render: (row) => <PositionKind row={row} /> },
-    { key: "size", header: "Size", align: "right", width: 90, render: (row) => <Text variant="data">{row.size === null ? "—" : formatQty(row.size, row.size < 1 ? 4 : 2)}</Text> },
+    { key: "size", header: "Size", align: "right", width: 90, render: (row) => row.size === null ? <Text variant="data" tone="muted">—</Text> : <Quantity value={row.size} /> },
     { key: "entry", header: "Entry", align: "right", width: 90, priority: 2, render: (row) => <Text variant="data">{price(row.entryPrice) ?? "—"}</Text> },
     { key: "mark", header: "Mark", align: "right", width: 90, render: (row) => <Text variant="data">{price(row.markPrice) ?? "—"}</Text> },
     { key: "liq", header: "Liq. price", align: "right", width: 90, priority: 1, render: (row) => <Text variant="data">{price(row.liquidationPrice) ?? "—"}</Text> },
@@ -231,7 +230,7 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
     { key: "type", header: "Type", width: 72, priority: 1, render: (row) => <Text variant="label" tone="secondary">{row.type}</Text> },
     { key: "side", header: "Side", width: 64, render: (row) => <SideBadge side={row.side} /> },
     { key: "price", header: "Price", align: "right", width: 90, render: (row) => <Text variant="data">{price(row.priceUsd) ?? "—"}</Text> },
-    { key: "size", header: "Size", align: "right", width: 90, render: (row) => <Text variant="data">{formatQty(row.quantity, row.quantity < 1 ? 4 : 2)}</Text> },
+    { key: "size", header: "Size", align: "right", width: 90, render: (row) => <Quantity value={row.quantity} /> },
     { key: "filled", header: "Filled", align: "right", width: 60, priority: 2, render: (row) => <Text variant="data">{formatPct(row.filledPct, { sign: false, decimals: 0 })}</Text> },
     { key: "status", header: "Status", width: 76, render: (row) => <Text variant="label" tone="secondary">{row.status}</Text> },
     { key: "action", header: "", align: "right", width: 100, render: (row) => <Action action={row.action} canSign={false} /> },
@@ -245,31 +244,42 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
   ];
 
   /* ---- cards, for a phone ---- */
-  const positionCard = (row: LedgerPosition) => (
+  const positionCard = (row: LedgerPosition) => {
+    const perp = snapshot?.perps.find((entry) => `perp:${entry.id}` === row.id);
+    const logo = snapshot?.spot.find((entry) => entry.symbol.toUpperCase() === row.symbol && entry.verified)?.logo ?? null;
+    return (
     <View style={[styles.cardBody, row.symbol === selectedSymbol && styles.selected]}>
       <View style={styles.cardHead}>
         <View style={styles.cardTitle}>
-          <Text variant="data" numberOfLines={1} style={styles.shrink}>
-            {row.label}
-          </Text>
-          <PositionKind row={row} />
+          <CoinMark symbol={row.symbol} logo={logo} size={32} />
+          <View style={styles.flex}>
+            <Text variant="h2" numberOfLines={2}>{row.market === "perps" ? `${row.symbol}-PERP` : row.label.split(" · ")[0]}</Text>
+            <View style={styles.kindRow}>
+              <PositionKind row={row} />
+              {perp?.leverage !== null && perp?.leverage !== undefined && <Text variant="data-sm" tone="secondary">{perp.leverage}×</Text>}
+            </View>
+          </View>
         </View>
-        <Pnl usd={row.pnlUsd} pct={row.pnlPct} />
+        <View style={styles.pnl}>
+          <Text variant="label" tone="muted">{row.market === "perps" ? "Open PnL" : "Value"}</Text>
+          {row.market === "perps" ? <Pnl usd={row.pnlUsd} pct={row.pnlPct} /> : <Money value={row.valueUsd} reason="This position could not be valued." />}
+        </View>
       </View>
       <View style={styles.facts}>
-        <Fact label="Value" value={row.valueUsd === null ? null : <MaskedCompact value={row.valueUsd} />} />
-        <Fact label="Size" value={row.size === null ? null : formatQty(row.size, row.size < 1 ? 4 : 2)} />
+        {row.market === "perps" && <Fact label="Notional" value={row.valueUsd === null ? null : <MaskedCompact value={row.valueUsd} />} />}
+        <Fact label="Size" value={row.size === null ? null : <Quantity value={row.size} />} />
         <Fact label="Entry" value={price(row.entryPrice)} />
         <Fact label="Mark" value={price(row.markPrice)} />
         <Fact label="Liq. price" value={price(row.liquidationPrice)} />
+        {row.market === "perps" && <Fact label="Margin" value={row.marginUsd === null ? null : <Money value={row.marginUsd} />} />}
       </View>
-      {row.action !== null && (
-        <View style={styles.cardAction}>
-          <Action action={row.action} canSign={canSign} />
-        </View>
-      )}
+      <View style={styles.cardAction}>
+        <Text variant="label" tone="muted">{venueLabel(row.venue)}</Text>
+        <Action action={row.action} canSign={canSign} />
+      </View>
     </View>
-  );
+    );
+  };
   const orderCard = (row: LedgerOrder) => (
     <View style={[styles.cardBody, row.symbol === selectedSymbol && styles.selected]}>
       <View style={styles.cardHead}>
@@ -286,7 +296,7 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
       <View style={styles.facts}>
         <Fact label="Type" value={row.type} />
         <Fact label="Price" value={price(row.priceUsd)} />
-        <Fact label="Size" value={formatQty(row.quantity, row.quantity < 1 ? 4 : 2)} />
+        <Fact label="Size" value={<Quantity value={row.quantity} />} />
         <Fact label="Filled" value={formatPct(row.filledPct, { sign: false, decimals: 0 })} />
         <Fact label="Status" value={row.status} />
       </View>
@@ -330,14 +340,17 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
     );
   } else if (snapshot === null) {
     body = (
+      <View style={styles.padded}>
       <EmptyState
         title={feed.unconfigured ? "Balances are not configured" : "Your accounts could not be read"}
         body={feed.error ?? "Try again in a moment."}
         action={<Button label="Try again" size="sm" onPress={feed.refetch} />}
       />
+      </View>
     );
   } else if (tab === "positions" && marketType === "prediction" && prediction) {
     body = (
+      <View style={styles.padded}>
       <EmptyState
         title={
           prediction.connected
@@ -346,19 +359,29 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
         }
         body={
           prediction.connected
-            ? `${prediction.valueUsd === null ? "Value unavailable" : `${formatUsd(prediction.valueUsd)} at mark`}${
-                prediction.unrealisedPnlUsd === null ? "" : `, ${formatUsd(prediction.unrealisedPnlUsd, { sign: true })} unrealised`
-              }. Each position is listed under Research → Prediction markets.`
+            ? "Each position is listed under Research → Prediction markets."
             : (prediction.unavailableReason ?? "Elyra cannot see prediction positions for this account.")
         }
       />
+      {prediction.connected && <View style={styles.facts}>
+        <Fact label="Value at mark" value={<Money value={prediction.valueUsd} reason="Prediction value is unavailable." />} />
+        <Fact label="Open PnL" value={<Money value={prediction.unrealisedPnlUsd} sign reason="Prediction PnL is unavailable." />} />
+      </View>}
+      </View>
     );
   } else if (tab === "positions" && positions.length > 0) {
-    body = <DataList label="Open positions" rows={positions} columns={positionColumns} getKey={(row) => row.id} card={positionCard} />;
+    body = <DataList label="Open positions" rows={positions.slice(0, limit)} columns={positionColumns} getKey={(row) => row.id} card={positionCard} />;
   } else if (tab === "orders" && orders.length > 0) {
-    body = <DataList label="Resting orders" rows={orders} columns={orderColumns} getKey={(row) => row.id} card={orderCard} />;
+    body = <DataList label="Resting orders" rows={orders.slice(0, limit)} columns={orderColumns} getKey={(row) => row.id} card={orderCard} />;
   } else if (tab === "history" && history.length > 0) {
-    body = <DataList label="Account history" rows={history} columns={historyColumns} getKey={(row) => row.id} card={historyCard} />;
+    body = <DataList label="Account history" rows={history.slice(0, limit)} columns={historyColumns} getKey={(row) => row.id} card={historyCard} />;
+  } else if (tab === "positions" && marketType === "perps" && perpAccount !== null && (perpAccount.connection !== "connected" || perpAccount.status === "error")) {
+    const failed = perpAccount.status === "error";
+    body = <EmptyState
+      title={failed ? "Perps could not be read" : "Connect your perps account"}
+      body={failed ? perpAccount.errorReason ?? "The latest venue read failed." : "Connect Hyperliquid to see perpetual positions, margin, liquidation prices and open PnL here."}
+      action={<Button label={failed ? "Try again" : "Manage connections"} size="sm" onPress={failed ? feed.refetch : () => router.push("/connections")} />}
+    />;
   } else if (tab === "history" && wallet.loading) {
     body = (
       <View style={styles.padded} accessibilityLabel="Loading history">
@@ -405,7 +428,7 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
           );
         })}
       </View>
-      <View style={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="Market type">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="Market type">
         {FILTERS.map((filter) => {
           const active = filter.value === marketType;
           return (
@@ -414,7 +437,6 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
               onPress={() => setMarketType(filter.value)}
               accessibilityRole="radio"
               accessibilityState={{ checked: active }}
-              hitSlop={6}
               style={[styles.filter, active && styles.filterActive]}
             >
               <Text variant="label" tone={active ? "primary" : "secondary"}>
@@ -423,7 +445,7 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
       {selectedSymbol !== "" && snapshot !== null && tab !== "history" && (
         <Text variant="label" tone="muted" style={styles.hint}>
           {selectedSymbol} rows first
@@ -435,6 +457,10 @@ export function TradingActivity({ feed }: { feed: PortfolioFeed }) {
         </View>
       )}
       {body}
+      {counts[tab] > limit && <View style={styles.more}>
+        <Text variant="label" tone="muted">Showing {limit} of {counts[tab]}</Text>
+        <Button label={tab === "positions" ? "All accounts" : tab === "orders" ? "All orders" : "All activity"} variant="ghost" size="sm" onPress={() => router.push(tab === "positions" ? "/capital" : tab === "orders" ? "/orders" : "/activity")} />
+      </View>}
     </View>
   );
 }
@@ -455,7 +481,7 @@ function EventLink({ href }: { href: string | null }) {
 
 const styles = StyleSheet.create({
   section: {
-    borderRadius: radius.panel,
+    borderRadius: radius.sheet,
     borderWidth: 1,
     borderColor: color["border-subtle"],
     backgroundColor: color["surface-panel"],
@@ -464,21 +490,23 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: color["border-subtle"], paddingHorizontal: 8 },
   tab: { flexDirection: "row", alignItems: "center", gap: 6, height: 48, paddingHorizontal: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabActive: { borderBottomColor: color.accent },
-  filters: { flexDirection: "row", flexWrap: "wrap", gap: 6, padding: 12, paddingBottom: 8 },
-  filter: { height: 36, paddingHorizontal: 12, borderRadius: radius.control, justifyContent: "center" },
-  filterActive: { backgroundColor: color["surface-active"] },
+  filters: { flexDirection: "row", gap: 4, paddingHorizontal: 8, paddingVertical: 8 },
+  filter: { minHeight: 48, minWidth: 48, paddingHorizontal: 12, borderRadius: radius.control, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent" },
+  filterActive: { backgroundColor: color["surface-hover"], borderColor: color["border-accent"] },
   hint: { paddingHorizontal: 16, paddingBottom: 6 },
   padded: { padding: 16, gap: 10 },
   flex: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1 },
   badge: { borderRadius: radius.chip, paddingHorizontal: 6, paddingVertical: 1 },
-  cardBody: { gap: 8 },
+  cardBody: { gap: 12 },
   selected: { marginHorizontal: -16, marginVertical: -12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: color["surface-raised"] },
   cardHead: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  cardTitle: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
+  cardTitle: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, minWidth: 0 },
+  kindRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 4 },
   facts: { flexDirection: "row", flexWrap: "wrap", rowGap: 8 },
-  fact: { width: "33%", paddingRight: 8 },
-  cardAction: { alignItems: "flex-end" },
+  fact: { width: "50%", paddingRight: 8 },
+  cardAction: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  more: { paddingHorizontal: 16, paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderTopWidth: 1, borderTopColor: color["border-subtle"] },
   pnl: { alignItems: "flex-end" },
   historyCard: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
 });

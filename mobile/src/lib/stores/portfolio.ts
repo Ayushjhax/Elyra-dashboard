@@ -30,3 +30,8 @@ export function usePortfolio(): PortfolioFeed {
   const feed = portfolioStore.useFeed();
   return useMemo(() => ({ ...feed, snapshot: feed.data }), [feed]);
 }
+
+/** Reads the portfolio again now — a connection has just changed what it covers. */
+export function refreshPortfolio(): Promise<void> {
+  return portfolioStore.refresh();
+}

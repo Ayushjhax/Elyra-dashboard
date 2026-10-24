@@ -1,3 +1,4 @@
+
 /** Route data is untrusted. Only supported app destinations may be opened. */
 export function notificationRoute(value: unknown): string {
   if (
@@ -5,10 +6,16 @@ export function notificationRoute(value: unknown): string {
     !value.startsWith("/") ||
     value.includes("\\") ||
     value.startsWith("//")
-  )
+  ) {
     return "/notifications";
+  }
+
   const path = value.split("?")[0];
-  if (/^\/asset\/[A-Za-z0-9.-]{1,24}$/.test(path)) return path;
+
+  if (/^\/asset\/[A-Za-z0-9.-]{1,24}$/.test(path)) {
+    return path;
+  }
+
   const aliases: Record<string, string> = {
     "/": "/",
     "/portfolio": "/portfolio",
@@ -35,15 +42,22 @@ export function notificationRoute(value: unknown): string {
     "/alerts": "/automation",
     "/automation": "/automation",
   };
-  if (aliases[path]) return aliases[path];
+
+  if (Object.prototype.hasOwnProperty.call(aliases, path)) {
+    return aliases[path];
+  }
+
   const prediction = /^\/prediction\/(signal\/)?([A-Za-z0-9_-]{1,160})$/.exec(
-    path,
+    path
   );
-  /* A market opens itself; a signal has no screen of its own in the app, so
-     it opens the prediction tab, where the signal shows on its market. */
-  if (prediction)
+
+  // Markets open directly in research.
+  // Signals open the prediction tab because they have no dedicated screen.
+  if (prediction) {
     return prediction[1]
       ? "/research?tab=prediction"
       : `/research?marketId=${encodeURIComponent(prediction[2])}`;
+  }
+
   return "/notifications";
 }

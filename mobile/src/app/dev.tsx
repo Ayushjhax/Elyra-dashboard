@@ -117,6 +117,7 @@ function WalletStates() {
           <Button
             key={entry.label}
             label={entry.label}
+            accessibilityLabel={`Wallet state: ${entry.label}`}
             size="sm"
             variant={entry.value === current ? "accent" : "quiet"}
             onPress={() => {

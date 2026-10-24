@@ -1,0 +1,26 @@
+# Email sign-in with a Privy test account.
+#   Privy dashboard → User management → Authentication → Advanced →
+#   "Test accounts": enable it, then pass its email and fixed code:
+#   maestro test -e EMAIL=test-1234@privy.io -e OTP=123456 .maestro/01-sign-in.yaml
+# Clears the app first, so it starts signed out on the sign-in screen.
+appId: xyz.getelyra.app
+name: Email sign-in
+tags: [auth]
+---
+- clearState
+- runFlow: _shared/launch.yaml
+- assertVisible: "Email me a code"
+- tapOn: "Email"
+- inputText: ${EMAIL}
+- hideKeyboard
+- tapOn: "Email me a code"
+- extendedWaitUntil:
+    visible: "Code sent to .*"
+    timeout: 30000
+- tapOn: "Code sent to .*"
+- inputText: ${OTP}
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Markets"
+    timeout: 60000
+- assertVisible: "Account"

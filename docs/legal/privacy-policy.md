@@ -31,7 +31,9 @@ representative (GDPR Art. 27) or a data protection officer is required.
   for questions, price and blockchain providers for your wallet, and the
   venues you connect.
 - We don't sell your data, don't show ads, and don't use analytics or
-  tracking tools in the app or on the website.
+  tracking tools in the app or on the website. When the Android app
+  crashes, it can send a crash report with personal details removed
+  (see "Crash reports").
 - You can delete your account in the app (Account → Settings → Delete
   account). That deletes it on the website too.
 
@@ -116,6 +118,19 @@ Telegram features.
   your account removed from them.
 - **Usage counts**: how many questions an account asked per day, to apply
   daily limits.
+- **Crash reports (Android app)**: when the app crashes or hits an
+  unexpected error, it sends Sentry a report: the error and where in the
+  code it happened, the app version, the phone model and Android version,
+  and a short trail of what the app did just before (screens opened,
+  buttons pressed, requests made). Before it leaves the phone, every report
+  is stripped of wallet addresses, transaction signatures, sign-in tokens,
+  account ids, email addresses and web-address parameters. Reports carry no
+  account, no name and no IP address (Sentry is set not to store it), and
+  never your messages, attachments, balances or keys. **[OPERATOR: crash
+  reporting is off until a Sentry DSN is set — publish this paragraph
+  first; confirm the Sentry region and retention.]** **[LAWYER]** Legal
+  basis (legitimate interest in keeping the app working) and whether an
+  in-app off switch is required.
 
 We don't use cookies for advertising or analytics. The website sets a
 cookie only to remember a referral link for 30 days and to keep you
@@ -149,6 +164,7 @@ safeguards (e.g. Standard Contractual Clauses) for each.
 | **Polymarket** | Your linked address; market lookups | Your positions and market data |
 | **TradingView** | The chart's market symbol, and your IP address as your browser or the app loads its widget | The price chart |
 | **SEC EDGAR, Yahoo Finance, Raydium, Parqet, CoinMarketCap logos** | Public market lookups and logo images. No personal data | Research data and logos |
+| **Sentry** (Functional Software, Inc.) | Crash reports from the Android app, scrubbed as described under "Crash reports" | Finding and fixing crashes |
 | **Telegram** (website only) | Your messages to the bot and its replies | The Telegram bot |
 
 When you connect a venue or swap through Jupiter, that service's own terms
@@ -184,6 +200,7 @@ in particular whether inputs may be retained or used for training.]**
 | Push delivery receipts | Checked about 15 minutes after sending, then kept with the device record |
 | Prediction-market order book snapshots (public data, not personal) | 90 days |
 | Operational records of AI runs | Kept, with the account removed, after deletion |
+| Crash reports | Per the Sentry project's retention **[OPERATOR: set it as short as the plan allows and state it here]**; they hold no account, so account deletion doesn't need to reach them |
 | Vercel request logs | Per Vercel's retention **[OPERATOR: confirm]** |
 | Database backups | **[OPERATOR: confirm Supabase backup retention for the plan in use; deleted data remains in backups until they expire.]** |
 

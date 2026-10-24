@@ -1,0 +1,27 @@
+# Opens the app. A development build is pointed at Metro (METRO, URL-encoded);
+# a preview or release build (DEV_CLIENT=false) just launches.
+appId: xyz.getelyra.app
+env:
+  DEV_CLIENT: "true"
+  METRO: http%3A%2F%2Flocalhost%3A8081
+---
+- runFlow:
+    when:
+      true: ${DEV_CLIENT == "true"}
+    commands:
+      - stopApp
+      - openLink: exp+elyra://expo-development-client/?url=${METRO}
+- runFlow:
+    when:
+      true: ${DEV_CLIENT != "true"}
+    commands:
+      - launchApp
+# Dismiss the development client's first-run menu if it is shown.
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Markets|Email me a code"
+    timeout: 60000

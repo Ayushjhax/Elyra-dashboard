@@ -18,6 +18,8 @@ import { useVersionGate } from "~/lib/versionGate";
 import { FONT_FILES } from "~/theme/fonts";
 import { color } from "~/theme/tokens";
 import { NotificationRuntime } from "~/components/notifications/NotificationRuntime";
+import { APP_VERSION } from "~/lib/api";
+import { initCrashReporting, withCrashReporting } from "~/lib/crash";
 
 /* ---------------------------------------------------------------------------
    The root: fonts (the splash stays up until they load, so text never
@@ -31,8 +33,11 @@ import { NotificationRuntime } from "~/components/notifications/NotificationRunt
 --------------------------------------------------------------------------- */
 
 void SplashScreen.preventAutoHideAsync();
+initCrashReporting(APP_VERSION);
 
-export default function RootLayout() {
+export default withCrashReporting(RootLayout);
+
+function RootLayout() {
   const [fontsLoaded, fontError] = useFonts(FONT_FILES);
   const gate = useVersionGate();
 

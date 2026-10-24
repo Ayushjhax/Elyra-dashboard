@@ -1,6 +1,8 @@
 // @ts-check
 const path = require("node:path");
-const { getDefaultConfig } = require("expo/metro-config");
+/* Sentry's wrapper of Expo's default config: it adds the debug ids that tie
+   an uploaded source map to the bundle that crashed. */
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 
 /* ---------------------------------------------------------------------------
    Metro, for an app that lives inside the website's repo.
@@ -18,7 +20,7 @@ const { getDefaultConfig } = require("expo/metro-config");
 const projectRoot = __dirname;
 const repoRoot = path.resolve(projectRoot, "..");
 
-const config = getDefaultConfig(projectRoot);
+const config = getSentryExpoConfig(projectRoot);
 
 config.watchFolders = [...(config.watchFolders ?? []), path.join(repoRoot, "lib")];
 config.resolver.nodeModulesPaths = [path.join(projectRoot, "node_modules")];

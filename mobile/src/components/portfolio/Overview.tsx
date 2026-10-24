@@ -1,11 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import Svg, { Polyline } from "react-native-svg";
+import Svg, { Circle, Line, Polyline } from "react-native-svg";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Eye, EyeOff } from "lucide-react-native";
 import { formatAge, formatPct, formatUsd } from "@/lib/format";
 import { change24h } from "@/lib/portfolio/derive";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 import { Button } from "~/components/ui/controls";
+import { InfoTip } from "~/components/ui/InfoTip";
 import { Skeleton } from "~/components/ui/layout";
 import { Text } from "~/components/ui/Text";
 import { Money } from "~/components/ui/values";
@@ -35,62 +36,74 @@ export function positionCount(snapshot: PortfolioSnapshot): number {
 
 /** The seven-day value, as a line. */
 export function Sparkline({ values, width = 120, height = 36 }: { values: number[]; width?: number; height?: number }) {
+  if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min || 1;
   const points = values
     .map((value, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * width;
+      const x = 3 + (index / Math.max(values.length - 1, 1)) * (width - 6);
       const y = height - 3 - ((value - min) / span) * (height - 6);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
   const rising = values[values.length - 1]! >= values[0]!;
+  const stroke = rising ? color.positive : color.negative;
+  const lastY = height - 3 - ((values[values.length - 1]! - min) / span) * (height - 6);
   return (
     <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Line x1={0} y1={height / 2} x2={width} y2={height / 2} stroke={color["border-subtle"]} strokeDasharray="2 6" />
       <Polyline
         points={points}
         fill="none"
-        stroke={rising ? color.positive : color.negative}
-        strokeWidth={1.5}
+        stroke={stroke}
+        strokeWidth={2}
         strokeLinejoin="round"
         strokeLinecap="round"
       />
+      <Circle cx={width - 3} cy={lastY} r={3} fill={stroke} />
     </Svg>
   );
 }
 
-function Performance({ enabled }: { enabled: boolean }) {
+function Performance({ enabled, updated }: { enabled: boolean; updated: string | null }) {
   const history = usePortfolioHistory("1W");
+  const hidden = useBalancesHidden();
+  const [width, setWidth] = useState(240);
   const values = history.values;
   let body: React.ReactNode;
-  if (!enabled) body = <Text variant="data" tone="muted">—</Text>;
-  else if (history.loading) body = <Skeleton width={120} height={36} />;
-  else if (values.length >= 2) body = <Sparkline values={values} />;
+  if (hidden) body = <Text variant="label" tone="muted">Balance history hidden</Text>;
+  else if (!enabled) body = <Skeleton width="100%" height={32} />;
+  else if (history.loading) body = <Skeleton width="100%" height={32} />;
+  else if (values.length >= 2) body = <Sparkline values={values} width={width} height={32} />;
   else body = <Text variant="label" tone="muted">{history.error ?? "No history yet"}</Text>;
 
   const first = values[0];
   const last = values[values.length - 1];
   const label =
-    values.length >= 2 && first !== undefined && last !== undefined
+    !hidden && enabled && values.length >= 2 && first !== undefined && last !== undefined
       ? `Seven days: from ${formatUsd(first)} to ${formatUsd(last)}${history.history?.basis === "reconstructed" ? ", rebuilt from prices" : ""}`
-      : "Seven days";
+      : hidden ? "Balance history hidden" : "Seven days";
   return (
-    <View accessible accessibilityLabel={label} style={styles.figure}>
-      <Text variant="label" tone="muted">
-        7-day{history.history?.basis === "reconstructed" ? " · rebuilt from prices" : ""}
-      </Text>
-      {body}
+    <View accessible accessibilityLabel={label} style={styles.performance} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+      {!hidden && body}
+      <View style={styles.caption}>
+        <Text variant="label" tone="muted" style={styles.periodLabel}>
+          {hidden ? "Balance history hidden" : `7-day${history.history?.basis === "reconstructed" ? " · rebuilt from prices" : ""}${history.stale ? " · last reading" : ""}`}
+        </Text>
+        {updated !== null && <Text variant="label" tone="muted">{updated}</Text>}
+      </View>
     </View>
   );
 }
 
-function Figure({ label, children }: { label: string; children: React.ReactNode }) {
+function Figure({ label, explanation, children }: { label: string; explanation: string; children: React.ReactNode }) {
   return (
     <View style={styles.figure}>
-      <Text variant="label" tone="muted">
-        {label}
-      </Text>
+      <View style={styles.figureLabel}>
+        <Text variant="label" tone="secondary">{label}</Text>
+        <InfoTip label={`About ${label}`} text={explanation} />
+      </View>
       {children}
     </View>
   );
@@ -128,7 +141,11 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
 
   const summary = snapshot?.summary ?? null;
   const failed = snapshot?.notes.filter((note) => note.kind === "failed") ?? [];
-  const venues = (snapshot?.scopes ?? []).filter((scope) => scope.valueUsd !== undefined);
+  const pnlExplanation = summary?.unrealizedPnlUsd === null
+    ? snapshot?.perps.length === 0
+      ? "No open position has reported a PnL. Connect a venue from Account to include your perpetual positions. A dash means unavailable, not zero."
+      : "The connected sources did not report an open-position PnL. A dash means unavailable, not zero."
+    : "Unrealized profit or loss reported by your connected accounts. Spot PnL is included only when a cost basis is known.";
 
   return (
     <View accessibilityLabel="Account overview" style={styles.card}>
@@ -173,65 +190,29 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
           accessibilityState={{ checked: hidden }}
           style={styles.eye}
         >
-          {hidden ? (
-            <EyeOff size={18} strokeWidth={1.5} color={color.accent} />
-          ) : (
-            <Eye size={18} strokeWidth={1.5} color={color["text-secondary"]} />
-          )}
+          {hidden ? <EyeOff size={18} strokeWidth={1.5} color={color.accent} /> : <Eye size={18} strokeWidth={1.5} color={color["text-secondary"]} />}
         </Pressable>
       </View>
 
+      <Performance enabled={snapshot !== null} updated={feed.stale || feed.fetchedAt === null ? null : feed.refreshing ? "Refreshing…" : `Updated ${formatAge(feed.fetchedAt, now)}`} />
       <View style={styles.grid}>
-        <Figure label="Available">
-          {summary === null ? <Skeleton width={80} /> : <Money value={summary.availableCapitalUsd} reason="No stablecoin or venue collateral was readable." />}
+        <Figure label="Available" explanation="Stablecoins plus free collateral reported by connected venues. This is the capital available before any venue-specific restrictions or network fees.">
+          {summary === null ? <Skeleton width={80} /> : <Money value={summary.availableCapitalUsd} variant="h1" reason="No stablecoin or venue collateral was readable." />}
         </Figure>
-        <Figure label="Open PnL">
+        <Figure label="Open PnL" explanation={pnlExplanation}>
           {summary === null ? (
             <Skeleton width={60} />
           ) : (
             <Money
               value={summary.unrealizedPnlUsd}
+              variant="h1"
               sign
               reason="No open position reported a PnL."
               tone={summary.unrealizedPnlUsd === null || summary.unrealizedPnlUsd === 0 ? "primary" : summary.unrealizedPnlUsd > 0 ? "positive" : "negative"}
             />
           )}
         </Figure>
-        <Figure label="Open positions">
-          {snapshot === null ? (
-            <Skeleton width={30} />
-          ) : (
-            <Text variant="data" accessibilityLabel={`${positionCount(snapshot)} open positions: ${snapshot.spot.length} tokens, ${snapshot.perps.length} perps, ${snapshot.defi.length} DeFi`}>
-              {positionCount(snapshot)}
-            </Text>
-          )}
-        </Figure>
-        <Performance enabled={snapshot !== null} />
       </View>
-
-      {snapshot !== null && (
-        <Text variant="label" tone="muted">
-          {snapshot.spot.length} token{snapshot.spot.length === 1 ? "" : "s"} · {snapshot.perps.length} perp{snapshot.perps.length === 1 ? "" : "s"} ·{" "}
-          {snapshot.defi.length} DeFi position{snapshot.defi.length === 1 ? "" : "s"}
-          {snapshot.prediction.connected ? ` · ${snapshot.prediction.activeMarkets ?? 0} prediction` : ""}
-        </Text>
-      )}
-
-      {venues.length > 0 && (
-        <View style={styles.venues}>
-          <Text variant="label" tone="muted">
-            Where it sits
-          </Text>
-          {venues.map((scope) => (
-            <View key={scope.id} style={styles.venueRow}>
-              <Text variant="body-sm" style={styles.flex} numberOfLines={1}>
-                {scope.label}
-              </Text>
-              <Money value={scope.valueUsd ?? null} reason="This account could not be valued." variant="data-sm" tone="secondary" />
-            </View>
-          ))}
-        </View>
-      )}
 
       {(feed.stale || failed.length > 0) && (
         <Notice tone="caution">
@@ -241,11 +222,6 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
           {failed.length > 0 ? `Incomplete — ${failed.map((note) => `${note.scope}: ${note.reason}`).join(" · ")}` : ""}
         </Notice>
       )}
-      {!feed.stale && feed.fetchedAt !== null && (
-        <Text variant="label" tone="muted" accessibilityLiveRegion="polite">
-          {feed.refreshing ? "Refreshing…" : `Updated ${formatAge(feed.fetchedAt, now)}`}
-        </Text>
-      )}
     </View>
   );
 }
@@ -254,7 +230,7 @@ const styles = StyleSheet.create({
   card: {
     gap: 12,
     padding: 16,
-    borderRadius: radius.panel,
+    borderRadius: radius.sheet,
     borderWidth: 1,
     borderColor: color["border-subtle"],
     backgroundColor: color["surface-panel"],
@@ -268,18 +244,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: color["surface-raised"],
   },
+  performance: { gap: 8, minHeight: 24 },
+  caption: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: 12, rowGap: 4 },
+  periodLabel: { minWidth: 48, paddingRight: 4 },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    rowGap: 12,
-    columnGap: 20,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth * 2,
-    borderTopColor: color["border-subtle"],
+    gap: 8,
   },
-  figure: { gap: 2, minWidth: 90 },
-  venues: { gap: 2, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: color["border-subtle"] },
-  venueRow: { flexDirection: "row", alignItems: "baseline", gap: 8, minHeight: 28 },
+  figure: { flex: 1, flexBasis: 110, gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: color["surface-raised"] },
+  figureLabel: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
 });

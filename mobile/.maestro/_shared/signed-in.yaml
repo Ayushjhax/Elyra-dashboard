@@ -1,0 +1,7 @@
+# Launches the app and requires a signed-in session (run 01-sign-in first).
+appId: xyz.getelyra.app
+---
+- runFlow: launch.yaml
+- assertVisible:
+    text: "Markets"
+- tapOn: "Markets"

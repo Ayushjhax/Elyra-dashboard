@@ -99,6 +99,19 @@ const config: ExpoConfig = {
     ],
     "expo-font",
     "expo-secure-store",
+    /* Crash reporting (src/lib/crash): the native SDK is always built in,
+       and reports only when EXPO_PUBLIC_SENTRY_DSN is set. Source maps are
+       uploaded only when SENTRY_AUTH_TOKEN is (an EAS secret), so a build
+       without one still succeeds. */
+    [
+      "@sentry/react-native/expo",
+      {
+        organization: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        url: "https://sentry.io/",
+        disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN,
+      },
+    ],
     [
       "expo-local-authentication",
       {

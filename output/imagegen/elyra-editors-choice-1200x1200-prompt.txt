@@ -1,0 +1,28 @@
+Use case: ads-marketing.
+Asset: one finished square 1200 x 1200 pixel editorial promotional graphic for Elyra, for the Solana Mobile dApp Store featured carousel.
+
+Input image role: the supplied image is a REAL screenshot of Elyra's portfolio screen. Use it as authentic product content. It is not a style reference for the surrounding poster. Preserve its dark green UI, lime accents, genuine portfolio layout, real labels and numbers. Cleanly omit the Android status/navigation bars and the floating accessibility gear overlay. Do not invent a new dashboard.
+
+Art direction: a beautifully typeset product advertisement by a meticulous senior editorial designer. Restrained Apple-quality product presentation with a distinctive warm forest-green and pale-lime identity. Flat, confident graphic design. Precision, hierarchy, negative space and real product content provide the impact. Not a 3D CGI poster, no generic crypto art.
+
+Full-bleed square canvas with a flat warm ivory/pale lime background (#F3F3DF). Deep forest green (#193822) typography. A single extremely understated pale lime field (#E5EBA2) occupies the bottom fifth, creating a quiet grounding surface. No grain, no aurora, no shiny effects, no decorative waves.
+
+Composition:
+- Generous consistent 80px outer margins and deliberate editorial grid.
+- Top left: small refined wordmark reading "Elyra", about 42px high, contemporary sans-serif with intentional kerning.
+- Left side, beginning around y=260: a striking oversized left-aligned typographic headline in a high-quality neutral neo-grotesk font, medium/bold weight, tight but readable tracking. Exact text, with these line breaks:
+"Your Solana
+portfolio.
+Your next move."
+Make the headline beautifully composed, roughly 68-76px, entirely within the left 560px. It must not overlap product content. Calm and confident, not condensed or ultra-bold.
+- Beneath the headline in generous whitespace: a small, restrained two-line supporting statement, exactly:
+"Track your holdings.
+Ask with context."
+- Bottom-left: the small understated descriptor "Portfolio. Markets. AI."
+- Right side: ONE authentic front-facing portrait product screen, faithfully based on the input screenshot, approximately x=680 to x=1130, starting near y=240 and continuing off the bottom of the square. The screen is straight and upright, with a restrained thin forest-green frame and smoothly rounded top corners. Its bottom is cropped deliberately by the canvas. It feels grounded, clean, almost like a printed inset into the page. No perspective, no tilt, no floating phone, no giant cast shadow. Let the real dark app screen balance the clean headline. Keep the product screen crisp; match the actual supplied screen and do not fabricate features, buttons, upward-only returns, AI recommendations or extra numbers. Keep existing portfolio numbers confined to the screen.
+- Important content has adequate safe margins and remains readable when the square is shown at 320px wide.
+- No additional text beyond the specified marketing copy and the authentic screen content.
+
+Finish: pixel-sharp editorial typography, superb optical alignment, carefully controlled spacing and colour, beautiful balance between light page and dark real product. Sophisticated and human-designed. Make a finished store graphic, not a moodboard.
+
+Strict avoid: giant emblem, duplicate app icon as artwork, 3D logo, extruded typography, metallic coins, Solana symbols, neon, particles, sparkles, circuits, robot heads, glassmorphism, invented UI cards, charts outside the real screenshot, floating widgets, fake profit claims, huge gradients, decorative blobs, bevelled poster, watermarks, outer borders.

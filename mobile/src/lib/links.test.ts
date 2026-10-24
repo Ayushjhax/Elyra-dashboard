@@ -33,6 +33,12 @@ describe("resolveLink", () => {
     expect(resolveLink("javascript:alert(1)")).toEqual({ kind: "ignored" });
   });
 
+  it("opens the tool screen only in a development build", () => {
+    expect(resolveLink("elyra://dev", { development: true })).toEqual({ kind: "route", path: "/dev" });
+    expect(resolveLink("elyra://dev/x", { development: true })).toEqual({ kind: "ignored" });
+    expect(resolveLink("elyra://dev", { development: false })).toEqual({ kind: "ignored" });
+  });
+
   it("leaves the development client's own links alone", () => {
     expect(resolveLink("elyra://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081")).toEqual({ kind: "passthrough" });
   });

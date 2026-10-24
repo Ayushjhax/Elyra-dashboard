@@ -160,7 +160,7 @@ export default function DeleteAccountScreen() {
             onPress={() => void remove()}
           />
           <Button
-            label="Back"
+            label="Keep my account"
             variant="ghost"
             disabled={busy}
             onPress={() => {

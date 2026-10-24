@@ -1,0 +1,37 @@
+Use case: ads-marketing.
+Edit target: image 1, the existing square Elyra featured-store graphic.
+Supporting reference: image 2, the newly implemented mobile Portfolio screen.
+Output: one square graphic for exact 1200x1200 px export.
+
+The user likes the existing poster. Preserve the entire off-white/pale-lime background, green wordmark, large editorial headline, supporting copy, footer strip, typography, colour, margins and overall left/right composition of image 1. Keep the text outside the app screen verbatim and in its existing positions: "Elyra", "Your Solana portfolio. Your next move.", "Track your holdings. Ask with context.", "Portfolio. Markets. AI." Do not redesign the surrounding poster.
+
+Change ONLY the app interface inside the tall right-hand product panel. Upgrade that interface into an immaculate, modern, precise mobile portfolio with open PnL, perpetual positions and spot holdings. Use the newly implemented UI in image 2 as the design authority: flat dark forest surfaces, satin ivory text, tabular numbers, crisp subtle borders, controlled spacing, delicate chart, modest lime interactive highlights. It should feel like premium engineered financial software. No gimmicky science-fiction effects.
+
+The screen is an illustrative account for promotional use, so visibly include the small readable label "Demo account" in the screen header. Show these specific example values, without any real account identifiers:
+Header: "Portfolio" with a small "Demo account" label.
+Compact summary:
+"Portfolio value"
+"$12,480.60"
+"+$48.20 (+0.39%) 24h"
+A thin sage seven-day line chart.
+Two equal subtle inset metric tiles, just as in image 2:
+"Available" with "$4,820.00"
+"Open PnL" with "+$38.40".
+Positive numbers are muted sage green, never neon lime.
+Four neat icon-and-caption actions in a row: "Receive", "Swap", "Transfer", "Withdraw". Highlight only Swap in soft citron, exactly like the reference interface.
+
+Bring the positions into view within the lower half of the product panel.
+A restrained section heading "Positions & activity".
+A clean tab row "Positions 3", "Orders", "History".
+A compact filter row "All", "Spot", "Perps", "DeFi", using a thin active border for All.
+
+Show beautifully designed real-looking position rows with excellent alignment:
+1. "SOL-PERP", a small "Long" badge and "3×", with a right-aligned label "Open PnL" above "+$24.60". A quiet details row "Size 2.0 SOL" and "Mark $98.40". Subtle "Hyperliquid ↗" venue link, indicating read-only venue positions.
+2. "BTC-PERP", a small clay "Short" badge and "2×", with right-aligned "+$13.80". Quiet details "Size 0.01 BTC" and "Mark $80,620.00". Its venue is also Hyperliquid.
+3. "USDC", with "Spot · Wallet" and right-aligned "$4,820.00". This last row may be partially cropped by the lower edge of the poster.
+Make the two perpetual rows and the beginning of the spot row visually identifiable. Keep all essential summary values visible. Match the visual language of image 2 while using slightly more compact row spacing so the story fits the promotional panel. Use monograms or restrained small token marks, not oversized logos.
+Keep all internal type clean, real, correctly spelled and aligned, with convincing crisp UI rendering. The device panel is front-facing and integrated into the poster exactly as before. Do not add a perspective phone or invent holographic controls.
+
+Palette inside the UI: app base #101710; panels #182117; raised surfaces #1E281C; borders #33402D; primary text #F7F8EA; secondary #B8BAA8; interactive #D2DC76; positive #91AE86; negative/short #D3906F. Typography: Fustat-like clean display headings and General Sans-like body and figures. No gradient-filled cards, no glass or blur, no bloom, neon, metallic logos, floating widgets or particle effects. Future-facing through precision and intelligent information hierarchy, not effects.
+Do not add trade execution buttons to the perpetual rows. Do not remove the Demo account label. Preserve everything outside the right-hand product panel.
+

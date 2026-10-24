@@ -1,0 +1,12 @@
+# Maestro workspace for the Elyra Android app. See README.md here.
+flows:
+  - "*.yaml"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - 01-sign-in
+    - 02-alert-to-automation
+    - 03-wallet-states
+    - 04-ask-elyra-stream
+    - 05-inbox
+    - 06-delete-account-cancel

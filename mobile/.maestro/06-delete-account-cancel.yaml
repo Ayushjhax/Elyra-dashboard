@@ -1,0 +1,35 @@
+# The delete-account confirmation, cancelled. Never presses "Delete my
+# account": it checks the button stays off until DELETE is typed, then
+# leaves with "Keep my account".
+appId: xyz.getelyra.app
+name: Delete account — cancel
+tags: [signed-in]
+---
+- runFlow: _shared/signed-in.yaml
+- tapOn: "Account"
+- scrollUntilVisible:
+    element: "Settings"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "Delete account"
+- tapOn: "Delete account"
+- assertVisible: "This deletes your Elyra account everywhere"
+- assertVisible: "Not deleted"
+- scrollUntilVisible:
+    element: "Continue"
+- tapOn: "Continue"
+- assertVisible: "Type DELETE to confirm"
+- assertVisible:
+    text: "Delete my account"
+    enabled: false
+- tapOn: "Confirmation"
+- inputText: "DELE"
+- hideKeyboard
+- assertVisible:
+    text: "Delete my account"
+    enabled: false
+- tapOn: "Keep my account"
+- assertVisible: "This deletes your Elyra account everywhere"
+- tapOn: "Back"
+- tapOn: "Back"
+- assertVisible: "Alerts & automation.*"

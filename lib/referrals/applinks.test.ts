@@ -7,7 +7,7 @@ describe("androidAssetLinks", () => {
   it("names the package and every usable fingerprint, upper-cased", () => {
     expect(androidAssetLinks(` ${RELEASE.toLowerCase()} , ${RELEASE}`)).toEqual([
       {
-        relation: ["delegate_permission/common.handle_all_urls"],
+        relation: ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
         target: { namespace: "android_app", package_name: "xyz.getelyra.app", sha256_cert_fingerprints: [RELEASE] },
       },
     ]);

@@ -49,7 +49,11 @@ function segmentsOf(url: URL): string[] {
   return url.protocol === `${SCHEME}:` && url.host.length > 0 ? [url.host, ...path] : path;
 }
 
-export function resolveLink(raw: string): LinkTarget {
+/**
+ * `development` opens elyra://dev, the development build's tool screen, so
+ * end-to-end flows can reach it; a release build never passes it.
+ */
+export function resolveLink(raw: string, { development = false }: { development?: boolean } = {}): LinkTarget {
   /* The development client's launcher links, and Expo's own. */
   if (/expo-development-client|^exp(\+[a-z-]+)?:\/\//i.test(raw)) return { kind: "passthrough" };
   const url = parse(raw.trim());
@@ -81,6 +85,8 @@ export function resolveLink(raw: string): LinkTarget {
         : parts.length === 1
           ? { kind: "route", path: "/research" }
           : { kind: "ignored" };
+    case "dev":
+      return development && parts.length === 1 ? { kind: "route", path: "/dev" } : { kind: "ignored" };
     case undefined:
       /* The bare scheme, elyra:// — open the app. */
       return { kind: "route", path: "/" };

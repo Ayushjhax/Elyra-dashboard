@@ -17,7 +17,8 @@ import { transcriptionAvailable } from "@/lib/voice/transcribe";
 
    No auth: the version gate runs before sign-in, and nothing here is about an
    account. Both versions come from env (APP_MIN_SUPPORTED_VERSION,
-   APP_LATEST_VERSION) so moving them needs no deploy. A malformed value is
+   APP_LATEST_VERSION), so moving them needs no code change — on Vercel, a
+   redeploy picks the new value up (docs/RELEASE.md). A malformed value is
    treated as unset rather than locking every build out.
 --------------------------------------------------------------------------- */
 

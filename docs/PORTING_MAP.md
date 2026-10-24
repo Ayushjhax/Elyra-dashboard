@@ -169,8 +169,8 @@ The website keeps Telegram. The app replaces every part of it.
 |---|---|---|
 | Delivery every 5 minutes on Vercel Hobby | `supabase/migrations/0013_delivery_schedule.sql`, `supabase/SCHEDULER.md` | done (needs the Vault secrets) |
 | Push notifications (FCM via Expo) | `mobile/`, EAS credentials | in progress — a test push reached the Seeker on 2026-10-23 (inbox shows it); production FCM credentials for the `dapp-store` build pending |
-| App icon, splash, notification icon | `mobile/assets` (source: `public/images/dApp_Store_Icon.svg`) | todo |
-| Signed APK (its own dApp Store key) | EAS `dapp-store` profile | todo |
-| `assetlinks.json` on getelyra.xyz | website `/.well-known/` | in progress — served from `ANDROID_CERT_SHA256` (`app/.well-known/assetlinks.json/route.ts`); needs the release fingerprint set in Vercel |
-| Store listing copy and screenshots | `docs/store/` | todo |
-| Publisher Portal submission | publish.solanamobile.com | todo |
+| App icon, splash, notification icon | `mobile/assets/images` from `public/elyra-public-avatar.png` (launcher, adaptive, themed, splash); store icon `docs/store/assets/icon-512.png`. Not `public/images/dApp_Store_Icon.svg` — that is the dApp Store's own logo | done — notification icon keeps the bell |
+| Signed APK (its own dApp Store key) | EAS `dapp-store` profile; steps in `docs/store/PUBLISHING.md` A2–A3 | todo — EAS production env lacks the API URL and Privy ids; earlier cloud builds failed at install |
+| `assetlinks.json` on getelyra.xyz | website `/.well-known/` (App Links + passkey `get_login_creds`) | in progress — route ready; needs `ANDROID_CERT_SHA256` and a production deploy |
+| Store listing copy and screenshots | `docs/store/listing.md`, `docs/store/assets/`, `docs/store/screenshots.md` | in progress — copy, icon and banner done; screenshots not captured |
+| Publisher Portal submission | publish.solanamobile.com — `docs/store/PUBLISHING.md` | todo — blocked on the production API (`api.getelyra.xyz` has no DNS) and the privacy policy |

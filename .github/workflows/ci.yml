@@ -1,0 +1,108 @@
+# Checks for both projects in this repo, on every push and pull request.
+#
+#   web    — the Next app (website + API) and the shared core in lib/:
+#            typecheck, lint, vitest, then `next build`.
+#   mobile — the Android app in mobile/: typecheck, lint, jest.
+#
+# The two are separate pnpm projects with their own lockfiles. The mobile job
+# installs the root's packages too, because the app type-checks the shared
+# modules it imports from lib/ (CLAUDE.md, "Layout").
+#
+# Nothing here deploys. The build uses no secrets: every public value the
+# build reads has a harmless placeholder below, and server secrets are read
+# at request time, never at build.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  PNPM_VERSION: "10.19.0"
+
+jobs:
+  web:
+    name: Web and API
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      - name: next build
+        run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_PRIVY_APP_ID: ci-placeholder
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+
+  mobile:
+    name: Android app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile/pnpm-lock.yaml
+
+      - name: Install (shared core)
+        run: pnpm install --frozen-lockfile
+
+      - name: Install (app)
+        working-directory: mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: mobile
+        run: pnpm typecheck
+
+      - name: Lint
+        working-directory: mobile
+        run: pnpm lint
+
+      - name: Unit tests (jest-expo)
+        working-directory: mobile
+        run: pnpm test --ci
+        env:
+          EXPO_PUBLIC_API_URL: https://api.test

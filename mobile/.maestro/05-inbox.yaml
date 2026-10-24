@@ -1,0 +1,17 @@
+# The notifications inbox: opens from the bell, marks everything read.
+appId: xyz.getelyra.app
+name: Notifications inbox
+tags: [signed-in]
+---
+- runFlow: _shared/signed-in.yaml
+- tapOn: "Notifications.*"
+- extendedWaitUntil:
+    visible: "\\d+ unread"
+    timeout: 20000
+- assertVisible: "Settings"
+- tapOn: "Mark all read"
+- extendedWaitUntil:
+    visible: "0 unread"
+    timeout: 20000
+- tapOn: "Close notifications"
+- assertVisible: "Notifications"

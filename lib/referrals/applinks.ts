@@ -27,7 +27,11 @@ export function androidAssetLinks(raw: string | undefined): AssetLinkStatement[]
   if (fingerprints.length === 0) return null;
   return [
     {
-      relation: ["delegate_permission/common.handle_all_urls"],
+      /* handle_all_urls: getelyra.xyz/r/… links open the app. get_login_creds:
+         a passkey made for getelyra.xyz works in the app too (Android's
+         Credential Manager checks it; Privy's passkey sign-in uses
+         getelyra.xyz as its relying party). */
+      relation: ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
       target: { namespace: "android_app", package_name: ANDROID_PACKAGE, sha256_cert_fingerprints: [...new Set(fingerprints)] },
     },
   ];

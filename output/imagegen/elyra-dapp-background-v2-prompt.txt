@@ -1,0 +1,14 @@
+Use case: ads-marketing.
+Asset: Elyra mobile dApp store BACKGROUND BANNER, landscape, exact 2:1 composition for 1200x600 px export.
+
+Create an exceptionally refined abstract wallpaper for a premium financial app. Use the restraint, precise light control and impeccable smoothness of a high-end Apple product wallpaper, with Elyra's own forest green and soft pale-lime palette. This is BACKGROUND ART ONLY. Absolutely no logos, no symbols, no text, no app icons, no UI or product mockups.
+
+Composition: one continuous abstract landscape of three broad, smoothly curved overlapping surfaces, sweeping diagonally from the lower middle toward the upper right, cropped generously by the frame. Their flowing geometry is sculptural and mathematical, like a very close macro view of gently folded satin glass. They are not separate floating objects or ribbons. No central object. A dark, quiet lower-left area intentionally accommodates the app icon which the store adds later. The artwork should look beautiful when reduced to just 320px wide. Use large readable forms and intentional areas of quiet.
+
+Colour design: deep pine and forest green (#142C1B, #2D4A29) occupy the left and the deepest folds; fresh soft yellow-green (#BACB72) and creamy pale lime (#E6EDA0) illuminate a sweeping curved surface near the upper right and center. Slight warm ivory in the brightest light only. Sophisticated tonal transitions, not rainbow colour. Most of the image is midtone green with controlled deep accents and luminous lime, not an overwhelmingly black scene.
+
+Details: immaculate continuous curvature, a fine satin finish, extremely delicate subsurface scattering along a narrow curved edge, soft occlusion where surfaces overlap, a broad feathered studio light source, extraordinarily smooth highlight rolloff, controlled depths and shadows. Suggest precision and material quality rather than obvious effects. Rich detail from subtle illumination and perfectly resolved surfaces, not noisy grain, tiny ornamental lines or busy decoration. Distinct edges are soft but intentional, with no jagged seams.
+
+Overall feeling: quiet confidence, fresh, intelligent, expensive, modern, calm. Completely designed, highly considered art direction. A genuinely usable finished banner, not a concept board, photograph of a product, social post or technology stock illustration.
+
+Strict exclusions: NO logo or logo-like oval forms. NO ellipses with holes, spheres, coins, circular emblems, floating badges, lettering, marketing copy, Apple logo, Solana logo, trading graphics, dashboards, phones, circuitry, neon lasers, stars, particles, wireframes, orbital lines, metallic gold, plastic glossy tubes, overexposed bloom, grainy texture, vignette, watermark, border, rounded frame. The art fills every pixel.

@@ -16,7 +16,7 @@ import { currentAccount } from "~/lib/session";
 
 export async function redirectSystemPath({ path }: { path: string; initial: boolean }): Promise<string> {
   try {
-    const target = resolveLink(path);
+    const target = resolveLink(path, { development: __DEV__ });
     switch (target.kind) {
       case "passthrough":
         return path;

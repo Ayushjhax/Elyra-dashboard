@@ -1,4 +1,6 @@
 import "server-only";
+import { formatPriceUsd } from "@/lib/format";
+import { pricesForSymbols } from "@/lib/market/pyth/client";
 
 import {
   armedAlerts,
@@ -148,7 +150,7 @@ export async function send(
   if (channels.push) {
     const pushed = await pushToDevices(
       recipient.devices,
-      { kind: message.kind, title: message.title, body, data: { notificationId, route: message.route } },
+      { kind: message.kind, title: message.title, body, data: { notificationId, route: message.route, accountId: recipient.userId } },
       notificationId,
     );
     if (pushed.sent > 0) delivered = true;
@@ -208,11 +210,11 @@ async function recipients(): Promise<Map<string, Recipient>> {
   }
 
   const devices = await devicesFor(appUsers);
-  for (const [userId, rows] of devices) {
+  for (const userId of appUsers) {
     const recipient = map.get(userId);
     if (recipient === undefined) continue;
     recipient.hasApp = true;
-    recipient.devices = rows;
+    recipient.devices = devices.get(userId) ?? [];
   }
 
   return map;
@@ -233,8 +235,7 @@ function preferencesReader(): (userId: string) => Promise<NotificationPreference
 
 type Preferences = ReturnType<typeof preferencesReader>;
 
-const money = (value: number): string =>
-  value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 });
+const money = formatPriceUsd;
 
 /* ---------------------------------------------------------------------------
    Price alerts
@@ -271,15 +272,12 @@ async function deliverPriceAlerts(
   const alerts = await armedAlerts();
   if (alerts.length === 0) return;
 
-  /* Priced once per symbol, not once per alert. Fifty users watching SOL is
-     one upstream call, not fifty. */
+  /* The alert editor shows Pyth prices, so the crossing must use that same
+     feed. Binance can differ enough to leave an already-crossed rule armed. */
   const symbols = [...new Set(alerts.map((alert) => alert.symbol))];
-  const prices = new Map<string, number>();
-
-  for (const symbol of symbols) {
-    const ticker = await binanceTicker(symbol);
-    if (ticker.ok && ticker.data !== undefined) prices.set(symbol, ticker.data.lastPrice);
-  }
+  const prices = new Map(
+    (await pricesForSymbols(symbols)).map((feed) => [feed.symbol.toUpperCase(), feed.price]),
+  );
 
   for (const alert of alerts) {
     report.scanned += 1;

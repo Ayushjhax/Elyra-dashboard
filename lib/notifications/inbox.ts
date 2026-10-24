@@ -16,23 +16,8 @@ export const INBOX_PAGE = 30;
 /** The unread badge stops counting here and shows "99+". */
 export const UNREAD_CAP = 100;
 
-export interface InboxEntry {
-  id: string;
-  kind: NotificationKind;
-  title: string;
-  body: string;
-  data: Record<string, unknown>;
-  createdAt: string;
-  readAt: string | null;
-}
-
-export interface InboxPage {
-  notifications: InboxEntry[];
-  /** Pass back as `cursor` for the next, older page. Null at the end. */
-  nextCursor: string | null;
-  /** Unread, up to UNREAD_CAP. */
-  unread: number;
-}
+import type { InboxEntry, InboxPage } from "@/lib/notifications/types";
+export type { InboxEntry, InboxPage } from "@/lib/notifications/types";
 
 function toEntry(row: NotificationRow): InboxEntry {
   return {

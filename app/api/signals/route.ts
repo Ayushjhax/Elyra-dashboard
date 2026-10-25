@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serviceUrl } from "@/lib/services";
 import { assertSignalDto, type SignalListDto } from "@/lib/signals/types";
 
 /* ---------------------------------------------------------------------------
@@ -20,7 +21,7 @@ import { assertSignalDto, type SignalListDto } from "@/lib/signals/types";
    than a plausible number from nowhere.
 --------------------------------------------------------------------------- */
 
-const ENGINE_URL = process.env.ELYRA_ENGINE_URL ?? "http://localhost:8787";
+const ENGINE_URL = serviceUrl(process.env.ELYRA_ENGINE_URL, "http://localhost:8787");
 const TIMEOUT_MS = 5_000;
 
 export const dynamic = "force-dynamic";
@@ -61,12 +62,6 @@ export interface SignalsResponse extends SignalListDto {
 
 export async function GET(request: Request): Promise<NextResponse<SignalsResponse>> {
   const incoming = new URL(request.url);
-  const target = new URL("/signals", ENGINE_URL);
-  for (const key of ["status", "assetClass", "symbol", "limit"]) {
-    const value = incoming.searchParams.get(key);
-    if (value !== null) target.searchParams.set(key, value);
-  }
-
   const empty = (engineError: string): NextResponse<SignalsResponse> =>
     NextResponse.json(
       {
@@ -75,6 +70,13 @@ export async function GET(request: Request): Promise<NextResponse<SignalsRespons
       },
       { status: 200 },
     );
+
+  if (ENGINE_URL === null) return empty("The signal engine is not configured on this deployment.");
+  const target = new URL("/signals", ENGINE_URL);
+  for (const key of ["status", "assetClass", "symbol", "limit"]) {
+    const value = incoming.searchParams.get(key);
+    if (value !== null) target.searchParams.set(key, value);
+  }
 
   let payload: SignalListDto;
   try {
@@ -88,7 +90,7 @@ export async function GET(request: Request): Promise<NextResponse<SignalsRespons
     payload = (await response.json()) as SignalListDto;
   } catch (error: unknown) {
     const detail = error instanceof Error ? error.message : "unknown";
-    return empty(`engine unreachable at ${ENGINE_URL}: ${detail}`);
+    return empty(`engine unreachable: ${detail}`);
   }
 
   /* Validate each signal individually so one bad row does not lose the rest,
@@ -121,6 +123,7 @@ export async function GET(request: Request): Promise<NextResponse<SignalsRespons
  * here and the feed is unaffected.
  */
 async function diagnostics(): Promise<EngineDiagnostics | null> {
+  if (ENGINE_URL === null) return null;
   try {
     const response = await fetch(new URL("/diagnostics", ENGINE_URL), {
       signal: AbortSignal.timeout(TIMEOUT_MS),

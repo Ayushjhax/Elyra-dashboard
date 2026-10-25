@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { serviceUrl } from "@/lib/services";
 
-const TRACKER_URL = process.env.SMART_MONEY_TRACKER_URL ?? "http://localhost:8790";
+const TRACKER_URL = serviceUrl(process.env.SMART_MONEY_TRACKER_URL, "http://localhost:8790");
 export const dynamic = "force-dynamic";
 
 /* ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ export const dynamic = "force-dynamic";
 const CONNECT_TIMEOUT_MS = 5_000;
 
 export async function GET(request: Request): Promise<Response> {
+  if (TRACKER_URL === null) return NextResponse.json({ error: "tracker stream unavailable" }, { status: 503 });
   const controller = new AbortController();
   const connectTimer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS);
 

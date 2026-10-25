@@ -13,7 +13,8 @@
     "telegram:webhook": "node --experimental-strip-types scripts/set-telegram-webhook.mts",
     "supabase:setup": "node --experimental-strip-types scripts/supabase-setup.mts",
     "supabase:bundle": "node --experimental-strip-types scripts/bundle-migrations.mts",
-    "telegram:dev": "node --experimental-strip-types scripts/telegram-dev.mts"
+    "telegram:dev": "node --experimental-strip-types scripts/telegram-dev.mts",
+    "smoke": "node --experimental-strip-types scripts/smoke.mts"
   },
   "dependencies": {
     "@polymarket/sdk": "^8.0.1",
@@ -55,5 +56,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

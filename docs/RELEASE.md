@@ -222,3 +222,78 @@ To turn it on:
    build; without it the build still succeeds, with unreadable stacks).
 4. Build, install, and confirm a test error arrives scrubbed (throw from a
    development-only button on a preview build, then remove it).
+
+## Release record
+
+### 1.0.0 (versionCode 3) — built 2026-10-25
+
+| | |
+|---|---|
+| EAS build | `d30d4c16-9403-4994-99b1-78e0d15a59c4` — https://expo.dev/accounts/kunalempire/projects/elyra/builds/d30d4c16-9403-4994-99b1-78e0d15a59c4 |
+| APK | https://expo.dev/artifacts/eas/O50TxKqXIPoH4mdYBttY-u_VyS3DzkFKBUsh9izxmb4.apk — 59,924,249 bytes (57.1 MB) |
+| APK SHA-256 (file) | `cfb3a343792b4873f40a3ac9a0c3fd726d941727bd81ed719b170b05cd8b74df` |
+| Package | `xyz.getelyra.app`, versionName `1.0.0`, versionCode `3` |
+| SDK | minSdk 24, targetSdk 36, compileSdk 37 |
+| ABI | `arm64-v8a` only |
+| Debuggable / backup | no / no (`pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]`) |
+| Signing | APK Signature Scheme v2, one signer; EAS credentials "Build Credentials giFL0d8b5-" (the project's default keystore) |
+| **Signing certificate SHA-256** | **`05:7B:CA:59:84:DA:86:52:61:E8:5B:3C:A1:CE:B0:6E:C3:21:47:B6:A9:E1:3A:75:DB:B6:22:95:7D:AA:CF:5D`** |
+| Certificate SHA-1 | `B6:E5:0B:63:B6:76:E4:E1:D2:0D:A5:C9:E2:C9:4E:B3:7B:58:7F:A7` |
+
+Where the SHA-256 goes:
+- Vercel `ANDROID_CERT_SHA256` (project `elyra-dashboard-x1jo`) — ✅ set
+  and redeployed; `https://api.getelyra.xyz/.well-known/assetlinks.json`
+  serves it with both relations.
+- `https://getelyra.xyz/.well-known/assetlinks.json` — ⬜ getelyra.xyz is the
+  `elyra-frontend` project (repo `Ayushjhax/Elyra_frontend`). Branch
+  `android-app-links` (commit `b09fef6`) proxies `/.well-known/assetlinks.json`
+  and `/r/:code` to the API; verified locally with `next start` (200
+  `application/json`; `/r/…` → the API). Live once merged into `main`.
+- Privy → Settings → allowed Android key hashes — ✅ added (2026-10-25).
+- Keystore backup — ✅ downloaded and stored offline (2026-10-25).
+
+Earlier versionCodes: 2 was build `cb989d51`, which failed at "Install
+dependencies" (EAS's default pnpm 11 refuses unapproved build scripts and
+ignores `node-linker=hoisted`); `eas.json` now pins pnpm 10.19.0 for every
+profile. versionCode 1 was never built for the store.
+
+Permissions in the APK (aapt): INTERNET, POST_NOTIFICATIONS, CAMERA,
+RECORD_AUDIO, USE_BIOMETRIC — plus, from libraries and kept on purpose,
+ACCESS_NETWORK_STATE, WAKE_LOCK, c2dm RECEIVE (push), USE_FINGERPRINT
+(biometrics on Android 7–8), VIBRATE (haptics), MODIFY_AUDIO_SETTINGS
+(dictation) and AndroidX's own DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION. The
+rest are blocked in `app.config.ts`, with the reason for each.
+
+### Checklist results (docs/QA.md on this APK, against production)
+
+| Check | Result |
+|---|---|
+| `apksigner verify` | ✅ v2, one signer, the certificate above |
+| `aapt dump badging` | ✅ package, versionName/Code, target SDK 36, arm64-v8a |
+| Installs on the Seeker (replacing the debug-signed development build) | ✅ |
+| Cold launch | ✅ JS runs (`Running "main"`), no crash in logcat |
+| Production API smoke (`pnpm smoke`) | ✅ 6 pass, 2 skipped (token, cron secret) |
+| Sign-in, signing (swap/transfer), push, links, resilience, layout, deletion | ⬜ pending — the phone was locked; needs an unlock and a sign-in |
+
+## Backing up the dApp Store keystore
+
+The keystore lives in your EAS account (`kunalempire`). The dApp Store will
+only accept updates signed with it — lose it and Elyra can never be updated.
+
+```sh
+cd mobile
+eas credentials -p android
+#  → build profile: dapp-store
+#  → Keystore: Manage everything needed to build your project
+#  → Download existing keystore
+```
+
+It saves a `.jks` file and prints the keystore password, key alias and key
+password. Store all four together **offline** — e.g. an encrypted USB drive
+plus your password manager — and never in this repo or a cloud folder that
+syncs it unencrypted. Check the backup: `keytool -list -v -keystore
+<file>.jks` must show SHA-256 `05:7B:CA:…:CF:5D`.
+
+Every EAS profile (development, preview, dapp-store) signs with this same
+default keystore, so preview APKs share the store signature. That's fine;
+just never publish a preview APK.

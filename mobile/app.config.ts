@@ -1,4 +1,5 @@
 import type { ExpoConfig } from "expo/config";
+import packageJson from "./package.json";
 
 /* ---------------------------------------------------------------------------
    The Android app's native configuration.
@@ -14,7 +15,8 @@ import type { ExpoConfig } from "expo/config";
    committed — configure native behaviour here or in a config plugin.
 --------------------------------------------------------------------------- */
 
-const version = "1.0.0";
+/* The versionName; the versionCode is EAS's (eas.json: remote, auto-incremented). */
+const version = packageJson.version;
 
 /** --surface-base, the forest every native surface starts on. */
 export const SURFACE = "#101710";
@@ -58,11 +60,22 @@ const config: ExpoConfig = {
         category: ["BROWSABLE", "DEFAULT"],
       },
     ],
-    /* Only what the app uses. Biometrics gate every signature (the plugin
-       below declares it); the camera scans a recipient's QR code, asked for
-       only when Scan is pressed. Notifications and the microphone
-       (dictation) are added by the prompts that need them, each asked for in
-       context. */
+    /* Only what the app uses: INTERNET, POST_NOTIFICATIONS, CAMERA (scan a
+       recipient's QR), RECORD_AUDIO (dictation, from expo-audio) and
+       USE_BIOMETRIC (the check before every signature). Each runtime one is
+       asked for in context.
+
+       Libraries add a few more that the app does use, kept on purpose:
+         ACCESS_NETWORK_STATE, WAKE_LOCK, c2dm RECEIVE — Firebase Cloud
+           Messaging, for push;
+         USE_FINGERPRINT — the biometric check on Android 7–8 (minSdk 24);
+           without it those phones would sign with no prompt;
+         VIBRATE — expo-haptics;
+         MODIFY_AUDIO_SETTINGS — expo-audio's setAudioModeAsync for
+           dictation;
+         DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION — AndroidX's own,
+           signature-level, never granted to another app.
+       Everything below is blocked: features Elyra doesn't use. */
     permissions: [
       "android.permission.USE_BIOMETRIC",
       "android.permission.CAMERA",
@@ -72,6 +85,36 @@ const config: ExpoConfig = {
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.WRITE_EXTERNAL_STORAGE",
+      /* expo-audio's background playback (turned off below). */
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+      "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+      /* expo-notifications: re-scheduling local notifications after a
+         reboot, and launcher badge counts — Elyra schedules none and sets
+         no badge. */
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.READ_APP_BADGE",
+      "com.anddoes.launcher.permission.UPDATE_COUNT",
+      "com.htc.launcher.permission.READ_SETTINGS",
+      "com.htc.launcher.permission.UPDATE_SHORTCUT",
+      "com.huawei.android.launcher.permission.CHANGE_BADGE",
+      "com.huawei.android.launcher.permission.READ_SETTINGS",
+      "com.huawei.android.launcher.permission.WRITE_SETTINGS",
+      "com.majeur.launcher.permission.UPDATE_BADGE",
+      "com.oppo.launcher.permission.READ_SETTINGS",
+      "com.oppo.launcher.permission.WRITE_SETTINGS",
+      "com.sec.android.provider.badge.permission.READ",
+      "com.sec.android.provider.badge.permission.WRITE",
+      "com.sonyericsson.home.permission.BROADCAST_BADGE",
+      "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
+      "me.everything.badger.permission.BADGE_COUNT_READ",
+      "me.everything.badger.permission.BADGE_COUNT_WRITE",
+      /* Google Play's install referrer — Elyra isn't distributed by Play. */
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
+      /* React Native's and the development client's local-network
+         discovery, for Metro; release builds never use it. */
+      "android.permission.ACCESS_LOCAL_NETWORK",
+      "android.permission.CHANGE_WIFI_MULTICAST_STATE",
     ],
   },
   ios: {
@@ -98,6 +141,19 @@ const config: ExpoConfig = {
       },
     ],
     "expo-font",
+    /* Release build shape: arm64-v8a only — every Solana Mobile phone and
+       every Android phone sold for years. Hermes is the default engine.
+       R8 minification and resource shrinking stay off: they can strip
+       classes Privy, Mobile Wallet Adapter and Sentry load by reflection,
+       and the bundle (Hermes bytecode) is untouched by them anyway. */
+    [
+      "expo-build-properties",
+      {
+        android: {
+          buildArchs: ["arm64-v8a"],
+        },
+      },
+    ],
     "expo-secure-store",
     /* Crash reporting (src/lib/crash): the native SDK is always built in,
        and reports only when EXPO_PUBLIC_SENTRY_DSN is set. Source maps are
@@ -137,6 +193,8 @@ const config: ExpoConfig = {
         microphonePermission:
           "Elyra uses the microphone to write out a question you dictate to Ask Elyra.",
         recordAudioAndroid: true,
+        /* Elyra never plays audio, in the background or at all. */
+        enableBackgroundPlayback: false,
       },
     ],
     /* The system photo picker needs no storage permission on Android; the

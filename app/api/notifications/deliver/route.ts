@@ -21,6 +21,24 @@ export async function GET(request: Request): Promise<Response> {
   /* No body on a rejection: nothing to learn from probing this endpoint. */
   if (!cronAuthorised(request)) return new NextResponse(null, { status: 401 });
 
+  /* ?dryRun=1 — for the smoke test (scripts/smoke.ts): the secret was
+     accepted and the route is deployed, and nothing is claimed or sent.
+     Says which channels this deployment could deliver to, as booleans. */
+  if (new URL(request.url).searchParams.get("dryRun") === "1") {
+    return NextResponse.json(
+      {
+        dryRun: true,
+        authorised: true,
+        channels: {
+          push: true,
+          pushAccessToken: (process.env.EXPO_ACCESS_TOKEN?.trim() ?? "") !== "",
+          telegram: (process.env.TELEGRAM_BOT_TOKEN?.trim() ?? "") !== "",
+        },
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
+  }
+
   const report = await deliverNotifications();
   return NextResponse.json(report, { headers: { "cache-control": "no-store" } });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serviceUrl } from "@/lib/services";
 import {
   CONSENSUS_DISCLAIMER,
   hyperliquidConsensus,
@@ -18,12 +19,13 @@ import { parseTrackerSignalList } from "@/lib/tracker/types";
    a connection failure as a quiet market.
 --------------------------------------------------------------------------- */
 
-const TRACKER_URL = process.env.SMART_MONEY_TRACKER_URL ?? "http://localhost:8790";
+const TRACKER_URL = serviceUrl(process.env.SMART_MONEY_TRACKER_URL, "http://localhost:8790");
 export const dynamic = "force-dynamic";
 /* The first in-app read downloads the leaderboard; later ones are cached. */
 export const maxDuration = 60;
 
 async function fromTracker(incoming: URL): Promise<Response | string> {
+  if (TRACKER_URL === null) return "tracker not configured";
   const target = new URL("/signals", TRACKER_URL);
   for (const key of ["source", "marketId", "side", "status", "limit"]) {
     const value = incoming.searchParams.get(key);
@@ -53,7 +55,7 @@ export async function GET(request: Request): Promise<Response> {
       error: null,
       origin: "hyperliquid",
       notice:
-        `The tracker service is not running, so this is Elyra's own read: ` +
+        `The tracker service is not ${TRACKER_URL === null ? "configured" : "running"}, so this is Elyra's own read: ` +
         `${consensus.walletsRead} top Hyperliquid wallets, ${consensus.walletsWithPositions} holding positions.`,
     });
   } catch (error: unknown) {

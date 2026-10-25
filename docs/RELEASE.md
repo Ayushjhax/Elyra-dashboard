@@ -244,10 +244,13 @@ Where the SHA-256 goes:
 - Vercel `ANDROID_CERT_SHA256` (project `elyra-dashboard-x1jo`) — ✅ set
   and redeployed; `https://api.getelyra.xyz/.well-known/assetlinks.json`
   serves it with both relations.
-- `https://getelyra.xyz/.well-known/assetlinks.json` — ❌ getelyra.xyz is the
-  `elyra-frontend` project; it must serve the same file (App Links and
-  passkeys are checked on getelyra.xyz).
-- Privy → Settings → allowed Android key hashes — ⬜ yours.
+- `https://getelyra.xyz/.well-known/assetlinks.json` — ⬜ getelyra.xyz is the
+  `elyra-frontend` project (repo `Ayushjhax/Elyra_frontend`). Branch
+  `android-app-links` (commit `b09fef6`) proxies `/.well-known/assetlinks.json`
+  and `/r/:code` to the API; verified locally with `next start` (200
+  `application/json`; `/r/…` → the API). Live once merged into `main`.
+- Privy → Settings → allowed Android key hashes — ✅ added (2026-10-25).
+- Keystore backup — ✅ downloaded and stored offline (2026-10-25).
 
 Earlier versionCodes: 2 was build `cb989d51`, which failed at "Install
 dependencies" (EAS's default pnpm 11 refuses unapproved build scripts and

@@ -42,10 +42,12 @@ export function CoinMark({
   size?: number;
   className?: string;
 }) {
-  /* How many sources have failed: 0 the logo, 1 the fallback, then the chip. */
-  const [failures, setFailures] = useState(0);
-  const sources = [logo, fallbackLogo].filter((source): source is string => source !== null);
-  const source = sources[failures] ?? null;
+  /* The URLs that failed, by value rather than by count. The logo usually
+     arrives a render after the fallback — the catalogue read is async — and a
+     count would then index past it: a fallback that failed first left
+     `failures` at 1, which skipped the logo the moment it appeared. */
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
+  const source = [logo, fallbackLogo].find((url): url is string => url !== null && !failed.has(url)) ?? null;
   const showImage = source !== null;
   if (!showImage && fallback !== undefined) return <>{fallback}</>;
 
@@ -72,7 +74,7 @@ export function CoinMark({
           height={size}
           loading="lazy"
           decoding="async"
-          onError={() => setFailures((count) => count + 1)}
+          onError={() => setFailed((current) => new Set(current).add(source))}
           className="size-full object-contain"
         />
       ) : (

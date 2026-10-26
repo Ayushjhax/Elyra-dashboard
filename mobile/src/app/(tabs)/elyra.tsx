@@ -49,7 +49,10 @@ export default function ElyraScreen() {
   const tab = useAppStore((state) => state.agentTab);
   const setTab = useAppStore((state) => state.setAgentTab);
   const selectedAssetId = useAppStore((state) => state.selectedAssetId);
-  const symbol = useAssets([selectedAssetId]).byId.get(selectedAssetId)?.symbol ?? "";
+  const asset = useAssets([selectedAssetId]).byId.get(selectedAssetId);
+  const symbol = asset?.symbol ?? "";
+  /* The first suggestion names the selected market only when it is crypto. */
+  const cryptoSymbol = asset?.assetType === "crypto" ? asset.symbol : "";
   const focused = useIsFocused();
   const now = useSecond();
   const open = useOpenActions().actions.filter((entry) => Date.parse(entry.expiresAt) > now).length;
@@ -80,7 +83,7 @@ export default function ElyraScreen() {
       {tab === "ask" ? (
         <KeyboardLifted>
           <Conversation symbol={symbol} onAsk={ask} />
-          <Composer symbol={symbol} onAsk={ask} />
+          <Composer cryptoSymbol={cryptoSymbol} onAsk={ask} />
         </KeyboardLifted>
       ) : tab === "capital-intelligence" ? (
         <KeyboardLifted><CapitalIntelligence /></KeyboardLifted>

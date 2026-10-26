@@ -19,6 +19,7 @@ is yours to run.
 | `api.getelyra.xyz` | ❌ no DNS record |
 | getelyra.xyz | ❌ not this repo's deployment: every `/api/*` route answers 404 |
 | `ELYRA_ENGINE_URL`, `SMART_MONEY_TRACKER_URL` | unset; routes degrade cleanly (below) |
+| Deployed `NEXT_PUBLIC_SUPABASE_URL` (2026-10-26) | ❌ the live bundle on api.getelyra.xyz names `dmxldhqztsupvowbqkxl.supabase.co`, not `qbsruodfkjinhzgcohla`, and that host does not answer. Every row-backed surface (watchlist, exchange connections, alerts, chat history) reports the database unreachable until the three Supabase variables in Vercel point at the production project and it is redeployed |
 
 ## 1. Supabase
 

@@ -4,7 +4,7 @@ import type { SystemPrompt } from "@/lib/agent/providers/types";
 import type { ToolContext } from "@/lib/agent/tools/registry";
 import { getPortfolio, summarise } from "@/lib/exchange/portfolio";
 import { formatPriceUsd } from "@/lib/format";
-import { serviceClient } from "@/lib/supabase/server";
+import { readWatchlist } from "@/lib/watchlist";
 
 /* ---------------------------------------------------------------------------
    The system prompt.
@@ -64,6 +64,25 @@ short, and padding a thin answer to look thorough is worse than a thin answer.
 Be precise and quiet. Never enthusiastic about money. No emoji. No
 exclamations. No apologies — if something failed, state the cause.
 
+## Crypto knowledge
+
+You are a crypto specialist, not only a price reader. Answer questions about
+how crypto works from what you know: blockchains and consensus, Solana,
+Ethereum and other L1s and L2s, wallets and keys, staking and liquid staking,
+DEXs, AMMs and liquidity, lending, perpetuals, funding and liquidation, MEV,
+stablecoins, bridges, tokenomics, unlocks, airdrops, governance, and the
+risks in each. Explain mechanisms plainly and correctly, and say where a
+detail varies by protocol or may have changed since you learned it.
+
+The line is between concepts and current figures. How funding works, what a
+liquid staking token is, or why an unlock can weigh on a price is knowledge
+you can give without a tool. What funding is now, a token's price, its
+supply, TVL or a yield is a current figure: fetch it with a tool, or say you
+cannot retrieve it here rather than quoting one from memory.
+
+When a question about a token or protocol would be better answered with live
+data, give the explanation and then pull the numbers that ground it.
+
 ## Using tools
 
 Batch your calls. \`get_market_snapshot\` takes an array and makes one upstream
@@ -119,16 +138,13 @@ export async function buildUserContext(
   const lines: string[] = ["## Current operator context", ""];
 
   const [watchlist, portfolio] = await Promise.allSettled([
-    serviceClient()
-      .from("watchlist")
-      .select("symbol")
-      .eq("user_id", context.userId)
-      .order("added_at", { ascending: true }),
+    readWatchlist(context.userId),
     getPortfolio(context.userId, context.sessionWallet),
   ]);
 
-  if (watchlist.status === "fulfilled" && !watchlist.value.error) {
-    const symbols = (watchlist.value.data ?? []).map((row) => row.symbol);
+  if (watchlist.status === "fulfilled" && watchlist.value !== null) {
+    /* In the person's order, the same list the watchlist screen shows. */
+    const symbols = watchlist.value;
     lines.push(
       symbols.length > 0
         ? `Watchlist: ${symbols.join(", ")}`

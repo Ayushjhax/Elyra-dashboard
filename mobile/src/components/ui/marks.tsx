@@ -57,9 +57,10 @@ export function CoinMark({
   fallbackLogo?: string | null;
   size?: number;
 }) {
-  const [failures, setFailures] = useState(0);
-  const sources = [logo, fallbackLogo].filter((source): source is string => source !== null);
-  const source = sources[failures] ?? null;
+  /* Failed URLs by value, not a count: the logo often arrives after the
+     fallback has already failed, and a count would then skip it. */
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
+  const source = [logo, fallbackLogo].find((url): url is string => url !== null && !failed.has(url)) ?? null;
   return (
     <View
       accessibilityElementsHidden
@@ -72,7 +73,7 @@ export function CoinMark({
           source={{ uri: source }}
           style={{ width: size, height: size }}
           contentFit="contain"
-          onError={() => setFailures((count) => count + 1)}
+          onError={() => setFailed((current) => new Set(current).add(source))}
         />
       ) : (
         <Monogram name={symbol} size={size} />

@@ -30,10 +30,10 @@ function Empty({ symbol, onAsk }: { symbol: string; onAsk: (prompt: string) => v
     <View style={styles.empty}>
       <ElyraMark size={44} />
       <Text variant="h2" style={styles.center}>
-        Ask about {symbol || "a market"}
+        Ask Elyra about crypto
       </Text>
       <Text variant="body-sm" tone="secondary" style={[styles.center, styles.measure]}>
-        Elyra reads live prices, funding and open interest, and your connected accounts. It never places orders. Type / for shortcuts.
+        Markets, tokens, protocols and on-chain mechanics, with live prices, funding, open interest and your connected accounts. It never places orders. Type / for shortcuts.
       </Text>
       <Button label={`Brief me on ${market}`} size="sm" onPress={() => onAsk(`Give me a brief on ${market} right now.`)} />
     </View>

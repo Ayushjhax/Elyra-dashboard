@@ -281,10 +281,10 @@ function Conversation({
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <ElyraMark size={44} />
             <div>
-              <p className="type-panel-title text-text-primary">Ask about {symbol || "a market"}</p>
+              <p className="type-panel-title text-text-primary">Ask Elyra about crypto</p>
               <p className="type-body-sm mx-auto mt-1 max-w-[30ch] text-text-secondary">
-                Elyra reads live prices, funding and open interest, and your connected
-                accounts. It never places orders.
+                Markets, tokens, protocols and on-chain mechanics, with live prices,
+                funding, open interest and your connected accounts. It never places orders.
               </p>
             </div>
             <button
@@ -365,11 +365,12 @@ function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove
 }
 
 function Composer({
-  symbol,
+  cryptoSymbol,
   onAsk,
   showChips,
 }: {
-  symbol: string;
+  /** The selected market when it is a crypto asset, for the first suggestion. */
+  cryptoSymbol: string;
   onAsk: (prompt: string) => void;
   /** Suggested questions belong to the conversation; the other views get
       their height back. */
@@ -421,7 +422,7 @@ function Composer({
   const signedOut = auth.available && auth.ready && !auth.authenticated;
   const canSend =
     (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && dictation.status !== "transcribing";
-  const chips = symbol && showChips ? suggestionChips(symbol) : [];
+  const chips = showChips ? suggestionChips(cryptoSymbol) : [];
 
   const send = () => {
     if (!canSend) return;
@@ -679,6 +680,7 @@ export function AgentPanel({
   const { byId } = useAssets([selectedAssetId]);
   const asset = byId.get(selectedAssetId);
   const symbol = asset?.symbol ?? "";
+  const cryptoSymbol = asset?.assetType === "crypto" ? asset.symbol : "";
   const tabsId = useId();
 
   /* Every way of asking — the composer, a suggestion, the empty state, a
@@ -818,7 +820,7 @@ export function AgentPanel({
         </Link>
       </div>
 
-      <Composer symbol={symbol} onAsk={ask} showChips={tab === "ask"} />
+      <Composer cryptoSymbol={cryptoSymbol} onAsk={ask} showChips={tab === "ask"} />
     </section>
   );
 }

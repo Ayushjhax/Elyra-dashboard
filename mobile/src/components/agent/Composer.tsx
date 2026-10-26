@@ -60,7 +60,7 @@ function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove
   );
 }
 
-export function Composer({ symbol, onAsk }: { symbol: string; onAsk: (prompt: string) => void }) {
+export function Composer({ cryptoSymbol, onAsk }: { cryptoSymbol: string; onAsk: (prompt: string) => void }) {
   const draft = useAppStore((state) => state.composerDraft);
   const setDraft = useAppStore((state) => state.setComposerDraft);
   const attachments = useAppStore((state) => state.composerAttachments);
@@ -79,7 +79,7 @@ export function Composer({ symbol, onAsk }: { symbol: string; onAsk: (prompt: st
   const transcribing = dictation.status === "transcribing";
   const shortcuts = isShortcutDraft(draft) ? matchingShortcuts(draft) : [];
   const canSend = (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && !transcribing && !recording;
-  const chips = symbol && draft.length === 0 && attachments.length === 0 ? suggestionChips(symbol) : [];
+  const chips = draft.length === 0 && attachments.length === 0 ? suggestionChips(cryptoSymbol) : [];
 
   const send = (line: string = draft) => {
     if (line.trim().length === 0 && useAppStore.getState().composerAttachments.length === 0) return;

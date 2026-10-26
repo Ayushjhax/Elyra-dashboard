@@ -262,7 +262,7 @@ enthusiastic about money.
 
 ## 7. Logo
 
-`/public/logo.png`, top-left of the nav rail, 28px height, 16px padding around it.
+`/public/elyra-public-avatar.png` (the light version, everywhere the logo appears), top-left of the nav rail, 28px height, 16px padding around it.
 Clear space equal to the logo's cap height on all sides. Do not recolor, rotate,
 add effects, or place it on any surface other than `--surface-base` or
 `--surface-panel`.

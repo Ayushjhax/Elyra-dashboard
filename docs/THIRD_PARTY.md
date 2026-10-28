@@ -31,7 +31,7 @@
 
 ## Images
 
-- **The Elyra mark** (`public/images/elyra-intelligence.png`, copied to
+- **The Elyra mark** (`public/elyra-public-avatar.png`, copied to
   `mobile/assets/images/elyra-mark.png`) is Elyra's own.
 - **Asset and company logos** are loaded at runtime from their sources and
   never bundled:

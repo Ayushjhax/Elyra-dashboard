@@ -225,7 +225,7 @@ function CommandBody({ onDone }: { onDone: () => void }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 p-3 pb-2">
       <div className="command-search flex items-center gap-3 rounded-card border px-3">
-        <Image src="/logo.png" alt="" aria-hidden width={28} height={28} className="shrink-0 rounded-pill" />
+        <Image src="/elyra-public-avatar.png" alt="" aria-hidden width={28} height={28} className="shrink-0 rounded-pill" />
         <input
           data-command-input
           autoFocus

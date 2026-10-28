@@ -262,12 +262,12 @@ export function NavRail({
           className="relative inline-flex size-[42px] shrink-0 items-center justify-center overflow-hidden rounded-pill border border-border-subtle"
         >
           <Image
-            src="/logo.png"
+            src="/elyra-public-avatar.png"
             alt=""
             width={42}
             height={42}
             priority
-            className="size-full scale-[1.14] object-cover"
+            className="size-full object-cover"
           />
         </Link>
       </div>

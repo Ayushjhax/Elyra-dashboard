@@ -43,6 +43,19 @@ The first release: the website's product on a phone, on the same account.
   with Android App Links, settings, help & legal, open-source licences, and
   in-app account deletion.
 
+### Changed
+
+- The light Elyra logo — the forest mark on Elyra Lime — is the launcher
+  icon, adaptive icon, splash and in-app mark.
+- Ask Elyra is a crypto assistant: it explains protocols, staking, perps and
+  tokenomics, and its suggestions are crypto questions rather than three
+  variations on the selected market.
+
+### Fixed
+
+- A coin's logo no longer falls back to its lettered chip when the backup
+  icon failed before the catalogue logo arrived (the SOL mark).
+
 ### Security
 
 - No secret in the app: only public `EXPO_PUBLIC_` values (checked in the

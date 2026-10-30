@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Linking, Platform, StyleSheet, View } from "react-native";
 import { Buffer } from "buffer";
 import { useLoginWithEmail, useLoginWithOAuth, useLoginWithSiws } from "@privy-io/expo";
-import { useLoginWithPasskey } from "@privy-io/expo/passkey";
+import { useLoginWithPasskey, useSignupWithPasskey } from "@privy-io/expo/passkey";
 import { Fingerprint, Gift, Mail, Wallet } from "lucide-react-native";
 import { Button } from "~/components/ui/controls";
 import { Divider, Panel, Screen } from "~/components/ui/layout";
@@ -26,6 +26,11 @@ import { color, radius } from "~/theme/tokens";
 
    Errors are said plainly and the person can try again; a declined wallet
    prompt is "Cancelled", not a failure.
+
+   A passkey is only a way in once one exists. When signing in with one finds
+   none on this phone, the screen offers to create one — a new account, as
+   Privy's passkey sign-up always is — and tells someone who already has an
+   account to add a passkey to it from the dashboard instead.
 --------------------------------------------------------------------------- */
 
 const DOMAIN = new URL(APP_IDENTITY.uri).host;
@@ -42,11 +47,13 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"email" | "code" | "google" | "passkey" | "wallet" | null>(null);
+  const [busy, setBusy] = useState<"email" | "code" | "google" | "passkey" | "passkey-signup" | "wallet" | null>(null);
+  const [offerPasskeySignup, setOfferPasskeySignup] = useState(false);
 
   const emailLogin = useLoginWithEmail({ onError: (failure) => setError(message(failure, "That did not work.")) });
   const oauth = useLoginWithOAuth({ onError: (failure) => setError(message(failure, "Google sign-in did not complete.")) });
-  const passkey = useLoginWithPasskey({ onError: (failure) => setError(message(failure, "No passkey was used.")) });
+  const passkey = useLoginWithPasskey();
+  const passkeySignup = useSignupWithPasskey({ onError: (failure) => setError(message(failure, "The passkey was not created.")) });
   const siws = useLoginWithSiws();
 
   const awaitingCode = emailLogin.state.status === "awaiting-code-input" || emailLogin.state.status === "submitting-code";
@@ -193,9 +200,35 @@ export default function SignIn() {
               label="Use a passkey"
               icon={<Fingerprint size={16} strokeWidth={1.5} color={color["text-primary"]} />}
               loading={busy === "passkey"}
-              onPress={() => void run("passkey", () => passkey.loginWithPasskey({ relyingParty: APP_IDENTITY.uri }))}
+              onPress={() =>
+                void run("passkey", async () => {
+                  try {
+                    await passkey.loginWithPasskey({ relyingParty: APP_IDENTITY.uri });
+                  } catch {
+                    /* Android says only that none was chosen — none saved for
+                       getelyra.xyz looks the same as a dismissed sheet. */
+                    setOfferPasskeySignup(true);
+                    throw new Error("No Elyra passkey was used on this phone.");
+                  }
+                })
+              }
             />
           </View>
+
+          {offerPasskeySignup && (
+            <Panel style={styles.block}>
+              <Text variant="body-sm">New to Elyra? Create an account that signs in with a passkey on this phone.</Text>
+              <Button
+                label="Create a passkey"
+                icon={<Fingerprint size={16} strokeWidth={1.5} color={color["text-primary"]} />}
+                loading={busy === "passkey-signup"}
+                onPress={() => void run("passkey-signup", () => passkeySignup.signupWithPasskey({ relyingParty: APP_IDENTITY.uri }))}
+              />
+              <Text variant="body-sm" tone="secondary">
+                Already have an account? Sign in another way, then add a passkey in Account → Dashboard.
+              </Text>
+            </Panel>
+          )}
         </>
       )}
 

@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { router } from "expo-router";
-import { ArrowRight, AtSign, BadgeCheck, Copy, KeyRound, Mail, Phone, RefreshCw, Wallet, type LucideIcon } from "lucide-react-native";
+import { useLinkWithPasskey } from "@privy-io/expo/passkey";
+import { ArrowRight, AtSign, BadgeCheck, Copy, Fingerprint, KeyRound, Mail, Phone, RefreshCw, Wallet, type LucideIcon } from "lucide-react-native";
 import { methodLabel, type LinkedAccountSummary } from "@/lib/account";
 import { formatAge, formatPriceUsd, formatQty, formatRelativeTime, formatUsd, truncateMiddle } from "@/lib/format";
 import { hyperliquidIcon } from "@/lib/market/tickerLogoData";
@@ -10,6 +12,7 @@ import { Block, DetailScreen } from "~/components/portfolio/parts";
 import { Button, IconButton } from "~/components/ui/controls";
 import { InfoTip } from "~/components/ui/InfoTip";
 import { Skeleton } from "~/components/ui/layout";
+import { useToast } from "~/components/ui/overlays";
 import { CoinMark } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
 import { useCopy } from "~/components/wallet/parts";
@@ -17,6 +20,7 @@ import { useElyraAuth } from "~/lib/auth/AuthProvider";
 import { useBalancesHidden } from "~/lib/store";
 import { useWalletActivity } from "~/lib/stores/activity";
 import { useWalletDashboard } from "~/lib/stores/wallet";
+import { APP_IDENTITY } from "~/lib/wallet/mwa";
 import { useMinute, useSecond } from "~/lib/useClock";
 import { color, radius } from "~/theme/tokens";
 
@@ -64,6 +68,22 @@ export default function DashboardScreen() {
   const snapshot = wallet.snapshot;
   const status = walletStatus(wallet);
   const account = auth.account;
+  const toast = useToast();
+  const [addingPasskey, setAddingPasskey] = useState(false);
+  /* A passkey added here is how this account signs in with one later — the
+     sign-in screen's passkey sign-up always makes a new account instead. */
+  const passkey = useLinkWithPasskey();
+  const addPasskey = async () => {
+    setAddingPasskey(true);
+    try {
+      await passkey.linkWithPasskey({ relyingParty: APP_IDENTITY.uri });
+      toast("Passkey added. Use it to sign in on this phone.", "positive");
+    } catch {
+      toast("No passkey was added.", "negative");
+    } finally {
+      setAddingPasskey(false);
+    }
+  };
   const uncounted = snapshot === null ? 0 : snapshot.uncounted.unpriced + snapshot.uncounted.unverified;
 
   return (
@@ -253,6 +273,13 @@ export default function DashboardScreen() {
                   </View>
                 );
               })}
+            <Button
+              label="Add a passkey"
+              size="sm"
+              icon={<Fingerprint size={16} strokeWidth={1.5} color={color["text-primary"]} />}
+              loading={addingPasskey}
+              onPress={() => void addPasskey()}
+            />
           </>
         )}
       </Block>

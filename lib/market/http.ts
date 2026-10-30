@@ -14,6 +14,10 @@ export type UpstreamFailure =
   | "timeout"
   | "network"
   | "rate_limited"
+  /* The venue refuses this server's location — Binance answers 451 (and
+     sometimes 403) to US addresses, which is where Vercel runs by default.
+     Another exchange will answer the same question, so it is worth trying. */
+  | "blocked"
   | "server_error"
   | "client_error"
   | "malformed";
@@ -42,6 +46,7 @@ export class UpstreamError extends Error {
       this.kind === "timeout" ||
       this.kind === "network" ||
       this.kind === "rate_limited" ||
+      this.kind === "blocked" ||
       this.kind === "server_error"
     );
   }
@@ -123,6 +128,7 @@ export async function fetchJson<T>(request: UpstreamRequest): Promise<T> {
 
 function classify(status: number): UpstreamFailure {
   if (status === 429) return "rate_limited";
+  if (status === 451 || status === 403) return "blocked";
   if (status >= 500) return "server_error";
   return "client_error";
 }

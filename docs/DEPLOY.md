@@ -8,18 +8,20 @@
 Nothing in this document changes production by itself. Each step that does
 is yours to run.
 
-## Status — 2026-10-24
+## Status — 2026-10-31
 
 | | |
 |---|---|
-| Supabase production project | `qbsruodfkjinhzgcohla` (the one `supabase/README.md` and `.env.local` name) |
-| Migrations 0001–0016 | ✅ applied (checked read-only: every table and column they add answers) |
-| Delivery schedule (0013, pg_cron) | ❓ can't be read over the REST API — run the check SQL below |
-| `research-reports` storage bucket | ❌ **does not exist** — the project has no buckets |
-| `api.getelyra.xyz` | ❌ no DNS record |
-| getelyra.xyz | ❌ not this repo's deployment: every `/api/*` route answers 404 |
+| Supabase production project | `qbsruodfkjinhzgcohla`, AWS `ap-northeast-1` (Tokyo) |
+| Migrations 0001–0016 | ✅ applied |
+| Delivery schedule (0013, pg_cron) | ✅ 200 every five minutes |
+| `research-reports` storage bucket | ✅ created (private, PDFs, 20 MB) |
+| `api.getelyra.xyz` | ✅ this project; `pnpm smoke` passes |
+| getelyra.xyz | ✅ the website (`elyra-frontend`); `/.well-known/assetlinks.json` and `/r/*` are rewritten to the API |
+| Deployed Supabase variables | ✅ the live bundle names `qbsruodfkjinhzgcohla`, and a referral code resolves through the service key (the 2026-10-26 `dmxldhqz…` URL is gone) |
+| Function region | `hnd1` (Tokyo), from `vercel.json` — see "The project" below |
 | `ELYRA_ENGINE_URL`, `SMART_MONEY_TRACKER_URL` | unset; routes degrade cleanly (below) |
-| Deployed `NEXT_PUBLIC_SUPABASE_URL` (2026-10-26) | ❌ the live bundle on api.getelyra.xyz names `dmxldhqztsupvowbqkxl.supabase.co`, not `qbsruodfkjinhzgcohla`, and that host does not answer. Every row-backed surface (watchlist, exchange connections, alerts, chat history) reports the database unreachable until the three Supabase variables in Vercel point at the production project and it is redeployed |
+| Google sign-in | ❌ Google answers `redirect_uri_mismatch`: the Google OAuth client in Privy does not list `https://auth.privy.io/api/v1/oauth/callback` (section 3) |
 
 ## 1. Supabase
 
@@ -76,6 +78,12 @@ writes it, and downloads use 60-second signed URLs.
 - **Node:** 24.x (`package.json` `engines`, matching CI). Settings →
   General → Node.js Version → 24.x.
 - **Production branch:** `main`.
+- **Function region:** `hnd1` (Tokyo), set by `regions` in `vercel.json`
+  (Hobby allows one). Two reasons, both observed from the default `iad1`:
+  Binance answers every US address with 451, so a connected Binance account
+  could not be read at all and market reads had to fall through to OKX and
+  Hyperliquid; and the database is in Tokyo, so every query crossed the
+  Pacific. Keep the region next to the Supabase project.
 
 ### Domains
 
@@ -187,6 +195,12 @@ the app (`EXPO_PUBLIC_PRIVY_CLIENT_ID`):
   builds.
 - **Allowed origins** (web client, for the website): `https://getelyra.xyz`.
 - **Test accounts** (Authentication → Advanced): on, for the store reviewer.
+- **Google:** Login methods → Socials → Google uses this app's own Google
+  OAuth client (`877460055713-9o7okcuq…apps.googleusercontent.com`). In
+  Google Cloud → APIs & Services → Credentials → that client → **Authorized
+  redirect URIs**, `https://auth.privy.io/api/v1/oauth/callback` must be
+  listed, or Google refuses every sign-in with `redirect_uri_mismatch` — on
+  the website and in the app alike.
 
 ## 4. Smoke test
 

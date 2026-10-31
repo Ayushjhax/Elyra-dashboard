@@ -29,10 +29,25 @@
 - **Licence:** SIL Open Font License 1.1, which permits embedding and
   redistribution.
 
+### DM Serif Display (Google Fonts)
+
+- **Used in:** the Android app's sign-in screen only
+  (`mobile/assets/fonts/DMSerifDisplay-Regular.ttf`), for the headline and the
+  footer line.
+- **Source:** `google/fonts`, `ofl/dmserifdisplay/DMSerifDisplay-Regular.ttf`,
+  unmodified (SHA-256 `8cc36435…ab616`).
+- **Licence:** SIL Open Font License 1.1, which permits embedding and
+  redistribution. Copyright 2014–2018 Adobe, 2019 Google LLC.
+
 ## Images
 
 - **The Elyra mark** (`public/elyra-public-avatar.png`, copied to
   `mobile/assets/images/elyra-mark.png`) is Elyra's own.
+- **The gold emblem** on the app's sign-in screen
+  (`mobile/assets/images/elyra-emblem.png`) is Elyra's own: the original
+  render with its background made transparent.
+- **The Google "G"** on the sign-in button (`mobile/assets/images/google-g.png`)
+  is Google's mark, used unaltered as its sign-in branding guidelines require.
 - **Asset and company logos** are loaded at runtime from their sources and
   never bundled:
   - asset logos: the CoinMarketCap URLs Pyth publishes, and Hyperliquid's

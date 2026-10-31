@@ -1,0 +1,1 @@
+Transparent logo extraction is approximate because the source is a flattened screenshot. SVG icons have transparent backgrounds. Use native text, surfaces, borders and gradients in the app. Check whether the repository has the original Elyra logo asset and prefer it if available.

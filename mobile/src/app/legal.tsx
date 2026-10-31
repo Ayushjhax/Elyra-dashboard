@@ -1,11 +1,21 @@
-import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { Linking } from "react-native";
 import { router, type Href } from "expo-router";
-import { ChevronRight, ExternalLink, FileText, Mail, Scale, ScrollText, type LucideIcon } from "lucide-react-native";
-import { DetailScreen } from "~/components/portfolio/parts";
-import { Text } from "~/components/ui/Text";
+import {
+  ArrowLeftRight,
+  Brain,
+  ChartColumn,
+  Database,
+  FileText,
+  KeyRound,
+  Mail,
+  Scale,
+  ScrollText,
+  Tag,
+  type LucideIcon,
+} from "lucide-react-native";
+import { SettingsGroup, SettingsPage, SettingsRow } from "~/components/shell/settings";
 import { useToast } from "~/components/ui/overlays";
 import { DISCLOSURES, PRIVACY_URL, SUPPORT_EMAIL, supportMailto, TERMS_URL } from "~/lib/legal";
-import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
    Help & legal — support, the website's privacy policy and terms (the
@@ -14,33 +24,22 @@ import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
    The support mail opens the person's own mail app with the app version and
    the phone filled in, and nothing about the account (lib/legal.ts): what
-   they add is theirs to choose.
+   they add is theirs to choose. With no mail app, the address is said so it
+   can be written to by hand.
+
+   The disclosures are lib/legal.ts's, every one, word for word — this
+   screen only gives each an icon.
 --------------------------------------------------------------------------- */
 
-function Row({ icon: Icon, label, detail, onPress, external = false, last = false }: { icon: LucideIcon; label: string; detail: string; onPress: () => void; external?: boolean; last?: boolean }) {
-  return (
-    <Pressable
-      accessibilityRole={external ? "link" : "button"}
-      accessibilityHint={detail}
-      onPress={onPress}
-      android_ripple={{ color: color["surface-hover"] }}
-      style={[styles.row, !last && styles.ruled]}
-    >
-      <Icon size={18} strokeWidth={1.5} color={color["text-secondary"]} />
-      <View style={styles.flex}>
-        <Text>{label}</Text>
-        <Text variant="label" tone="muted">
-          {detail}
-        </Text>
-      </View>
-      {external ? (
-        <ExternalLink size={16} strokeWidth={1.5} color={color["text-muted"]} />
-      ) : (
-        <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />
-      )}
-    </Pressable>
-  );
-}
+/* By title, so a disclosure added to lib/legal.ts still shows, with a plain mark. */
+const DISCLOSURE_ICON: Record<string, LucideIcon> = {
+  "Not financial advice": ChartColumn,
+  "AI answers can be wrong": Brain,
+  "Elyra never holds your keys": KeyRound,
+  "Venue connections are read-only": Database,
+  "Swaps and prices": ArrowLeftRight,
+  "Third-party names": Tag,
+};
 
 export default function LegalScreen() {
   const toast = useToast();
@@ -54,66 +53,36 @@ export default function LegalScreen() {
   };
 
   return (
-    <DetailScreen title="Help & legal">
-      <Text variant="eyebrow" tone="muted" accessibilityRole="header">
-        Help
-      </Text>
-      <View style={styles.panel}>
-        <Row
+    <SettingsPage title="Help & legal">
+      <SettingsGroup label="Help">
+        <SettingsRow
+          first
           icon={Mail}
-          label="Email support"
-          detail={`${SUPPORT_EMAIL} — the app version and phone model are filled in for you`}
+          title="Email support"
+          detail={SUPPORT_EMAIL}
+          note="App version and phone model are prefilled."
+          trailing="external"
+          accessibilityHint="Opens your mail app"
           onPress={() => void mail()}
-          external
-          last
         />
-      </View>
+      </SettingsGroup>
 
-      <Text variant="eyebrow" tone="muted" accessibilityRole="header">
-        Legal
-      </Text>
-      <View style={styles.panel}>
-        <Row icon={FileText} label="Privacy policy" detail="getelyra.xyz/privacy" onPress={() => void Linking.openURL(PRIVACY_URL)} external />
-        <Row icon={Scale} label="Terms of use" detail="getelyra.xyz/terms" onPress={() => void Linking.openURL(TERMS_URL)} external />
-        <Row
+      <SettingsGroup label="Legal">
+        <SettingsRow first icon={FileText} title="Privacy policy" detail="getelyra.xyz/privacy" trailing="external" onPress={() => void Linking.openURL(PRIVACY_URL)} />
+        <SettingsRow icon={Scale} title="Terms of use" detail="getelyra.xyz/terms" trailing="external" onPress={() => void Linking.openURL(TERMS_URL)} />
+        <SettingsRow
           icon={ScrollText}
-          label="Open-source licences"
-          detail="The software Elyra is built with, and its licences"
+          title="Open-source licences"
+          detail="The software Elyra is built with, and its licences."
           onPress={() => router.push("/licenses" as Href)}
-          last
         />
-      </View>
+      </SettingsGroup>
 
-      <Text variant="eyebrow" tone="muted" accessibilityRole="header">
-        Before you rely on Elyra
-      </Text>
-      <View style={[styles.panel, styles.disclosures]}>
-        {DISCLOSURES.map((entry) => (
-          <View key={entry.title} style={styles.disclosure}>
-            <Text variant="body" accessibilityRole="header">
-              {entry.title}
-            </Text>
-            <Text variant="body-sm" tone="secondary">
-              {entry.body}
-            </Text>
-          </View>
+      <SettingsGroup label="Before you rely on Elyra">
+        {DISCLOSURES.map((entry, index) => (
+          <SettingsRow key={entry.title} first={index === 0} icon={DISCLOSURE_ICON[entry.title] ?? FileText} title={entry.title} detail={entry.body} />
         ))}
-      </View>
-    </DetailScreen>
+      </SettingsGroup>
+    </SettingsPage>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1, minWidth: 0 },
-  panel: {
-    borderRadius: radius.panel,
-    borderWidth: 1,
-    borderColor: color["border-subtle"],
-    backgroundColor: color["surface-panel"],
-    overflow: "hidden",
-  },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: TOUCH_TARGET + 8, paddingHorizontal: 16, paddingVertical: 10 },
-  ruled: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: color["border-subtle"] },
-  disclosures: { padding: 16, gap: 16 },
-  disclosure: { gap: 4 },
-});

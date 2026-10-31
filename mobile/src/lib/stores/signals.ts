@@ -163,9 +163,10 @@ export function useSmartMoney(active: boolean): { state: SmartMoneyState; reload
   return { state, reload };
 }
 
-/** The Hyperliquid board, every thirty seconds while shown. */
-export function usePulse(active: boolean): { data: PulseResponse | null; failed: boolean } {
+/** The Hyperliquid board, every thirty seconds while shown. `reload` asks again now. */
+export function usePulse(active: boolean): { data: PulseResponse | null; failed: boolean; reload: () => void } {
   const [state, setState] = useState<{ data: PulseResponse | null; failed: boolean }>({ data: null, failed: false });
+  const [nonce, setNonce] = useState(0);
   const [foreground, setForeground] = useState(AppState.currentState === "active");
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => setForeground(next === "active"));
@@ -189,8 +190,9 @@ export function usePulse(active: boolean): { data: PulseResponse | null; failed:
       cancelled = true;
       clearInterval(timer);
     };
-  }, [active, foreground]);
-  return state;
+  }, [active, foreground, nonce]);
+  const reload = useCallback(() => setNonce((value) => value + 1), []);
+  return { ...state, reload };
 }
 
 /* ---- Elyra's market signals (the website's ElyraSignals) ---- */

@@ -30,6 +30,7 @@ interface Entry {
 const FONTS: { name: string; license: string; note: string }[] = [
   { name: "General Sans", license: "ITF Free Font License 2.0", note: "Indian Type Foundry, via Fontshare. Used unmodified." },
   { name: "Fustat", license: "SIL Open Font License 1.1", note: "Google Fonts, through @expo-google-fonts/fustat." },
+  { name: "DM Serif Display", license: "SIL Open Font License 1.1", note: "Google Fonts. The sign-in headline. Used unmodified." },
 ];
 
 const PACKAGES = licenses.packages as Entry[];

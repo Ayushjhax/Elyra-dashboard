@@ -40,7 +40,12 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="index"
-        options={{ title: "Markets", tabBarIcon: ({ color: tint }) => <ChartCandlestick {...ICON} color={tint} /> }}
+        options={{
+          title: "Markets",
+          /* Markets carries the brand header and its own serif title. */
+          header: () => <AppHeader title="Markets" brand />,
+          tabBarIcon: ({ color: tint }) => <ChartCandlestick {...ICON} color={tint} />,
+        }}
       />
       <Tabs.Screen
         name="portfolio"
@@ -56,7 +61,12 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="account"
-        options={{ title: "Account", tabBarIcon: ({ color: tint }) => <CircleUser {...ICON} color={tint} /> }}
+        options={{
+          title: "Account",
+          /* The brand header too: the screen carries its own serif title. */
+          header: () => <AppHeader title="Account" brand />,
+          tabBarIcon: ({ color: tint }) => <CircleUser {...ICON} color={tint} />,
+        }}
       />
     </Tabs>
   );

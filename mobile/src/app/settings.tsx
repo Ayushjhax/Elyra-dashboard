@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, Switch, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import { router, type Href } from "expo-router";
-import { ChevronRight, ExternalLink } from "lucide-react-native";
+import { Bell, EyeOff, FileText, Fingerprint, RefreshCw, SlidersHorizontal, Smartphone, Trash2 } from "lucide-react-native";
 import type { MarketFilter } from "@/lib/types";
-import { DetailScreen } from "~/components/portfolio/parts";
-import { Button, OptionMenu } from "~/components/ui/controls";
+import { WideButton } from "~/components/shell/flow";
+import { FactRow, PreferenceSwitchRow, SettingsGroup, SettingsPage, SettingsRow } from "~/components/shell/settings";
+import { OptionMenu } from "~/components/ui/controls";
 import { Text } from "~/components/ui/Text";
 import { useToast } from "~/components/ui/overlays";
 import { api, ApiError } from "~/lib/api";
 import { PRIVACY_URL, versionLabel } from "~/lib/legal";
 import { useAppStore } from "~/lib/store";
 import { confirmBeforeSigning, SigningError } from "~/lib/wallet/signer";
-import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
+import { color } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
    Settings — this phone's preferences, and what the app is.
@@ -50,98 +51,6 @@ const API_HOST = (() => {
     return "Not set";
   }
 })();
-
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.group}>
-      <Text variant="eyebrow" tone="muted" accessibilityRole="header">
-        {title}
-      </Text>
-      <View style={styles.panel}>{children}</View>
-    </View>
-  );
-}
-
-function SwitchRow({
-  label,
-  detail,
-  value,
-  onChange,
-  disabled = false,
-  last = false,
-}: {
-  label: string;
-  detail: string;
-  value: boolean;
-  onChange: (next: boolean) => void;
-  disabled?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityLabel={label}
-      accessibilityHint={detail}
-      accessibilityState={{ checked: value, disabled }}
-      disabled={disabled}
-      onPress={() => onChange(!value)}
-      style={[styles.row, !last && styles.ruled]}
-    >
-      <View style={styles.flex}>
-        <Text>{label}</Text>
-        <Text variant="body-sm" tone="secondary">
-          {detail}
-        </Text>
-      </View>
-      <Switch
-        value={value}
-        pointerEvents="none"
-        accessible={false}
-        trackColor={{ false: color["border-strong"], true: color["accent-quiet"] }}
-        thumbColor={value ? color.accent : color["text-secondary"]}
-      />
-    </Pressable>
-  );
-}
-
-function LinkRow({ label, detail, onPress, external = false, last = false }: { label: string; detail?: string; onPress: () => void; external?: boolean; last?: boolean }) {
-  return (
-    <Pressable
-      accessibilityRole={external ? "link" : "button"}
-      accessibilityHint={detail}
-      onPress={onPress}
-      android_ripple={{ color: color["surface-hover"] }}
-      style={[styles.row, !last && styles.ruled]}
-    >
-      <View style={styles.flex}>
-        <Text>{label}</Text>
-        {detail !== undefined && (
-          <Text variant="body-sm" tone="secondary">
-            {detail}
-          </Text>
-        )}
-      </View>
-      {external ? (
-        <ExternalLink size={16} strokeWidth={1.5} color={color["text-muted"]} />
-      ) : (
-        <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />
-      )}
-    </Pressable>
-  );
-}
-
-function Fact({ label, value, tone = "primary", last = false }: { label: string; value: string; tone?: "primary" | "positive" | "negative" | "caution" | "muted"; last?: boolean }) {
-  return (
-    <View style={[styles.row, !last && styles.ruled]} accessible accessibilityLabel={`${label}: ${value}`}>
-      <Text tone="secondary" style={styles.flex}>
-        {label}
-      </Text>
-      <Text variant="data" tone={tone} style={styles.value}>
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 /** What the phone can check a signature against: nothing, or a fingerprint, face or screen lock. */
 function useEnrolment(): boolean | null {
@@ -230,100 +139,111 @@ export default function SettingsScreen() {
 
   const missing = health === null ? [] : DEPENDENCIES.filter((entry) => health.configured[entry.key] === false);
 
+  const statusValue = checking
+    ? "Checking…"
+    : health !== null
+      ? missing.length === 0
+        ? `Up · ${health.version}${health.commit ? ` · ${health.commit}` : ""}`
+        : `Up · ${missing.length} not set up`
+      : "Unreachable";
+  const statusTone = checking ? "muted" : health === null ? "negative" : missing.length === 0 ? "positive" : "caution";
+
   return (
-    <DetailScreen title="Settings">
-      <Group title="Privacy">
-        <SwitchRow
-          label="Hide balances"
-          detail="Masks every amount in the app until you show them again. Handy in public."
+    <SettingsPage title="Settings" subtitle="Make Elyra yours.">
+      <SettingsGroup label="Privacy">
+        <PreferenceSwitchRow
+          first
+          icon={EyeOff}
+          title="Hide balances"
+          detail="Mask amounts across the app."
           value={hidden}
           onChange={setHidden}
-          last
         />
-      </Group>
+      </SettingsGroup>
 
-      <Group title="Security">
-        <SwitchRow
-          label="Require fingerprint or face to sign"
+      <SettingsGroup label="Security">
+        <PreferenceSwitchRow
+          first
+          icon={Fingerprint}
+          title="Biometric signing"
           detail={
             enrolled === false
               ? "Nothing is set up on this phone to check against, so Elyra signs without asking. Add a fingerprint or screen lock in Android settings."
-              : "Your phone checks it's you before your wallet signs anything — every swap and transfer."
+              : "Elyra asks for your fingerprint, face or screen lock before your wallet signs a swap or transfer."
           }
           value={requireAuth}
           onChange={(next) => void changeSigning(next)}
-          disabled={switching}
-          last
+          busy={switching}
         />
-      </Group>
+      </SettingsGroup>
 
-      <Group title="Notifications">
-        <LinkRow
-          label="Notifications"
-          detail="Push, the inbox and which updates you get. These apply to your account on every device."
+      <SettingsGroup label="Notifications">
+        <SettingsRow
+          first
+          icon={Bell}
+          title="Notifications"
+          detail="Push, inbox and your update preferences. They apply to your account on every device."
           onPress={() => router.push("/notification-settings" as Href)}
-          last
         />
-      </Group>
+      </SettingsGroup>
 
-      <Group title="Defaults">
-        <View style={[styles.row]}>
-          <View style={styles.flex}>
-            <Text>Default market type</Text>
-            <Text variant="body-sm" tone="secondary">
-              What the portfolio&apos;s positions, orders and history open filtered to.
-            </Text>
-          </View>
+      <SettingsGroup label="Defaults">
+        <SettingsRow
+          first
+          icon={SlidersHorizontal}
+          title="Default market type"
+          detail="What the portfolio's positions, orders and history open filtered to."
+        >
           <OptionMenu label="Default market type" choices={MARKET_TYPES} value={marketType} onChange={setMarketType} />
-        </View>
-      </Group>
+        </SettingsRow>
+      </SettingsGroup>
 
-      <Group title="Data & privacy">
-        <View style={[styles.row, styles.ruled, styles.column]}>
-          <Text>On this phone</Text>
-          <Text variant="body-sm" tone="secondary">
-            Your preferences, starred markets and recent searches, and any report PDFs you opened. Your account&apos;s
-            data — alerts, conversations, connections — is kept by Elyra&apos;s servers, not here. Signing out clears the
-            PDFs.
-          </Text>
-          <Button
+      <SettingsGroup label="Data & privacy">
+        <SettingsRow
+          first
+          icon={Smartphone}
+          title="On this phone"
+          detail="Stored locally: preferences, starred markets, recent searches and opened report PDFs."
+          note="Alerts, conversations and connections are stored on Elyra's servers. Signing out clears downloaded PDFs."
+        >
+          <WideButton
             label={recent === 0 ? "No recent searches" : `Clear ${recent} recent ${recent === 1 ? "search" : "searches"}`}
-            size="sm"
+            variant="outline"
             disabled={recent === 0}
+            accessibilityHint="Clears only your search history. Starred markets stay."
             onPress={() => {
               clearRecent();
               toast("Cleared your recent searches", "positive");
             }}
           />
-        </View>
-        <LinkRow label="Privacy policy" detail="What Elyra collects, who processes it, and for how long" external onPress={() => void Linking.openURL(PRIVACY_URL)} />
-        <LinkRow
-          label="Delete account"
-          detail="Deletes your Elyra account and its data, on the app and the website"
-          onPress={() => router.push("/delete-account" as Href)}
-          last
+        </SettingsRow>
+        <SettingsRow
+          icon={FileText}
+          title="Privacy policy"
+          detail="What is collected, who processes it and for how long."
+          trailing="external"
+          onPress={() => void Linking.openURL(PRIVACY_URL)}
         />
-      </Group>
+      </SettingsGroup>
 
-      <Group title="About">
-        <Fact label="Version" value={versionLabel()} />
-        <Fact label="API" value={API_HOST} />
-        <Fact
-          label="API status"
-          value={
-            checking
-              ? "Checking…"
-              : health !== null
-                ? missing.length === 0
-                  ? `Up · ${health.version}${health.commit ? ` · ${health.commit}` : ""}`
-                  : `Up · ${missing.length} not set up`
-                : "Unreachable"
-          }
-          tone={checking ? "muted" : health === null ? "negative" : missing.length === 0 ? "positive" : "caution"}
-          last={missing.length === 0 && error === null}
+      <SettingsGroup danger>
+        <SettingsRow
+          first
+          icon={Trash2}
+          tone="negative"
+          title="Delete account"
+          detail="Deletes your Elyra account and data, on the app and the website."
+          accessibilityHint="Opens the confirmation. Nothing is deleted yet."
+          onPress={() => router.push("/delete-account" as Href)}
         />
+      </SettingsGroup>
+
+      <SettingsGroup label="About">
+        <FactRow first label="Version" value={versionLabel()} />
+        <FactRow label="API" value={API_HOST} />
+        <FactRow label="API status" value={statusValue} tone={statusTone} dot />
         {missing.length > 0 && (
-          <View style={[styles.row, styles.column]}>
+          <View style={styles.aboutNote}>
             <Text variant="body-sm" tone="secondary">
               Not set up on this deployment: {missing.map((entry) => entry.label).join(", ")}. Those features say so where you
               use them.
@@ -331,37 +251,24 @@ export default function SettingsScreen() {
           </View>
         )}
         {error !== null && (
-          <View style={[styles.row, styles.column]}>
+          <View style={styles.aboutNote}>
             <Text variant="body-sm" tone="negative" accessibilityLiveRegion="polite">
               {error}
             </Text>
-            <Button label="Check again" size="sm" onPress={check} />
+            <WideButton label="Check again" variant="outline" leading={RefreshCw} busy={checking} onPress={check} />
           </View>
         )}
-      </Group>
-    </DetailScreen>
+      </SettingsGroup>
+    </SettingsPage>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, minWidth: 0, gap: 2 },
-  group: { gap: 8 },
-  panel: {
-    borderRadius: radius.panel,
-    borderWidth: 1,
-    borderColor: color["border-subtle"],
-    backgroundColor: color["surface-panel"],
-    overflow: "hidden",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
+  aboutNote: {
     gap: 12,
-    minHeight: TOUCH_TARGET + 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth * 2,
+    borderTopColor: color["border-subtle"],
   },
-  column: { flexDirection: "column", alignItems: "stretch", gap: 8 },
-  ruled: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: color["border-subtle"] },
-  value: { flexShrink: 1, textAlign: "right" },
 });

@@ -4,14 +4,15 @@ import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
 import { ChevronDown, ChevronUp, GripVertical, Star, Trash2 } from "lucide-react-native";
 import { formatPriceUsd } from "@/lib/format";
 import type { PriceRow, PythAsset } from "@/lib/market/pyth/types";
+import { ChangeBadge } from "~/components/market/parts";
 import { PriceFlash } from "~/components/market/PriceFlash";
 import { IconButton } from "~/components/ui/controls";
 import { CoinMark } from "~/components/ui/marks";
 import { Skeleton } from "~/components/ui/layout";
 import { Text } from "~/components/ui/Text";
-import { Delta } from "~/components/ui/values";
 import { directionOf } from "~/lib/stores/market";
 import { useAppStore } from "~/lib/store";
+import { fontFamily } from "~/theme/fonts";
 import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -24,7 +25,7 @@ import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
    reader — and Remove.
 --------------------------------------------------------------------------- */
 
-export const ROW_HEIGHT = 64;
+export const ROW_HEIGHT = 72;
 
 export interface DragHandlers {
   onStart: () => void;
@@ -40,7 +41,10 @@ export function WatchRow({
   previous,
   seq,
   reorder = null,
+  last = false,
 }: {
+  /** The panel's last row: no separator under it. */
+  last?: boolean;
   symbol: string;
   asset: PythAsset | undefined;
   /** The catalogue answered and has no such market. */
@@ -63,13 +67,13 @@ export function WatchRow({
 
   const identity = (
     <>
-      <CoinMark symbol={symbol} logo={asset?.logo ?? null} size={32} />
+      <CoinMark symbol={symbol} logo={asset?.logo ?? null} size={40} />
       <View style={styles.names}>
-        <Text variant="data" numberOfLines={1}>
+        <Text variant="data" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.ticker}>
           {symbol}
         </Text>
         {name !== null ? (
-          <Text variant="label" tone="muted" numberOfLines={1}>
+          <Text variant="body" tone="muted" numberOfLines={1} maxFontSizeMultiplier={1.3}>
             {name}
           </Text>
         ) : (
@@ -85,7 +89,7 @@ export function WatchRow({
       <View style={styles.figures}>
         {row ? (
           <PriceFlash seq={seq} direction={directionOf(row, previous)}>
-            <Text variant="data" maxFontSizeMultiplier={1.3}>
+            <Text variant="data" maxFontSizeMultiplier={1.3} style={styles.price}>
               {formatPriceUsd(row.price)}
             </Text>
           </PriceFlash>
@@ -93,9 +97,7 @@ export function WatchRow({
           <Skeleton width={64} />
         )}
         {/* No 24h window from the exchanges: a dash, never an invented figure. */}
-        <View style={styles.delta}>
-          <Delta pct={row?.change24hPct ?? null} variant="data-sm" reason="No 24h change for this market." />
-        </View>
+        <ChangeBadge pct={row?.change24hPct ?? null} reason="No 24h change for this market." />
       </View>
     </>
   );
@@ -103,6 +105,7 @@ export function WatchRow({
   if (reorder !== null) {
     return (
       <View style={[styles.row, reorder.dragging && styles.dragging]}>
+        {!last && !reorder.dragging && <View style={styles.separator} />}
         <DragHandle handlers={reorder.drag} label={symbol} />
         {/* No prices while reordering: the row's room goes to the controls. */}
         {identity}
@@ -125,6 +128,7 @@ export function WatchRow({
 
   return (
     <View style={styles.row}>
+      {!last && <View style={styles.separator} />}
       <Pressable
         onPress={() => router.push({ pathname: "/asset/[symbol]", params: { symbol, ...(asset ? { id: String(asset.id) } : {}) } })}
         accessibilityRole="button"
@@ -139,7 +143,7 @@ export function WatchRow({
         accessibilityLabel={favorite ? `Remove ${symbol} from favourites` : `Add ${symbol} to favourites`}
         onPress={() => toggleFavorite(symbol)}
       >
-        <Star size={17} strokeWidth={1.5} color={favorite ? color.accent : color["text-muted"]} fill={favorite ? color.accent : "none"} />
+        <Star size={22} strokeWidth={1.5} color={favorite ? color.accent : color["text-secondary"]} fill={favorite ? color.accent : "none"} />
       </IconButton>
     </View>
   );
@@ -165,18 +169,30 @@ function DragHandle({ handlers, label }: { handlers: DragHandlers; label: string
 }
 
 const styles = StyleSheet.create({
+  /* One row of the watchlist panel: its sides are the panel's edges. */
   row: {
     height: ROW_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    borderBottomWidth: StyleSheet.hairlineWidth * 2,
-    borderBottomColor: color["border-subtle"],
-    backgroundColor: color["surface-base"],
+    paddingRight: 4,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: color["border-subtle"],
+    backgroundColor: color["surface-panel"],
+  },
+  separator: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth * 2,
+    backgroundColor: color["border-subtle"],
   },
   dragging: { backgroundColor: color["surface-raised"], borderRadius: radius.card, zIndex: 2, elevation: 2 },
-  main: { flex: 1, height: "100%", flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 4 },
-  names: { flex: 1, minWidth: 0 },
-  figures: { alignItems: "flex-end", flexShrink: 0 },
-  delta: { paddingHorizontal: 4 },
+  main: { flex: 1, height: "100%", flexDirection: "row", alignItems: "center", gap: 14, paddingLeft: 16 },
+  names: { flex: 1, minWidth: 0, gap: 2 },
+  ticker: { fontSize: 16, lineHeight: 22 },
+  price: { fontFamily: fontFamily("sans", 600), fontSize: 16, lineHeight: 22 },
+  figures: { alignItems: "flex-end", flexShrink: 0, gap: 4 },
   handle: { width: 36, height: TOUCH_TARGET, alignItems: "center", justifyContent: "center" },
 });

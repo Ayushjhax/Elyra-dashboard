@@ -14,9 +14,38 @@ import type { AppDelivery, PriceAlert } from "@/lib/alerts/types";
  * crossed and still read as armed until the next delivery pass. This is how
  * a screen says so honestly.
  */
-export function isPast(alert: PriceAlert, price: number | null | undefined): boolean {
+export function isPast(alert: Pick<PriceAlert, "direction" | "target">, price: number | null | undefined): boolean {
   if (price === null || price === undefined || !Number.isFinite(price)) return false;
   return alert.direction === "above" ? price >= alert.target : price <= alert.target;
+}
+
+/**
+ * How far a level sits from the price, as a per cent of the price — positive
+ * above it, negative below. Null without a usable price, never 0%.
+ */
+export function distancePct(target: number, price: number | null | undefined): number | null {
+  if (price === null || price === undefined || !Number.isFinite(price) || price <= 0) return null;
+  return ((target - price) / price) * 100;
+}
+
+export type TargetInput = { ok: true; value: number } | { ok: false; error: string | null };
+
+/**
+ * A level as typed: a plain decimal (a comma is read as the point), finite,
+ * above zero, and no finer than the precision it would be shown at
+ * (priceDecimals) — so the rule saved is the rule the person read. Empty is
+ * not yet an error.
+ */
+export function parseTarget(input: string): TargetInput {
+  const text = input.trim().replace(",", ".");
+  if (text === "") return { ok: false, error: null };
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(text)) return { ok: false, error: "Enter a price as a number, such as 104.50." };
+  const value = Number(text);
+  if (!Number.isFinite(value) || value <= 0) return { ok: false, error: "Enter a price above zero." };
+  const places = text.split(".")[1]?.length ?? 0;
+  const allowed = priceDecimals(value);
+  if (places > allowed) return { ok: false, error: `A price this size goes to ${allowed} decimal places.` };
+  return { ok: true, value };
 }
 
 /** How an alert reads in a list: fired, crossed but not yet delivered, or armed. */

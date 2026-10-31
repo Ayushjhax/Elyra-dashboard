@@ -1,3 +1,4 @@
+import type { StyleProp, TextStyle } from "react-native";
 import { formatCompactUsd, formatPct, formatUsd } from "@/lib/format";
 import { Text, type TextTone } from "~/components/ui/Text";
 import { useBalancesHidden } from "~/lib/store";
@@ -23,19 +24,21 @@ const MASK = "▒▒▒▒▒▒";
 interface FigureProps {
   variant?: TypeVariant;
   tone?: TextTone;
+  /** A size the type role does not carry — the wallet's headline total. */
+  style?: StyleProp<TextStyle>;
 }
 
-function Absent({ reason, variant = "data" }: { reason?: string; variant?: TypeVariant }) {
+function Absent({ reason, variant = "data", style }: { reason?: string; variant?: TypeVariant; style?: StyleProp<TextStyle> }) {
   return (
-    <Text variant={variant} tone="muted" accessibilityLabel={reason ? `Unavailable: ${reason}` : "Unavailable"}>
+    <Text variant={variant} tone="muted" accessibilityLabel={reason ? `Unavailable: ${reason}` : "Unavailable"} style={style}>
       —
     </Text>
   );
 }
 
-function Masked({ variant = "data" }: { variant?: TypeVariant }) {
+function Masked({ variant = "data", style }: { variant?: TypeVariant; style?: StyleProp<TextStyle> }) {
   return (
-    <Text variant={variant} tone="muted" accessibilityLabel="Hidden">
+    <Text variant={variant} tone="muted" accessibilityLabel="Hidden" style={style}>
       {MASK}
     </Text>
   );
@@ -50,6 +53,7 @@ export function Money({
   decimals = 2,
   variant = "data",
   tone = "primary",
+  style,
 }: {
   value: number | null;
   reason?: string;
@@ -58,8 +62,8 @@ export function Money({
   decimals?: number;
 } & FigureProps) {
   const hidden = useBalancesHidden();
-  if (value === null) return <Absent reason={reason} variant={variant} />;
-  if (hidden) return <Masked variant={variant} />;
+  if (value === null) return <Absent reason={reason} variant={variant} style={style} />;
+  if (hidden) return <Masked variant={variant} style={style} />;
 
   /* A balance worth less than the smallest step shown is not zero, and
      printing "$0.00" for it says it is. */
@@ -73,21 +77,26 @@ export function Money({
         : formatUsd(value, { decimals, sign });
 
   return (
-    <Text variant={variant} tone={tone}>
+    <Text variant={variant} tone={tone} style={style}>
       {text}
     </Text>
   );
 }
 
-/** A token quantity. Precision rises for small balances, never past 8. */
-export function Quantity({ value, variant = "data", tone = "primary" }: { value: number } & FigureProps) {
-  const hidden = useBalancesHidden();
-  if (hidden) return <Masked variant={variant} />;
+/** A token quantity as text. Precision rises for small balances, never past 8. */
+export function formatQuantity(value: number): string {
   const abs = Math.abs(value);
   const decimals = abs === 0 ? 2 : abs >= 1000 ? 2 : abs >= 1 ? 4 : abs >= 0.0001 ? 6 : 8;
+  return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: decimals });
+}
+
+/** A token quantity, masked with the other figures when balances are hidden. */
+export function Quantity({ value, variant = "data", tone = "primary", style }: { value: number } & FigureProps) {
+  const hidden = useBalancesHidden();
+  if (hidden) return <Masked variant={variant} style={style} />;
   return (
-    <Text variant={variant} tone={tone}>
-      {value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: decimals })}
+    <Text variant={variant} tone={tone} style={style}>
+      {formatQuantity(value)}
     </Text>
   );
 }

@@ -1,25 +1,22 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
 import {
   Bell,
-  ChevronRight,
   CircleHelp,
   Gift,
-  LayoutDashboard,
+  LayoutGrid,
   Link2,
-  LogOut,
   Settings,
   Wallet,
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
-import { AccountIdentity } from "~/components/account/Identity";
-import { Panel, Screen } from "~/components/ui/layout";
-import { Text } from "~/components/ui/Text";
-import { useElyraAuth } from "~/lib/auth/AuthProvider";
+import { AccountIdentityCard } from "~/components/account/Identity";
+import { AccountMenuGroup, AccountMenuRow, SignOutRow } from "~/components/account/menu";
+import { FlowTitle, Pill } from "~/components/shell/flow";
+import { Screen } from "~/components/ui/layout";
 import { useAlerts } from "~/lib/stores/alerts";
-import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
+import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
    The Account tab — the website's rail account menu and its Account card,
@@ -27,7 +24,13 @@ import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
    Who is signed in first (the same identity the account sheet shows), then
    the account's parts — wallet, notifications, rules, connections,
-   referrals — then the app's own settings, help and legal, and signing out.
+   referrals, the dashboard — then the app's own settings, help and legal,
+   and signing out, apart in muted coral.
+
+   Two rows carry a badge. The armed count is the account's live rules (the
+   same store Alerts & automation reads), shown once the read has landed and
+   only when there is one to count. "Read-only" is always true of
+   connections: Elyra reads venues and places, closes or cancels nothing.
 --------------------------------------------------------------------------- */
 
 interface Row {
@@ -38,12 +41,12 @@ interface Row {
 }
 
 const ACCOUNT: Row[] = [
-  { href: "/wallet", label: "Wallet", note: "Balance, assets and actions", icon: Wallet },
-  { href: "/notification-settings", label: "Notifications", note: "Push, inbox and the updates you want", icon: Bell },
-  { href: "/automation", label: "Alerts & automation", note: "The price rules Elyra watches for you", icon: Zap },
-  { href: "/connections", label: "Connections", note: "Hyperliquid, Binance and Polymarket — read-only", icon: Link2 },
-  { href: "/referrals", label: "Referrals", note: "Your invite link, points and who joined", icon: Gift },
-  { href: "/dashboard", label: "Dashboard", note: "Holdings, network, account and linked logins", icon: LayoutDashboard },
+  { href: "/wallet", label: "Wallet", note: "Balances, assets and actions", icon: Wallet },
+  { href: "/notification-settings", label: "Notifications", note: "Inbox and push preferences", icon: Bell },
+  { href: "/automation", label: "Alerts & automation", note: "Your price rules", icon: Zap },
+  { href: "/connections", label: "Connections", note: "Hyperliquid, Binance and Polymarket", icon: Link2 },
+  { href: "/referrals", label: "Referrals", note: "Invite link, points and friends", icon: Gift },
+  { href: "/dashboard", label: "Dashboard", note: "Holdings, network and linked logins", icon: LayoutGrid },
 ];
 
 const APP: Row[] = [
@@ -51,110 +54,61 @@ const APP: Row[] = [
   { href: "/legal", label: "Help & legal", note: "Support, policies, disclosures and licences", icon: CircleHelp },
 ];
 
-function Rows({ rows, meta }: { rows: Row[]; meta?: Partial<Record<string, string>> }) {
+function Rows({ rows, badges = {} }: { rows: Row[]; badges?: Partial<Record<string, React.ReactNode>> }) {
   return (
-    <View style={styles.links}>
+    <AccountMenuGroup>
       {rows.map((row, index) => (
-        <Pressable
+        <AccountMenuRow
           key={row.label}
+          icon={row.icon}
+          label={row.label}
+          note={row.note}
+          badge={badges[row.label]}
+          first={index === 0}
           onPress={() => router.push(row.href)}
-          accessibilityRole="button"
-          accessibilityHint={row.note}
-          android_ripple={{ color: color["surface-hover"] }}
-          style={[styles.link, index < rows.length - 1 && styles.ruled]}
-        >
-          <row.icon size={18} strokeWidth={1.5} color={color["text-secondary"]} />
-          <View style={styles.flex}>
-            <Text variant="body">{row.label}</Text>
-            <Text variant="label" tone="muted">
-              {row.note}
-            </Text>
-          </View>
-          {meta?.[row.label] !== undefined && (
-            <Text variant="data-sm" tone="secondary">
-              {meta[row.label]}
-            </Text>
-          )}
-          <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />
-        </Pressable>
+        />
       ))}
-    </View>
+    </AccountMenuGroup>
   );
 }
 
 export default function AccountScreen() {
-  const auth = useElyraAuth();
   const alerts = useAlerts();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const armed = alerts.alerts.filter((alert) => alert.triggeredAt === null).length;
-
-  const signOut = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await auth.logout();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Signing out failed. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const counted = !alerts.loading && alerts.error === null;
 
   return (
-    <Screen>
-      <Panel style={styles.identity}>
-        <AccountIdentity />
-      </Panel>
-
-      <Rows rows={ACCOUNT} meta={alerts.loading || alerts.error !== null ? {} : { "Alerts & automation": `${armed} armed` }} />
-      <Rows rows={APP} />
-
-      <View style={styles.links}>
-        <Pressable
-          onPress={() => void signOut()}
-          accessibilityRole="button"
-          accessibilityState={{ busy }}
-          android_ripple={{ color: color["surface-hover"] }}
-          style={styles.link}
-        >
-          <LogOut size={18} strokeWidth={1.5} color={color.negative} />
-          <Text variant="body" tone="negative" style={styles.flex}>
-            {busy ? "Signing out…" : "Sign out"}
-          </Text>
-        </Pressable>
+    <Screen contentStyle={styles.content}>
+      <FlowTitle title="Account" />
+      <View style={styles.identity}>
+        <AccountIdentityCard />
       </View>
-      {error !== null && (
-        <Text variant="label" tone="negative" accessibilityLiveRegion="polite">
-          {error}
-        </Text>
-      )}
+
+      <Rows
+        rows={ACCOUNT}
+        badges={{
+          "Alerts & automation":
+            counted && armed > 0 ? (
+              <Pill tone="accent" accessibilityLabel={`${armed} armed ${armed === 1 ? "rule" : "rules"}`}>
+                {`${armed} armed`}
+              </Pill>
+            ) : undefined,
+          Connections: <Pill accessibilityLabel="Read-only">Read-only</Pill>,
+        }}
+      />
+      <Rows rows={APP} />
+      <SignOutRow />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, minWidth: 0 },
-  identity: { padding: 16 },
-  links: {
-    borderRadius: radius.panel,
+  content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32, gap: 16 },
+  identity: {
+    padding: 20,
+    borderRadius: radius.sheet,
     borderWidth: 1,
     borderColor: color["border-subtle"],
     backgroundColor: color["surface-panel"],
-    overflow: "hidden",
-  },
-  link: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: TOUCH_TARGET + 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  ruled: {
-    borderBottomWidth: StyleSheet.hairlineWidth * 2,
-    borderBottomColor: color["border-subtle"],
   },
 });

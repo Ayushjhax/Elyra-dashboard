@@ -1,11 +1,14 @@
 import { StyleSheet, View } from "react-native";
 import { Lock, ShieldCheck } from "lucide-react-native";
 import { BinanceCard, HyperliquidCard } from "~/components/connections/Exchanges";
-import { DetailScreen } from "~/components/portfolio/parts";
 import { PolymarketLink } from "~/components/research/prediction/PolymarketLink";
+import { GroupLabel, SettingsPage } from "~/components/shell/settings";
 import { Text } from "~/components/ui/Text";
+import { Notice } from "~/components/wallet/parts";
 import { useConnections } from "~/lib/stores/connections";
 import { usePortfolio } from "~/lib/stores/portfolio";
+import { usePredictionAccount } from "~/lib/stores/prediction";
+import { fontFamily } from "~/theme/fonts";
 import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -22,43 +25,69 @@ import { color, radius } from "~/theme/tokens";
 export default function ConnectionsScreen() {
   const feed = useConnections();
   const portfolio = usePortfolio();
+  /* The Polymarket card reads the same shared store; this is for refresh. */
+  const prediction = usePredictionAccount();
   return (
-    <DetailScreen title="Connections" onRefresh={feed.refetch} refreshing={feed.refreshing}>
-      <View style={styles.strip}>
-        <ShieldCheck size={16} strokeWidth={1.5} color={color.positive} />
+    <SettingsPage
+      title="Connections"
+      subtitle="Your capital, connected."
+      onRefresh={() => {
+        feed.refetch();
+        portfolio.refetch();
+        prediction.refetch();
+      }}
+      refreshing={feed.refreshing}
+    >
+      <View style={styles.strip} accessible accessibilityLabel="Read-only access. View balances and positions. No trading or transfers.">
+        <ShieldCheck size={30} strokeWidth={1.5} color={color["accent-hover"]} />
         <View style={styles.flex}>
-          <Text variant="body-sm">Read-only access</Text>
-          <Text variant="label" tone="secondary">
-            View balances and positions. Nothing here can place, change or cancel a trade.
+          <Text variant="body" style={styles.stripTitle}>
+            Read-only access
+          </Text>
+          <Text variant="body" tone="secondary" style={styles.stripText}>
+            View balances and positions. No trading or transfers.
           </Text>
         </View>
       </View>
-      {feed.error !== null && feed.data === null && (
-        <Text variant="body-sm" tone="negative">
-          Your connections could not be read. {feed.error}
-        </Text>
-      )}
-      <Text variant="eyebrow" tone="muted">
-        Exchanges
-      </Text>
-      <HyperliquidCard feed={feed} portfolio={portfolio} />
-      <BinanceCard feed={feed} portfolio={portfolio} />
-      <Text variant="eyebrow" tone="muted">
-        Prediction markets
-      </Text>
-      <PolymarketLink />
+      {feed.error !== null && feed.data === null && !feed.loading && <Notice tone="negative">Your connections could not be read. {feed.error}</Notice>}
+
+      <View style={styles.section}>
+        <GroupLabel>Exchanges</GroupLabel>
+        <HyperliquidCard feed={feed} portfolio={portfolio} />
+        <BinanceCard feed={feed} portfolio={portfolio} />
+      </View>
+
+      <View style={styles.section}>
+        <GroupLabel>Prediction markets</GroupLabel>
+        <PolymarketLink />
+      </View>
+
       <View style={styles.foot}>
-        <Lock size={12} strokeWidth={1.5} color={color["text-muted"]} />
-        <Text variant="label" tone="muted">
+        <Lock size={18} strokeWidth={1.5} color={color["text-secondary"]} />
+        <Text variant="body" tone="secondary" style={styles.footText}>
           Connection access stays read-only
         </Text>
       </View>
-    </DetailScreen>
+    </SettingsPage>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
-  strip: { flexDirection: "row", gap: 12, padding: 12, borderRadius: radius.card, borderWidth: 1, borderColor: color["border-subtle"] },
-  foot: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8 },
+  strip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: radius.sheet,
+    borderWidth: 1,
+    borderColor: color["border-subtle"],
+    backgroundColor: color["surface-panel"],
+  },
+  stripTitle: { fontFamily: fontFamily("sans", 500), fontSize: 17, lineHeight: 23 },
+  stripText: { fontSize: 15, lineHeight: 21 },
+  section: { gap: 12 },
+  foot: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 8 },
+  footText: { fontSize: 15, lineHeight: 21 },
 });

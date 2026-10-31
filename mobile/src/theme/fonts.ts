@@ -26,7 +26,18 @@ export const FONT_FILES = {
   GeneralSans_400Regular: require("../../assets/fonts/GeneralSans-Regular.otf"),
   GeneralSans_500Medium: require("../../assets/fonts/GeneralSans-Medium.otf"),
   GeneralSans_600SemiBold: require("../../assets/fonts/GeneralSans-Semibold.otf"),
+  DMSerifDisplay_400Regular: require("../../assets/fonts/DMSerifDisplay-Regular.ttf"),
 };
+
+/**
+ * A deliberate deviation (README, "Deliberate deviations"): DM Serif Display,
+ * a face the brand doc does not name, sets the sign-in screen's headline and
+ * footer line, the Markets tab's wordmark and title, and the wordmark and
+ * titles of Search, the inbox and notification settings (components/shell/
+ * flow.tsx). Those are its only uses — every other heading stays Fustat. SIL Open Font License 1.1
+ * (docs/THIRD_PARTY.md).
+ */
+export const DISPLAY_SERIF = "DMSerifDisplay_400Regular";
 
 const DISPLAY: Record<TypeRole["weight"], string> = {
   400: "Fustat_400Regular",

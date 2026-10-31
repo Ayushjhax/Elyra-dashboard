@@ -1,17 +1,17 @@
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import * as Clipboard from "expo-clipboard";
-import * as Haptics from "expo-haptics";
-import { Copy } from "lucide-react-native";
+import { Check, Copy } from "lucide-react-native";
 import { signInLabel } from "@/lib/account";
 import { truncateMiddle } from "@/lib/format";
 import { hyperliquidIcon } from "@/lib/market/tickerLogoData";
-import { walletIdentity, walletStatus, type WalletTone } from "@/lib/wallet/status";
+import { walletIdentity, walletStatus, type WalletReadState, type WalletTone } from "@/lib/wallet/status";
 import { IconButton } from "~/components/ui/controls";
 import { CoinMark, Identicon } from "~/components/ui/marks";
-import { useToast } from "~/components/ui/overlays";
 import { Text } from "~/components/ui/Text";
+import { useCopy } from "~/components/wallet/parts";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
 import { useWalletDashboard } from "~/lib/stores/wallet";
+import { fontFamily } from "~/theme/fonts";
 import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -19,6 +19,9 @@ import { color, radius } from "~/theme/tokens";
    and whether the wallet read is healthy, and the address with copy. The
    account sheet and the Account tab both show it, from the same stores, so
    the two cannot describe different wallets.
+
+   The address is shown shortened and copied whole. Copying says so twice —
+   a toast, and the button's tick for a moment — so it is not missed.
 --------------------------------------------------------------------------- */
 
 const DOT: Record<WalletTone, string> = {
@@ -28,29 +31,83 @@ const DOT: Record<WalletTone, string> = {
   muted: color["text-muted"],
 };
 
-export function AccountIdentity() {
-  const auth = useElyraAuth();
-  const wallet = useWalletDashboard();
-  const toast = useToast();
+const SOL_LOGO = hyperliquidIcon("SOL");
+const COPIED_MS = 1600;
 
-  const identity = walletIdentity(wallet);
+/** The wallet read's state as a dot and a word — the word, so it is not told by colour alone. */
+export function ConnectionStatusBadge({ wallet }: { wallet: WalletReadState }) {
   const status = walletStatus(wallet);
-  const method = signInLabel(auth.account?.loginMethod ?? null);
+  return (
+    <View style={styles.status} accessible accessibilityLabel={`Wallet ${status.label.toLowerCase()}`}>
+      <View style={[styles.dot, { backgroundColor: DOT[status.tone] }]} />
+      <Text variant="body" tone={status.tone === "negative" ? "negative" : "secondary"} numberOfLines={1} style={styles.statusText}>
+        {status.label}
+      </Text>
+    </View>
+  );
+}
 
-  const copy = async (address: string) => {
-    await Clipboard.setStringAsync(address);
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast("Copied the wallet address", "positive");
+/** The address in an inset box, shortened to fit, with a copy button that copies all of it. */
+export function WalletAddressRow({ address }: { address: string }) {
+  const copy = useCopy();
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+  }, []);
+
+  const onCopy = async () => {
+    await copy(address, "wallet address");
+    setCopied(true);
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), COPIED_MS);
   };
+
+  return (
+    <View style={styles.address}>
+      <Text
+        variant="body"
+        numberOfLines={1}
+        ellipsizeMode="middle"
+        accessibilityLabel={`Wallet address ${address}`}
+        style={[styles.flex, styles.addressText]}
+      >
+        {truncateMiddle(address, 6, 6)}
+      </Text>
+      <IconButton accessibilityLabel={copied ? "Copied the wallet address" : "Copy the wallet address"} onPress={() => void onCopy()}>
+        {copied ? (
+          <Check size={22} strokeWidth={1.75} color={color.positive} />
+        ) : (
+          <Copy size={22} strokeWidth={1.5} color={color["text-secondary"]} />
+        )}
+      </IconButton>
+    </View>
+  );
+}
+
+/**
+ * The identity block: avatar, account and sign-in method, network and
+ * status, address. It reads the shared wallet store unless handed a reading.
+ */
+export function AccountIdentityCard({ wallet: given }: { wallet?: WalletReadState } = {}) {
+  const auth = useElyraAuth();
+  const store = useWalletDashboard();
+  const wallet = given ?? store;
+  const identity = walletIdentity(wallet);
+  const method = signInLabel(auth.account?.loginMethod ?? null);
 
   return (
     <View style={styles.body}>
       <View style={styles.identity}>
-        <Identicon identity={identity?.mark ?? null} size={44} />
+        <View style={styles.avatar}>
+          <Identicon identity={identity?.mark ?? null} size={60} active />
+        </View>
         <View style={styles.flex}>
-          <Text variant="h2">Your account</Text>
+          <Text variant="body" numberOfLines={1} style={styles.name}>
+            Your account
+          </Text>
           {method !== null && (
-            <Text variant="body-sm" tone="secondary">
+            <Text variant="body" tone="secondary" numberOfLines={1} style={styles.method}>
               {method}
             </Text>
           )}
@@ -58,46 +115,54 @@ export function AccountIdentity() {
       </View>
 
       <View style={styles.network}>
-        <CoinMark symbol="SOL" fallbackLogo={hyperliquidIcon("SOL")} size={18} />
-        <Text variant="body-sm" style={styles.flex}>
+        <CoinMark symbol="SOL" logo={SOL_LOGO} size={30} />
+        <Text variant="body" numberOfLines={1} style={[styles.flex, styles.networkText]}>
           {identity?.networkLabel ?? "Solana"}
         </Text>
-        <View style={[styles.dot, { backgroundColor: DOT[status.tone] }]} />
-        <Text variant="label" tone="secondary">
-          {status.tone === "positive" ? "Wallet connected" : status.label}
-        </Text>
+        <ConnectionStatusBadge wallet={wallet} />
       </View>
 
       {identity === null ? (
-        <Text variant="body-sm" tone="secondary">
+        <Text variant="body" tone="secondary">
           {wallet.isLoading ? "Reading your wallet…" : "This account has no Solana wallet yet."}
         </Text>
       ) : (
-        <View style={styles.address}>
-          <Text variant="mono-addr" style={styles.flex} accessibilityLabel={`Wallet address ${identity.address}`}>
-            {truncateMiddle(identity.address, 6, 6)}
-          </Text>
-          <IconButton accessibilityLabel="Copy the wallet address" onPress={() => void copy(identity.address)}>
-            <Copy size={16} strokeWidth={1.5} color={color["text-secondary"]} />
-          </IconButton>
-        </View>
+        <WalletAddressRow address={identity.address} />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  body: { gap: 14 },
-  identity: { flexDirection: "row", alignItems: "center", gap: 12 },
-  network: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  flex: { flex: 1, minWidth: 0 },
+  body: { gap: 16 },
+  identity: { flexDirection: "row", alignItems: "center", gap: 16 },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: color.positive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  name: { fontFamily: fontFamily("sans", 500), fontSize: 19, lineHeight: 25 },
+  method: { fontSize: 16, lineHeight: 22 },
+  network: { flexDirection: "row", alignItems: "center", gap: 12 },
+  networkText: { fontSize: 16, lineHeight: 22 },
+  status: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
+  statusText: { fontSize: 15, lineHeight: 20 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   address: {
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 12,
-    borderRadius: radius.control,
+    minHeight: 56,
+    paddingLeft: 16,
+    paddingRight: 4,
+    borderRadius: radius.panel,
     borderWidth: 1,
-    borderColor: color["border-subtle"],
+    borderColor: color["border-strong"],
+    backgroundColor: color["surface-base"],
   },
+  addressText: { fontFamily: fontFamily("sans", 500), fontSize: 16, lineHeight: 22, letterSpacing: 0.3 },
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertState, appDeliveryFor, isPast, suggestedTarget } from "@/lib/alerts/rules";
+import { alertState, appDeliveryFor, distancePct, isPast, parseTarget, suggestedTarget } from "@/lib/alerts/rules";
 import type { PriceAlert } from "@/lib/alerts/types";
 
 const above: PriceAlert = { id: "a", symbol: "SOL", direction: "above", target: 200, createdPrice: 180, triggeredAt: null };
@@ -26,5 +26,26 @@ describe("alert rules", () => {
     expect(appDeliveryFor({ priceAlertsOn: true, hasApp: true, canPush: false })).toBe("inbox");
     expect(appDeliveryFor({ priceAlertsOn: false, hasApp: true, canPush: true })).toBe("off");
     expect(appDeliveryFor({ priceAlertsOn: true, hasApp: false, canPush: false })).toBe("none");
+  });
+
+  it("measures a level's distance from the price, and has none without a price", () => {
+    expect(distancePct(110, 100)).toBeCloseTo(10);
+    expect(distancePct(95, 100)).toBeCloseTo(-5);
+    expect(distancePct(110, null)).toBeNull();
+    expect(distancePct(110, 0)).toBeNull();
+  });
+
+  it("parses a typed level: finite, above zero, at the precision it is shown at", () => {
+    expect(parseTarget("")).toEqual({ ok: false, error: null });
+    expect(parseTarget("104.5560")).toEqual({ ok: true, value: 104.556 });
+    expect(parseTarget("0,06654")).toEqual({ ok: true, value: 0.06654 });
+    expect(parseTarget(".5")).toEqual({ ok: true, value: 0.5 });
+    expect(parseTarget("0").ok).toBe(false);
+    expect(parseTarget("1e3").ok).toBe(false);
+    expect(parseTarget("1.2.3").ok).toBe(false);
+    expect(parseTarget("Infinity").ok).toBe(false);
+    /* 104 takes four places; a fifth would be saved but never shown. */
+    expect(parseTarget("104.55601")).toEqual({ ok: false, error: "A price this size goes to 4 decimal places." });
+    expect(parseTarget("0.00000421")).toEqual({ ok: true, value: 0.00000421 });
   });
 });

@@ -22,12 +22,13 @@ import { useInbox } from "~/lib/notifications/stores";
    The identicon is drawn from the network and the full address, and is the
    neutral mark until the wallet's address is known.
 
-   `brand` is the Markets and Account tabs' version: the gold emblem and a serif "Elyra"
+   `brand` is the Markets, Account and Research tabs' version (`wordmark`
+   puts the tab's own name beside the emblem, as Research does): the gold emblem and a serif "Elyra"
    wordmark over a faint olive glow, no rule beneath, because the screen
    below carries its own serif title (README, "Deliberate deviations").
 --------------------------------------------------------------------------- */
 
-export function AppHeader({ title, brand = false }: { title: string; brand?: boolean }) {
+export function AppHeader({ title, brand = false, wordmark = "Elyra" }: { title: string; brand?: boolean; wordmark?: string }) {
   const { width } = useWindowDimensions();
   const unread = useInbox().unread;
   const insets = useSafeAreaInsets();
@@ -38,10 +39,10 @@ export function AppHeader({ title, brand = false }: { title: string; brand?: boo
     <View style={[styles.header, brand && styles.headerBrand, { paddingTop: insets.top }]}>
       {brand && <Glow size={width * 1.1} strength={0.8} style={{ top: -width * 0.62, left: width * -0.05 }} />}
       {brand ? (
-        <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel={`Elyra, ${title}`}>
+        <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel={wordmark === "Elyra" ? `Elyra, ${title}` : `Elyra ${title}`}>
           <Emblem size={38} />
           <NativeText maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.wordmark}>
-            Elyra
+            {wordmark}
           </NativeText>
         </View>
       ) : (

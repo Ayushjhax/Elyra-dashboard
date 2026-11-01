@@ -1,5 +1,5 @@
 import { describeRule } from "@/lib/prediction/alertTypes";
-import { cents, closing, points, probability, usdShort } from "~/components/research/prediction/format";
+import { cents, closing, marketLifecycle, points, probability, quoteCents, usdShort } from "~/components/research/prediction/format";
 
 /* How prediction figures and alert rules read in the app. */
 
@@ -34,5 +34,23 @@ describe("describeRule", () => {
     expect(describeRule({ kind: "price_below", threshold: 0.4 })).toBe("Falls below 40%");
     expect(describeRule({ kind: "probability_change", threshold: 5 })).toBe("Moves 5 points");
     expect(describeRule({ kind: "market_resolution", threshold: null })).toBe("Resolves");
+  });
+
+  it("never rounds an open quote into a resolved one", () => {
+    expect(quoteCents(0.9996)).toBe(">99.9¢");
+    expect(quoteCents(0.0004)).toBe("<0.1¢");
+    expect(quoteCents(1)).toBe("100¢");
+    expect(quoteCents(0)).toBe("0¢");
+    expect(quoteCents(0.945)).toBe("94.5¢");
+    expect(quoteCents(null)).toBe("—");
+  });
+
+  it("keeps past its close date apart from resolved", () => {
+    const now = Date.parse("2026-11-01T12:00:00Z");
+    expect(marketLifecycle({ status: "open", endsAt: "2026-10-31T00:00:00Z" }, now)).toBe("past-close");
+    expect(marketLifecycle({ status: "resolved", endsAt: "2026-10-31T00:00:00Z" }, now)).toBe("resolved");
+    expect(marketLifecycle({ closed: true, endsAt: null }, now)).toBe("closed");
+    expect(marketLifecycle({ status: "cancelled", endsAt: null }, now)).toBe("cancelled");
+    expect(marketLifecycle({ status: "open", endsAt: "2026-12-01T00:00:00Z" }, now)).toBe("open");
   });
 });

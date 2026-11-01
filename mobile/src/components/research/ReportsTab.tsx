@@ -1,16 +1,18 @@
-import { useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
-import { router } from "expo-router";
-import { ChevronRight, FileText } from "lucide-react-native";
+import { useRef, useState } from "react";
+import { Text as NativeText, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { ArrowRight, FileText, Search } from "lucide-react-native";
 import { reportRequest, type ReportKind } from "@/lib/research/intent";
 import { reportSettled, type ReportRecord } from "@/lib/research/reportTypes";
-import { Card, Chips, Empty, Loading, PdfButtons, Problem, Timestamp, styles as shared, useResearch } from "~/components/research/parts";
+import { Chips, Empty, Loading, PdfButtons, Problem, TabIntro, useResearch } from "~/components/research/parts";
+import { ReportCard } from "~/components/research/report";
+import { WideButton } from "~/components/shell/flow";
+import { Rule, SurfaceCard } from "~/components/shell/surface";
 import { Button } from "~/components/ui/controls";
 import { Text } from "~/components/ui/Text";
-import { TextField } from "~/components/ui/TextField";
 import { api, ApiError } from "~/lib/api";
 import { reportPdf } from "~/lib/pdf";
-import { color } from "~/theme/tokens";
+import { DISPLAY_SERIF, fontFamily } from "~/theme/fonts";
+import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
    Reports — the website's ReportsTab.
@@ -22,7 +24,8 @@ import { color } from "~/theme/tokens";
    failed one says why and can be sent again as an edited request.
 
    The API limits how often one person can start a report; its own sentence
-   ("Wait a moment and try again") is shown when it applies.
+   ("Wait a moment and try again") is shown when it applies. A request is
+   sent once: a second press while one is starting does nothing.
 --------------------------------------------------------------------------- */
 
 type Kind = ReportKind;
@@ -31,66 +34,32 @@ type Filter = "all" | "complete" | "running" | "failed";
 const STARTERS = ["NVDA latest earnings", "NVDA 10-Q", "MSFT 10-K"];
 const RUNNING_POLL_MS = 2_500;
 
-function statusLine(report: ReportRecord): string {
-  if (report.status === "complete") {
-    return report.quality === "verified_with_warnings"
-      ? "Saved · Verified with warnings"
-      : report.quality === "incomplete"
-        ? "Saved · Incomplete"
-        : "Saved · Complete";
-  }
-  if (report.status === "failed") return report.error ?? "Report failed";
-  return report.statusDetail ?? report.status;
-}
+const MAX_QUERY = 250;
 
 function ReportRow({ report, onEdit }: { report: ReportRecord; onEdit: () => void }) {
   const title = `${report.subjectName ?? report.query}${report.periodLabel ? ` · ${report.periodLabel}` : ""}`;
-  const complete = report.status === "complete";
-  const running = !reportSettled(report.status);
-  const body = (
-    <>
-      <View style={shared.row}>
-        <FileText size={18} strokeWidth={1.5} color={color["text-muted"]} />
-        <Text variant="body" style={shared.flex} numberOfLines={2}>
-          {title}
-        </Text>
-        {complete && <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />}
-      </View>
-      <Text variant="label" tone={report.status === "failed" ? "negative" : running ? "secondary" : "muted"} accessibilityLiveRegion={running ? "polite" : "none"}>
-        {statusLine(report)}
-      </Text>
-      <Timestamp at={report.createdAt} label="Created" />
-    </>
-  );
+  const pdf = report.status === "complete" && report.hasPdf;
+  const failed = report.status === "failed";
   return (
-    <Card>
-      {complete ? (
-        <Pressable
-          onPress={() => router.push({ pathname: "/report/[id]", params: { id: report.id } })}
-          accessibilityRole="button"
-          accessibilityLabel={`Open the report on ${title}`}
-          style={styles.open}
-        >
-          {body}
-        </Pressable>
-      ) : (
-        body
-      )}
-      {complete && report.hasPdf && (
-        <PdfButtons
-          title={title}
-          load={async () => {
-            const { url } = await api.get<{ url: string }>(`/api/research/reports/${encodeURIComponent(report.id)}/download?as=json`);
-            return reportPdf(url, title);
-          }}
-        />
-      )}
-      {report.status === "failed" && (
-        <View style={shared.row}>
-          <Button label="Edit request" size="sm" variant="ghost" onPress={onEdit} />
-        </View>
-      )}
-    </Card>
+    <ReportCard
+      report={report}
+      footer={
+        pdf || failed ? (
+          <>
+            {pdf && (
+              <PdfButtons
+                title={title}
+                load={async () => {
+                  const { url } = await api.get<{ url: string }>(`/api/research/reports/${encodeURIComponent(report.id)}/download?as=json`);
+                  return reportPdf(url, title);
+                }}
+              />
+            )}
+            {failed && <Button label="Edit request" size="sm" variant="ghost" onPress={onEdit} />}
+          </>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -102,10 +71,14 @@ export function ReportsTab({ active }: { active: boolean }) {
   const [kind, setKind] = useState<Kind>("auto");
   const [filter, setFilter] = useState<Filter>("all");
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const trimmed = query.trim();
+  const valid = trimmed.length > 0 && trimmed.length <= MAX_QUERY;
 
   const submit = async () => {
-    if (busy || query.trim().length === 0) return;
+    if (sending.current || !valid) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -115,6 +88,7 @@ export function ReportsTab({ active }: { active: boolean }) {
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : "Could not start that report.");
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -126,18 +100,37 @@ export function ReportsTab({ active }: { active: boolean }) {
 
   return (
     <View style={styles.tab}>
-      <Card>
-        <Text variant="h2">Create a report</Text>
-        <TextField
-          label="Company, ticker or research question"
-          value={query}
-          onChangeText={setQuery}
-          maxLength={250}
-          placeholder="NVDA, Microsoft, or a question…"
-          autoCapitalize="characters"
-          returnKeyType="go"
-          onSubmitEditing={() => void submit()}
-        />
+      <TabIntro title="Clarity starts here." lead="Research public companies with Elyra." />
+
+      <SurfaceCard>
+        <Text variant="body" accessibilityRole="header" style={styles.cardTitle}>
+          Create a report
+        </Text>
+        <View style={styles.field}>
+          <Text variant="body" tone="secondary" style={styles.label}>
+            Company, ticker or research question
+          </Text>
+          <View style={styles.input}>
+            <Search size={24} strokeWidth={1.5} color={color["text-primary"]} />
+            <TextInput
+              value={query}
+              onChangeText={(next) => {
+                setQuery(next);
+                setError(null);
+              }}
+              maxLength={MAX_QUERY}
+              placeholder="NVDA, Microsoft, or a question…"
+              placeholderTextColor={color["text-muted"]}
+              selectionColor={color.accent}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="go"
+              onSubmitEditing={() => void submit()}
+              accessibilityLabel="Company, ticker or research question"
+              style={styles.inputText}
+            />
+          </View>
+        </View>
         <Chips<Kind>
           label="Report type"
           value={kind}
@@ -149,33 +142,55 @@ export function ReportsTab({ active }: { active: boolean }) {
             { value: "10-K", label: "10-K" },
           ]}
         />
-        <Button label={busy ? "Starting…" : "Research"} variant="accent" loading={busy} disabled={busy || query.trim().length === 0} onPress={() => void submit()} />
-        <View style={shared.row}>
-          {STARTERS.map((starter) => (
-            <Button
-              key={starter}
-              label={starter}
-              size="sm"
-              variant="ghost"
-              onPress={() => {
-                setQuery(starter);
-                setKind("auto");
-              }}
-            />
-          ))}
-        </View>
-        <Text variant="label" tone="muted">
-          Built from SEC filings · XBRL · Public companies only.
-        </Text>
+        <WideButton
+          label={busy ? "Starting…" : "Research"}
+          variant={valid ? "accent" : "outline"}
+          trailing={busy ? undefined : ArrowRight}
+          busy={busy}
+          disabled={!valid}
+          onPress={() => void submit()}
+        />
         {error !== null && <Problem>{error}</Problem>}
-      </Card>
-
-      <View style={shared.heading}>
-        <Text variant="h2" style={shared.flex}>
-          Your reports{" "}
-          <Text variant="data" tone="muted">
-            {library.data ? reports.length : "—"}
+        <Rule />
+        <View style={styles.field}>
+          <Text variant="body" tone="secondary" style={styles.label}>
+            Suggested queries
           </Text>
+          <View style={styles.suggestions}>
+            {STARTERS.map((starter) => (
+              <Pressable
+                key={starter}
+                onPress={() => {
+                  setQuery(starter);
+                  setKind("auto");
+                  setError(null);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Use “${starter}”`}
+                style={({ pressed }) => [styles.suggestion, pressed && styles.pressed]}
+              >
+                <Text variant="body" numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.suggestionText}>
+                  {starter}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <Rule />
+        <View style={styles.basis}>
+          <FileText size={22} strokeWidth={1.5} color={color["text-secondary"]} />
+          <Text variant="body" tone="secondary" style={[styles.flex, styles.basisText]}>
+            SEC filings · XBRL · Public companies only.
+          </Text>
+        </View>
+      </SurfaceCard>
+
+      <View style={styles.heading}>
+        <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.sectionTitle}>
+          Your reports
+        </NativeText>
+        <Text variant="data" tone="secondary" style={styles.count} accessibilityLabel={library.data ? `${reports.length} reports` : "Count loading"}>
+          {library.data ? String(reports.length) : "—"}
         </Text>
       </View>
       <Chips<Filter>
@@ -212,6 +227,37 @@ export function ReportsTab({ active }: { active: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  tab: { gap: 12 },
-  open: { gap: 4, minHeight: 48 },
+  tab: { gap: 16 },
+  flex: { flex: 1, minWidth: 0 },
+  pressed: { backgroundColor: color["surface-hover"] },
+  cardTitle: { fontFamily: fontFamily("sans", 500), fontSize: 20, lineHeight: 26 },
+  field: { gap: 10 },
+  label: { fontSize: 16, lineHeight: 22 },
+  input: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    minHeight: 60,
+    paddingHorizontal: 16,
+    borderRadius: radius.panel,
+    borderWidth: 1,
+    borderColor: color["border-strong"],
+    backgroundColor: color["surface-base"],
+  },
+  inputText: { flex: 1, minWidth: 0, minHeight: 56, color: color["text-primary"], fontFamily: fontFamily("sans", 400), fontSize: 17 },
+  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  suggestion: {
+    minHeight: TOUCH_TARGET,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: color["border-strong"],
+  },
+  suggestionText: { fontSize: 15, lineHeight: 20 },
+  basis: { flexDirection: "row", alignItems: "center", gap: 12 },
+  basisText: { fontSize: 15, lineHeight: 21 },
+  heading: { flexDirection: "row", alignItems: "baseline", gap: 12, marginTop: 8 },
+  sectionTitle: { fontFamily: DISPLAY_SERIF, fontSize: 30, lineHeight: 36, color: color["text-primary"] },
+  count: { fontSize: 18, lineHeight: 24 },
 });

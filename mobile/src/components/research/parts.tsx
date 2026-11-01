@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, AppState, Text as NativeText, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { formatCompactUsd, formatUsd } from "@/lib/format";
 import type { File } from "expo-file-system";
@@ -12,6 +12,7 @@ import { api, ApiError } from "~/lib/api";
 import { openPdf, sharePdf } from "~/lib/pdf";
 import { currentAccount, onAccountChange } from "~/lib/session";
 import { useAppStore } from "~/lib/store";
+import { DISPLAY_SERIF } from "~/theme/fonts";
 import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -172,15 +173,16 @@ export function Chips<T extends string | number>({
   value,
   options,
   onChange,
+  wrap = false,
 }: {
   label: string;
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
+  /** Flow onto further lines instead of scrolling sideways — for a short set in a card. */
+  wrap?: boolean;
 }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} accessibilityLabel={label} accessibilityRole="radiogroup">
-      {options.map((option) => {
+  const pills = options.map((option) => {
         const selected = option.value === value;
         return (
           <Pressable
@@ -191,13 +193,69 @@ export function Chips<T extends string | number>({
             hitSlop={6}
             style={[styles.chip, selected && styles.chipOn]}
           >
-            <Text key={selected ? "on" : "off"} variant="label" tone={selected ? "primary" : "secondary"} numberOfLines={1}>
+            <Text
+              key={selected ? "on" : "off"}
+              variant="body"
+              tone={selected ? "on-accent" : "primary"}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}
+              style={styles.chipLabel}
+            >
               {option.label}
             </Text>
           </Pressable>
         );
-      })}
+      });
+  if (wrap) {
+    return (
+      <View style={[styles.chips, styles.chipsWrap]} accessibilityLabel={label} accessibilityRole="radiogroup">
+        {pills}
+      </View>
+    );
+  }
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} accessibilityLabel={label} accessibilityRole="radiogroup">
+      {pills}
     </ScrollView>
+  );
+}
+
+/** A tab's serif headline and the line under it, directly below the tab strip. */
+export function TabIntro({ title, lead }: { title: string; lead: string }) {
+  return (
+    <View style={styles.intro}>
+      <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.introTitle}>
+        {title}
+      </NativeText>
+      <Text variant="body" tone="secondary" style={styles.introLead}>
+        {lead}
+      </Text>
+    </View>
+  );
+}
+
+/** A serif heading inside a card or over a list. */
+export function SerifHeading({ children, size = 28, right }: { children: string; size?: number; right?: ReactNode }) {
+  return (
+    <View style={styles.serifRow}>
+      <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.25} style={[styles.serif, { fontSize: size, lineHeight: Math.round(size * 1.22) }]}>
+        {children}
+      </NativeText>
+      {right}
+    </View>
+  );
+}
+
+/** "—— or build your own ——" */
+export function OrDivider({ children }: { children: string }) {
+  return (
+    <View style={styles.or} accessibilityRole="text">
+      <View style={styles.orLine} />
+      <Text variant="body" tone="secondary" style={styles.orText}>
+        {children}
+      </Text>
+      <View style={styles.orLine} />
+    </View>
   );
 }
 
@@ -321,15 +379,26 @@ export const styles = StyleSheet.create({
   },
   empty: { alignItems: "center", gap: 6, paddingVertical: 24, paddingHorizontal: 16 },
   chips: { gap: 8, paddingVertical: 2 },
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", rowGap: 10 },
+  intro: { gap: 4 },
+  introTitle: { fontFamily: DISPLAY_SERIF, fontSize: 38, lineHeight: 46, color: color["text-primary"], letterSpacing: -0.4 },
+  introLead: { fontSize: 17, lineHeight: 24 },
+  serifRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12 },
+  serif: { fontFamily: DISPLAY_SERIF, color: color["text-primary"], flexShrink: 1 },
+  or: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 4 },
+  orLine: { flex: 1, height: StyleSheet.hairlineWidth * 2, backgroundColor: color["border-strong"] },
+  orText: { fontSize: 16, lineHeight: 22 },
+  /* 44 tall plus the 6dp hit slop: a 48dp target. */
   chip: {
-    minHeight: 36,
+    minHeight: 44,
     justifyContent: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 18,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color["border-subtle"],
+    borderColor: color["border-strong"],
   },
-  chipOn: { borderColor: color["accent-quiet"], backgroundColor: color["surface-active"] },
+  chipOn: { borderColor: color["accent-hover"], backgroundColor: color["accent-hover"] },
+  chipLabel: { fontSize: 15, lineHeight: 20 },
   heading: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   pdf: { gap: 4 },
   card: {

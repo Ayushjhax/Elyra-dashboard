@@ -60,7 +60,8 @@ function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove
   );
 }
 
-export function Composer({ cryptoSymbol, onAsk }: { cryptoSymbol: string; onAsk: (prompt: string) => void }) {
+/** `suggestions` false while the conversation's own welcome offers the starters, so they are not shown twice. */
+export function Composer({ cryptoSymbol, onAsk, suggestions = true }: { cryptoSymbol: string; onAsk: (prompt: string) => void; suggestions?: boolean }) {
   const draft = useAppStore((state) => state.composerDraft);
   const setDraft = useAppStore((state) => state.setComposerDraft);
   const attachments = useAppStore((state) => state.composerAttachments);
@@ -79,7 +80,7 @@ export function Composer({ cryptoSymbol, onAsk }: { cryptoSymbol: string; onAsk:
   const transcribing = dictation.status === "transcribing";
   const shortcuts = isShortcutDraft(draft) ? matchingShortcuts(draft) : [];
   const canSend = (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && !transcribing && !recording;
-  const chips = draft.length === 0 && attachments.length === 0 ? suggestionChips(cryptoSymbol) : [];
+  const chips = suggestions && draft.length === 0 && attachments.length === 0 ? suggestionChips(cryptoSymbol) : [];
 
   const send = (line: string = draft) => {
     if (line.trim().length === 0 && useAppStore.getState().composerAttachments.length === 0) return;
@@ -174,6 +175,11 @@ export function Composer({ cryptoSymbol, onAsk }: { cryptoSymbol: string; onAsk:
         </ScrollView>
       )}
 
+      {draft.length === 0 && shortcuts.length === 0 && (
+        <Text variant="body-sm" tone="secondary" style={styles.status}>
+          Type / for shortcuts
+        </Text>
+      )}
       <View style={styles.box}>
         {attachments.length > 0 && (
           <View style={styles.staged} accessibilityLabel="Attached files">
@@ -198,7 +204,7 @@ export function Composer({ cryptoSymbol, onAsk }: { cryptoSymbol: string; onAsk:
             submitBehavior="newline"
             maxLength={4000}
             editable={!recording}
-            placeholder={pending ? "Elyra is working…" : recording ? "Listening…" : "Ask Elyra · / for shortcuts"}
+            placeholder={pending ? "Elyra is working…" : recording ? "Listening…" : "Ask Elyra…"}
             placeholderTextColor={color["text-muted"]}
             selectionColor={color.accent}
             accessibilityLabel="Ask Elyra"
@@ -264,7 +270,7 @@ export function Composer({ cryptoSymbol, onAsk }: { cryptoSymbol: string; onAsk:
 const styles = StyleSheet.create({
   wrap: {
     gap: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
@@ -292,7 +298,7 @@ const styles = StyleSheet.create({
     backgroundColor: color["surface-raised"],
   },
   box: {
-    borderRadius: radius.card,
+    borderRadius: radius.panel,
     borderWidth: 1,
     borderColor: color["border-strong"],
     backgroundColor: color["surface-raised"],

@@ -16,6 +16,7 @@ import { currentAccount } from "~/lib/session";
 
 export async function redirectSystemPath({ path }: { path: string; initial: boolean }): Promise<string> {
   try {
+    if (__DEV__ && path.includes("zz-preview")) return path.replace(/^elyra:\/\//, "/"); // TEMPORARY harness
     const target = resolveLink(path, { development: __DEV__ });
     switch (target.kind) {
       case "passthrough":

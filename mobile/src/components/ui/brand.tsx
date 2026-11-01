@@ -7,8 +7,8 @@ import { palette } from "~/theme/tokens";
    The gold emblem and its olive glow — the two brand moments outside the
    flat product (README, "Deliberate deviations"). The sign-in screen, the
    Markets and Account headers and the focused flows' bar (shell/flow.tsx —
-   search, notifications, wallet, alerts and the settings pages) use them;
-   nothing else does.
+   search, notifications, wallet, alerts and the settings pages) and the
+   Research header use them; nothing else does.
 
    The emblem is the original render with its background made transparent
    (assets/images/elyra-emblem.png), never a mockup crop. The glow is one

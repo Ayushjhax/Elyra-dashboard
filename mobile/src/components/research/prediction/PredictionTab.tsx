@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { Exposure } from "~/components/research/prediction/Exposure";
 import { AlertsList, SignalHistory, WatchedList } from "~/components/research/prediction/Lists";
 import { Markets } from "~/components/research/prediction/Markets";
-import { Chips } from "~/components/research/parts";
+import { Chips, TabIntro } from "~/components/research/parts";
 
 /* ---------------------------------------------------------------------------
    Prediction markets — read-only analytics and alerts. The website's
@@ -36,6 +36,7 @@ export function PredictionTab({ active }: { active: boolean }) {
   const [section, setSection] = useState<Section>("markets");
   return (
     <View style={styles.tab}>
+      <TabIntro title="Explore possibilities." lead="Discover markets. Follow the odds." />
       <Chips<Section> label="Prediction markets view" value={section} onChange={setSection} options={SECTIONS} />
       {section === "markets" && <Markets active={active} />}
       {section === "watchlist" && <WatchedList />}
@@ -47,5 +48,5 @@ export function PredictionTab({ active }: { active: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  tab: { gap: 12 },
+  tab: { gap: 16 },
 });

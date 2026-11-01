@@ -1,12 +1,16 @@
 import { useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { ArrowDown } from "lucide-react-native";
+import { FlatList, Text as NativeText, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, ChartPie, Flame, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react-native";
+import { suggestionChips } from "@/lib/agent/suggestions";
+import { hyperliquidIcon } from "@/lib/market/tickerLogoData";
 import type { ChatMessage } from "@/lib/types";
 import { MessageBubble } from "~/components/agent/MessageBubble";
-import { Button } from "~/components/ui/controls";
-import { ElyraMark } from "~/components/ui/marks";
+import { WideButton } from "~/components/shell/flow";
+import { Emblem, Glow } from "~/components/ui/brand";
+import { CoinMark } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
 import { useAppStore } from "~/lib/store";
+import { DISPLAY_SERIF, fontFamily } from "~/theme/fonts";
 import { color, popShadow, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -18,29 +22,96 @@ import { color, popShadow, radius } from "~/theme/tokens";
    way back. Virtualised, like every long list here.
 
    Empty, it invites a first question — no sample exchange, because a
-   conversation the person never had is a claim about their account.
+   conversation the person never had is a claim about their account. The
+   welcome names the selected market when it is crypto (Elyra's subject),
+   offers a brief on it and a few starters; each is sent once, through the
+   same path as the composer, and the welcome gives way to the
+   conversation as soon as it starts.
 --------------------------------------------------------------------------- */
 
 /** Further than this from the latest message offers the way back. */
 const AWAY_PX = 240;
 
-function Empty({ symbol, onAsk }: { symbol: string; onAsk: (prompt: string) => void }) {
-  const market = symbol || "the market";
+function Starter({ icon: Icon, label, disabled, onPress }: { icon: LucideIcon; label: string; disabled: boolean; onPress: () => void }) {
   return (
-    <View style={styles.empty}>
-      <ElyraMark size={44} />
-      <Text variant="h2" style={styles.center}>
-        Ask Elyra about crypto
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={`Ask: ${label}`}
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [styles.starter, pressed && styles.pressed, disabled && styles.dim]}
+    >
+      <Icon size={24} strokeWidth={1.5} color={color["text-primary"]} />
+      <Text variant="body" style={[styles.flex, styles.starterText]}>
+        {label}
       </Text>
-      <Text variant="body-sm" tone="secondary" style={[styles.center, styles.measure]}>
-        Markets, tokens, protocols and on-chain mechanics, with live prices, funding, open interest and your connected accounts. It never places orders. Type / for shortcuts.
-      </Text>
-      <Button label={`Brief me on ${market}`} size="sm" onPress={() => onAsk(`Give me a brief on ${market} right now.`)} />
-    </View>
+      <ArrowUpRight size={22} strokeWidth={1.5} color={color["text-secondary"]} />
+    </Pressable>
   );
 }
 
-export function Conversation({ symbol, onAsk }: { symbol: string; onAsk: (prompt: string) => void }) {
+/** The emblem's box; the halo is centred on it. */
+const MARK = 140;
+
+const STARTER_ICONS: LucideIcon[] = [TrendingUp, ChartPie, Flame, BookOpen];
+
+function Empty({ symbol, logo, onAsk }: { symbol: string; logo: string | null; onAsk: (prompt: string) => void }) {
+  const pending = useAppStore((state) => state.agentPending);
+  const { width } = useWindowDimensions();
+  const halo = Math.round(Math.min(width, 420) * 0.9);
+  const subject = symbol || null;
+  /* The existing starters, with the market's exposure question beside its move. */
+  const [first, ...rest] = suggestionChips(symbol);
+  const starters = subject === null ? [first, ...rest] : [first, `Show my ${subject} exposure`, ...rest];
+  return (
+    <ScrollView contentContainerStyle={styles.empty} keyboardShouldPersistTaps="handled">
+      <View style={styles.hero}>
+        <View style={styles.mark}>
+          <Glow size={halo} strength={1} style={{ top: (MARK - halo) / 2, left: (MARK - halo) / 2 }} />
+          <Emblem size={112} />
+        </View>
+        {subject !== null && (
+          <View style={styles.asset} accessible accessibilityLabel={`Selected market: ${subject}`}>
+            <CoinMark symbol={subject} logo={logo} fallbackLogo={hyperliquidIcon(subject)} size={24} />
+            <Text variant="body" style={styles.assetText}>
+              {subject}
+            </Text>
+          </View>
+        )}
+        <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
+          {subject === null ? "Ask about crypto." : `Ask about ${subject}.`}
+        </NativeText>
+        <Text variant="body" tone="secondary" style={[styles.center, styles.lead]}>
+          Explore prices, funding, open interest and your connected accounts.
+        </Text>
+        <View style={styles.scope}>
+          <ShieldCheck size={18} strokeWidth={1.5} color={color["text-secondary"]} />
+          <Text variant="body" tone="secondary" style={styles.lead}>
+            Elyra never places orders.
+          </Text>
+        </View>
+      </View>
+      <WideButton
+        label={subject === null ? "Brief me on the market" : `Brief me on ${subject}`}
+        variant="accent"
+        trailing={ArrowRight}
+        disabled={pending}
+        onPress={() => onAsk(subject === null ? "Give me a brief on the crypto market right now." : `Give me a brief on ${subject} right now.`)}
+      />
+      <View style={styles.starters}>
+        <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.25} style={styles.heading}>
+          Start a conversation
+        </NativeText>
+        {starters.map((prompt, index) => (
+          <Starter key={prompt} icon={STARTER_ICONS[index] ?? TrendingUp} label={prompt} disabled={pending} onPress={() => onAsk(prompt)} />
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+export function Conversation({ symbol, logo = null, onAsk }: { symbol: string; logo?: string | null; onAsk: (prompt: string) => void }) {
   const messages = useAppStore((state) => state.messages);
   const pending = useAppStore((state) => state.agentPending);
   const streamingId = useAppStore((state) => state.streamingId);
@@ -58,8 +129,8 @@ export function Conversation({ symbol, onAsk }: { symbol: string; onAsk: (prompt
      transformed with it, differently on each platform. */
   if (messages.length === 0) {
     return (
-      <View style={[styles.fill, styles.emptyContent]}>
-        <Empty symbol={symbol} onAsk={onAsk} />
+      <View style={styles.fill}>
+        <Empty symbol={symbol} logo={logo} onAsk={onAsk} />
       </View>
     );
   }
@@ -107,10 +178,33 @@ export function Conversation({ symbol, onAsk }: { symbol: string; onAsk: (prompt
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { paddingVertical: 12 },
-  emptyContent: { justifyContent: "center" },
-  empty: { alignItems: "center", gap: 10, padding: 24 },
+  flex: { flex: 1, minWidth: 0 },
+  pressed: { backgroundColor: color["surface-hover"] },
+  dim: { opacity: 0.5 },
+  empty: { gap: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
+  hero: { alignItems: "center", gap: 12 },
+  mark: { width: MARK, height: MARK, alignItems: "center", justifyContent: "center" },
+  asset: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: color["border-strong"] },
+  assetText: { fontFamily: fontFamily("sans", 500), fontSize: 16, lineHeight: 22 },
+  title: { fontFamily: DISPLAY_SERIF, fontSize: 40, lineHeight: 48, color: color["text-primary"], textAlign: "center", letterSpacing: -0.4 },
   center: { textAlign: "center" },
-  measure: { maxWidth: 320 },
+  lead: { fontSize: 16, lineHeight: 23 },
+  scope: { flexDirection: "row", alignItems: "center", gap: 8 },
+  starters: { gap: 12 },
+  heading: { fontFamily: DISPLAY_SERIF, fontSize: 28, lineHeight: 34, color: color["text-primary"] },
+  starter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    minHeight: 60,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: radius.sheet,
+    borderWidth: 1,
+    borderColor: color["border-subtle"],
+    backgroundColor: color["surface-panel"],
+  },
+  starterText: { fontSize: 16, lineHeight: 22 },
   jump: {
     position: "absolute",
     bottom: 12,

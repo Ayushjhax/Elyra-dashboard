@@ -55,3 +55,33 @@ export function closing(endsAt: string | null | undefined, now: number, closed =
 
 /** Shown wherever probabilities are. */
 export const PRICES_NOT_FORECASTS = "Implied probabilities are prices set by traders on Polymarket, not forecasts by Elyra.";
+
+/**
+ * A quote in cents for a tile. Never rounds an open price into certainty:
+ * 0.9996 is ">99.9¢", not "100¢", and 0.0004 is "<0.1¢", not "0¢" — those
+ * would say the market has resolved. An exact 0 or 1 prints as it is.
+ */
+export function quoteCents(value: number | null | undefined): string {
+  if (!finite(value)) return "—";
+  if (value > 0.999 && value < 1) return ">99.9¢";
+  if (value > 0 && value < 0.001) return "<0.1¢";
+  return cents(value);
+}
+
+export type MarketLifecycle = "open" | "past-close" | "closed" | "resolved" | "cancelled";
+
+/**
+ * Where a market stands. Past its close date is NOT resolved: the provider
+ * says when it has resolved, and until then a market whose date has gone by
+ * is only that.
+ */
+export function marketLifecycle(
+  market: { status?: string | null; closed?: boolean; endsAt: string | null },
+  now: number,
+): MarketLifecycle {
+  if (market.status === "resolved") return "resolved";
+  if (market.status === "cancelled") return "cancelled";
+  if (market.status === "closed" || market.closed === true) return "closed";
+  const at = market.endsAt ? Date.parse(market.endsAt) : Number.NaN;
+  return Number.isFinite(at) && at < now ? "past-close" : "open";
+}

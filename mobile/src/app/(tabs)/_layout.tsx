@@ -53,11 +53,19 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="elyra"
-        options={{ title: "Elyra", tabBarIcon: ({ color: tint }) => <Sparkles {...ICON} color={tint} /> }}
+        options={{
+          title: "Elyra",
+          header: () => <AppHeader title="Elyra" brand />,
+          tabBarIcon: ({ color: tint }) => <Sparkles {...ICON} color={tint} />,
+        }}
       />
       <Tabs.Screen
         name="research"
-        options={{ title: "Research", tabBarIcon: ({ color: tint }) => <FileSearch {...ICON} color={tint} /> }}
+        options={{
+          title: "Research",
+          header: () => <AppHeader title="Research" brand wordmark="Research" />,
+          tabBarIcon: ({ color: tint }) => <FileSearch {...ICON} color={tint} />,
+        }}
       />
       <Tabs.Screen
         name="account"

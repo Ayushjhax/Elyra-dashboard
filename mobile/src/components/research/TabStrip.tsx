@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef } from "react";
 import { Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Text } from "~/components/ui/Text";
+import { fontFamily } from "~/theme/fonts";
 import { color } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -97,7 +98,7 @@ export function TabStrip<T extends string>({
               accessibilityState={{ selected }}
               style={[styles.tab, selected && styles.tabOn]}
             >
-              <Text key={selected ? "on" : "off"} variant="label" tone={selected ? "primary" : "secondary"} numberOfLines={1}>
+              <Text key={selected ? "on" : "off"} variant="body" tone={selected ? "primary" : "secondary"} numberOfLines={1} maxFontSizeMultiplier={1.3} style={selected ? styles.labelOn : styles.label}>
                 {tab.label}
               </Text>
             </Pressable>
@@ -113,8 +114,10 @@ export function TabStrip<T extends string>({
 const styles = StyleSheet.create({
   wrap: { borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: color["border-subtle"] },
   strip: { paddingHorizontal: 12 },
-  tab: { minHeight: 48, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
-  tabOn: { borderBottomColor: color.accent },
+  tab: { minHeight: 52, justifyContent: "center", paddingHorizontal: 14, borderBottomWidth: 3, borderBottomColor: "transparent" },
+  tabOn: { borderBottomColor: color["accent-hover"] },
+  label: { fontSize: 16, lineHeight: 22 },
+  labelOn: { fontSize: 16, lineHeight: 22, fontFamily: fontFamily("sans", 500) },
   fade: { position: "absolute", top: 0, bottom: 0, width: FADE },
   left: { left: 0 },
   right: { right: 0 },

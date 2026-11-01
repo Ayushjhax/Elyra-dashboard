@@ -71,7 +71,7 @@ export default function ResearchScreen() {
       case "prediction":
         return <PredictionTab active={active} />;
       case "recap":
-        return <RecapTab active={active} />;
+        return <RecapTab active={active} onTab={select} />;
       case "signals":
         return <SignalsTab active={active} />;
       case "yield":
@@ -87,24 +87,30 @@ export default function ResearchScreen() {
     <View style={styles.screen}>
       <TabStrip tabs={TABS} value={tab} onChange={select} label="Research" />
       {TABS.filter(({ id }) => visited.has(id)).map(({ id }) => (
-        <ScrollView
-          key={`${id}-${id === tab ? generation : 0}`}
-          style={id === tab ? styles.fill : styles.hidden}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          refreshControl={
-            <RefreshControl
-              refreshing={false}
-              onRefresh={() => setGeneration((value) => value + 1)}
-              tintColor={color.accent}
-              colors={[color.accent]}
-              progressBackgroundColor={color["surface-raised"]}
-            />
-          }
-        >
-          {render(id)}
-        </ScrollView>
+        /* Hidden on a plain View. On Android a ScrollView with a refresh
+           control is wrapped in one, and only layout styles reach the
+           wrapper — `display: none` did not, so a tab left behind kept its
+           flex: 1 and took half the screen as blank space above the one
+           shown. */
+        <View key={`${id}-${id === tab ? generation : 0}`} style={id === tab ? styles.fill : styles.hidden}>
+          <ScrollView
+            style={styles.fill}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            refreshControl={
+              <RefreshControl
+                refreshing={false}
+                onRefresh={() => setGeneration((value) => value + 1)}
+                tintColor={color.accent}
+                colors={[color.accent]}
+                progressBackgroundColor={color["surface-raised"]}
+              />
+            }
+          >
+            {render(id)}
+          </ScrollView>
+        </View>
       ))}
     </View>
   );
@@ -114,5 +120,5 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color["surface-base"] },
   fill: { flex: 1 },
   hidden: { display: "none" },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
 });

@@ -1062,7 +1062,7 @@ workspace redesign returned the surfaces to 1.3's shades of Ink and the
 product to section 3's flat elevation.
 
 **The app's sign-in screen, the Markets and Account headers, and the search,
-notification, wallet, account, alerts and settings flows** are the one deviation on
+notification, wallet, account, alerts, settings, dashboard and research flows** are the one deviation on
 Android, and they stop there. They show the original gold Elyra emblem
 (`mobile/assets/images/elyra-emblem.png`, cut from the pre-light
 `elyra-mark.png` render) over a faint olive radial fade drawn in SVG
@@ -1075,6 +1075,11 @@ the wordmark, page titles and headings of Search, the inbox, notification
 settings, the wallet and Alerts & automation (`mobile/src/components/shell/flow.tsx`),
 the titles, subtitles and card headings of Connections, Referrals, Settings and
 Help & legal (`mobile/src/components/shell/settings.tsx`, `mobile/src/components/referrals/parts.tsx`),
+the Research tab's "Research" beside the emblem, its tabs' headlines and card headings
+(`TabIntro` and `SerifHeading` in `mobile/src/components/research/parts.tsx`),
+and the titles and headings of the dashboard and research reports
+(`mobile/src/components/shell/flow.tsx`'s `TitleBar`, `mobile/src/components/research/report.tsx`,
+`mobile/src/components/research/ReportsTab.tsx`),
 and the titles of the sheets those flows open — the account sheet, Add funds
 and New price rule (`BottomSheet`'s `display`, `mobile/src/components/ui/overlays.tsx`).
 There is no blur and no glass, every colour is still a brand token, and every

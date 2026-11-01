@@ -90,6 +90,53 @@ export function FlowBar({
   );
 }
 
+/**
+ * A pushed screen's bar with its title in it: a round back button, the
+ * serif title, and a round refresh where there is something to read again
+ * (the dashboard, a report). The title shrinks rather than wraps.
+ */
+export function TitleBar({
+  title,
+  onRefresh,
+  refreshing = false,
+  backLabel = "Back",
+}: {
+  title: string;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+  backLabel?: string;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  return (
+    <View style={[styles.titleBar, { paddingTop: insets.top + 6 }]}>
+      <Glow size={width * 1.1} strength={0.6} style={{ top: -width * 0.7, left: width * -0.05 }} />
+      <BarButton label={backLabel} round onPress={closeFlow}>
+        <ArrowLeft size={22} strokeWidth={1.5} color={color["text-primary"]} />
+      </BarButton>
+      <NativeText
+        accessibilityRole="header"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+        maxFontSizeMultiplier={1.2}
+        style={styles.titleBarText}
+      >
+        {title}
+      </NativeText>
+      {onRefresh !== undefined && (
+        <BarButton label={refreshing ? "Refreshing" : "Refresh"} round onPress={onRefresh} disabled={refreshing}>
+          {refreshing ? (
+            <ActivityIndicator size="small" color={color["text-secondary"]} />
+          ) : (
+            <RefreshCw size={20} strokeWidth={1.5} color={color["text-primary"]} />
+          )}
+        </BarButton>
+      )}
+    </View>
+  );
+}
+
 /** The serif page title, with an optional line under it — in the serif too when `serifSubtitle`. */
 export function FlowTitle({ title, subtitle, serifSubtitle = false, style }: { title: string; subtitle?: string; serifSubtitle?: boolean; style?: ViewStyle }) {
   const { width } = useWindowDimensions();
@@ -255,6 +302,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   barBack: { paddingLeft: 4 },
+  titleBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingLeft: 8,
+    paddingRight: 8,
+    paddingBottom: 8,
+    backgroundColor: color["surface-base"],
+    overflow: "hidden",
+  },
+  titleBarText: { flex: 1, minWidth: 0, fontFamily: DISPLAY_SERIF, fontSize: 34, lineHeight: 42, color: color["text-primary"], letterSpacing: -0.4, marginLeft: 8 },
   round: {
     width: 44,
     height: 44,

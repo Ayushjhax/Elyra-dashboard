@@ -1,0 +1,31 @@
+{
+  "name": "elyra-teaser",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Elyra 20-second mobile teaser \u2014 Remotion project (isolated from the Next app and the Expo app).",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render ElyraTeaser ../../output/teaser-20s/elyra-teaser-20s-16x9.mp4 && scripts/finalize.sh",
+    "render:4k": "remotion render ElyraTeaser ../../output/teaser-20s/elyra-teaser-20s-16x9-4k.mp4 --scale=2 && scripts/finalize.sh ../../output/teaser-20s/elyra-teaser-20s-16x9-4k.mp4",
+    "stills": "scripts/deliver-stills.sh",
+    "audio": "python3 audio/synth.py",
+    "typecheck": "tsc --noEmit",
+    "qc": "scripts/qc.sh ../../output/teaser-20s/elyra-teaser-20s-16x9.mp4 out/qc"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.539",
+    "@remotion/cli": "^4.0.539",
+    "@remotion/fonts": "^4.0.539",
+    "@remotion/media": "^4.0.539",
+    "@remotion/renderer": "^4.0.539",
+    "lucide-react": "^1.66.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}

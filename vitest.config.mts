@@ -30,6 +30,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", ".next/**", "elyra-signals/**", "mobile/**"],
+    exclude: ["node_modules/**", ".next/**", "elyra-signals/**", "mobile/**", "marketing/**"],
   },
 });

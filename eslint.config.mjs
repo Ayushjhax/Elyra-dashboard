@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // The Expo app has its own toolchain and lint config.
     "mobile/**",
+    // The teaser film (marketing/elyra-teaser) is a standalone Remotion project.
+    "marketing/**",
   ]),
 ]);
 

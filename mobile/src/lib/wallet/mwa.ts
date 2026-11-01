@@ -86,10 +86,13 @@ export async function withWallet<T>(
 /**
  * The 64-byte signature out of what signMessages returns. The protocol hands
  * back the signed payload; wallets return either the bare signature or the
- * message with the signature appended, so both are read.
+ * message with the signature appended, so both are read — the latter only
+ * when what precedes the signature is the message that was sent.
  */
 export function signatureFrom(signed: Uint8Array, message: Uint8Array): Uint8Array {
   if (signed.length === 64) return signed;
-  if (signed.length === message.length + 64) return signed.slice(message.length);
+  if (signed.length === message.length + 64 && message.every((byte, index) => signed[index] === byte)) {
+    return signed.slice(message.length);
+  }
   throw new Error("The wallet returned a signature Elyra could not read.");
 }

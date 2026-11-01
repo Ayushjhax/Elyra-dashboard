@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { apiUrl, authHeaders, ApiError } from "~/lib/api";
+import { webUrl } from "~/lib/links";
 
 /* ---------------------------------------------------------------------------
    A research PDF, on the phone.
@@ -58,6 +59,8 @@ export async function backtestPdf(id: string, title: string): Promise<File> {
 
 /** A report's stored PDF, through the short-lived link the API signs for it. */
 export async function reportPdf(signedUrl: string, title: string): Promise<File> {
+  /* Fetched with no headers, but still only over https. */
+  if (!/^https:\/\//i.test(webUrl(signedUrl) ?? "")) throw new ApiError("The PDF could not be downloaded. Try again.", 0);
   return download(signedUrl, pdfName(title), undefined);
 }
 

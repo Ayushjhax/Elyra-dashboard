@@ -14,6 +14,9 @@ import { serviceClient } from "@/lib/supabase/server";
 --------------------------------------------------------------------------- */
 
 export const WATCHLIST_MAX = 50;
+
+/** What a new account's list starts with: Solana, Jupiter and Hyperliquid. */
+export const DEFAULT_WATCHLIST_SYMBOLS = ["SOL", "JUP", "HYPE"] as const;
 const SYMBOL = /^[A-Z0-9]{1,12}$/;
 
 /** The symbol as stored, or null when it cannot be one. */
@@ -52,6 +55,25 @@ export async function readWatchlist(userId: string): Promise<string[] | null> {
     .limit(WATCHLIST_MAX * 2);
   if (error) return null;
   return ordered((data ?? []) as Row[]);
+}
+
+/**
+ * Starts a new account's list with DEFAULT_WATCHLIST_SYMBOLS. Called once,
+ * when the account's profile is created — never on a read — so a person who
+ * empties their list keeps it empty. Never throws: a list that could not be
+ * seeded is only an empty one, which the person can fill.
+ */
+export async function seedWatchlist(userId: string): Promise<void> {
+  try {
+    await serviceClient()
+      .from("watchlist")
+      .upsert(
+        DEFAULT_WATCHLIST_SYMBOLS.map((symbol, position) => ({ user_id: userId, symbol, position })),
+        { onConflict: "user_id,symbol", ignoreDuplicates: true },
+      );
+  } catch {
+    /* Nothing to undo; see above. */
+  }
 }
 
 export type WatchlistResult = { symbols: string[] } | { error: string; status: number };

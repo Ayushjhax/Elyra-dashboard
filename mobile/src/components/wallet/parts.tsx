@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowLeft, Check, ChevronRight, Info, RefreshCw, X, type
 import { IconButton } from "~/components/ui/controls";
 import { useToast } from "~/components/ui/overlays";
 import { Text, type TextTone } from "~/components/ui/Text";
+import { webUrl } from "~/lib/links";
 import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -187,9 +188,13 @@ export function useCopy(): (value: string, what: string) => Promise<void> {
   };
 }
 
-/** Opens a link in the phone's browser — the explorer, never a WebView. */
+/**
+ * Opens a link in the phone's browser — the explorer, never a WebView. Only
+ * an http(s) link opens (lib/links.ts `webUrl`); anything else is ignored.
+ */
 export function openExternal(url: string): void {
-  void Linking.openURL(url);
+  const safe = webUrl(url);
+  if (safe !== null) void Linking.openURL(safe);
 }
 
 /** The haptic for how something ended. */

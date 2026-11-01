@@ -1,16 +1,14 @@
 import { useMemo, useRef, useState } from "react";
 import { FlatList, Text as NativeText, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { ArrowDown, ArrowRight, ArrowUpRight, BookOpen, ChartPie, Flame, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react-native";
-import { suggestionChips } from "@/lib/agent/suggestions";
-import { hyperliquidIcon } from "@/lib/market/tickerLogoData";
 import type { ChatMessage } from "@/lib/types";
 import { MessageBubble } from "~/components/agent/MessageBubble";
 import { WideButton } from "~/components/shell/flow";
 import { Emblem, Glow } from "~/components/ui/brand";
-import { CoinMark } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
+import { ASK_STARTERS, MARKET_BRIEF } from "~/lib/askPrompts";
 import { useAppStore } from "~/lib/store";
-import { DISPLAY_SERIF, fontFamily } from "~/theme/fonts";
+import { DISPLAY_SERIF } from "~/theme/fonts";
 import { color, popShadow, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -23,8 +21,9 @@ import { color, popShadow, radius } from "~/theme/tokens";
 
    Empty, it invites a first question — no sample exchange, because a
    conversation the person never had is a claim about their account. The
-   welcome names the selected market when it is crypto (Elyra's subject),
-   offers a brief on it and a few starters; each is sent once, through the
+   welcome is about crypto in general, not the market last opened
+   elsewhere: a brief on the market and a few starters (lib/askPrompts.ts);
+   each is sent once, through the
    same path as the composer, and the welcome gives way to the
    conversation as soon as it starts.
 --------------------------------------------------------------------------- */
@@ -56,14 +55,10 @@ const MARK = 140;
 
 const STARTER_ICONS: LucideIcon[] = [TrendingUp, ChartPie, Flame, BookOpen];
 
-function Empty({ symbol, logo, onAsk }: { symbol: string; logo: string | null; onAsk: (prompt: string) => void }) {
+function Empty({ onAsk }: { onAsk: (prompt: string) => void }) {
   const pending = useAppStore((state) => state.agentPending);
   const { width } = useWindowDimensions();
   const halo = Math.round(Math.min(width, 420) * 0.9);
-  const subject = symbol || null;
-  /* The existing starters, with the market's exposure question beside its move. */
-  const [first, ...rest] = suggestionChips(symbol);
-  const starters = subject === null ? [first, ...rest] : [first, `Show my ${subject} exposure`, ...rest];
   return (
     <ScrollView contentContainerStyle={styles.empty} keyboardShouldPersistTaps="handled">
       <View style={styles.hero}>
@@ -71,16 +66,8 @@ function Empty({ symbol, logo, onAsk }: { symbol: string; logo: string | null; o
           <Glow size={halo} strength={1} style={{ top: (MARK - halo) / 2, left: (MARK - halo) / 2 }} />
           <Emblem size={112} />
         </View>
-        {subject !== null && (
-          <View style={styles.asset} accessible accessibilityLabel={`Selected market: ${subject}`}>
-            <CoinMark symbol={subject} logo={logo} fallbackLogo={hyperliquidIcon(subject)} size={24} />
-            <Text variant="body" style={styles.assetText}>
-              {subject}
-            </Text>
-          </View>
-        )}
         <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
-          {subject === null ? "Ask about crypto." : `Ask about ${subject}.`}
+          Ask about crypto.
         </NativeText>
         <Text variant="body" tone="secondary" style={[styles.center, styles.lead]}>
           Explore prices, funding, open interest and your connected accounts.
@@ -93,17 +80,17 @@ function Empty({ symbol, logo, onAsk }: { symbol: string; logo: string | null; o
         </View>
       </View>
       <WideButton
-        label={subject === null ? "Brief me on the market" : `Brief me on ${subject}`}
+        label="Brief me on the market"
         variant="accent"
         trailing={ArrowRight}
         disabled={pending}
-        onPress={() => onAsk(subject === null ? "Give me a brief on the crypto market right now." : `Give me a brief on ${subject} right now.`)}
+        onPress={() => onAsk(MARKET_BRIEF)}
       />
       <View style={styles.starters}>
         <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.25} style={styles.heading}>
           Start a conversation
         </NativeText>
-        {starters.map((prompt, index) => (
+        {ASK_STARTERS.map((prompt, index) => (
           <Starter key={prompt} icon={STARTER_ICONS[index] ?? TrendingUp} label={prompt} disabled={pending} onPress={() => onAsk(prompt)} />
         ))}
       </View>
@@ -111,7 +98,7 @@ function Empty({ symbol, logo, onAsk }: { symbol: string; logo: string | null; o
   );
 }
 
-export function Conversation({ symbol, logo = null, onAsk }: { symbol: string; logo?: string | null; onAsk: (prompt: string) => void }) {
+export function Conversation({ onAsk }: { onAsk: (prompt: string) => void }) {
   const messages = useAppStore((state) => state.messages);
   const pending = useAppStore((state) => state.agentPending);
   const streamingId = useAppStore((state) => state.streamingId);
@@ -130,7 +117,7 @@ export function Conversation({ symbol, logo = null, onAsk }: { symbol: string; l
   if (messages.length === 0) {
     return (
       <View style={styles.fill}>
-        <Empty symbol={symbol} logo={logo} onAsk={onAsk} />
+        <Empty onAsk={onAsk} />
       </View>
     );
   }
@@ -184,8 +171,6 @@ const styles = StyleSheet.create({
   empty: { gap: 24, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
   hero: { alignItems: "center", gap: 12 },
   mark: { width: MARK, height: MARK, alignItems: "center", justifyContent: "center" },
-  asset: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: color["border-strong"] },
-  assetText: { fontFamily: fontFamily("sans", 500), fontSize: 16, lineHeight: 22 },
   title: { fontFamily: DISPLAY_SERIF, fontSize: 40, lineHeight: 48, color: color["text-primary"], textAlign: "center", letterSpacing: -0.4 },
   center: { textAlign: "center" },
   lead: { fontSize: 16, lineHeight: 23 },

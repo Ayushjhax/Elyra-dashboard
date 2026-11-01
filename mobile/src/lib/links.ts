@@ -15,14 +15,20 @@ import { isWellFormedCode } from "@/lib/referrals/config";
      elyra://notifications              the inbox
      elyra://research/report/<uuid>     a research report
 
-   Pure: no React Native, so every rule is tested directly. Development
-   builds' own launcher links pass through untouched.
+   Pure: no React Native, so every rule is tested directly. A development
+   build's own launcher links pass through untouched; a release build has
+   no such exception.
 --------------------------------------------------------------------------- */
 
 export const SCHEME = "elyra";
 export const WEBSITE_HOSTS = new Set(["getelyra.xyz", "www.getelyra.xyz"]);
 
-const SYMBOL = /^[A-Za-z0-9.-]{1,24}$/;
+const SYMBOL = /^[A-Za-z0-9][A-Za-z0-9.-]{0,23}$/;
+
+/* The development client's launcher links (elyra://expo-development-client/…)
+   and Expo's own (exp://, exp+elyra://) — matched from the START of the link,
+   so a link that merely mentions one is still checked like any other. */
+const DEVELOPMENT_CLIENT = /^(?:[a-z][a-z0-9+.-]*:\/\/expo-development-client(?:[/?#]|$)|exp(?:\+[a-z0-9-]+)?:\/\/)/i;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type LinkTarget =
@@ -34,6 +40,19 @@ export type LinkTarget =
   | { kind: "passthrough" }
   /** Ours, but nothing the app opens: the home screen. */
   | { kind: "ignored" };
+
+/**
+ * A link the app may hand to the phone's browser: http(s) with a host, or
+ * null. Links that leave the app come from data — a filing, a report's
+ * source, a market, an explorer — and a `solana:` payment request, an
+ * `intent:` or another app's scheme in that data must not open the wallet
+ * or another app in its place.
+ */
+export function webUrl(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  return /^https?:\/\/[^\s/?#@\\]+(?:[/?#]\S*)?$/i.test(text) ? text : null;
+}
 
 function parse(raw: string): URL | null {
   try {
@@ -51,11 +70,12 @@ function segmentsOf(url: URL): string[] {
 
 /**
  * `development` opens elyra://dev, the development build's tool screen, so
- * end-to-end flows can reach it; a release build never passes it.
+ * end-to-end flows can reach it, and lets the development client's own
+ * links through; a release build never passes it, so in a release build
+ * every link is checked against the allowlist below.
  */
 export function resolveLink(raw: string, { development = false }: { development?: boolean } = {}): LinkTarget {
-  /* The development client's launcher links, and Expo's own. */
-  if (/expo-development-client|^exp(\+[a-z-]+)?:\/\//i.test(raw)) return { kind: "passthrough" };
+  if (development && DEVELOPMENT_CLIENT.test(raw.trim())) return { kind: "passthrough" };
   const url = parse(raw.trim());
   if (url === null) return { kind: "ignored" };
 

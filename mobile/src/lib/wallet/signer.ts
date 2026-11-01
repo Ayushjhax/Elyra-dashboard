@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { Buffer } from "buffer";
 import { useEmbeddedSolanaWallet } from "@privy-io/expo";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
+import { requireSigner, TransactionCheckError } from "~/lib/wallet/inspect";
 import { base58ToBase64, signatureFrom, withWallet } from "~/lib/wallet/mwa";
 
 /* ---------------------------------------------------------------------------
@@ -20,11 +21,15 @@ import { base58ToBase64, signatureFrom, withWallet } from "~/lib/wallet/mwa";
 
    If the account holds no wallet with that address, or the wallet app is
    connected with a different one, it refuses and says so — never signs with
-   the wrong key, never guesses.
+   the wrong key, never guesses. Bytes that do not name the wallet as a
+   required signer are refused before any wallet sees them
+   (lib/wallet/inspect.ts).
 
-   Each wallet asks for its own confirmation: Privy shows the embedded
-   wallet's, and the wallet app shows its own. Elyra adds no device check
-   of its own, so it needs no biometric permission.
+   The wallet app shows its own confirmation. The embedded wallet does NOT:
+   Privy's Expo SDK signs headlessly, so the screen that called this — the
+   transfer's or the swap's confirm step — is the only one the person sees,
+   and must have shown what is being signed. Elyra adds no device check of
+   its own, so it needs no biometric permission.
 
    Bytes in and out are base64: the API's format, and MWA's.
 --------------------------------------------------------------------------- */
@@ -78,6 +83,7 @@ export function useSigners(): {
       address: wallet.address,
       async signTransaction(unsignedBase64) {
         try {
+          requireSigner(unsignedBase64, wallet.address);
           const provider = await wallet.getProvider();
           const { signedTransaction } = await provider.request({
             method: "signTransaction",
@@ -85,6 +91,7 @@ export function useSigners(): {
           });
           return Buffer.from(signedTransaction).toString("base64");
         } catch (error) {
+          if (error instanceof TransactionCheckError) throw new SigningError(error.message);
           if (cancelledByWallet(error)) throw new SigningError("Cancelled — nothing was signed.", true);
           throw new SigningError(error instanceof Error ? error.message : "The embedded wallet could not sign.");
         }
@@ -108,6 +115,7 @@ export function useSigners(): {
         address,
         async signTransaction(unsignedBase64) {
           try {
+            requireSigner(unsignedBase64, address);
             const { result } = await withWallet(async (wallet, connected) => {
               /* Checked before the wallet is asked, so a wallet holding a
                  different key is never shown bytes it must not sign. */
@@ -119,6 +127,7 @@ export function useSigners(): {
             return result;
           } catch (error) {
             if (error instanceof SigningError) throw error;
+            if (error instanceof TransactionCheckError) throw new SigningError(error.message);
             if (cancelledByWallet(error)) throw new SigningError("Cancelled — nothing was signed.", true);
             throw new SigningError(error instanceof Error ? error.message : "The wallet app could not sign.");
           }

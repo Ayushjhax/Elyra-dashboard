@@ -13,7 +13,6 @@ import { SegmentedControl } from "~/components/ui/controls";
 import { sendToAgent } from "~/lib/agentChat";
 import { useAppStore, type ElyraTab } from "~/lib/store";
 import { useOpenActions } from "~/lib/stores/actions";
-import { useAssets } from "~/lib/stores/market";
 import { useSecond } from "~/lib/useClock";
 import { color } from "~/theme/tokens";
 
@@ -48,11 +47,7 @@ export default function ElyraScreen() {
   const tab = useAppStore((state) => state.agentTab);
   const setTab = useAppStore((state) => state.setAgentTab);
   const setDraft = useAppStore((state) => state.setComposerDraft);
-  const selectedAssetId = useAppStore((state) => state.selectedAssetId);
-  const asset = useAssets([selectedAssetId]).byId.get(selectedAssetId);
   const messages = useAppStore((state) => state.messages.length);
-  /* The welcome and the first suggestion name the selected market only when it is crypto. */
-  const cryptoSymbol = asset?.assetType === "crypto" ? asset.symbol : "";
   const focused = useIsFocused();
   const now = useSecond();
   const open = useOpenActions().actions.filter((entry) => Date.parse(entry.expiresAt) > now).length;
@@ -82,8 +77,8 @@ export default function ElyraScreen() {
 
       {tab === "ask" ? (
         <KeyboardLifted>
-          <Conversation symbol={cryptoSymbol} logo={asset?.assetType === "crypto" ? asset.logo : null} onAsk={ask} />
-          <Composer cryptoSymbol={cryptoSymbol} onAsk={ask} suggestions={messages > 0} />
+          <Conversation onAsk={ask} />
+          <Composer onAsk={ask} suggestions={messages > 0} />
         </KeyboardLifted>
       ) : tab === "capital-intelligence" ? (
         <KeyboardLifted><CapitalIntelligence /></KeyboardLifted>

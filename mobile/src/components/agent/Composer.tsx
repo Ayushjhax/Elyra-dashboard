@@ -3,12 +3,12 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { Image } from "expo-image";
 import { ArrowUpRight, FileText, Image as ImageIcon, Mic, Plus, SendHorizontal, Square, X } from "lucide-react-native";
 import { isShortcutDraft, matchingShortcuts, parseShortcut } from "@/lib/agent/shortcuts";
-import { suggestionChips } from "@/lib/agent/suggestions";
 import { ATTACHMENT_LIMITS, describeSize, type ComposerAttachment } from "@/lib/attachments";
 import { Button, IconButton } from "~/components/ui/controls";
 import { BottomSheet, Dialog, useToast, type BottomSheetHandle } from "~/components/ui/overlays";
 import { Text } from "~/components/ui/Text";
 import { ActionRow } from "~/components/wallet/parts";
+import { ASK_STARTERS } from "~/lib/askPrompts";
 import { pickFiles, pickImages, type PickResult } from "~/lib/attachments";
 import { runShortcut } from "~/lib/shortcuts";
 import { useAppStore } from "~/lib/store";
@@ -61,7 +61,7 @@ function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove
 }
 
 /** `suggestions` false while the conversation's own welcome offers the starters, so they are not shown twice. */
-export function Composer({ cryptoSymbol, onAsk, suggestions = true }: { cryptoSymbol: string; onAsk: (prompt: string) => void; suggestions?: boolean }) {
+export function Composer({ onAsk, suggestions = true }: { onAsk: (prompt: string) => void; suggestions?: boolean }) {
   const draft = useAppStore((state) => state.composerDraft);
   const setDraft = useAppStore((state) => state.setComposerDraft);
   const attachments = useAppStore((state) => state.composerAttachments);
@@ -80,7 +80,7 @@ export function Composer({ cryptoSymbol, onAsk, suggestions = true }: { cryptoSy
   const transcribing = dictation.status === "transcribing";
   const shortcuts = isShortcutDraft(draft) ? matchingShortcuts(draft) : [];
   const canSend = (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && !transcribing && !recording;
-  const chips = suggestions && draft.length === 0 && attachments.length === 0 ? suggestionChips(cryptoSymbol) : [];
+  const chips = suggestions && draft.length === 0 && attachments.length === 0 ? ASK_STARTERS : [];
 
   const send = (line: string = draft) => {
     if (line.trim().length === 0 && useAppStore.getState().composerAttachments.length === 0) return;

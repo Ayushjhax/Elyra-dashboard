@@ -1,4 +1,6 @@
 import { renderHook } from "@testing-library/react-native";
+import bs58 from "bs58";
+import { Buffer } from "buffer";
 import { SigningError, useSigners } from "~/lib/wallet/signer";
 import { withWallet } from "~/lib/wallet/mwa";
 
@@ -11,14 +13,14 @@ import { withWallet } from "~/lib/wallet/mwa";
    end in a SigningError with nothing signed.
 --------------------------------------------------------------------------- */
 
-const EMBEDDED = "EmbeddedWa11et1111111111111111111111111111";
-const EXTERNAL = "ExternaLWa11et2222222222222222222222222222";
+const EMBEDDED = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+const EXTERNAL = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
 const mockEmbeddedRequest = jest.fn(async () => ({ signedTransaction: new Uint8Array([1, 2, 3]) }));
 
 jest.mock("@privy-io/expo", () => ({
   useEmbeddedSolanaWallet: () => ({
-    wallets: [{ address: "EmbeddedWa11et1111111111111111111111111111", getProvider: async () => ({ request: mockEmbeddedRequest }) }],
+    wallets: [{ address: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", getProvider: async () => ({ request: mockEmbeddedRequest }) }],
   }),
 }));
 
@@ -26,7 +28,7 @@ jest.mock("~/lib/auth/AuthProvider", () => ({
   useElyraAuth: () => ({
     account: {
       accounts: [
-        { type: "wallet", chainType: "solana", detail: "ExternaLWa11et2222222222222222222222222222", walletClientType: "phantom" },
+        { type: "wallet", chainType: "solana", detail: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", walletClientType: "phantom" },
       ],
     },
   }),
@@ -40,6 +42,20 @@ jest.mock("~/lib/wallet/mwa", () => ({
 }));
 
 const mockSignTransactions = jest.fn(async () => ({ signed_payloads: ["c2lnbmVk"] }));
+
+/** The smallest legacy transaction that asks `signer` alone to sign. */
+function unsignedFor(signer: string): string {
+  return Buffer.concat([
+    Buffer.from([1]),
+    Buffer.alloc(64),
+    Buffer.from([1, 0, 0, 1]),
+    Buffer.from(bs58.decode(signer)),
+    Buffer.alloc(32),
+    Buffer.from([0]),
+  ]).toString("base64");
+}
+const FOR_EMBEDDED = unsignedFor(EMBEDDED);
+const FOR_EXTERNAL = unsignedFor(EXTERNAL);
 
 /** The phone's wallet app, connected with `connected`. */
 function walletAppConnectedAs(connected: string) {
@@ -72,7 +88,7 @@ describe("choosing the signer", () => {
     expect(signerFor(EMBEDDED).kind).toBe("embedded");
     expect(signerFor(EXTERNAL).kind).toBe("external");
 
-    const signed = await signerFor(EMBEDDED).signTransaction("AAAA");
+    const signed = await signerFor(EMBEDDED).signTransaction(FOR_EMBEDDED);
     expect(signed).toBe("AQID");
     expect(mockEmbeddedRequest).toHaveBeenCalledTimes(1);
   });
@@ -90,21 +106,31 @@ describe("refusing", () => {
   it("refuses when the wallet app is connected with a different key, without showing it the bytes", async () => {
     walletAppConnectedAs(EMBEDDED);
     const { signerFor } = await signers();
-    await expect(signerFor(EXTERNAL).signTransaction("AAAA")).rejects.toThrow(/connected with a different address/);
+    await expect(signerFor(EXTERNAL).signTransaction(FOR_EXTERNAL)).rejects.toThrow(/connected with a different address/);
     expect(mockSignTransactions).not.toHaveBeenCalled();
   });
 
   it("signs through the wallet app when it holds the right key", async () => {
     walletAppConnectedAs(EXTERNAL);
     const { signerFor } = await signers();
-    await expect(signerFor(EXTERNAL).signTransaction("AAAA")).resolves.toBe("c2lnbmVk");
-    expect(mockSignTransactions).toHaveBeenCalledWith({ payloads: ["AAAA"] });
+    await expect(signerFor(EXTERNAL).signTransaction(FOR_EXTERNAL)).resolves.toBe("c2lnbmVk");
+    expect(mockSignTransactions).toHaveBeenCalledWith({ payloads: [FOR_EXTERNAL] });
+  });
+
+  it("refuses bytes built for another wallet before either wallet sees them", async () => {
+    walletAppConnectedAs(EXTERNAL);
+    const { signerFor } = await signers();
+    await expect(signerFor(EMBEDDED).signTransaction(FOR_EXTERNAL)).rejects.toThrow(/not built for this wallet/);
+    await expect(signerFor(EXTERNAL).signTransaction(FOR_EMBEDDED)).rejects.toThrow(/not built for this wallet/);
+    await expect(signerFor(EMBEDDED).signTransaction("AAAA")).rejects.toThrow(/could not be read/);
+    expect(mockEmbeddedRequest).not.toHaveBeenCalled();
+    expect(withWallet).not.toHaveBeenCalled();
   });
 
   it("reports a wallet's own decline as a cancellation, not a fault", async () => {
     mockEmbeddedRequest.mockRejectedValueOnce(new Error("User rejected the request"));
     const { signerFor } = await signers();
-    const failure = await signerFor(EMBEDDED).signTransaction("AAAA").catch((error: unknown) => error);
+    const failure = await signerFor(EMBEDDED).signTransaction(FOR_EMBEDDED).catch((error: unknown) => error);
     expect((failure as SigningError).cancelled).toBe(true);
   });
 });

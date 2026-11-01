@@ -21,6 +21,7 @@ import { ScanButton } from "~/components/wallet/ScanAddress";
 import { api, ApiError, postForOutcome } from "~/lib/api";
 import { refetchActivity } from "~/lib/stores/activity";
 import { refetchWallet, useWalletDashboard } from "~/lib/stores/wallet";
+import { checkTransfer, TransactionCheckError } from "~/lib/wallet/inspect";
 import { SigningError, useSigners } from "~/lib/wallet/signer";
 import { fontFamily } from "~/theme/fonts";
 import { color, radius } from "~/theme/tokens";
@@ -37,7 +38,8 @@ import { color, radius } from "~/theme/tokens";
      2. CONFIRM what actually moves — the server's summary, the recipient IN
                 FULL (the middle of an address is where a wrong one differs),
                 and the network fee on a max send. Nothing is signed before
-                this screen.
+                this screen, and it is shown only once the unsigned bytes
+                are checked to move exactly that (lib/wallet/inspect.ts).
      3. SIGN    in the wallet that holds the `signer` address. Never sends.
      4. SUBMIT  /api/transfer/submit — broadcasts, and waits briefly for
                 confirmation. Still unresolved, it answers "pending", and
@@ -172,9 +174,19 @@ export default function TransferScreen() {
         "/api/transfer/build",
         sendMax ? { to: trimmed, mint, max: true } : { to: trimmed, mint, amount: amount.trim() },
       );
+      /* The confirm screen shows the server's summary and the embedded
+         wallet has no screen of its own, so the bytes are checked against
+         what was typed before either is shown: this recipient, this token,
+         this amount, signed by this wallet alone. */
+      if (payload.to !== trimmed) throw new TransactionCheckError("The server answered for a different recipient. Nothing was signed.");
+      if (typeof payload.unsignedTransaction === "string" && typeof payload.signer === "string") {
+        checkTransfer(payload.unsignedTransaction, { signer: payload.signer, recipient: trimmed, mint, amount: sendMax ? null : amount.trim() });
+      }
       setBuilt(payload);
     } catch (failure) {
-      setError(failure instanceof ApiError ? failure.message : "The server could not be reached.");
+      setError(
+        failure instanceof ApiError || failure instanceof TransactionCheckError ? failure.message : "The server could not be reached.",
+      );
     } finally {
       setBuilding(false);
     }

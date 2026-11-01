@@ -29,5 +29,7 @@ describe("signatureFrom", () => {
 
   it("refuses anything else rather than sending a wrong signature", () => {
     expect(() => signatureFrom(new Uint8Array(10), message)).toThrow(/could not read/);
+    /* The right length, but signed over a different message. */
+    expect(() => signatureFrom(new Uint8Array([9, 9, 9, ...signature]), message)).toThrow(/could not read/);
   });
 });

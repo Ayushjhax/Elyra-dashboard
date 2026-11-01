@@ -7,6 +7,7 @@ import { bindReferral, readAttribution } from "@/lib/referrals/attribution";
 import { supabaseHost, unreachableReason } from "@/lib/supabase/reachability";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
+import { seedWatchlist } from "@/lib/watchlist";
 
 /**
  * A caller whose identity has been verified.
@@ -445,6 +446,11 @@ async function resolveStoredProfile(
   if (referralCode != null) {
     void bindReferral(row.id, referralCode).catch(() => {});
   }
+
+  /* A new account's watchlist starts with Solana, Jupiter and Hyperliquid.
+     Awaited so the first read of the list already has them; seedWatchlist
+     never throws, so it cannot keep anyone out either. */
+  await seedWatchlist(row.id);
 
   return {
     userId: row.id,

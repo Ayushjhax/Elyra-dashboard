@@ -1,9 +1,7 @@
 import { useCallback, useMemo } from "react";
-import * as LocalAuthentication from "expo-local-authentication";
 import { Buffer } from "buffer";
 import { useEmbeddedSolanaWallet } from "@privy-io/expo";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
-import { useAppStore } from "~/lib/store";
 import { base58ToBase64, signatureFrom, withWallet } from "~/lib/wallet/mwa";
 
 /* ---------------------------------------------------------------------------
@@ -24,10 +22,9 @@ import { base58ToBase64, signatureFrom, withWallet } from "~/lib/wallet/mwa";
    connected with a different one, it refuses and says so — never signs with
    the wrong key, never guesses.
 
-   Every signature is behind the device's own authentication (fingerprint,
-   face, or the screen lock) while "Require fingerprint/face to sign" is on,
-   which it is by default. A phone with nothing enrolled signs without the
-   prompt rather than refusing outright; the setting says so.
+   Each wallet asks for its own confirmation: Privy shows the embedded
+   wallet's, and the wallet app shows its own. Elyra adds no device check
+   of its own, so it needs no biometric permission.
 
    Bytes in and out are base64: the API's format, and MWA's.
 --------------------------------------------------------------------------- */
@@ -54,26 +51,6 @@ export interface Signer {
   signMessage: (messageBase64: string) => Promise<string>;
 }
 
-/** The device's authentication before a signature, when the setting asks for it. */
-export async function confirmBeforeSigning(required: boolean): Promise<void> {
-  if (!required) return;
-  const [hardware, enrolled] = await Promise.all([
-    LocalAuthentication.hasHardwareAsync(),
-    LocalAuthentication.isEnrolledAsync(),
-  ]);
-  /* Nothing to check against: sign without the prompt rather than lock the
-     person out of their own wallet. */
-  if (!hardware || !enrolled) return;
-  const result = await LocalAuthentication.authenticateAsync({
-    promptMessage: "Confirm to sign with Elyra",
-    cancelLabel: "Cancel",
-    disableDeviceFallback: false,
-  });
-  if (!result.success) {
-    throw new SigningError("Cancelled — nothing was signed.", true);
-  }
-}
-
 function wrongWallet(address: string): SigningError {
   return new SigningError(
     `Your wallet app is connected with a different address. Switch it to ${address.slice(0, 4)}…${address.slice(-4)} and try again. Nothing was signed.`,
@@ -92,7 +69,6 @@ export function useSigners(): {
 } {
   const auth = useElyraAuth();
   const embedded = useEmbeddedSolanaWallet();
-  const requireAuth = useAppStore((state) => state.requireAuthToSign);
 
   const embeddedWallets = useMemo(() => ("wallets" in embedded ? (embedded.wallets ?? []) : []), [embedded]);
 
@@ -101,7 +77,6 @@ export function useSigners(): {
       kind: "embedded",
       address: wallet.address,
       async signTransaction(unsignedBase64) {
-        await confirmBeforeSigning(requireAuth);
         try {
           const provider = await wallet.getProvider();
           const { signedTransaction } = await provider.request({
@@ -115,7 +90,6 @@ export function useSigners(): {
         }
       },
       async signMessage(messageBase64) {
-        await confirmBeforeSigning(requireAuth);
         const provider = await wallet.getProvider();
         const { signature } = await provider.request({ method: "signMessage", params: { message: messageBase64 } });
         return signature;
@@ -133,7 +107,6 @@ export function useSigners(): {
         kind: "external",
         address,
         async signTransaction(unsignedBase64) {
-          await confirmBeforeSigning(requireAuth);
           try {
             const { result } = await withWallet(async (wallet, connected) => {
               /* Checked before the wallet is asked, so a wallet holding a
@@ -151,7 +124,6 @@ export function useSigners(): {
           }
         },
         async signMessage(messageBase64) {
-          await confirmBeforeSigning(requireAuth);
           const message = new Uint8Array(Buffer.from(messageBase64, "base64"));
           const { result } = await withWallet(async (wallet, connected) => {
             if (connected !== address) throw wrongWallet(address);
@@ -167,7 +139,7 @@ export function useSigners(): {
       });
     }
     return list;
-  }, [embeddedWallets, auth.account, requireAuth]);
+  }, [embeddedWallets, auth.account]);
 
   const signerFor = useCallback(
     (address: string): Signer => {

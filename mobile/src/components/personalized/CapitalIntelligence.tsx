@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, View } from "react-native";
+import { FlatList, Text as NativeText, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { ArrowRight, BookOpen, Check, ChartColumn, ChartPie, ChevronUp, Compass, FileText, PiggyBank, type LucideIcon } from "lucide-react-native";
 import { deriveInsights, suggestedPrompts } from "@/lib/personalized/insights";
 import {
   CHIP_SOURCE,
@@ -16,8 +17,9 @@ import { AnswerBlocks } from "~/components/personalized/AnswerBlocks";
 import { Composer } from "~/components/personalized/Composer";
 import { MemorySheet } from "~/components/personalized/ContextRail";
 import { HistoryDrawer } from "~/components/personalized/HistoryDrawer";
+import { UnderlineTabs } from "~/components/market/parts";
 import { Button } from "~/components/ui/controls";
-import { Card, EmptyState, Skeleton } from "~/components/ui/layout";
+import { Card, Skeleton } from "~/components/ui/layout";
 import { Text } from "~/components/ui/Text";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
 import {
@@ -32,7 +34,20 @@ import {
 import { useWalletActivity } from "~/lib/stores/activity";
 import { usePortfolio } from "~/lib/stores/portfolio";
 import { useWalletDashboard } from "~/lib/stores/wallet";
+import { DISPLAY_SERIF, fontFamily } from "~/theme/fonts";
 import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
+
+/* Capital Intelligence — answers with the account as context.
+
+   A source is SELECTED (the person included it) and separately AVAILABLE
+   (there is something to read): the tile's tick is the first, its line of
+   text the second, so "Positions — None yet" can be ticked and still say
+   there is nothing in it. Ticking changes only what the next question
+   carries; it never creates or saves memory. A starter puts its question
+   in the composer to edit and send. */
+
+const ICON: Record<string, LucideIcon> = { portfolio: ChartPie, positions: ChartColumn, activity: FileText, memory: BookOpen };
+const STARTER_ICON: LucideIcon[] = [ChartPie, Compass, PiggyBank];
 const LABEL = {
   portfolio: "Portfolio",
   positions: "Positions",
@@ -63,6 +78,9 @@ export function CapitalIntelligence() {
 }
 function CapitalView() {
   const chat = usePersonalizedChat();
+  /* Two tiles a row where a source's name and status both fit; one on a narrow phone or at large text. */
+  const { width, fontScale } = useWindowDimensions();
+  const wide = width / Math.max(1, fontScale) >= 400;
   const portfolio = usePortfolio();
   const wallet = useWalletDashboard();
   const activity = useWalletActivity(10);
@@ -131,50 +149,55 @@ function CapitalView() {
   );
   const header = (
     <View style={styles.stack}>
-      <Text variant="label" tone="muted">
-        Account context ·{" "}
-        {chat.sources.length === 0
-          ? "off"
-          : `${chat.sources.length} sources selected`}
-      </Text>
+      <View style={styles.contextHead}>
+        <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.25} style={styles.contextTitle}>
+          Account context
+        </NativeText>
+        <Text variant="body" tone="secondary" style={styles.note}>
+          · {chat.sources.length === 0 ? "off" : `${chat.sources.length} ${chat.sources.length === 1 ? "source" : "sources"} selected`}
+        </Text>
+      </View>
       <View style={styles.sources}>
         {CONTEXT_SOURCES.map((source) => {
           const on = chat.sources.includes(source);
           const status = statuses[CHIP_SOURCE[source]];
           const readable = usable(status) && status.state !== "loading";
+          const Icon = ICON[source] ?? FileText;
+          const tone = status.state === "loading" ? "secondary" : !readable ? "caution" : status.state === "empty" ? "secondary" : "positive";
           return (
             <Pressable
               key={source}
-              accessibilityRole="switch"
+              accessibilityRole="checkbox"
               accessibilityState={{ checked: on }}
-              accessibilityLabel={`${LABEL[source]}: ${on ? (readable ? "Included" : status.label) : "Excluded"}`}
+              accessibilityLabel={`${LABEL[source]}: ${on ? "included" : "not included"}. ${status.label}`}
               onPress={() => toggleSource(source)}
-              style={[styles.source, on && styles.selected]}
+              style={({ pressed }) => [styles.source, wide && styles.sourceHalf, on && styles.selected, pressed && styles.pressed]}
             >
-              <Text variant="label">{LABEL[source]}</Text>
-              <Text
-                variant="label"
-                tone={
-                  on && !readable && status.state !== "loading"
-                    ? "caution"
-                    : "muted"
-                }
-              >
-                {on
-                  ? readable
-                    ? `Included · ${status.label}`
-                    : status.label
-                  : "Excluded"}
-              </Text>
+              <View style={[styles.box, on && styles.boxOn]}>{on && <Check size={18} strokeWidth={2.5} color={color["text-on-accent"]} />}</View>
+              <Icon size={26} strokeWidth={1.5} color={color["text-primary"]} />
+              <View style={styles.flex}>
+                <Text variant="body" numberOfLines={1} style={styles.sourceName}>
+                  {LABEL[source]}
+                </Text>
+                <Text variant="body-sm" tone={tone} numberOfLines={2}>
+                  {status.label}
+                </Text>
+              </View>
             </Pressable>
           );
         })}
       </View>
-      <Button
-        label={contextOpen ? "Hide account context" : "View account context"}
-        variant="ghost"
+      <Pressable
         onPress={() => setContextOpen(!contextOpen)}
-      />
+        accessibilityRole="button"
+        accessibilityState={{ expanded: contextOpen }}
+        style={styles.viewContext}
+      >
+        <Text variant="body" style={styles.viewContextText}>
+          {contextOpen ? "Hide account context" : "View account context"}
+        </Text>
+        {contextOpen ? <ChevronUp size={20} strokeWidth={1.5} color={color["text-primary"]} /> : <ArrowRight size={20} strokeWidth={1.5} color={color["text-primary"]} />}
+      </Pressable>
       {contextOpen && (
         <Card style={styles.stack}>
           {portfolio.loading ? (
@@ -219,24 +242,39 @@ function CapitalView() {
       )}
       {chat.turns.length === 0 && !chat.opening && (
         <>
-          <EmptyState
-            title="What's your next move?"
-            body="Your capital, positions and preferences. Ask with your account as context."
-          />
-          {STARTERS.map((starter) => (
-            <Pressable
-              key={starter.title}
-              accessibilityRole="button"
-              accessibilityLabel={starter.title}
-              onPress={() => setDraft(starter.text)}
-              style={styles.starter}
-            >
-              <Text variant="h2">{starter.title}</Text>
-              <Text variant="body-sm" tone="secondary">
-                {starter.body}
-              </Text>
-            </Pressable>
-          ))}
+          <View style={styles.rule} />
+          <View style={styles.welcome}>
+            <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.welcomeTitle}>
+              What&apos;s your next move?
+            </NativeText>
+            <Text variant="body" tone="secondary" style={[styles.lead, styles.center]}>
+              Your capital, positions and preferences. Ask with your account as context.
+            </Text>
+          </View>
+          {STARTERS.map((starter, index) => {
+            const Icon = STARTER_ICON[index] ?? ChartPie;
+            return (
+              <Pressable
+                key={starter.title}
+                accessibilityRole="button"
+                accessibilityLabel={`${starter.title}: ${starter.body}`}
+                accessibilityHint="Puts the question in the composer to edit and send"
+                onPress={() => setDraft(starter.text)}
+                style={({ pressed }) => [styles.starter, pressed && styles.pressed]}
+              >
+                <Icon size={30} strokeWidth={1.5} color={color["accent-hover"]} />
+                <View style={styles.flex}>
+                  <NativeText maxFontSizeMultiplier={1.25} style={styles.starterTitle}>
+                    {starter.title}
+                  </NativeText>
+                  <Text variant="body" tone="secondary" style={styles.note}>
+                    {starter.body}
+                  </Text>
+                </View>
+                <ArrowRight size={22} strokeWidth={1.5} color={color["text-primary"]} />
+              </Pressable>
+            );
+          })}
           <Button
             label="Set my preferences"
             onPress={() => setSheet("memory")}
@@ -276,32 +314,25 @@ function CapitalView() {
   );
   return (
     <View style={styles.fill}>
-      <Text
-        variant="h2"
-        accessibilityRole="header"
-        style={{ paddingHorizontal: 16 }}
-      >
-        Capital Intelligence
-      </Text>
-      <View style={styles.toolbar}>
-        <Button
-          label="New"
-          variant="ghost"
-          onPress={() => {
-            resetChat();
-            atBottom.current = true;
-            list.current?.scrollToOffset({ offset: 0, animated: false });
+      <View style={styles.top}>
+        <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.pageTitle}>
+          Capital intelligence
+        </NativeText>
+        <UnderlineTabs<"new" | "history" | "memory">
+          accessibilityLabel="Capital intelligence"
+          value={sheet ?? "new"}
+          onChange={(next) => {
+            if (next === "new") {
+              resetChat();
+              atBottom.current = true;
+              list.current?.scrollToOffset({ offset: 0, animated: false });
+            } else setSheet(next);
           }}
-        />
-        <Button
-          label="History"
-          variant="ghost"
-          onPress={() => setSheet("history")}
-        />
-        <Button
-          label="Memory"
-          variant="ghost"
-          onPress={() => setSheet("memory")}
+          tabs={[
+            { value: "new", label: "New" },
+            { value: "history", label: "History" },
+            { value: "memory", label: "Memory" },
+          ]}
         />
       </View>
       <FlatList
@@ -388,28 +419,43 @@ function CapitalView() {
 }
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  stack: { gap: 12 },
-  toolbar: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  transcript: { padding: 16, gap: 24 },
-  sources: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  stack: { gap: 14 },
+  transcript: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, gap: 24 },
+  top: { paddingHorizontal: 20, gap: 6 },
+  pageTitle: { fontFamily: DISPLAY_SERIF, fontSize: 36, lineHeight: 44, color: color["text-primary"], letterSpacing: -0.4 },
+  pressed: { backgroundColor: color["surface-hover"] },
+  flex: { flex: 1, minWidth: 0, gap: 2 },
+  note: { fontSize: 15, lineHeight: 21 },
+  lead: { fontSize: 16, lineHeight: 23 },
+  center: { textAlign: "center" },
+  contextHead: { flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", columnGap: 8 },
+  contextTitle: { fontFamily: DISPLAY_SERIF, fontSize: 24, lineHeight: 30, color: color["text-primary"] },
+  sources: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   source: {
-    width: "48%",
-    minHeight: TOUCH_TARGET,
-    padding: 8,
+    flexGrow: 1,
+    flexBasis: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 72,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderRadius: radius.control,
+    borderRadius: radius.sheet,
     borderColor: color["border-subtle"],
-    gap: 4,
+    backgroundColor: color["surface-panel"],
   },
-  selected: {
-    borderColor: color["accent-quiet"],
-    backgroundColor: color["surface-raised"],
-  },
+  sourceHalf: { flexBasis: "46%" },
+  selected: { borderColor: color["border-strong"] },
+  box: { width: 26, height: 26, borderRadius: radius.chip, borderWidth: 1.5, borderColor: color["border-strong"], alignItems: "center", justifyContent: "center" },
+  boxOn: { backgroundColor: color["accent-hover"], borderColor: color["accent-hover"] },
+  sourceName: { fontFamily: fontFamily("sans", 500), fontSize: 16, lineHeight: 22 },
+  viewContext: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: TOUCH_TARGET },
+  viewContextText: { fontSize: 16, lineHeight: 22 },
+  rule: { height: StyleSheet.hairlineWidth * 2, backgroundColor: color["border-subtle"] },
+  welcome: { alignItems: "center", gap: 8, paddingTop: 8 },
+  welcomeTitle: { fontFamily: DISPLAY_SERIF, fontSize: 32, lineHeight: 40, color: color["text-primary"], textAlign: "center" },
+  starterTitle: { fontFamily: DISPLAY_SERIF, fontSize: 21, lineHeight: 27, color: color["text-primary"] },
   insight: {
     borderLeftWidth: 2,
     borderLeftColor: color["agent-rail"],
@@ -418,12 +464,15 @@ const styles = StyleSheet.create({
   },
   user: { alignSelf: "flex-end", maxWidth: "90%", gap: 8 },
   starter: {
-    minHeight: TOUCH_TARGET,
-    padding: 16,
-    borderRadius: radius.card,
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 76,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: radius.sheet,
     borderWidth: 1,
     borderColor: color["border-subtle"],
     backgroundColor: color["surface-panel"],
-    gap: 4,
+    gap: 16,
   },
 });

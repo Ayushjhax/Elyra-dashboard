@@ -416,11 +416,11 @@ export function TradingActivity({ feed, limit = 5 }: { feed: PortfolioFeed; limi
               accessibilityLabel={`${entry.label}${snapshot !== null ? `, ${counts[entry.value]}` : ""}`}
               style={[styles.tab, active && styles.tabActive]}
             >
-              <Text variant="label" tone={active ? "primary" : "secondary"}>
+              <Text variant="body" tone={active ? "primary" : "secondary"} style={styles.tabLabel}>
                 {entry.label}
               </Text>
               {snapshot !== null && (
-                <Text variant="data-sm" tone="muted">
+                <Text variant="data" tone="secondary">
                   {counts[entry.value]}
                 </Text>
               )}
@@ -439,7 +439,7 @@ export function TradingActivity({ feed, limit = 5 }: { feed: PortfolioFeed; limi
               accessibilityState={{ checked: active }}
               style={[styles.filter, active && styles.filterActive]}
             >
-              <Text variant="label" tone={active ? "primary" : "secondary"}>
+              <Text variant="body" tone={active ? "primary" : "secondary"} style={styles.tabLabel}>
                 {filter.label}
               </Text>
             </Pressable>
@@ -488,11 +488,12 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   tabs: { flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth * 2, borderBottomColor: color["border-subtle"], paddingHorizontal: 8 },
-  tab: { flexDirection: "row", alignItems: "center", gap: 6, height: 48, paddingHorizontal: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
-  tabActive: { borderBottomColor: color.accent },
-  filters: { flexDirection: "row", gap: 4, paddingHorizontal: 8, paddingVertical: 8 },
-  filter: { minHeight: 48, minWidth: 48, paddingHorizontal: 12, borderRadius: radius.control, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent" },
-  filterActive: { backgroundColor: color["surface-hover"], borderColor: color["border-accent"] },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 52, paddingHorizontal: 6, borderBottomWidth: 3, borderBottomColor: "transparent" },
+  tabActive: { borderBottomColor: color["accent-hover"] },
+  tabLabel: { fontSize: 15, lineHeight: 20 },
+  filters: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingVertical: 12 },
+  filter: { minHeight: 48, minWidth: 56, paddingHorizontal: 16, borderRadius: radius.panel, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: color["border-strong"] },
+  filterActive: { backgroundColor: color["surface-active"], borderColor: color["accent-hover"] },
   hint: { paddingHorizontal: 16, paddingBottom: 6 },
   padded: { padding: 16, gap: 10 },
   flex: { flex: 1, minWidth: 0 },

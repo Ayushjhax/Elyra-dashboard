@@ -61,7 +61,7 @@ Prediction markets
 
 Swaps and transfers
 - Swap through Jupiter and send tokens, signed in your own wallet: the embedded wallet created at sign-in, or Seed Vault, Phantom or Solflare through Mobile Wallet Adapter.
-- Elyra never holds your keys. You review every transaction before you sign it, and the app can ask for your fingerprint first.
+- Elyra never holds your keys. You review every transaction before you sign it, and your wallet asks you to approve it.
 
 One account
 - Sign in with email, Google, a passkey or your Solana wallet. It is the same account as getelyra.xyz, with the same alerts, conversations and connections.

@@ -61,15 +61,12 @@ const config: ExpoConfig = {
       },
     ],
     /* Only what the app uses: INTERNET, POST_NOTIFICATIONS, CAMERA (scan a
-       recipient's QR), RECORD_AUDIO (dictation, from expo-audio) and
-       USE_BIOMETRIC (the check before every signature). Each runtime one is
-       asked for in context.
+       recipient's QR) and RECORD_AUDIO (dictation, from expo-audio). Each
+       runtime one is asked for in context.
 
        Libraries add a few more that the app does use, kept on purpose:
          ACCESS_NETWORK_STATE, WAKE_LOCK, c2dm RECEIVE — Firebase Cloud
            Messaging, for push;
-         USE_FINGERPRINT — the biometric check on Android 7–8 (minSdk 24);
-           without it those phones would sign with no prompt;
          VIBRATE — expo-haptics;
          MODIFY_AUDIO_SETTINGS — expo-audio's setAudioModeAsync for
            dictation;
@@ -77,7 +74,6 @@ const config: ExpoConfig = {
            signature-level, never granted to another app.
        Everything below is blocked: features Elyra doesn't use. */
     permissions: [
-      "android.permission.USE_BIOMETRIC",
       "android.permission.CAMERA",
       "android.permission.POST_NOTIFICATIONS",
     ],
@@ -85,6 +81,11 @@ const config: ExpoConfig = {
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.WRITE_EXTERNAL_STORAGE",
+      /* No biometric check of Elyra's own: each wallet confirms its own
+         signatures (Privy's sheet, or the wallet app). The dApp Store's
+         review asks that permissions match what the app does. */
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
       /* expo-audio's background playback (turned off below). */
       "android.permission.FOREGROUND_SERVICE",
       "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
@@ -166,13 +167,6 @@ const config: ExpoConfig = {
         project: process.env.SENTRY_PROJECT,
         url: "https://sentry.io/",
         disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN,
-      },
-    ],
-    [
-      "expo-local-authentication",
-      {
-        faceIDPermission:
-          "Elyra asks for Face ID before your wallet signs anything.",
       },
     ],
     [

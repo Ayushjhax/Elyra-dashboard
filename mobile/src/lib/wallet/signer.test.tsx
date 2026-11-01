@@ -1,15 +1,13 @@
 import { renderHook } from "@testing-library/react-native";
-import * as LocalAuthentication from "expo-local-authentication";
 import { SigningError, useSigners } from "~/lib/wallet/signer";
 import { withWallet } from "~/lib/wallet/mwa";
-import { useAppStore } from "~/lib/store";
 
 /* ---------------------------------------------------------------------------
    Which wallet signs, and when it refuses.
 
    The server names the address it built for; only the wallet holding that
    address may sign. Anything else — an address the account doesn't hold, a
-   wallet app connected with a different key, a declined fingerprint — must
+   wallet app connected with a different key, a declined request — must
    end in a SigningError with nothing signed.
 --------------------------------------------------------------------------- */
 
@@ -34,12 +32,6 @@ jest.mock("~/lib/auth/AuthProvider", () => ({
   }),
 }));
 
-jest.mock("expo-local-authentication", () => ({
-  hasHardwareAsync: jest.fn(async () => true),
-  isEnrolledAsync: jest.fn(async () => true),
-  authenticateAsync: jest.fn(async () => ({ success: true })),
-}));
-
 jest.mock("@solana-mobile/mobile-wallet-adapter-protocol", () => ({ transact: jest.fn() }));
 jest.mock("expo-secure-store", () => ({}));
 jest.mock("~/lib/wallet/mwa", () => ({
@@ -59,8 +51,6 @@ function walletAppConnectedAs(connected: string) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useAppStore.setState({ requireAuthToSign: true });
-  jest.mocked(LocalAuthentication.authenticateAsync).mockResolvedValue({ success: true } as never);
 });
 
 async function signers() {
@@ -109,22 +99,6 @@ describe("refusing", () => {
     const { signerFor } = await signers();
     await expect(signerFor(EXTERNAL).signTransaction("AAAA")).resolves.toBe("c2lnbmVk");
     expect(mockSignTransactions).toHaveBeenCalledWith({ payloads: ["AAAA"] });
-  });
-
-  it("stops at a declined fingerprint, and says it was cancelled", async () => {
-    jest.mocked(LocalAuthentication.authenticateAsync).mockResolvedValue({ success: false, error: "user_cancel" } as never);
-    const { signerFor } = await signers();
-    const failure = await signerFor(EMBEDDED).signTransaction("AAAA").catch((error: unknown) => error);
-    expect(failure).toBeInstanceOf(SigningError);
-    expect((failure as SigningError).cancelled).toBe(true);
-    expect(mockEmbeddedRequest).not.toHaveBeenCalled();
-  });
-
-  it("asks for no fingerprint when the setting is off", async () => {
-    useAppStore.setState({ requireAuthToSign: false });
-    const { signerFor } = await signers();
-    await signerFor(EMBEDDED).signTransaction("AAAA");
-    expect(LocalAuthentication.authenticateAsync).not.toHaveBeenCalled();
   });
 
   it("reports a wallet's own decline as a cancellation, not a fault", async () => {

@@ -7,6 +7,9 @@ import { DataList, type DataColumn } from "~/components/ui/DataList";
 import { EmptyState } from "~/components/ui/layout";
 import { Text } from "~/components/ui/Text";
 import { Money } from "~/components/ui/values";
+import { ActivityRow } from "~/components/wallet/ActivityRow";
+import { useElyraAuth } from "~/lib/auth/AuthProvider";
+import { useWalletActivity } from "~/lib/stores/activity";
 import { useAppView } from "~/lib/stores/portfolioViews";
 import { useMinute } from "~/lib/useClock";
 
@@ -16,6 +19,11 @@ import { useMinute } from "~/lib/useClock";
    newest first, with the realised PnL and fees over the list totalled.
 
    A fill that opened a position realises nothing; it shows a dash, not $0.
+
+   Hyperliquid knows an account by its Ethereum address. An account signed
+   in with a Solana wallet has none, so instead of a dead end it is offered
+   Connections, and shown what did execute in its Solana wallet: the swaps
+   among its recent transactions, each opening on Solscan.
 --------------------------------------------------------------------------- */
 
 type Fill = FillsView["fills"][number];
@@ -35,11 +43,46 @@ function Pnl({ value }: { value: number | null }) {
   return <Money value={value} sign tone={value > 0 ? "positive" : value < 0 ? "negative" : "secondary"} />;
 }
 
+/** The swaps among the Solana wallet's recent transactions. */
+function SolanaSwaps({ now }: { now: number }) {
+  const activity = useWalletActivity(25);
+  const swaps = activity.items.filter((item) => item.summary?.kind === "swap");
+  return (
+    <Block label="Solana swaps">
+      <Text variant="h2">Your Solana swaps</Text>
+      <Text variant="body-sm" tone="secondary">
+        What executed in your Solana wallet, from its last 25 transactions.
+      </Text>
+      {activity.loading && activity.items.length === 0 ? (
+        <Text variant="body-sm" tone="muted">
+          Reading your transactions…
+        </Text>
+      ) : activity.error !== null && activity.items.length === 0 ? (
+        <Text variant="body-sm" tone="negative">
+          Your transactions could not be read: {activity.error}
+        </Text>
+      ) : swaps.length === 0 ? (
+        <Text variant="body-sm" tone="muted">
+          No swaps among your recent Solana transactions.
+        </Text>
+      ) : (
+        <View>
+          {swaps.map((item, index) => (
+            <ActivityRow key={item.signature} item={item} now={now} first={index === 0} />
+          ))}
+        </View>
+      )}
+    </Block>
+  );
+}
+
 export default function FillsScreen() {
   const fills = useAppView("fills");
+  const auth = useElyraAuth();
   const now = useMinute();
   const data = fills.data;
   const totals = data === null ? null : fillTotals(data.fills);
+  const unavailable = noHyperliquidWallet(fills.error, "Fills");
 
   const columns: DataColumn<Fill>[] = [
     { key: "at", header: "Time", width: 120, render: (row) => <Text variant="data-sm" tone="secondary">{formatTimestamp(row.at)}</Text> },
@@ -67,7 +110,8 @@ export default function FillsScreen() {
 
   return (
     <DetailScreen title="Fills" onRefresh={fills.refetch} refreshing={fills.refreshing}>
-      <ReadState loading={fills.loading} error={fills.error} unavailable={noHyperliquidWallet(fills.error, "Fills")} stale={fills.stale} hasData={data !== null} onRetry={fills.refetch} refreshing={fills.refreshing} />
+      <ReadState loading={fills.loading} error={fills.error} unavailable={unavailable} stale={fills.stale} hasData={data !== null} onRetry={fills.refetch} refreshing={fills.refreshing} />
+      {data === null && unavailable !== null && auth.solanaAddress !== null && <SolanaSwaps now={now} />}
       {data !== null && totals !== null && (
         <>
           {data.fills.length > 0 && (

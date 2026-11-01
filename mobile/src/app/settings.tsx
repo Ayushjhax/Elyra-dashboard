@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
-import * as LocalAuthentication from "expo-local-authentication";
 import { router, type Href } from "expo-router";
-import { Bell, EyeOff, FileText, Fingerprint, RefreshCw, SlidersHorizontal, Smartphone, Trash2 } from "lucide-react-native";
+import { Bell, EyeOff, FileText, RefreshCw, SlidersHorizontal, Smartphone, Trash2 } from "lucide-react-native";
 import type { MarketFilter } from "@/lib/types";
 import { WideButton } from "~/components/shell/flow";
 import { FactRow, PreferenceSwitchRow, SettingsGroup, SettingsPage, SettingsRow } from "~/components/shell/settings";
@@ -12,17 +11,14 @@ import { useToast } from "~/components/ui/overlays";
 import { api, ApiError } from "~/lib/api";
 import { PRIVACY_URL, versionLabel } from "~/lib/legal";
 import { useAppStore } from "~/lib/store";
-import { confirmBeforeSigning, SigningError } from "~/lib/wallet/signer";
 import { color } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
    Settings — this phone's preferences, and what the app is.
 
-   Hiding balances, the signing check, the market type the ledger opens on
-   and the search history are this phone's (lib/store.ts); notification
-   preferences are the account's and live on their own screen. Turning the
-   signing check off asks for the check first, so a phone left unlocked
-   cannot have it switched off by someone else.
+   Hiding balances, the market type the ledger opens on and the search
+   history are this phone's (lib/store.ts); notification preferences are
+   the account's and live on their own screen.
 
    About reads /api/health — booleans only, no secret — so a problem with
    the deployment shows up here as words rather than as screens failing one
@@ -51,21 +47,6 @@ const API_HOST = (() => {
     return "Not set";
   }
 })();
-
-/** What the phone can check a signature against: nothing, or a fingerprint, face or screen lock. */
-function useEnrolment(): boolean | null {
-  const [enrolled, setEnrolled] = useState<boolean | null>(null);
-  useEffect(() => {
-    let live = true;
-    void Promise.all([LocalAuthentication.hasHardwareAsync(), LocalAuthentication.isEnrolledAsync()])
-      .then(([hardware, any]) => live && setEnrolled(hardware && any))
-      .catch(() => live && setEnrolled(false));
-    return () => {
-      live = false;
-    };
-  }, []);
-  return enrolled;
-}
 
 function useHealth(): { health: Health | null; error: string | null; checking: boolean; check: () => void } {
   const [health, setHealth] = useState<Health | null>(null);
@@ -110,33 +91,11 @@ export default function SettingsScreen() {
   const toast = useToast();
   const hidden = useAppStore((state) => state.balancesHidden);
   const setHidden = useAppStore((state) => state.setBalancesHidden);
-  const requireAuth = useAppStore((state) => state.requireAuthToSign);
-  const setRequireAuth = useAppStore((state) => state.setRequireAuthToSign);
   const marketType = useAppStore((state) => state.marketType);
   const setMarketType = useAppStore((state) => state.setMarketType);
   const recent = useAppStore((state) => state.recentSearches.length);
   const clearRecent = useAppStore((state) => state.clearRecentSearches);
-  const enrolled = useEnrolment();
   const { health, error, checking, check } = useHealth();
-  const [switching, setSwitching] = useState(false);
-
-  const changeSigning = async (next: boolean) => {
-    if (next) {
-      setRequireAuth(true);
-      return;
-    }
-    /* Off only after the check it turns off. */
-    setSwitching(true);
-    try {
-      await confirmBeforeSigning(true);
-      setRequireAuth(false);
-    } catch (failure) {
-      if (!(failure instanceof SigningError && failure.cancelled)) toast("The check could not run, so it stays on.", "negative");
-    } finally {
-      setSwitching(false);
-    }
-  };
-
   const missing = health === null ? [] : DEPENDENCIES.filter((entry) => health.configured[entry.key] === false);
 
   const statusValue = checking
@@ -158,22 +117,6 @@ export default function SettingsScreen() {
           detail="Mask amounts across the app."
           value={hidden}
           onChange={setHidden}
-        />
-      </SettingsGroup>
-
-      <SettingsGroup label="Security">
-        <PreferenceSwitchRow
-          first
-          icon={Fingerprint}
-          title="Biometric signing"
-          detail={
-            enrolled === false
-              ? "Nothing is set up on this phone to check against, so Elyra signs without asking. Add a fingerprint or screen lock in Android settings."
-              : "Elyra asks for your fingerprint, face or screen lock before your wallet signs a swap or transfer."
-          }
-          value={requireAuth}
-          onChange={(next) => void changeSigning(next)}
-          busy={switching}
         />
       </SettingsGroup>
 

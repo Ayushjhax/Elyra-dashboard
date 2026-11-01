@@ -195,7 +195,23 @@ export async function searchEntities(query: string, limit = 8): Promise<SecEntit
   const raw = query.trim();
   if (raw.length === 0) return [];
   const map = await tickerMap();
-  const rows = map.data ?? [];
+  return rankEntities(map.data ?? [], raw, limit);
+}
+
+/**
+ * The search's ranking, over the ticker map. A bare number is a CIK and is
+ * matched exactly once padded — the rule resolveEntity uses, so 1045 never
+ * finds 0001045810 and "0000320193" finds Apple whether the zeros are typed
+ * or not. Otherwise: exact ticker, ticker prefix, name prefix, then a word
+ * of the name.
+ */
+export function rankEntities(rows: readonly SecEntity[], query: string, limit = 8): SecEntity[] {
+  const raw = query.trim();
+  if (raw.length === 0) return [];
+  if (/^\d{1,10}$/.test(raw)) {
+    const cik = raw.padStart(10, "0");
+    return rows.filter((row) => row.cik === cik).slice(0, limit);
+  }
   const upper = raw.toUpperCase();
   const needle = normalise(raw);
 

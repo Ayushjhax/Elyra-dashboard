@@ -1,6 +1,6 @@
 {
   "name": "elyra-mobile",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "./entrypoint.js",
   "dependencies": {
     "@ethersproject/shims": "^5.8.0",
@@ -33,7 +33,6 @@
     "expo-image-manipulator": "~58.0.15",
     "expo-image-picker": "~58.0.10",
     "expo-linking": "~58.0.14",
-    "expo-local-authentication": "~58.0.2",
     "expo-localization": "~58.0.5",
     "expo-notifications": "~58.1.6",
     "expo-router": "~58.0.25",

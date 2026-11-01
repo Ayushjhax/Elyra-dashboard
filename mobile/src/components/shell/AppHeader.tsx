@@ -7,7 +7,8 @@ import { walletIdentity } from "@/lib/wallet/status";
 import { AccountSheet, type AccountSheetHandle } from "~/components/account/AccountSheet";
 import { Emblem, Glow } from "~/components/ui/brand";
 import { IconButton } from "~/components/ui/controls";
-import { ElyraMark, Identicon } from "~/components/ui/marks";
+import { AccountAvatar } from "~/components/account/Identity";
+import { ElyraMark } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
 import { useWalletDashboard } from "~/lib/stores/wallet";
 import { DISPLAY_SERIF } from "~/theme/fonts";
@@ -70,7 +71,7 @@ export function AppHeader({ title, brand = false, wordmark = "Elyra" }: { title:
         )}
       </IconButton>
       <IconButton accessibilityLabel="Open account menu" onPress={() => account.current?.open()}>
-        <Identicon identity={identity?.mark ?? null} size={30} />
+        <AccountAvatar mark={identity?.mark ?? null} size={30} />
       </IconButton>
       <AccountSheet ref={account} />
     </View>

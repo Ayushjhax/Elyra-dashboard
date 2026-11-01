@@ -81,14 +81,14 @@ export interface AppState {
   /** Ends the conversation: the account it belonged to has gone. */
   clearConversation: () => void;
 
-  /* ---- signing (persisted) ---- */
-  /** Ask for fingerprint or face before every signature. On by default. */
-  requireAuthToSign: boolean;
-  setRequireAuthToSign: (on: boolean) => void;
-
   /* ---- notifications (persisted) ---- */
   notificationsSeenAt: string | null;
   setNotificationsSeenAt: (at: string) => void;
+
+  /* ---- the account's photo on this phone (persisted) ---- */
+  /** A 256px square JPEG as a data URI, or null for the wallet's identicon. */
+  avatar: string | null;
+  setAvatar: (avatar: string | null) => void;
 
   /* ---- whose they are (persisted) ---- */
   /** The account the per-person preferences above belong to. */
@@ -153,11 +153,11 @@ export const useAppStore = create<AppState>()(
       clearConversation: () =>
         set({ messages: [], agentPending: false, streamingId: null, composerDraft: "", composerAttachments: [] }),
 
-      requireAuthToSign: true,
-      setRequireAuthToSign: (requireAuthToSign) => set({ requireAuthToSign }),
-
       notificationsSeenAt: null,
       setNotificationsSeenAt: (notificationsSeenAt) => set({ notificationsSeenAt }),
+
+      avatar: null,
+      setAvatar: (avatar) => set({ avatar }),
 
       owner: null,
     }),
@@ -178,7 +178,7 @@ export const useAppStore = create<AppState>()(
         balancesHidden: state.balancesHidden,
         agentTab: state.agentTab,
         notificationsSeenAt: state.notificationsSeenAt,
-        requireAuthToSign: state.requireAuthToSign,
+        avatar: state.avatar,
         owner: state.owner,
       }),
       skipHydration: true,
@@ -199,8 +199,8 @@ export function useBalancesHidden(): boolean {
 /**
  * Hands the phone's per-person preferences to the account signing in.
  *
- * Starred markets, recent searches and when the inbox was last seen are a
- * person's, not the phone's: the same person signing back in keeps them,
+ * Starred markets, recent searches, when the inbox was last seen and the
+ * photo are a person's, not the phone's: the same person signing back in keeps them,
  * and anyone else starts without them. Waits for the persisted state, so
  * it compares against the owner that was saved, not the default.
  */
@@ -210,7 +210,7 @@ export function claimPhoneFor(account: string): void {
     if (owner === account) return;
     useAppStore.setState({
       owner: account,
-      ...(owner === null ? {} : { favorites: [], recentSearches: [], notificationsSeenAt: null }),
+      ...(owner === null ? {} : { favorites: [], recentSearches: [], notificationsSeenAt: null, avatar: null }),
     });
   };
   if (useAppStore.persist.hasHydrated()) claim();

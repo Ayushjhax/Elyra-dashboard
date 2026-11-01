@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { router } from "expo-router";
 import { ShieldAlert } from "lucide-react-native";
 import { orderBalances, venueLabel, type BalanceGrouping } from "@/lib/assets/derive";
 import { formatCompactUsd, formatPrice, truncateMiddle } from "@/lib/format";
@@ -85,7 +86,7 @@ export function ReadState({
   onRetry: () => void;
   refreshing: boolean;
   /** A state no retry changes — said as what it is, without a Try again. */
-  unavailable?: { title: string; body: string } | null;
+  unavailable?: Unavailable | null;
 }): ReactNode {
   if (loading && !hasData) {
     return (
@@ -99,7 +100,15 @@ export function ReadState({
   if (!hasData && unavailable !== null) {
     return (
       <Block>
-        <EmptyState title={unavailable.title} body={unavailable.body} />
+        <EmptyState
+          title={unavailable.title}
+          body={unavailable.body}
+          action={
+            unavailable.connect ? (
+              <Button label="Connect Hyperliquid" variant="accent" size="sm" onPress={() => router.push("/connections")} />
+            ) : undefined
+          }
+        />
       </Block>
     );
   }
@@ -120,16 +129,26 @@ export function ReadState({
   return null;
 }
 
+/** A state no retry changes; `connect` offers Connections, where it can be put right. */
+export interface Unavailable {
+  title: string;
+  body: string;
+  connect?: boolean;
+}
+
 /**
  * The venue tools answer "No wallet is connected" when the account has no
  * Ethereum wallet, which is what Hyperliquid reads orders and fills by. That
- * is not a failed read, and retrying will not change it.
+ * is not a failed read, and retrying will not change it — adding a
+ * Hyperliquid address in Connections does, so that is what it offers. A
+ * Solana sign-in is the usual reason, and is said as such.
  */
-export function noHyperliquidWallet(error: string | null, what: string): { title: string; body: string } | null {
+export function noHyperliquidWallet(error: string | null, what: string): Unavailable | null {
   if (error === null || !/^No wallet is connected/i.test(error)) return null;
   return {
-    title: "No Ethereum wallet on this account",
-    body: `${what} are read from Hyperliquid, which keys an account by its Ethereum address. This account has none linked, so there is nothing Elyra can read there — that is not the same as having none.`,
+    title: "Hyperliquid isn't connected",
+    body: `${what} come from Hyperliquid, which knows an account by its Ethereum address, and this account has none linked. Add your Hyperliquid address in Connections to see them here.`,
+    connect: true,
   };
 }
 

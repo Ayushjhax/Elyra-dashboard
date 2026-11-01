@@ -7,10 +7,9 @@ import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { Composer } from "~/components/agent/Composer";
 import { Conversation } from "~/components/agent/Conversation";
 import { ElyraSignals } from "~/components/agent/ElyraSignals";
-import { ReviewCards } from "~/components/actions/ReviewCards";
+import { ActionsView } from "~/components/actions/ActionsView";
 import { CapitalIntelligence } from "~/components/personalized/CapitalIntelligence";
 import { SegmentedControl } from "~/components/ui/controls";
-import { EmptyState, Screen } from "~/components/ui/layout";
 import { sendToAgent } from "~/lib/agentChat";
 import { useAppStore, type ElyraTab } from "~/lib/store";
 import { useOpenActions } from "~/lib/stores/actions";
@@ -48,6 +47,7 @@ function KeyboardLifted({ children }: { children: ReactNode }) {
 export default function ElyraScreen() {
   const tab = useAppStore((state) => state.agentTab);
   const setTab = useAppStore((state) => state.setAgentTab);
+  const setDraft = useAppStore((state) => state.setComposerDraft);
   const selectedAssetId = useAppStore((state) => state.selectedAssetId);
   const asset = useAssets([selectedAssetId]).byId.get(selectedAssetId);
   const messages = useAppStore((state) => state.messages.length);
@@ -90,15 +90,14 @@ export default function ElyraScreen() {
       ) : tab === "signals" ? (
         <ElyraSignals active={focused} onAsk={ask} />
       ) : (
-        <Screen>
-          <ReviewCards />
-          {open === 0 && (
-            <EmptyState
-              title="Nothing awaiting review"
-              body="When Elyra prepares a swap — ask it to “swap 1 SOL to USDC” — its review card appears here and under the answer. Nothing is sent until your wallet signs."
-            />
-          )}
-        </Screen>
+        <ActionsView
+          open={open}
+          onDraft={(text) => {
+            /* A draft to edit — never sent from here. */
+            setDraft(text);
+            setTab("ask");
+          }}
+        />
       )}
     </View>
   );
@@ -107,5 +106,5 @@ export default function ElyraScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color["surface-base"] },
   fill: { flex: 1 },
-  tabs: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  tabs: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
 });

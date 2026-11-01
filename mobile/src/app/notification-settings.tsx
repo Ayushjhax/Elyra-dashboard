@@ -23,23 +23,18 @@ import {
   summaryMinuteInZone,
 } from "@/lib/notifications/time";
 import { PreferenceGroup, PushStatusCard, SwitchRow } from "~/components/notifications/parts";
-import { FlowBar, FlowHeading, FlowTitle, WideButton } from "~/components/shell/flow";
+import { FlowBar, FlowHeading, FlowTitle } from "~/components/shell/flow";
 import { Button } from "~/components/ui/controls";
 import { Skeleton } from "~/components/ui/layout";
 import { Text } from "~/components/ui/Text";
 import { TextField } from "~/components/ui/TextField";
-import { api } from "~/lib/api";
 import {
   fixPush,
   offerPushPrompt,
   refreshPushStatus,
   usePushState,
 } from "~/lib/notifications/push";
-import {
-  inboxStore,
-  saveNotificationPreferences,
-  useNotificationPreferences,
-} from "~/lib/notifications/stores";
+import { saveNotificationPreferences, useNotificationPreferences } from "~/lib/notifications/stores";
 import { useMinute } from "~/lib/useClock";
 import { currentAccount, sessionVersion } from "~/lib/session";
 import { color, radius } from "~/theme/tokens";
@@ -155,7 +150,6 @@ function SettingsForm({ saved, zone }: { saved: NotificationPreferences; zone: s
   );
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<string | null>(null);
   /* What each switch shows while its save is in flight. */
   const [pending, setPending] = useState<Partial<Record<NotificationFlag, boolean>>>({});
   /* The newest press per switch: an older press's answer never decides what it shows. */
@@ -247,31 +241,6 @@ function SettingsForm({ saved, zone }: { saved: NotificationPreferences; zone: s
     void write("time", { dailySummaryMinute: minute, timezone: zone });
   };
 
-  const test = async () => {
-    if (busy) return;
-    const account = currentAccount();
-    const ticket = sessionVersion();
-    setBusy("test");
-    setError(null);
-    setTestResult(null);
-    try {
-      const result = await api.post<{ push: { sent: number; failed: number } }>("/api/notifications/test");
-      if (currentAccount() !== account || sessionVersion() !== ticket) return;
-      await inboxStore.refresh();
-      setTestResult(
-        result.push.sent > 0
-          ? `Added to your inbox. Push accepted for ${result.push.sent} device${result.push.sent === 1 ? "" : "s"}.`
-          : result.push.failed > 0
-            ? "Added to your inbox. Push could not be sent; check push setup and try again."
-            : "Added to your inbox. No device is registered for push yet.",
-      );
-    } catch (failure) {
-      if (currentAccount() === account) setError(failure instanceof Error ? failure.message : "Could not send a test notification.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const row = (key: NotificationFlag, first: boolean) => (
     <SwitchRow
       key={key}
@@ -348,12 +317,6 @@ function SettingsForm({ saved, zone }: { saved: NotificationPreferences; zone: s
         </View>
       </PreferenceGroup>
 
-      <WideButton label="Send a test notification" variant="outline" busy={busy === "test"} disabled={busy !== null} onPress={() => void test()} />
-      {testResult && (
-        <Text accessibilityLiveRegion="polite" variant="body-sm" tone="secondary">
-          {testResult}
-        </Text>
-      )}
       <Text variant="body" tone="muted">
         Your preferences apply on every device.
       </Text>

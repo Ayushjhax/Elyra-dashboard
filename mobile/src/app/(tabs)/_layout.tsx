@@ -49,7 +49,11 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="portfolio"
-        options={{ title: "Portfolio", tabBarIcon: ({ color: tint }) => <ChartPie {...ICON} color={tint} /> }}
+        options={{
+          title: "Portfolio",
+          header: () => <AppHeader title="Portfolio" brand wordmark="Portfolio" />,
+          tabBarIcon: ({ color: tint }) => <ChartPie {...ICON} color={tint} />,
+        }}
       />
       <Tabs.Screen
         name="elyra"

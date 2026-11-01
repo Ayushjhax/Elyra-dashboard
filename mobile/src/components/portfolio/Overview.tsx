@@ -101,7 +101,7 @@ function Figure({ label, explanation, children }: { label: string; explanation: 
   return (
     <View style={styles.figure}>
       <View style={styles.figureLabel}>
-        <Text variant="label" tone="secondary">{label}</Text>
+        <Text variant="body" tone="secondary" style={styles.valueLabel}>{label}</Text>
         <InfoTip label={`About ${label}`} text={explanation} />
       </View>
       {children}
@@ -151,13 +151,13 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
     <View accessibilityLabel="Account overview" style={styles.card}>
       <View style={styles.top}>
         <View style={styles.flex}>
-          <Text variant="label" tone="muted">
+          <Text variant="body" tone="secondary" style={styles.valueLabel}>
             Portfolio value
           </Text>
           {summary === null ? (
             <Skeleton width={160} height={30} />
           ) : (
-            <Money value={summary.totalValueUsd} reason="No source returned a value that could be totalled." variant="display" />
+            <Money value={summary.totalValueUsd} reason="No source returned a value that could be totalled." variant="display" style={styles.total} />
           )}
           {change !== null && (
             <View
@@ -172,7 +172,7 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
               ) : (
                 <ArrowDownRight size={14} strokeWidth={1.5} color={color.negative} />
               )}
-              <Text variant="data-sm" tone={change.pnlUsd >= 0 ? "positive" : "negative"}>
+              <Text variant="data" tone={change.pnlUsd >= 0 ? "positive" : "negative"} style={styles.change}>
                 {hidden ? MASK : formatUsd(change.pnlUsd, { sign: true })} ({formatPct(change.pnlPct)}) 24h
               </Text>
               {change.coveragePct < 99 && (
@@ -190,14 +190,14 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
           accessibilityState={{ checked: hidden }}
           style={styles.eye}
         >
-          {hidden ? <EyeOff size={18} strokeWidth={1.5} color={color.accent} /> : <Eye size={18} strokeWidth={1.5} color={color["text-secondary"]} />}
+          {hidden ? <EyeOff size={24} strokeWidth={1.5} color={color["accent-hover"]} /> : <Eye size={24} strokeWidth={1.5} color={color["text-primary"]} />}
         </Pressable>
       </View>
 
       <Performance enabled={snapshot !== null} updated={feed.stale || feed.fetchedAt === null ? null : feed.refreshing ? "Refreshing…" : `Updated ${formatAge(feed.fetchedAt, now)}`} />
       <View style={styles.grid}>
         <Figure label="Available" explanation="Stablecoins plus free collateral reported by connected venues. This is the capital available before any venue-specific restrictions or network fees.">
-          {summary === null ? <Skeleton width={80} /> : <Money value={summary.availableCapitalUsd} variant="h1" reason="No stablecoin or venue collateral was readable." />}
+          {summary === null ? <Skeleton width={80} /> : <Money value={summary.availableCapitalUsd} variant="price" reason="No stablecoin or venue collateral was readable." />}
         </Figure>
         <Figure label="Open PnL" explanation={pnlExplanation}>
           {summary === null ? (
@@ -205,7 +205,7 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
           ) : (
             <Money
               value={summary.unrealizedPnlUsd}
-              variant="h1"
+              variant="price"
               sign
               reason="No open position reported a PnL."
               tone={summary.unrealizedPnlUsd === null || summary.unrealizedPnlUsd === 0 ? "primary" : summary.unrealizedPnlUsd > 0 ? "positive" : "negative"}
@@ -228,8 +228,8 @@ export function OverviewCard({ feed }: { feed: PortfolioFeed }) {
 
 const styles = StyleSheet.create({
   card: {
-    gap: 12,
-    padding: 16,
+    gap: 14,
+    padding: 20,
     borderRadius: radius.sheet,
     borderWidth: 1,
     borderColor: color["border-subtle"],
@@ -253,6 +253,9 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
-  figure: { flex: 1, flexBasis: 110, gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: color["surface-raised"] },
+  figure: { flex: 1, flexBasis: 120, gap: 8, padding: 14, borderRadius: radius.panel, borderWidth: 1, borderColor: color["border-subtle"], backgroundColor: color["surface-raised"] },
+  valueLabel: { fontSize: 16, lineHeight: 22 },
+  total: { fontSize: 48, lineHeight: 56, letterSpacing: -0.8 },
+  change: { fontSize: 16, lineHeight: 22 },
   figureLabel: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
 });

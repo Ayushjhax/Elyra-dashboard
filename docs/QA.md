@@ -39,8 +39,7 @@ Vault**, **Phantom**, **Solflare**.
 For each signer:
 
 - [ ] **Swap** 0.01 USDC → SOL. Review shows the route, the amounts and the
-      fee; Confirm asks for the fingerprint (if "Require fingerprint or face
-      to sign" is on), then the wallet. The result says Confirmed with a
+      fee; Confirm hands it to the wallet to approve. The result says Confirmed with a
       Solscan link, and the balance updates.
 - [ ] **Transfer** 0.001 SOL to a second address you own (try **Scan** with
       its QR code). Same review, confirm, and a confirmed result.
@@ -53,30 +52,22 @@ For each signer:
 - [ ] Leave a swap quote open for over 20 seconds, then confirm: the app
       re-quotes and shows the new numbers before anything is signed.
 
-## 3. The biometric gate
+## 3. Permissions
 
-- [ ] Settings → Security → **Require fingerprint or face to sign** on (the
-      default). Any signature asks first; failing or cancelling stops it
-      with nothing signed.
-- [ ] Turning it **off** asks for the fingerprint first; cancelling leaves
-      it on.
-- [ ] On a phone with no fingerprint and no screen lock: the setting says
-      Elyra signs without asking, and signing works.
-- [ ] Remove the enrolled fingerprints in Android settings while the app is
-      open, come back and sign: the app falls back to the screen lock, or
-      says nothing is set up — never a crash.
+- [ ] `aapt2 dump permissions` on the release APK lists only INTERNET,
+      CAMERA, RECORD_AUDIO, MODIFY_AUDIO_SETTINGS, POST_NOTIFICATIONS,
+      VIBRATE, and Firebase's ACCESS_NETWORK_STATE, WAKE_LOCK and c2dm
+      RECEIVE — no SYSTEM_ALERT_WINDOW, storage, USE_BIOMETRIC or
+      USE_FINGERPRINT (the dApp Store's PER-001).
 
 ## 4. Push notifications
 
 - [ ] Fresh install, signed in: notifications are asked for in context
       (after setting the first alert, or in Account → Notifications), not at
       launch.
-- [ ] Account → Notifications → **Send a test notification**: a push arrives within a
-      minute and the inbox shows it.
 - [ ] **Killed app:** swipe Elyra away from recents. Set a price alert just
-      past the current price beforehand (or send a test). The push arrives;
-      tapping it cold-starts the app straight onto the right screen (the
-      asset for a price alert, the inbox for a test).
+      past the current price beforehand. The push arrives; tapping it
+      cold-starts the app straight onto the asset.
 - [ ] App in the background: the push arrives; tapping it opens the screen.
 - [ ] App open: the inbox badge counts up; no duplicate system notification
       for something already on screen.

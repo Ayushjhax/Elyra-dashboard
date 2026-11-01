@@ -40,9 +40,9 @@ function CapitalAction({
         style={({ pressed }) => [styles.compactAction, pressed && styles.pressed]}
       >
         <View style={[styles.actionIcon, primary && reason === null && styles.primaryIcon]}>
-          <Icon size={20} strokeWidth={1.5} color={reason !== null ? color["text-muted"] : primary ? color["text-on-accent"] : color["text-primary"]} />
+          <Icon size={26} strokeWidth={1.5} color={reason !== null ? color["text-muted"] : primary ? color["text-on-accent"] : color["text-primary"]} />
         </View>
-        <Text variant="label" tone={reason !== null ? "muted" : "primary"} style={styles.actionLabel}>{label}</Text>
+        <Text variant="body" tone={reason !== null ? "muted" : "primary"} maxFontSizeMultiplier={1.3} style={styles.actionLabel}>{label}</Text>
       </Pressable>
     );
   }
@@ -106,10 +106,10 @@ const styles = StyleSheet.create({
   actionsBlock: { gap: 8 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   action: { flexGrow: 1, flexBasis: "45%", minHeight: TOUCH_TARGET },
-  compactAction: { flex: 1, minHeight: 80, alignItems: "center", justifyContent: "center", gap: 8, borderRadius: radius.card },
-  actionIcon: { width: TOUCH_TARGET, height: TOUCH_TARGET, borderRadius: radius.sheet, backgroundColor: color["surface-raised"], borderWidth: 1, borderColor: color["border-subtle"], alignItems: "center", justifyContent: "center" },
-  primaryIcon: { backgroundColor: color.accent, borderColor: color.accent },
-  actionLabel: { alignSelf: "stretch", textAlign: "center" },
+  compactAction: { flex: 1, minHeight: 96, alignItems: "center", justifyContent: "center", gap: 8, borderRadius: radius.panel },
+  actionIcon: { width: 64, height: 56, borderRadius: radius.sheet, backgroundColor: color["surface-panel"], borderWidth: 1, borderColor: color["border-strong"], alignItems: "center", justifyContent: "center" },
+  primaryIcon: { backgroundColor: color["accent-hover"], borderColor: color["accent-hover"] },
+  actionLabel: { alignSelf: "stretch", textAlign: "center", fontSize: 15, lineHeight: 20 },
   pressed: { backgroundColor: color["surface-hover"] },
   reason: { flexDirection: "row", alignItems: "center", gap: 4 },
 });

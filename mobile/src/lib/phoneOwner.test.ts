@@ -12,6 +12,7 @@ function seed() {
     favorites: ["SOL"],
     recentSearches: [{ id: 1, symbol: "SOL" }],
     notificationsSeenAt: "2026-10-24T00:00:00.000Z",
+    avatar: "data:image/jpeg;base64,AAAA",
     balancesHidden: true,
   });
 }
@@ -34,5 +35,6 @@ it("clears them when another account signs in, and keeps the phone's own setting
   expect(state.favorites).toEqual([]);
   expect(state.recentSearches).toEqual([]);
   expect(state.notificationsSeenAt).toBeNull();
+  expect(state.avatar).toBeNull();
   expect(state.balancesHidden).toBe(true);
 });

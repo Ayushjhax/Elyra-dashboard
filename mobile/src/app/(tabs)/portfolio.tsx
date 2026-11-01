@@ -1,4 +1,4 @@
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { Text as NativeText, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { router, type Href } from "expo-router";
 import { Activity, ChevronRight, Coins, Database, History, Layers, ListOrdered, ShieldAlert, Sparkles, type LucideIcon } from "lucide-react-native";
 import { ReviewCards } from "~/components/actions/ReviewCards";
@@ -11,6 +11,7 @@ import { refreshPrices } from "~/lib/stores/market";
 import { useAppStore } from "~/lib/store";
 import { usePortfolio } from "~/lib/stores/portfolio";
 import { refetchWallet } from "~/lib/stores/wallet";
+import { DISPLAY_SERIF } from "~/theme/fonts";
 import { color, radius, TOUCH_TARGET } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
@@ -64,7 +65,7 @@ export default function PortfolioScreen() {
       <ActionBar compact />
       <ReviewCards />
 
-      <Text variant="h2" accessibilityRole="header" style={styles.heading}>Positions &amp; activity</Text>
+      <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.serif}>Positions &amp; activity</NativeText>
       <TradingActivity feed={feed} />
 
       <Pressable
@@ -84,7 +85,7 @@ export default function PortfolioScreen() {
         <ChevronRight size={16} strokeWidth={1.5} color={color["text-muted"]} />
       </Pressable>
 
-      <Text variant="h2" accessibilityRole="header" style={styles.heading}>Explore your portfolio</Text>
+      <NativeText accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.serif}>Explore your portfolio</NativeText>
       <View style={styles.links} accessibilityLabel="Portfolio details">
         {DETAILS.map((entry) => (
           <Pressable
@@ -111,7 +112,8 @@ export default function PortfolioScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color["surface-base"] },
-  content: { padding: 16, gap: 16, paddingBottom: 32 },
+  content: { paddingHorizontal: 20, paddingTop: 12, gap: 18, paddingBottom: 32 },
+  serif: { fontFamily: DISPLAY_SERIF, fontSize: 32, lineHeight: 39, color: color["text-primary"], marginTop: 6 },
   flex: { flex: 1, minWidth: 0 },
   links: {
     flexDirection: "row",
@@ -131,5 +133,4 @@ const styles = StyleSheet.create({
   },
   linkPressed: { backgroundColor: color["surface-hover"] },
   ask: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, minHeight: TOUCH_TARGET + 24, borderWidth: 1, borderLeftWidth: 2, borderColor: color["border-subtle"], borderLeftColor: color["agent-accent"], borderRadius: radius.panel, backgroundColor: color["surface-panel"] },
-  heading: { marginTop: 4 },
 });

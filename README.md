@@ -821,9 +821,8 @@ Privy embedded wallet and an external wallet through Mobile Wallet Adapter
 (`mwa.ts`). Both sign without sending. The signing address must equal the
 `signer` the server built for — if the account holds no such wallet, or the
 wallet app is connected with a different address, it refuses and says so.
-Every signature is behind the device's own authentication (fingerprint, face
-or screen lock) while "Require fingerprint/face to sign" is on, which it is
-by default.
+Each wallet confirms its own signatures (Privy's sheet, or the wallet app);
+Elyra adds no biometric check, so it asks for no biometric permission.
 
 ## No Telegram in the app
 

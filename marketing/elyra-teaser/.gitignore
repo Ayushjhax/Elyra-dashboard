@@ -1,0 +1,5 @@
+node_modules/
+out/
+# The root ignores npm lockfiles (the web app uses pnpm); this standalone
+# project is installed with npm and keeps its lockfile for reproducible renders.
+!package-lock.json

@@ -1,3 +1,7 @@
 # The Expo app (mobile/) is built by EAS, never by Vercel. Keeping it out of
 # the upload keeps its node_modules and native folders out of the web build.
 mobile
+
+# The teaser film (marketing/) is a standalone Remotion project, never part
+# of the web build.
+marketing

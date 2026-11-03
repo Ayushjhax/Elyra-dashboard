@@ -1,0 +1,20 @@
+Create an ORIGINAL, fully produced 45-second instrumental score for Elyra's actual mobile-app launch film. Emotional arc: pressure -> precise intelligence -> acceleration -> decisive release. The visual hook is LOOK PAST THE PRICE. The film ends LIVE ON SOLANA DAPP STORE.
+
+144 BPM, 4/4, constant tempo. Exactly 27 bars / 108 beats / 45.000 seconds if the tool supports it. First downbeat at time zero, no pickup or silent lead-in. If exact length is unsupported, generate longer material with the same tempo and this arrangement so the editor can cut a musical 27-bar cue. Actual timing must be measured afterward.
+
+Sound: dark, fast cinematic breakbeat/techno with a short weighty kick, tight clean sub with audible mid-bass harmonics, syncopated dry metallic percussion, fast restrained minor-key ostinato, chopped arpeggio and a sparse spatial texture. An expensive, urgent product launch, with tension that feels intelligent rather than frightening. Strong musical arrangement, audible contrast and controlled low end. No lyrics, no narration, no voice samples and no imitation of a specific artist or copyrighted melody.
+
+Arrangement:
+0.000–3.333 / bars 1–2: immediate dry transient and low pulse; tight ticking subdivisions, narrow stereo image and rising pressure. Grab attention in the first half-second. No long intro or generic reverse cymbal.
+3.333–6.667 / bars 3–4: first weighty bass arrival on the mobile-terminal reveal. Open the stereo image; one clear low impact, then a controlled groove.
+6.667–11.667 / bars 5–7: agile rhythm follows a real question and sourced answer. Briefly withdraw the kick before the answer resolves, around 10 seconds, then land a clean tonal hit. It should feel like understanding clicked into place.
+11.667–16.667 / bars 8–10: deepen the harmonic bed while capital/context views connect. Keep the rhythm moving without a second huge drop.
+16.667–20.000 / bars 11–12: add syncopation for signals and tracked-wallet consensus.
+20.000–30.000 / bars 13–18: the strongest sustained forward drive, with evolving percussion and ostinato as research, backtests, prediction markets and deeper data accelerate. Vary accents; do not hit every beat with the same sound. Leave gaps for precise UI sound effects.
+30.000–35.000 / bars 19–21: reduce arrangement around the review/control moment. Make the pause feel deliberate and powerful, then rebuild with a tighter rhythm. No fake transaction-success sound.
+35.000–40.000 / bars 22–24: final controlled build; thin the final fraction of a beat before the launch announcement. No endless stock riser or harsh noise wall.
+40.000–45.000 / bars 25–27: strongest elegant low impact and confident consonant resolving chord at EXACTLY 40.000. Add an original, memorable two-note sonic signature. Let the rhythm recede while the brand/store announcement holds. Natural tail fully contained by 45.000; no abrupt truncation.
+
+Do not supply a basic oscillator loop, metronome, random drum sequence or unfinished scratch cue. No festival EDM drop, trailer braam stack, horror atmosphere, sentimental piano, continuous whoosh or excessively distorted bass. Make the suspense come from arrangement, restraint and release.
+
+Deliver 48 kHz stereo WAV, with music/percussion/bass/texture stems if possible. Leave headroom for the editor's impacts, clicks and transitions; do not crush the master. Final mix target is approximately -14 LUFS integrated with <= -1 dBTP, checked after SFX are added. Provide a full-length cue and a clean ending, not merely a loop.

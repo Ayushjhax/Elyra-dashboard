@@ -1,0 +1,401 @@
+{
+  "target_launch": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "duration_seconds": 45,
+    "frames": 2700
+  },
+  "raw": [
+    {
+      "file": "recordings/01-markets.mp4",
+      "bytes": 5542280,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "62100000/535963",
+          "duration": "11.910289",
+          "nb_frames": "1380"
+        }
+      ],
+      "format": {
+        "duration": "11.910289"
+      }
+    },
+    {
+      "file": "recordings/02-ask-stream.mp4",
+      "bytes": 2148520,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "1134000/171047",
+          "duration": "28.507833",
+          "nb_frames": "189"
+        }
+      ],
+      "format": {
+        "duration": "28.507833"
+      }
+    },
+    {
+      "file": "recordings/03-capital-context.mp4",
+      "bytes": 2557565,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "5895000/402889",
+          "duration": "8.953089",
+          "nb_frames": "131"
+        }
+      ],
+      "format": {
+        "duration": "8.953089"
+      }
+    },
+    {
+      "file": "recordings/04-portfolio.mp4",
+      "bytes": 8650532,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "13230000/1179433",
+          "duration": "13.104811",
+          "nb_frames": "147"
+        }
+      ],
+      "format": {
+        "duration": "13.104811"
+      }
+    },
+    {
+      "file": "recordings/05-research-tour.mp4",
+      "bytes": 1691685,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "14220000/836267",
+          "duration": "9.291856",
+          "nb_frames": "158"
+        }
+      ],
+      "format": {
+        "duration": "9.291856"
+      }
+    },
+    {
+      "file": "recordings/06-backtest-run.mp4",
+      "bytes": 1222716,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "1084500/17711",
+          "duration": "3.935778",
+          "nb_frames": "241"
+        }
+      ],
+      "format": {
+        "duration": "3.935778"
+      }
+    },
+    {
+      "file": "recordings/07-smart-money.mp4",
+      "bytes": 3712389,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "11790000/629459",
+          "duration": "6.993989",
+          "nb_frames": "131"
+        }
+      ],
+      "format": {
+        "duration": "6.993989"
+      }
+    },
+    {
+      "file": "recordings/08-alert-controls.mp4",
+      "bytes": 2619723,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "104220000/1076569",
+          "duration": "11.961878",
+          "nb_frames": "1158"
+        }
+      ],
+      "format": {
+        "duration": "11.961878"
+      }
+    },
+    {
+      "file": "recordings/09-decision-brief.mp4",
+      "bytes": 2824207,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2670,
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "90000/1",
+          "avg_frame_rate": "13725000/118139",
+          "duration": "7.875933",
+          "nb_frames": "915"
+        }
+      ],
+      "format": {
+        "duration": "7.875933"
+      }
+    }
+  ],
+  "editing": [
+    {
+      "file": "footage-60fps/01-markets.mp4",
+      "bytes": 999700,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "11.916667",
+          "nb_frames": "715"
+        }
+      ],
+      "format": {
+        "duration": "11.916667"
+      }
+    },
+    {
+      "file": "footage-60fps/02-ask-stream.mp4",
+      "bytes": 1646657,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "28.500000",
+          "nb_frames": "1710"
+        }
+      ],
+      "format": {
+        "duration": "28.500000"
+      }
+    },
+    {
+      "file": "footage-60fps/03-capital-context.mp4",
+      "bytes": 662335,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "8.950000",
+          "nb_frames": "537"
+        }
+      ],
+      "format": {
+        "duration": "8.950000"
+      }
+    },
+    {
+      "file": "footage-60fps/04-portfolio.mp4",
+      "bytes": 1270989,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "13.100000",
+          "nb_frames": "786"
+        }
+      ],
+      "format": {
+        "duration": "13.100000"
+      }
+    },
+    {
+      "file": "footage-60fps/05-research-tour.mp4",
+      "bytes": 792434,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "9.300000",
+          "nb_frames": "558"
+        }
+      ],
+      "format": {
+        "duration": "9.300000"
+      }
+    },
+    {
+      "file": "footage-60fps/06-backtest-run.mp4",
+      "bytes": 338378,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "3.933333",
+          "nb_frames": "236"
+        }
+      ],
+      "format": {
+        "duration": "3.933333"
+      }
+    },
+    {
+      "file": "footage-60fps/07-smart-money.mp4",
+      "bytes": 749747,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "7.000000",
+          "nb_frames": "420"
+        }
+      ],
+      "format": {
+        "duration": "7.000000"
+      }
+    },
+    {
+      "file": "footage-60fps/08-alert-controls.mp4",
+      "bytes": 549153,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "11.966667",
+          "nb_frames": "718"
+        }
+      ],
+      "format": {
+        "duration": "11.966667"
+      }
+    },
+    {
+      "file": "footage-60fps/09-decision-brief.mp4",
+      "bytes": 681766,
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "width": 1200,
+          "height": 2520,
+          "sample_aspect_ratio": "1:1",
+          "pix_fmt": "yuv420p",
+          "r_frame_rate": "60/1",
+          "avg_frame_rate": "60/1",
+          "duration": "7.883333",
+          "nb_frames": "473"
+        }
+      ],
+      "format": {
+        "duration": "7.883333"
+      }
+    }
+  ],
+  "raw_duration_seconds": 102.535456
+}

@@ -8,13 +8,13 @@ mkdir -p "$DIR"
 rm -f "$DIR"/*.jpg
 NAMES=(
   "0030:hook-look-past-the-price" "0130:funding-oi-accent" "0240:reveal-a-terminal-in-your-hand" "0345:ask-attach"
-  "0385:ask-shortcuts-dictation" "0430:ask-question" "0520:evidence-headline" "0650:answer-with-sources"
-  "0690:answer-sources-macro" "0765:capital-context" "0835:capital-memory" "0890:portfolio-surfaces"
-  "0960:connections-read-only" "1040:signals" "1150:smart-money-consensus" "1225:report-query"
-  "1300:nvidia-report" "1340:report-pdf" "1400:backtest" "1465:backtest-compare" "1570:prediction-markets"
-  "1645:research-tabs-signals" "1708:research-tabs-unlocks" "1790:sec-insider-activity" "1830:prepare-your-move"
-  "1960:you-stay-in-control" "2020:receive" "2080:decision-brief-watch-next" "2150:set-the-condition"
-  "2245:notification-preferences" "2290:account" "2450:live-on-solana-dapp-store"
+  "0385:ask-shortcuts-dictation" "0440:ask-question" "0510:ask-working" "0575:intelligence-with-evidence"
+  "0670:answer" "0735:answer-sources" "0830:capital-in-context" "0980:read-only-by-design"
+  "1110:a-quiet-market" "1210:smart-money-consensus" "1320:smart-money-detail" "1440:reports-pdf"
+  "1540:backtest-trace" "1592:compare" "1640:prediction-markets" "1676:market-recap"
+  "1712:signals" "1748:yield" "1786:unlocks" "1826:sec-insiders"
+  "1890:eight-research-tools" "1970:prepare-your-move" "2120:you-stay-in-control" "2230:set-the-condition"
+  "2310:tells-you-never-trades" "2370:handset-returns" "2450:live-on-solana-dapp-store" "2690:end-frame"
 )
 LIST=()
 for e in "${NAMES[@]}"; do

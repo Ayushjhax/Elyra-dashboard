@@ -388,8 +388,8 @@ const ARP = {
 const ROOT = { Dm: 38, Dm9: 38, Bb: 34, Gm: 31, A: 33, Asus: 33, C: 36, F: 29, D: 38 };
 const BARS = {
   3: "Dm", 4: "Dm", 5: "Dm", 6: "Bb", 7: "Dm9", 8: "Bb", 9: "Gm", 10: "A", 11: "Dm", 12: "C",
-  13: "Dm", 14: "Bb", 15: "F", 16: "C", 17: "Dm", 18: "A", 19: "Gm", 20: "Gm", 21: "A",
-  22: "Bb", 23: "C", 24: "A", 25: "D", 26: "D", 27: "D",
+  13: "Dm", 14: "Bb", 15: "F", 16: "C", 17: "Dm", 18: "Bb", 19: "A", 20: "Gm", 21: "Gm",
+  22: "A", 23: "C", 24: "A", 25: "D", 26: "D", 27: "D",
 };
 
 const ACC = [1, 0.42, 0.68, 0.42];
@@ -426,20 +426,20 @@ function barProgramme(bar) {
   const B = (s, len, note = rootN, v = 1, o) => bassNote(at(bar, s), len * STEP * 0.92, note, v, o);
 
   // pads — the harmonic bed, deepening through capital, thinning for the review
-  const padLevel = { 3: 0.10, 4: 0.12, 5: 0.12, 6: 0.13, 7: 0.16, 8: 0.2, 9: 0.21, 10: 0.22, 11: 0.15, 12: 0.15, 19: 0.14, 20: 0.16, 21: 0.15, 22: 0.16, 23: 0.18, 24: 0.2 }[bar] ?? 0.13;
-  const padBright = bar >= 8 && bar <= 10 ? 1300 : bar >= 22 && bar <= 24 ? 1900 + (bar - 22) * 600 : 1750;
+  const padLevel = { 3: 0.10, 4: 0.12, 5: 0.12, 6: 0.13, 7: 0.16, 8: 0.2, 9: 0.21, 10: 0.22, 11: 0.15, 12: 0.15, 13: 0.15, 20: 0.14, 21: 0.17, 22: 0.15, 23: 0.18, 24: 0.2 }[bar] ?? 0.13;
+  const padBright = bar >= 8 && bar <= 10 ? 1300 : bar >= 23 && bar <= 24 ? 2500 + (bar - 23) * 600 : 1750;
   if (bar <= 24) {
     const notes = bar >= 8 && bar <= 10 ? CH[ch].map((n, i) => (i === 0 ? n - 12 : n)) : CH[ch];
     pad(t0, t1 - 0.02, notes, padLevel, padBright, { att: bar === 3 ? 0.9 : 0.12, rel: 0.25, open: bar === 24 ? 1.5 : 0 });
   }
 
   // arpeggio: enters with the evidence, opens across research, steps aside for the review
-  const arpOn = (bar >= 5 && bar <= 18) || (bar >= 21 && bar <= 24);
+  const arpOn = (bar >= 5 && bar <= 19) || (bar >= 22 && bar <= 24);
   if (arpOn) {
     const tones = ARP[ch] ?? ARP.Dm;
-    const order = bar >= 13 ? [0, 2, 1, 3, 2, 0, 3, 1, 0, 2, 3, 1, 2, 3, 1, 0] : [0, 1, 2, 1, 3, 2, 1, 2, 0, 1, 2, 3, 2, 1, 3, 1];
-    const gate = bar >= 13 ? [1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1] : [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0];
-    const cutoff = bar <= 18 ? 1500 + (bar - 5) * 190 : 2200 + (bar - 21) * 800;
+    const order = bar >= 14 ? [0, 2, 1, 3, 2, 0, 3, 1, 0, 2, 3, 1, 2, 3, 1, 0] : [0, 1, 2, 1, 3, 2, 1, 2, 0, 1, 2, 3, 2, 1, 3, 1];
+    const gate = bar >= 14 ? [1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1] : [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0];
+    const cutoff = bar <= 19 ? 1500 + (bar - 5) * 180 : 2200 + (bar - 22) * 800;
     for (let s = 0; s < 16; s++) {
       if (!gate[s]) continue;
       if (bar === 6 && s >= 8) continue; // withdrawal before the answer
@@ -480,7 +480,7 @@ function barProgramme(bar) {
     if (withdraw) for (let s = 8; s < 16; s += 2) hat(at(bar, s), 0.22, { decay: 0.012 });
     if (!withdraw) { metal(at(bar, 7), 0.4, { pan: 0.4 }); metal(at(bar, 13), 0.5, { pan: -0.4, f: 2650 }); }
     if (bar === 10) { Sn(13, 0.35, { tail: 0.05 }); Sn(14, 0.5, { tail: 0.05 }); Sn(15, 0.7, { tail: 0.06 }); }
-  } else if (bar === 11 || bar === 12) {
+  } else if (bar >= 11 && bar <= 13) {
     // syncopation for signals and tracked wallets: 3-3-2 kicks, offbeat claps, metal in the gaps
     K(0); K(3, 0.85); K(6, 0.9); K(10, 0.95); K(13, 0.75);
     Sn(4, 0.85); Sn(12, 0.9);
@@ -488,9 +488,22 @@ function barProgramme(bar) {
     for (const s of [0, 3, 6, 10, 13]) B(s, s === 13 ? 3 : 2.5, s === 6 ? rootN + 12 : rootN, s === 6 ? 0.8 : 1, { peak: 1400 });
     hats16(bar, 0.66);
     for (const [s, p] of [[2, -0.5], [5, 0.5], [9, -0.4], [11, 0.4], [14, -0.5]]) metal(at(bar, s), 0.52, { pan: p, f: 2200 + s * 40 });
-  } else if (bar >= 13 && bar <= 18) {
+  } else if (bar === 14) {
+    // half syncopation, then the research drive drops in on frame 1350 (step 8)
+    K(0); K(3, 0.85); K(6, 0.9);
+    Sn(4, 0.85); clap(at(bar, 7), 0.5);
+    for (const s of [0, 3, 6]) B(s, 2.5, s === 6 ? rootN + 12 : rootN, 1, { peak: 1400 });
+    hats16(bar, 0.66, 0, 8);
+    kick(at(bar, 8), 1.15, { ad: 0.32, duck: 0.8 });
+    noiseBurst(at(bar, 8), 0.7, 0.22, 7000, STEMS.drums, 0.35); // crash where the wipe lands
+    K(10); Sn(12, 0.95); Sn(15, 0.2, { tail: 0.05 });
+    const roll = [1, 0, 1, 1, 0, 1, 1, 0];
+    for (let s = 8; s < 16; s++) if (roll[s - 8]) B(s, 1, s % 4 === 2 ? rootN + 12 : rootN, s % 4 === 0 ? 1 : 0.72, { peak: 1200, cutDecay: 0.05 });
+    hats16(bar, 0.6, 8, 16);
+    for (const s of [10, 14]) hat(at(bar, s), 0.36, { open: true, pan: -0.2 });
+  } else if (bar >= 15 && bar <= 19) {
     // the research drive: rolling bass, full break, open hats, evolving accents
-    const v = bar - 13;
+    const v = bar - 14;
     K(0); K(v % 2 ? 7 : 6, 0.8); K(10); if (v % 3 === 2) K(13, 0.7);
     Sn(4, 0.9); Sn(12, 0.95);
     for (const s of v % 2 ? [2, 9, 14] : [7, 11, 15]) Sn(s, 0.2, { tail: 0.05 });
@@ -499,26 +512,26 @@ function barProgramme(bar) {
     hats16(bar, 0.6);
     for (const s of [2, 6, 10, 14]) if ((s + v) % 8 !== 0) hat(at(bar, s), 0.36, { open: true, pan: -0.2 });
     for (let s = 0; s < 16; s += 2) metal(at(bar, s + 1), 0.22 + 0.1 * ((s + v) % 3 === 0), { pan: s % 4 ? 0.45 : -0.45, f: 2050 + v * 70 });
-    if (bar === 14 || bar === 16) for (const s of [12, 13, 14, 15]) Sn(s, 0.35 + (s - 12) * 0.12, { tail: 0.05 });
-    if (bar === 18) { for (let s = 8; s < 16; s++) Sn(s, 0.3 + (s - 8) * 0.07, { tail: 0.05 }); clap(at(bar, 15), 0.6); }
-  } else if (bar === 19) {
+    if (bar === 16 || bar === 18) for (const s of [12, 13, 14, 15]) Sn(s, 0.35 + (s - 12) * 0.12, { tail: 0.05 });
+    if (bar === 19) { for (let s = 8; s < 16; s++) Sn(s, 0.3 + (s - 8) * 0.07, { tail: 0.05 }); clap(at(bar, 15), 0.6); }
+  } else if (bar === 20) {
     // reduce around the review/control moment
     K(0); K(8, 0.85);
     B(0, 6); B(8, 6);
     for (let s = 0; s < 16; s += 2) hat(at(bar, s), 0.45 * (s % 4 ? 0.6 : 1));
     metal(at(bar, 12), 0.35, { pan: 0.3 });
-  } else if (bar === 20) {
-    // the deliberate pause: no kick, a held root, a clock
+  } else if (bar === 21) {
+    // the deliberate pause under "You stay in control": no kick, a held root, a clock
     bassNote(at(bar), 16 * STEP * 0.98, rootN, 0.75, { cut: 180, peak: 300, grit: 0.15 });
     for (let s = 0; s < 16; s += 4) metal(at(bar, s), 0.32, { pan: 0, f: 2900, decay: 0.01 });
     for (let s = 2; s < 16; s += 4) hat(at(bar, s), 0.2, { decay: 0.012 });
-  } else if (bar === 21) {
+  } else if (bar === 22) {
     // rebuild, tighter
     K(0); K(4); K(8); K(12); K(14, 0.6); K(15, 0.7);
     Sn(12, 0.8);
     for (let s = 0; s < 16; s += 2) B(s, 1.6, s % 4 === 2 ? rootN + 12 : rootN, 0.9, { peak: 1300 });
     hats16(bar, 0.6);
-  } else if (bar >= 22 && bar <= 24) {
+  } else if (bar >= 23 && bar <= 24) {
     // the final climb
     const v = bar - 22;
     for (const s of [0, 4, 8, 12]) if (at(bar, s) < fr(2385)) K(s, 1);
@@ -552,8 +565,8 @@ function barProgramme(bar) {
 
 for (let bar = 3; bar <= 24; bar++) barProgramme(bar);
 
-/* ---- headline accent (evidence, 472) and the answer (600) ---- */
-kick(fr(472), 0.6, { f0: 110, f1: 44, ad: 0.2, click: 0.3, duck: 0.3 });
+/* ---- headline accent (evidence, 544) and the answer (600) ---- */
+kick(fr(544), 0.6, { f0: 110, f1: 44, ad: 0.2, click: 0.3, duck: 0.3 });
 riser(560, 600, 0.22);
 bell(fr(600), 74, 0.9, { pan: -0.15, decay: 1.6 }); // D5
 bell(fr(600), 81, 0.6, { pan: 0.2, decay: 1.4 }); // A5 — the insight dyad
@@ -570,28 +583,58 @@ sweep(262, 280, { from: 2400, to: 900, vel: 0.16, panFrom: -0.3, panTo: 0.5, q: 
 click(321, 0.5, { pitch: 0.9, pan: -0.2 });
 click(352, 0.5, { pitch: 1.0, pan: 0.2 });
 sweep(388, 401, { from: 900, to: 5000, vel: 0.3, panFrom: 0, panTo: 0, q: 1.2, shape: "rise" });
-click(452, 0.85, { pitch: 1.15 }); // send
-tick(668, 0.4, 1.3); click(674, 0.45, { pitch: 1.4 });
-whip(692, 0.55, 1);
-[738, 750, 763, 775].forEach((f, i) => tick(f, 0.55, 1 + i * 0.12, -0.3 + i * 0.2));
-click(790, 0.45); sweep(806, 820, { from: 3000, to: 1200, vel: 0.2, panFrom: 0.6, panTo: -0.6 });
-click(850, 0.5); click(925, 0.5);
-click(1000, 0.55); tick(1046, 0.35, 1.1);
-whip(1078, 0.5, -1); thunk(1096, 0.5);
-sweep(1196, 1206, { from: 1200, to: 6000, vel: 0.28, panFrom: -0.5, panTo: 0.5, shape: "rise" });
-click(1220, 0.55, { pitch: 1.05 }); click(1240, 0.5); click(1275, 0.45);
-sweep(1315, 1335, { from: 900, to: 3200, vel: 0.22, panFrom: 0, panTo: 0, shape: "arc" });
-click(1350, 0.5); whip(1362, 0.45, 1);
-click(1430, 0.45); click(1500, 0.45); tick(1512, 0.5, 1.25); click(1525, 0.4);
-[1590, 1625, 1658, 1688].forEach((f, i) => tick(f, 0.55, 1.05 + i * 0.07, -0.2 + i * 0.15));
-click(1725, 0.5); click(1748, 0.45);
-click(1800, 0.5); thunk(1814, 0.35);
-click(1860, 0.45); click(1900, 0.35, { pitch: 0.9 });
-click(1990, 0.5); click(2050, 0.45);
-click(2100, 0.8, { pitch: 1.2 }); thunk(2124, 0.45);
-click(2200, 0.45); click(2226, 0.4);
-sweep(2266, 2280, { from: 2600, to: 1000, vel: 0.16, panFrom: 0.5, panTo: -0.5 });
-sweep(2300, 2314, { from: 2600, to: 1000, vel: 0.16, panFrom: 0.5, panTo: -0.5 });
+
+// 01 Ask — the question lifts out of the phone, is sent, the work, the answer
+sweep(402, 424, { from: 700, to: 3800, vel: 0.24, panFrom: -0.6, panTo: 0.3, q: 1.2, shape: "arc" });
+click(478, 0.85, { pitch: 1.15 }); // send (the recording's own)
+sweep(478, 498, { from: 1200, to: 5200, vel: 0.2, panFrom: 0.2, panTo: 0.2, shape: "arc" });
+tick(488, 0.4, 1.2);
+[616, 628, 642, 652].forEach((f, i) => tick(f, 0.45, 1.1 + i * 0.08, 0.1));
+click(690, 0.45, { pitch: 1.4 });
+sweep(702, 722, { from: 900, to: 4200, vel: 0.22, panFrom: 0, panTo: 0, shape: "arc" });
+thunk(722, 0.4);
+
+// chapter wipes (lime bar, right → left)
+for (const f of [750, 1050, 1350, 1900, 2160]) sweep(f, f + 15, { from: 5200, to: 1400, vel: 0.36, panFrom: 0.8, panTo: -0.8, q: 1.3, shape: "arc" });
+
+// 02 Capital
+thunk(766, 0.45);
+[772, 784, 797, 809].forEach((f, i) => tick(f, 0.6, 1 + i * 0.12, -0.3 + i * 0.2));
+sweep(900, 918, { from: 2600, to: 900, vel: 0.2, panFrom: 0.4, panTo: -0.4 });
+thunk(936, 0.45); thunk(952, 0.4);
+
+// 03 Signals
+thunk(1086, 0.5);
+sweep(1130, 1146, { from: 1500, to: 5000, vel: 0.2, panFrom: 0, panTo: 0, shape: "arc" });
+[1164, 1176, 1188, 1200].forEach((f, i) => tick(f, 0.5, 1.05 + i * 0.07, -0.4));
+sweep(1234, 1262, { from: 700, to: 2600, vel: 0.18, panFrom: -0.3, panTo: -0.3 });
+click(1266, 0.45);
+
+// 04 Research
+thunk(1384, 0.5); thunk(1394, 0.4);
+sweep(1416, 1440, { from: 1000, to: 3600, vel: 0.22, panFrom: -0.2, panTo: 0.6 });
+sweep(1460, 1478, { from: 3600, to: 900, vel: 0.2, panFrom: 0, panTo: 0 });
+thunk(1494, 0.5);
+riser(1490, 1552, 0.12); tick(1552, 0.5, 1.4);
+sweep(1554, 1574, { from: 900, to: 4000, vel: 0.22, panFrom: 0.7, panTo: 0.1 });
+[1576, 1583, 1590].forEach((f, i) => tick(f, 0.5, 1.1 + i * 0.1, 0.4));
+for (const f of [1598, 1638, 1675, 1713, 1750, 1788]) sweep(f, f + 14, { from: 3200, to: 1000, vel: 0.22, panFrom: 0.7, panTo: -0.5, q: 1.4 });
+[1612, 1650, 1687, 1725, 1762, 1800].forEach((f, i) => tick(f, 0.55, 1.0 + i * 0.06, 0.2));
+sweep(1834, 1856, { from: 800, to: 4400, vel: 0.26, panFrom: 0, panTo: 0, shape: "arc" });
+thunk(1858, 0.5);
+
+// 05 Wallet
+thunk(1938, 0.5);
+tick(1950, 0.5, 1.3); tick(1972, 0.45, 1.3);
+sweep(1988, 2006, { from: 3600, to: 900, vel: 0.2, panFrom: 0, panTo: 0 });
+[2030, 2044, 2058].forEach((f) => thunk(f, 0.42));
+sweep(2066, 2088, { from: 1200, to: 4600, vel: 0.14, panFrom: -0.4, panTo: 0.4, shape: "rise" });
+
+// 06 Alerts
+thunk(2196, 0.5); click(2204, 0.45);
+sweep(2250, 2270, { from: 2600, to: 900, vel: 0.2, panFrom: 0.3, panTo: -0.3 });
+thunk(2272, 0.45);
+sweep(2326, 2344, { from: 3600, to: 900, vel: 0.18, panFrom: -0.2, panTo: 0.6 });
 
 /* ---- the vacuum (2386–2400): the build stops dead, tails included ---- */
 function muteFrom(st, f, fade = 0.004) {

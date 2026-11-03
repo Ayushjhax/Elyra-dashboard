@@ -74,6 +74,13 @@ crop $O/00-opened.png             research-recap
 crop $O/01-sol-decision-brief.png decision-brief
 crop $O/02-ask-answer.png         ask-answer
 crop $O/07-smart-money-expanded.png smart-money
+crop $O/02-recording-frame-15s.png ask-question-working
+crop $O/02-recording-frame-25s.png ask-answer-sol
+crop $O/03-capital-context.png    capital-context
+crop $O/07-signals.png            signals-consensus
+crop $O/08-alert-form.png         alert-form
+crop $X/rtab-Yield.png            research-yield
+crop $X/rtab-Unlocks.png          research-unlocks
 
 # Privacy.
 blur receive "40:1250:1120:130" "280:870:640:330"

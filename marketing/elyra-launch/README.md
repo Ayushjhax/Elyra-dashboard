@@ -42,8 +42,10 @@ npm run typecheck
 | Path | What it holds |
 |---|---|
 | `src/Film.tsx` | The scene list and frame ranges. The audio element is for Studio and previews only. |
-| `src/scenes/*.tsx` | One file per act, written in **absolute film frames**: `Opening` (0–400), `Evidence` (400–720), `Capital`, `Signals`, `Research`, `Move`, `Condition`, `Launch`. Every camera key, crop and label is in these files. |
-| `src/components/Shot.tsx` | A window onto one captured source. Camera keys say which source point sits at the window's centre and at what uniform scale. Sources are never stretched. |
+| `src/scenes/*.tsx` | One file per act, written in **absolute film frames**: `Opening` (0–400), `Ask` (400–764), `CapitalV2`, `SignalsV2`, `ResearchV2`, `WalletAlerts` (Wallet and Alerts), `Launch`. Every card rectangle, camera key and label is in these files. |
+| `src/components/Card.tsx` | A crop of a real capture staged as a 3D card (`Stage` gives a shared perspective). It supports top-down and left-right reveals and overlays in card coordinates. |
+| `src/components/Chapter.tsx` | The chapter marker and progress line, and `LimeWipe`, the transition between chapters. |
+| `src/components/Shot.tsx` | A window onto one captured source (used by the opening). Camera keys say which source point sits at the window's centre and at what uniform scale. Sources are never stretched. |
 | `src/components/Device.tsx` | The Seeker-style handset, at the capture's own pixel geometry (1200 × 2670 screen), sized in output pixels so the footage stays sharp under 3D. `deviceMap` projects a screen point to the frame, which anchors labels to real controls. |
 | `src/components/Type.tsx` | `Headline` (used for the four headline events only), `Label` (small anchored copy with a leader line), `Brackets`. |
 | `src/lib/motion.ts` | Eases (including the brand's own `cubic-bezier(0.2, 0, 0, 1)`), log-scale camera interpolation, keyed tracks. Everything is a pure function of the frame. |
@@ -57,17 +59,21 @@ npm run typecheck
 | Frames | Time | Sequence | Composition |
 |---|---|---|---|
 | 0–200 | 0.00–3.33 | Hook | Extreme macro inside the real SOL chart, drifting toward the live price. **LOOK PAST THE PRICE.** Hard-cut accents: funding extremes, largest open interest, the Pyth provenance line. |
-| 200–400 | 3.33–6.67 | Reveal one | The same image pulls out without a cut into the handset, which lands at 200. **A terminal. In your hand.** flanks a centred phone. Native stack pop to Ask, then the attach sheet and the "/" shortcut list, with labels anchored to the real controls. |
-| 400–700 | 6.67–11.67 | Reveal two | The real question is sent (452). Working. **Intelligence. With evidence.** over the dimmed working state. A tighter shot of the work during the withdrawal. The answer lands on 600 and is held, then its Pyth · Binance sources in macro. |
-| 700–1000 | 11.67–16.67 | Capital | The lime rail becomes Capital's tab underline. Brackets step across Portfolio / Positions / Activity / Memory. History → Memory. Explore your portfolio. Read-only connections. |
-| 1000–1200 | 16.67–20.00 | Signals | "A quiet market is a signal, too." and what was checked. Tracked-wallet consensus contracts into a slab, with share-of-value semantics stated beside it. |
-| 1200–1800 | 20.00–30.00 | Research | Report query → NVIDIA report → PDF spread. The chart's fall → backtest trace → three-way comparison. A tab underline → prediction markets. The native tab rhythm (Market recap, Signals, Yield, Unlocks). SEC filings and insider activity. |
-| 1800–2100 | 30.00–35.00 | Prepare your move | Wallet action row. Actions: "You stay in control — 01 Ask · 02 Review · 03 Sign". Receive (QR top half only). The Decision brief's "Set an alert on it from the chart." |
-| 2100–2400 | 35.00–40.00 | Set the condition | Cut to the real "Set alert" button, pull back into the form. Inbox and notification preferences. Account and referrals. The handset returns into the vacuum. |
+| 200–400 | 3.33–6.67 | Reveal one | The same image pulls out, without a cut, into the handset, which lands on 200. **A terminal. In your hand.** Native stack pop to Ask; the attach sheet and "/" shortcuts, labelled at the real controls. |
+| 400–764 | 6.67–12.73 | 01 Ask Elyra | The question lifts out of the phone's composer as a card and is sent on the recording's own send (478). "Elyra is working…". **Intelligence. With evidence.** as the work recedes. The real answer flies forward on 600 and reveals bullet by bullet, held to read. Its sources lift out: "Sources come from the tools it used." |
+| 750–1064 | 12.5–17.7 | 02 Capital | "Your capital. In context." beside the four real context tiles, landing on eighths with a lime pulse on each checked box. "Read-only, by design." with the real read-only and Connections copy. |
+| 1050–1364 | 17.5–22.7 | 03 Signals | "A quiet market is a signal, too." as a large card. Smart-money consensus: the real table cascades in, and the HYPE row expands into entry, mark and wallets, with share-of-value semantics anchored to the 100%. |
+| 1350–1914 | 22.5–31.9 | 04 Research | Reports: the NVIDIA header and scorecard, with the PDF cover sliding out. Backtests: a lime cursor traces the real equity curve (`src/lib/equity-curve.json`). Compare: three strategy cards and the app's "no winner" caveat. A 3D carousel of the other six tools, each named large. A wall of all eight: "Eight research tools. One tab." |
+| 1900–2174 | 31.7–36.2 | 05 Wallet | "Prepare your move." over the real action row. "You stay in control." beside the three real steps, with a lime underline drawn under "Nothing is sent until your wallet signs." |
+| 2160–2346 | 36.0–39.1 | 06 Alerts | "Set the condition." beside the real SOL alert form. "Tells you. Never trades." beside its inbox-only delivery note. |
+| 2340–2400 | 39.0–40.0 | Return | The handset flies back in, into the silence before the announcement. |
 | 2400–2700 | 40.00–45.00 | Reveal three | **Live on Solana dApp Store** · the handset · emblem and wordmark · the unmodified badge · getelyra.xyz. |
 
-Four large headline events: hook, mobile reveal, evidence reveal, launch.
-Everything else is the product's own text or small anchored labels.
+The middle is built from **cards**: one real region of a capture, lifted out
+and staged in 3D at a size that reads (40–60 px text at 1080p), held long
+enough to read. Chapters 02–06 enter behind a lime bar sweeping right to
+left (the agent rail, made graphic). A chapter marker with a six-segment
+progress line sits top-left from 400 to 2346.
 
 ## Replacing assets
 

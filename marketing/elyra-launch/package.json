@@ -1,0 +1,31 @@
+{
+  "name": "elyra-launch",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Elyra 45-second Android launch film — Remotion project, isolated from the Next app, the Expo app and the 20-second teaser.",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "audio": "node audio/score.mjs",
+    "preview": "remotion render ElyraLaunch out/preview-540p.mp4 --scale=0.5 --crf=26",
+    "render": "remotion render ElyraLaunch out/video-only.mp4 --muted --props='{\"withAudio\":false}' && bash scripts/finalize.sh",
+    "stills": "node scripts/stills.mjs",
+    "qc": "bash scripts/qc.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.540",
+    "@remotion/fonts": "4.0.540",
+    "@remotion/media": "4.0.540",
+    "@remotion/renderer": "4.0.540",
+    "@remotion/bundler": "4.0.540",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.540"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}

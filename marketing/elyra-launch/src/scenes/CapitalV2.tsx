@@ -18,15 +18,16 @@ import { C } from "../theme";
       a connected venue.
 --------------------------------------------------------------------------- */
 
-const HEAD: Rect = [40, 720, 1120, 100];
+const HEAD: Rect = [20, 708, 1080, 124]; // page text — lighten-blended, so no box shows
+// exact bounds of each bordered tile (their own border and corners are the card's)
 const TILES: Rect[] = [
-  [58, 838, 528, 218],
-  [610, 838, 534, 218],
-  [58, 1084, 528, 218],
-  [610, 1084, 534, 218],
+  [63, 849, 519, 200],
+  [618, 849, 519, 200],
+  [63, 1095, 519, 200],
+  [618, 1095, 519, 200],
 ];
-const RO: Rect = [48, 486, 1104, 310];
-const CONN: Rect = [48, 1836, 1104, 280];
+const RO: Rect = [65, 502, 1070, 281]; // the read-only card, exact
+const CONN: Rect = [63, 1843, 1074, 270]; // the Connections row, between its dividers
 
 const TILE_W = 512;
 const POS = [
@@ -46,18 +47,6 @@ export const CapitalV2: React.FC = () => {
     <AbsoluteFill>
       <Backdrop glowX={1300} glowY={560} />
       <Stage>
-        <Card
-          src="stills/capital-context.png"
-          rect={HEAD}
-          w={1044}
-          x={1302}
-          y={mix(330, 300, headIn)}
-          opacity={headIn * (1 - swap)}
-          z={-500 * swap}
-          border={false}
-          shadow={false}
-          radius={0}
-        />
         {TILES.map((r, i) => {
           const t = prog(f, LAND[i] - 14, LAND[i], "land");
           const ring = prog(f, LAND[i], LAND[i] + 16, "out");
@@ -73,12 +62,13 @@ export const CapitalV2: React.FC = () => {
               ry={mix(-28, 0, t)}
               rx={mix(12, 0, t)}
               opacity={t * (1 - swap)}
-              radius={20}
+              radius={29}
+              border={false}
             >
               {({ w, h }) =>
                 ring > 0 && ring < 1 ? (
                   <svg width={w} height={h} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
-                    <circle cx={w * 0.155} cy={h * 0.5} r={24 + 46 * ring} fill="none" stroke={C.lime} strokeWidth={3} opacity={1 - ring} />
+                    <circle cx={w * 0.148} cy={h * 0.5} r={24 + 46 * ring} fill="none" stroke={C.lime} strokeWidth={3} opacity={1 - ring} />
                   </svg>
                 ) : null
               }
@@ -93,7 +83,8 @@ export const CapitalV2: React.FC = () => {
           y={mix(560, 430, prog(f, 914, 936, "land"))}
           z={mix(-600, 0, prog(f, 914, 936, "land"))}
           opacity={prog(f, 914, 936, "land")}
-          radius={22}
+          radius={33}
+          border={false}
         />
         <Card
           src="stills/account.png"
@@ -103,9 +94,19 @@ export const CapitalV2: React.FC = () => {
           y={mix(820, 720, prog(f, 930, 952, "land"))}
           z={mix(-600, 0, prog(f, 930, 952, "land"))}
           opacity={prog(f, 930, 952, "land")}
-          radius={22}
+          radius={18}
         />
       </Stage>
+      <Card
+        src="stills/capital-context.png"
+        rect={HEAD}
+        w={1007}
+        x={1264}
+        y={mix(330, 300, headIn)}
+        opacity={headIn * (1 - swap)}
+        feather
+        blend="lighten"
+      />
 
       <Headline lines={[["Your", "capital."], ["In", "context."]]} from={764} to={906} x={96} y={372} size={98} stagger={5} />
       <Headline lines={[["Read-only,"], ["by", "design."]]} from={912} to={1064} x={96} y={372} size={98} stagger={5} exit="none" accent={{ 2: C.citron }} />

@@ -39,6 +39,10 @@ export type CardProps = {
   shadow?: boolean;
   imgW?: number;
   imgH?: number;
+  /** soft edges instead of a panel: for text that sits on the page background */
+  feather?: boolean;
+  /** CSS blend mode — "lighten" lets page-background crops vanish into the stage */
+  blend?: React.CSSProperties["mixBlendMode"];
   /** overlays, in card-local output px (0..w, 0..h) */
   children?: (geo: { w: number; h: number; s: number; at: (sx: number, sy: number) => [number, number] }) => React.ReactNode;
 };
@@ -69,6 +73,8 @@ export const Card: React.FC<CardProps> = ({
   shadow = true,
   imgW = 1200,
   imgH = 2520,
+  feather = false,
+  blend,
   children,
 }) => {
   if (opacity <= 0.001) return null;
@@ -87,9 +93,10 @@ export const Card: React.FC<CardProps> = ({
         transformStyle: "preserve-3d",
         transform: `translate3d(0, 0, ${z}px) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg) scale(${scale})`,
         filter: blur > 0.05 ? `blur(${blur}px)` : undefined,
+        mixBlendMode: blend,
       }}
     >
-      {shadow && (
+      {shadow && !feather && (
         <div
           style={{
             position: "absolute",
@@ -102,13 +109,30 @@ export const Card: React.FC<CardProps> = ({
           }}
         />
       )}
-      <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: radius, background: C.panel, clipPath: clip }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          borderRadius: feather ? 0 : radius,
+          background: feather ? "transparent" : C.panel,
+          clipPath: clip,
+          ...(feather
+            ? {
+                WebkitMaskImage:
+                  "linear-gradient(to right, transparent 0, #000 2.5%, #000 97.5%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 14%, #000 86%, transparent 100%)",
+                WebkitMaskComposite: "source-in",
+                maskComposite: "intersect",
+              }
+            : {}),
+        }}
+      >
         <Img
           src={staticFile(src)}
           style={{ position: "absolute", left: -rect[0] * s, top: -rect[1] * s, width: imgW * s, height: imgH * s, maxWidth: "none" }}
         />
         {dim > 0 && <div style={{ position: "absolute", inset: 0, background: `rgba(8,12,8,${dim})` }} />}
-        {border && <div style={{ position: "absolute", inset: 0, borderRadius: radius, border: `1.5px solid ${C.borderStrong}` }} />}
+        {border && !feather && <div style={{ position: "absolute", inset: 0, borderRadius: radius, border: `1.5px solid ${C.borderStrong}` }} />}
       </div>
       {children && <div style={{ position: "absolute", inset: 0, clipPath: clip }}>{children({ w, h, s, at })}</div>}
     </div>

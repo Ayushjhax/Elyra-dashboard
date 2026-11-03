@@ -20,38 +20,39 @@ import curve from "../lib/equity-curve.json";
    the app's own caveat. Unlocks shows its provider as unavailable.
 --------------------------------------------------------------------------- */
 
-const R_HEAD: Rect = [36, 200, 1128, 330];
-const R_SCORE: Rect = [56, 1296, 1088, 820];
+// panels are cropped just inside their own borders; page text is feathered
+const R_HEAD: Rect = [36, 196, 1128, 360];
+const R_SCORE: Rect = [63, 1299, 1074, 855];
 const R_PDF: Rect = [40, 80, 1120, 640];
-const R_BT: Rect = [52, 515, 1096, 940];
+const R_BT: Rect = [63, 467, 1074, 1031];
 const R_CMP: Rect[] = [
-  [52, 776, 1096, 428],
-  [52, 1229, 1096, 438],
-  [52, 1691, 1096, 440],
+  [63, 780, 1074, 419],
+  [63, 1242, 1074, 419],
+  [63, 1704, 1074, 419],
 ];
-const R_NOWIN: Rect = [52, 2168, 1096, 92];
+const R_NOWIN: Rect = [12, 2156, 1176, 116];
 
 type Tool = { name: string[]; src: string; rect: Rect; w: number };
 const CAROUSEL: Tool[] = [
-  { name: ["Prediction", "markets"], src: "stills/research-predictions.png", rect: [36, 390, 1128, 1110], w: 860 },
-  { name: ["Market", "recap"], src: "stills/research-recap.png", rect: [36, 400, 1128, 1430], w: 680 },
-  { name: ["Signals"], src: "stills/research-signals.png", rect: [36, 400, 1128, 1100], w: 860 },
-  { name: ["Yield"], src: "stills/yield-pools.png", rect: [36, 420, 1128, 900], w: 920 },
-  { name: ["Unlocks"], src: "stills/research-unlocks.png", rect: [36, 400, 1128, 1130], w: 850 },
-  { name: ["SEC", "insiders"], src: "stills/sec-company.png", rect: [52, 1585, 1096, 470], w: 1000 },
+  { name: ["Prediction", "markets"], src: "stills/research-predictions.png", rect: [36, 344, 1128, 1186], w: 810 },
+  { name: ["Market", "recap"], src: "stills/research-recap.png", rect: [36, 352, 1128, 1508], w: 640 },
+  { name: ["Signals"], src: "stills/research-signals.png", rect: [36, 352, 1128, 1208], w: 800 },
+  { name: ["Yield"], src: "stills/yield-pools.png", rect: [36, 380, 1128, 970], w: 900 },
+  { name: ["Unlocks"], src: "stills/research-unlocks.png", rect: [36, 352, 1128, 1208], w: 800 },
+  { name: ["SEC", "insiders"], src: "stills/sec-company.png", rect: [51, 1563, 1098, 525], w: 1000 },
 ];
 const STEP0 = 1612;
 const STEP = 37.5;
 
 const WALL: { src: string; rect: Rect }[] = [
-  { src: "stills/report-top.png", rect: [36, 200, 1128, 900] },
-  { src: "stills/bt-curve.png", rect: [52, 515, 1096, 877] },
-  { src: "stills/research-predictions.png", rect: [36, 390, 1128, 900] },
-  { src: "stills/research-recap.png", rect: [36, 400, 1128, 900] },
-  { src: "stills/research-signals.png", rect: [36, 400, 1128, 900] },
-  { src: "stills/yield-pools.png", rect: [36, 420, 1128, 900] },
-  { src: "stills/research-unlocks.png", rect: [36, 400, 1128, 900] },
-  { src: "stills/research-sec.png", rect: [36, 360, 1128, 900] },
+  { src: "stills/report-top.png", rect: [36, 196, 1128, 900] },
+  { src: "stills/bt-curve.png", rect: [63, 467, 1074, 857] },
+  { src: "stills/research-predictions.png", rect: [36, 344, 1128, 900] },
+  { src: "stills/research-recap.png", rect: [36, 352, 1128, 900] },
+  { src: "stills/research-signals.png", rect: [36, 384, 1128, 900] },
+  { src: "stills/yield-pools.png", rect: [36, 380, 1128, 900] },
+  { src: "stills/research-unlocks.png", rect: [36, 352, 1128, 900] },
+  { src: "stills/research-sec.png", rect: [36, 340, 1128, 900] },
 ];
 
 const PTS = curve.points as [number, number][];
@@ -98,19 +99,19 @@ export const ResearchV2: React.FC = () => {
         {/* Reports */}
         {f < 1480 && (
           <>
-            <Card src="stills/report-top.png" rect={R_HEAD} w={860} x={1200} y={mix(200, 232, rIn) - 300 * rOut} z={mix(-700, 0, rIn) - 400 * rOut} opacity={rIn * (1 - rOut)} radius={22} />
-            <Card src="stills/report-top.png" rect={R_SCORE} w={860} x={1200} y={mix(760, 690, sIn) + 200 * rOut} z={mix(-700, 0, sIn) - 400 * rOut} rx={mix(16, 0, sIn)} opacity={sIn * (1 - rOut)} radius={22} />
+            <Card src="stills/report-top.png" rect={R_HEAD} w={800} x={1250} y={mix(180, 214, rIn) - 300 * rOut} z={mix(-700, 0, rIn) - 400 * rOut} opacity={rIn * (1 - rOut)} radius={22} />
+            <Card src="stills/report-top.png" rect={R_SCORE} w={800} x={1250} y={mix(750, 680, sIn) + 200 * rOut} z={mix(-700, 0, sIn) - 400 * rOut} rx={mix(16, 0, sIn)} opacity={sIn * (1 - rOut)} radius={22} />
             <Card
               src="stills/pdf-cover.png"
               rect={R_PDF}
               imgW={1200}
               imgH={2040}
-              w={600}
-              x={mix(1200, 1560, pdfIn)}
-              y={mix(690, 770, pdfIn)}
-              z={mix(-200, 140, pdfIn)}
-              ry={mix(0, -16, pdfIn)}
-              rz={mix(0, 3, pdfIn)}
+              w={560}
+              x={mix(900, 420, pdfIn)}
+              y={mix(760, 826, pdfIn)}
+              z={mix(-300, 40, pdfIn)}
+              ry={mix(0, 12, pdfIn)}
+              rz={mix(0, -2.5, pdfIn)}
               opacity={pdfIn * (1 - rOut)}
               radius={10}
             />
@@ -123,8 +124,8 @@ export const ResearchV2: React.FC = () => {
             <Card
               src="stills/bt-curve.png"
               rect={R_BT}
-              w={980}
-              x={mix(1250, 1010, cmp)}
+              w={940}
+              x={mix(1250, 1070, cmp)}
               y={560}
               z={mix(-800, 0, bIn) - 360 * cmp}
               rx={mix(14, 0, bIn)}
@@ -159,26 +160,16 @@ export const ResearchV2: React.FC = () => {
                   key={i}
                   src="stills/bt-compare.png"
                   rect={r}
-                  w={720}
-                  x={mix(1900, 1400, t)}
-                  y={258 + i * 262}
-                  z={mix(-400, 60, t)}
-                  ry={mix(-30, -6, t)}
+                  w={700}
+                  x={mix(1900, 1390, t)}
+                  y={236 + i * 272}
+                  z={mix(-400, 0, t)}
+                  ry={mix(-30, -3, t)}
                   opacity={t * (1 - bOut)}
                   radius={18}
                 />
               );
             })}
-            <Card
-              src="stills/bt-compare.png"
-              rect={R_NOWIN}
-              w={980}
-              x={1300}
-              y={975}
-              opacity={prog(f, 1578, 1592, "out") * (1 - bOut)}
-              border={false}
-              radius={10}
-            />
           </>
         )}
 
@@ -202,7 +193,7 @@ export const ResearchV2: React.FC = () => {
                 y={548}
                 z={-Math.abs(pos) * 760}
                 ry={-pos * 40}
-                opacity={Math.max(0, 1 - Math.abs(pos) * (pos < 0 ? 1.7 : 0.85)) * (i === 0 ? appear : 1) * (1 - wall)}
+                opacity={Math.max(0, 1 - Math.abs(pos) * (pos < 0 ? 1.7 : 1.35)) * (i === 0 ? appear : 1) * (1 - wall)}
                 dim={Math.min(0.6, Math.abs(pos) * 0.6)}
               />
             );
@@ -229,6 +220,19 @@ export const ResearchV2: React.FC = () => {
           </div>
         )}
       </Stage>
+
+      {f >= 1570 && f < 1616 && (
+        <Card
+          src="stills/bt-compare.png"
+          rect={R_NOWIN}
+          w={1000}
+          x={1340}
+          y={984}
+          opacity={prog(f, 1578, 1592, "out") * (1 - bOut)}
+          feather
+          blend="lighten"
+        />
+      )}
 
       {/* names */}
       <Headline lines={[["Reports"]]} from={1366} to={1474} x={96} y={404} size={118} stagger={0} dur={14} />

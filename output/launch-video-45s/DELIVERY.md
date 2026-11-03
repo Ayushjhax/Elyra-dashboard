@@ -10,7 +10,7 @@ dependency (see "Soundtrack").
 
 | File | What it is |
 |---|---|
-| `elyra-launch-45s-16x9.mp4` | **The film.** H.264 High, 1920 × 1080, 60/1 fps, 2,700 frames, 45.000 s, yuv420p bt709. Stereo AAC-LC, 48 kHz, 320 kb/s. 141.7 MB. |
+| `elyra-launch-45s-16x9.mp4` | **The film.** H.264 High, 1920 × 1080, 60/1 fps, 2,700 frames, 45.000 s, yuv420p bt709. Stereo AAC-LC, 48 kHz, 320 kb/s. 142.0 MB. |
 | `contact-sheet.jpg` | 32 frames from the encode. |
 | `stills/` | The same 32 frames at full size, named by frame and moment. |
 | `audio/elyra-launch-45s-TEMP-score-master.wav` | 24-bit 48 kHz master of the temporary cue: exactly 45.000 s, first downbeat at sample 0. |
@@ -46,6 +46,16 @@ The chapters carry short statements ("Your capital. In context.",
 "You stay in control"). That makes more than the brief's four large
 headline events; it was a deliberate trade for clarity, following review
 feedback.
+
+**Revision 3 — finish pass.** Every card's crop was measured against the
+app's own panel edges in the pixels (page background, panel fill, border),
+so each card is either the app's exact panel, with its own corners and
+border, or a clean cut just inside it. Corners no longer double, and no
+background slivers or inner dividers show. Text on the plain page
+background is lighten-blended into the stage, so it never sits in a box.
+Titles and bottom rows have real padding, brackets and underlines sit
+inside or beneath what they mark, the carousel no longer ghosts its next
+card, and the PDF cover no longer covers report figures.
 
 Motion was reviewed on a 540p preview, as frame strips through every
 transition: the pop-out of the question (398–434), the headline handing off

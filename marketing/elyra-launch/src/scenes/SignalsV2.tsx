@@ -18,18 +18,20 @@ import { C, F } from "../theme";
       observed share of position value on that side, not a win rate.
 --------------------------------------------------------------------------- */
 
-const QUOTE: Rect = [56, 918, 1088, 540];
-const HEAD: Rect = [36, 1130, 1128, 96];
+// crops sit just inside the app's own borders and between its row dividers
+const QUOTE: Rect = [63, 857, 1074, 664];
+const HEAD: Rect = [63, 1112, 1074, 141];
 const ROWS: Rect[] = [
-  [36, 1255, 1128, 190],
-  [36, 1447, 1128, 190],
-  [36, 1641, 1128, 190],
-  [36, 1833, 1128, 190],
+  [63, 1255, 1074, 192],
+  [63, 1449, 1074, 192],
+  [63, 1643, 1074, 192],
+  [63, 1837, 1074, 189],
 ];
-const EXP: Rect = [36, 1255, 1128, 760];
-const W = 1060;
-const S = W / 1128;
-const ROW_Y = [370, 556, 742, 928];
+const EXP: Rect = [63, 1255, 1074, 760];
+const W = 1000;
+const S = W / 1074;
+const TOP = 271; // first row's top edge
+const ROW_Y = [360, 546, 732, 918];
 
 export const SignalsV2: React.FC = () => {
   const f = useAbsFrame();
@@ -60,7 +62,7 @@ export const SignalsV2: React.FC = () => {
               rect={HEAD}
               w={W}
               x={640}
-              y={236}
+              y={198}
               opacity={prog(f, 1142, 1156, "land")}
               radius={16}
             />
@@ -89,7 +91,7 @@ export const SignalsV2: React.FC = () => {
                 rect={EXP}
                 w={W}
                 x={640}
-                y={280 + (EXP[3] * S) / 2}
+                y={TOP + (EXP[3] * S) / 2}
                 reveal={mix(190 / 760, 1, expand)}
                 radius={18}
               />
@@ -100,13 +102,13 @@ export const SignalsV2: React.FC = () => {
 
       {f >= 1140 && (
         <>
-          <Headline lines={[["Smart-money"], ["consensus."]]} from={1150} to={1364} x={1236} y={196} size={100} weight={400} family={F.serif} tracking={-0.01} stagger={6} exit="none" />
+          <Headline lines={[["Smart-money"], ["consensus."]]} from={1150} to={1364} x={1214} y={200} size={90} weight={400} family={F.serif} tracking={-0.01} stagger={6} exit="none" />
           {f >= 1166 && (
             <div
               style={{
                 position: "absolute",
-                left: 1238,
-                top: 420,
+                left: 1216,
+                top: 404,
                 width: 600,
                 fontFamily: F.sans,
                 fontWeight: 500,
@@ -122,12 +124,12 @@ export const SignalsV2: React.FC = () => {
           <Label
             from={1266}
             to={1364}
-            x={1238}
-            y={620}
+            x={1216}
+            y={600}
             width={540}
             size={34}
             text="Share of value: the observed share of position value on that side — not a win rate."
-            anchor={[110 + (954 - 36) * S + 8, 280 + (1330 - 1255) * S]}
+            anchor={[140 + (954 - 63) * S + 8, TOP + (1330 - 1255) * S]}
             leaderFrom={[-22, 24]}
           />
         </>

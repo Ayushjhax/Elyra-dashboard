@@ -20,9 +20,9 @@ import { C, F } from "../theme";
    sources then lift out on their own. ~15 s of waiting is compressed to ~2 s.
 --------------------------------------------------------------------------- */
 
-const Q: Rect = [200, 1355, 960, 360];
-const WORK: Rect = [36, 1755, 1128, 140];
-const ANS: Rect = [36, 1010, 1128, 710];
+const Q: Rect = [214, 1363, 938, 365]; // the bubble's exact bounds
+const WORK: Rect = [48, 1766, 1103, 112]; // rail to panel edge
+const ANS: Rect = [48, 1012, 1103, 716]; // rail to panel edge
 const SRC: Rect = [70, 1640, 560, 76];
 
 export const Ask: React.FC = () => {
@@ -46,7 +46,7 @@ export const Ask: React.FC = () => {
   const qSend = prog(f, 478, 500, "land");
   const back = prog(f, 540, 558, "land"); // everything recedes for the headline
   const qx = mix(composer[0], 1222, qPop);
-  const qy = mix(composer[1], 470, qPop) - 230 * qSend;
+  const qy = mix(composer[1], 470, qPop) - 196 * qSend;
   const qScale = mix(0.22, 1, qPop) * mix(1, 0.78, qSend);
 
   /* working */
@@ -64,6 +64,8 @@ export const Ask: React.FC = () => {
       [628, 0.53, "land"],
       [642, 0.88, "land"],
       [652, 1, "land"],
+      [702, 1],
+      [712, (1640 - 1012) / 716, "land"], // its sources row lifts out on its own
     ],
     f,
   );
@@ -97,6 +99,8 @@ export const Ask: React.FC = () => {
             blur={7 * back}
             dim={0.45 * back}
             opacity={1 - prog(f, 586, 600, "lin")}
+            border={false}
+            radius={44}
           />
         )}
         {f >= 486 && f < 600 && (
@@ -110,6 +114,8 @@ export const Ask: React.FC = () => {
             z={-700 * back}
             blur={7 * back}
             dim={0.45 * back}
+            border={false}
+            radius={12}
           >
             {({ w, h, at }) => {
               const [ix, iy] = at(110, 1826);
@@ -137,6 +143,7 @@ export const Ask: React.FC = () => {
             reveal={reveal}
             scale={mix(1, 0.9, aUp)}
             dim={0.4 * aUp}
+            radius={18}
           >
             {({ at }) => {
               if (f < 690) return null;

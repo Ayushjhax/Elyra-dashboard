@@ -21,13 +21,16 @@ import { C, F } from "../theme";
 --------------------------------------------------------------------------- */
 
 const ACT: Rect = [40, 1146, 1120, 280];
+// each step between the panel's own dividers (1712, 1978), inside its borders
 const STEPS: Rect[] = [
-  [56, 1375, 1088, 280],
-  [56, 1655, 1088, 280],
-  [56, 1935, 1088, 280],
+  [63, 1400, 1074, 310],
+  [63, 1716, 1074, 260],
+  [63, 1982, 1074, 268],
 ];
-const FORM: Rect = [16, 1300, 1168, 750];
-const INBOX: Rect = [16, 2060, 1168, 350];
+const STEP_Y = [279, 558, 818];
+const FORM: Rect = [16, 1262, 1168, 790];
+const INBOX: Rect = [51, 2067, 1098, 336]; // the delivery note, inside its border
+const FIELD: Rect = [48, 1632, 1104, 144]; // the alert price field, exact
 
 export const Wallet: React.FC = () => {
   const f = useAbsFrame();
@@ -63,11 +66,11 @@ export const Wallet: React.FC = () => {
         {STEPS.map((r, i) => {
           const t = prog(f, 2010 + i * 14, 2030 + i * 14, "land");
           return (
-            <Card key={i} src="stills/actions-steps.png" rect={r} w={1000} x={mix(1500, 1300, t)} y={290 + i * 275} z={mix(-500, 0, t)} ry={mix(-26, 0, t)} opacity={t} radius={20}>
+            <Card key={i} src="stills/actions-steps.png" rect={r} w={1000} x={mix(1500, 1300, t)} y={STEP_Y[i]} z={mix(-500, 0, t)} ry={mix(-26, 0, t)} opacity={t} radius={20}>
               {({ w, at }) => {
                 if (i !== 2 || f < 2066) return null;
-                const [x0, y0] = at(315, 2148);
-                const [x1] = at(1000, 2148);
+                const [x0, y0] = at(315, 2163);
+                const [x1] = at(1082, 2163);
                 const d = prog(f, 2066, 2088, "land");
                 return (
                   <svg width={w} height={400} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
@@ -118,18 +121,19 @@ export const Alerts: React.FC = () => {
           rect={FORM}
           w={1000}
           x={mix(600, 640, fIn) - 120 * swap}
-          y={560}
-          z={mix(-800, 0, fIn) - 520 * swap}
+          y={560 - 110 * swap}
+          z={mix(-800, 0, fIn) - 640 * swap}
           ry={mix(24, 0, fIn) + 10 * swap}
-          dim={0.55 * swap}
-          opacity={fIn}
+          dim={0.6 * swap}
+          blur={4 * swap}
+          opacity={fIn * (1 - 0.55 * swap)}
           scale={1 - 0.15 * out}
         >
           {({ at }) => {
             if (f < 2204 || swap > 0.3) return null;
-            const [x0, y0] = at(24, 1636);
-            const [x1, y1] = at(1176, 1776);
-            return <Brackets rect={[x0 - 8, y0 - 8, x1 - x0 + 16, y1 - y0 + 16]} opacity={prog(f, 2204, 2212, "out")} len={26} />;
+            const [x0, y0] = at(FIELD[0], FIELD[1]);
+            const [x1, y1] = at(FIELD[0] + FIELD[2], FIELD[1] + FIELD[3]);
+            return <Brackets rect={[x0 + 6, y0 + 6, x1 - x0 - 12, y1 - y0 - 12]} opacity={prog(f, 2204, 2212, "out")} len={26} />;
           }}
         </Card>
         <Card

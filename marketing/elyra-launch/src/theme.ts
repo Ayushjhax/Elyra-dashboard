@@ -46,7 +46,7 @@ export const F = {
 export const W = 1920;
 export const H = 1080;
 export const FPS = 60;
-export const FRAMES = 2700;
+export const FRAMES = 2600;
 
 /** Safe area for critical content (brief: 80–96 px horizontal, 60–64 px vertical). */
 export const SAFE = { x: 96, y: 64 } as const;

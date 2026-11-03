@@ -4,13 +4,19 @@
 //
 // A TEMPORARY CUE. It is composed and synthesised here, in code, because no
 // music-generation service or licensed library was available to this
-// production. It follows the brief's cue map exactly (144 BPM, 4/4, 27 bars,
-// 2,700 frames) and is built to be replaced: the stems separate score
+// production. It follows the brief's cue map exactly (144 BPM, 4/4, 26 bars,
+// 2,600 frames) and is built to be replaced: the stems separate score
 // (drums, bass, music) from the film's hits and UI sounds, and
 // audio/CUE-SHEET.md lists every sync point by frame.
 //
 // Grid: one beat = 25 frames; one 16th = 6.25 frames; one bar = 100 frames.
-// D minor, resolving to D major at frame 2400.
+// D minor, resolving to D major at frame 2300.
+//
+// Revision 4 removed one bar from the opening. Cues below are still written
+// in the frames and bars of the 2,700-frame cut; fr() and at() move
+// everything from old frame 200 (old bar 3) one bar earlier, so the impact
+// lands on film frame 100 and the launch on 2300. The opening's own material
+// (old bar 1, below 200) is written directly in film frames.
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -24,17 +30,19 @@ const STEM_DIR = path.join(root, "out", "stems");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 fs.mkdirSync(STEM_DIR, { recursive: true });
 
-const FPS = 60, BPM = 144, FRAMES = 2700;
-const N = Math.round((FRAMES / FPS) * SR); // 2,160,000 samples = 45.000 s
+const FPS = 60, BPM = 144, FRAMES = 2600;
+const N = Math.round((FRAMES / FPS) * SR); // 2,080,000 samples = 43.333 s
 const STEP = 60 / BPM / 4; // a 16th note
-const at = (bar, step = 0) => ((bar - 1) * 16 + step) * STEP; // seconds, bar 1-indexed
-const fr = (f) => f / FPS;
+// seconds, bar 1-indexed in the 27-bar cut; old bar 2 is gone, so bars 3–27 play one bar earlier
+const at = (bar, step = 0) => (((bar >= 3 ? bar - 1 : bar) - 1) * 16 + step) * STEP;
+// seconds for a frame of the 2,700-frame cut; from old frame 200 on, one bar (100 frames) earlier
+const fr = (f) => (f >= 200 ? f - 100 : f) / FPS;
 const idx = (t) => Math.round(t * SR);
 const rnd = rng(20261104);
 const noise = () => rnd() * 2 - 1;
 
 const STEMS = { drums: stereo(N), bass: stereo(N), music: stereo(N), hits: stereo(N), ui: stereo(N) };
-// Reverb and delay sends. The launch (from 2400) has its own pair so that no
+// Reverb and delay sends. The launch (from 2300) has its own pair so that no
 // tail from the build survives the vacuum before the announcement.
 const REV_A = stereo(N), DLY_A = stereo(N);
 const REV_B = stereo(N), DLY_B = stereo(N);
@@ -151,7 +159,7 @@ function clap(t, vel = 1, o = {}) {
   }
 }
 
-/** Soft low "heartbeat" pulse used for pressure in bars 1–2. */
+/** Soft low "heartbeat" pulse used for pressure in bar 1. */
 function pulse(t, vel) {
   kick(t, vel, { f0: 92, f1: 41, pd: 0.05, ad: 0.18, click: 0, drive: 1.2, duck: 0.2 });
 }
@@ -397,26 +405,26 @@ const hats16 = (bar, vel, from = 0, to = 16, o = {}) => {
   for (let s = from; s < to; s++) hat(at(bar, s), vel * ACC[s % 4] * (0.92 + 0.16 * rnd()), o);
 };
 
-/* ---- bars 1–2 · pressure (0–200) ---- */
+/* ---- bar 1 · pressure (0–100, film frames) ---- */
 kick(0, 1.1, { f0: 190, f1: 52, ad: 0.16, drive: 2.4, click: 1.4, duck: 0 }); // the dry first transient
 metal(0, 1.0, { f: 2900, pan: 0, decay: 0.03 });
 noiseBurst(0, 0.05, 0.3, 6000, STEMS.drums, 0);
-drone(0, fr(176), 0.32);
-for (let b = 0; b < 7; b++) pulse(at(1, 4 + b * 4), 0.32 + b * 0.06); // a beat-pulse from beat 2
-for (let s = 2; s < 28; s++) { // tight ticking 16ths, rising
-  const p = s / 28;
+drone(0, fr(76), 0.32);
+for (let b = 0; b < 3; b++) pulse(at(1, 4 + b * 4), 0.32 + b * 0.06); // a beat-pulse on beats 2–4
+for (let s = 2; s < 12; s++) { // tight ticking 16ths, rising
+  const p = s / 12;
   hat(at(1, s), (0.18 + 0.5 * p) * ACC[s % 4], { decay: 0.015, pan: 0 });
   if (s % 4 === 3) metal(at(1, s), 0.25 + 0.4 * p, { pan: 0, f: 2500 });
 }
-sweep(176, 200, { from: 400, to: 5200, vel: 0.35, panFrom: 0, panTo: 0, q: 1.0, shape: "rise", rev: 0.2 }); // the breath before
-sweep(184, 201, { from: 6500, to: 300, vel: 0.5, panFrom: 0.4, panTo: -0.4, q: 1.2, shape: "arc" }); // the pull-out
+sweep(76, 100, { from: 400, to: 5200, vel: 0.35, panFrom: 0, panTo: 0, q: 1.0, shape: "rise", rev: 0.2 }); // the breath before
+sweep(84, 101, { from: 6500, to: 300, vel: 0.5, panFrom: 0.4, panTo: -0.4, q: 1.2, shape: "arc" }); // the pull-out
 
-/* ---- the hardware impact (200) ---- */
+/* ---- the hardware impact (film frame 100) ---- */
 kick(at(3), 1.25, { f0: 140, f1: 40, ad: 0.5, len: 0.9, drive: 2.0, duck: 0.9 });
 subDrop(at(3), 1.0, { f0: 80, f1: 32, glide: 0.35, decay: 0.95, len: 2.2 });
 noiseBurst(at(3), 0.9, 0.28, 2600, STEMS.hits, 0.55);
 
-/* ---- per-bar programme, bars 3–27 ---- */
+/* ---- per-bar programme, bars 3–27 of the old cut (film bars 2–26) ---- */
 function barProgramme(bar) {
   const ch = BARS[bar];
   const rootN = ROOT[ch];
@@ -565,7 +573,7 @@ function barProgramme(bar) {
 
 for (let bar = 3; bar <= 24; bar++) barProgramme(bar);
 
-/* ---- headline accent (evidence, 544) and the answer (600) ---- */
+/* ---- headline accent (evidence, 544 → film 444) and the answer (600 → film 500) ---- */
 kick(fr(544), 0.6, { f0: 110, f1: 44, ad: 0.2, click: 0.3, duck: 0.3 });
 riser(560, 600, 0.22);
 bell(fr(600), 74, 0.9, { pan: -0.15, decay: 1.6 }); // D5
@@ -576,9 +584,7 @@ pad(fr(600), fr(700), [62, 69, 74, 76], 0.07, 2600, { att: 0.02, rel: 0.6, rev: 
 riser(2300, 2385, 0.45);
 sweep(2340, 2398, { from: 900, to: 4800, vel: 0.28, panFrom: 0.7, panTo: 0, q: 1.0, shape: "rise", rev: 0.1 });
 
-/* ---- UI and transition sounds, on the film's real cuts ---- */
-for (const f of [106, 125, 144]) click(f, 0.75, { pitch: 1.1 });
-click(162, 0.6);
+/* ---- UI and transition sounds, on the film's real cuts (old frames; fr() shifts them) ---- */
 sweep(262, 280, { from: 2400, to: 900, vel: 0.16, panFrom: -0.3, panTo: 0.5, q: 1.4 });
 click(321, 0.5, { pitch: 0.9, pan: -0.2 });
 click(352, 0.5, { pitch: 1.0, pan: 0.2 });
@@ -636,7 +642,7 @@ sweep(2250, 2270, { from: 2600, to: 900, vel: 0.2, panFrom: 0.3, panTo: -0.3 });
 thunk(2272, 0.45);
 sweep(2326, 2344, { from: 3600, to: 900, vel: 0.18, panFrom: -0.2, panTo: 0.6 });
 
-/* ---- the vacuum (2386–2400): the build stops dead, tails included ---- */
+/* ---- the vacuum (2386–2400 → film 2286–2300): the build stops dead, tails included ---- */
 function muteFrom(st, f, fade = 0.004) {
   const a = idx(fr(f)), F = Math.round(fade * SR);
   for (let i = a; i < N; i++) {
@@ -649,7 +655,7 @@ REV = REV_B;
 DLY = DLY_B;
 
 for (let bar = 25; bar <= 27; bar++) barProgramme(bar);
-/* ---- the launch (2400) ---- */
+/* ---- the launch (2400 → film 2300) ---- */
 kick(at(25), 1.3, { f0: 135, f1: 38, ad: 0.6, len: 1.0, drive: 2.0, duck: 0.6 });
 subDrop(at(25), 1.0, { f0: 74, f1: 36.7, glide: 0.4, decay: 1.5, len: 3.2 }); // lands on D1
 noiseBurst(at(25), 1.4, 0.24, 3200, STEMS.hits, 0.6);
@@ -669,10 +675,10 @@ for (let i = 0; i < N; i++) {
   STEMS.music[0][i] *= m; STEMS.music[1][i] *= m;
 }
 
-// the opening two bars are narrow: fold drums and music toward mono before 200
-const wide = (i) => Math.min(1, Math.max(0, (i - idx(fr(196))) / idx(fr(8))));
+// the opening bar is narrow: fold drums and music toward mono before the impact (film 100)
+const wide = (i) => Math.min(1, Math.max(0, (i - idx(fr(96))) / idx(fr(8))));
 for (const st of [STEMS.drums, STEMS.music]) {
-  for (let i = 0; i < idx(fr(204)); i++) {
+  for (let i = 0; i < idx(fr(104)); i++) {
     const w = 0.15 + 0.85 * wide(i);
     const mid = (st[0][i] + st[1][i]) / 2, side = (st[0][i] - st[1][i]) / 2;
     st[0][i] = mid + side * w; st[1][i] = mid - side * w;
@@ -708,9 +714,9 @@ function gainRamp(st, f0, f1, g, fade = 0.003) {
     st[0][i] *= gg; st[1][i] *= gg;
   }
 }
-// the breath before the hardware reveal
-gainRamp(STEMS.drums, 177, 199.5, 0.0);
-gainRamp(STEMS.bass, 178, 199.5, 0.15, 0.02);
+// the breath before the hardware reveal (film frames)
+gainRamp(STEMS.drums, 77, 99.5, 0.0);
+gainRamp(STEMS.bass, 78, 99.5, 0.15, 0.02);
 
 // natural ending: a gentle fade over the last 0.3 s so nothing is truncated
 for (const st of Object.values(STEMS)) {

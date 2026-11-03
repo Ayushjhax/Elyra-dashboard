@@ -77,7 +77,7 @@ subtract 100 from those at 200 or later).
 
 - 48 kHz, 24-bit stereo WAV, exactly 2,080,000 samples (43.333 s). The first
   downbeat is at sample 0.
-- Measured on the delivered AAC: **−13.9 LUFS integrated, −2.2 dBTP**. The WAV is limited at −3 dBTP so that the AAC encode, which
+- Measured on the delivered AAC: **−13.8 LUFS integrated, −1.5 dBTP**. The WAV is limited at −3 dBTP so that the AAC encode, which
   overshoots on transients, stays under −1 dBTP.
 - Stems (`out/stems/`, copied to `output/launch-video-45s/audio/stems/`) are
   at the master's gain, before the glue compressor and limiter: drums, bass,

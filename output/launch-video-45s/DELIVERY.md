@@ -10,10 +10,10 @@ dependency (see "Soundtrack").
 
 | File | What it is |
 |---|---|
-| `elyra-launch-45s-16x9.mp4` | **The film.** H.264 High, 1920 × 1080, 60/1 fps, 2,700 frames, 45.000 s, yuv420p bt709. Stereo AAC-LC, 48 kHz, 320 kb/s. 142.0 MB. |
-| `contact-sheet.jpg` | 32 frames from the encode. |
-| `stills/` | The same 32 frames at full size, named by frame and moment. |
-| `audio/elyra-launch-45s-TEMP-score-master.wav` | 24-bit 48 kHz master of the temporary cue: exactly 45.000 s, first downbeat at sample 0. |
+| `elyra-launch-45s-16x9.mp4` | **The film.** H.264 High, 1920 × 1080, 60/1 fps, 2,600 frames, 43.333 s, yuv420p bt709. Stereo AAC-LC, 48 kHz, 320 kb/s. 122.6 MB. **Not committed to git** (GitHub rejects files over 100 MB): render it with `npm run render` in `marketing/elyra-launch`, which writes it here. The copy tracked at this path in git is the superseded 45 s cut (Revision 3, re-encoded small), not this film. The file name keeps `45s` from the first cuts. |
+| `contact-sheet.jpg` | 31 frames from the encode. |
+| `stills/` | The same 31 frames at full size, named by frame and moment. |
+| `audio/elyra-launch-45s-TEMP-score-master.wav` | 24-bit 48 kHz master of the temporary cue: exactly 43.333 s (2,080,000 samples), first downbeat at sample 0. |
 | `audio/stems/TEMP-*.wav` | Drums, bass, music, hits and UI stems; `fx-only` (hits + UI, for laying under a replacement score); `score-only`. |
 | `captures-extra/`, `recordings-extra/`, `footage-60fps-extra/` | New Seeker material filmed for this cut (see "Filming log"). |
 | `../../marketing/elyra-launch/` | Editable source. `README.md` covers preview, render and replacement; `audio/CUE-SHEET.md` lists every sync point. |
@@ -22,13 +22,32 @@ dependency (see "Soundtrack").
 
 | Check | Result |
 |---|---|
-| Decoded video frames | **2700** |
-| Container, video and audio duration | **45.000000 s** each |
+| Decoded video frames | **2600** |
+| Container, video and audio duration | **43.333333 s** container and video; **43.333000 s** audio (the AAC ends on its last whole frame, 16 samples short) |
 | Resolution / frame rate | 1920 × 1080 / 60/1 (constant) |
-| Integrated loudness (EBU R128, on the AAC) | **−13.9 LUFS** |
-| True peak (on the AAC) | **−2.2 dBTP** |
+| Integrated loudness (EBU R128, on the AAC) | **−13.8 LUFS** |
+| True peak (on the AAC) | **−1.5 dBTP** |
 | Black frames | none |
-| Sync | Measured on the master: transient in frame 0; impact rising from −31 to −10 dB exactly at frame 200; insight tone at 600; silence below −100 dB from 2390; launch at 2400 |
+| Sync | Per-frame RMS on the master WAV: transient in frame 0 (−9.9 dB); impact rising from −30.3 to −9.7 dB exactly at frame 100; insight tone at 500 (−24.9 → −10.3 dB); the vacuum falls from 2286 to −99.6 dB at 2290, −116 dB at 2291 and digital silence from 2293 to 2299; launch at 2300 (silence → −9.9 dB); the tail fades to −91 dB in the last frame |
+
+### Revision 4 — the opening trimmed by one bar
+
+The client found the opening's three hard-cut inserts (funding extremes,
+largest open interest, the Pyth line) and the tight hold on the price tag
+confusing, and they delayed the hook's payoff. They are gone: "LOOK PAST THE
+PRICE." pulls straight out of the chart into the handset, which now lands
+with the impact on **frame 100** (was 200). Exactly one bar (100 frames at
+144 BPM) was removed, so the film stays on the grid: **2,600 frames,
+43.333 s**. Everything from old frame 200 onward — picture and score — is
+unchanged and plays 100 frames earlier: the answer lands on 500, the vacuum is
+2286–2300, and "Live on Solana dApp Store" lands on **2300** and holds for the
+final 300 frames.
+
+Checked: stills of the new cut at frames 300, 500, 1400, 2290, 2300 and 2599
+are pixel-identical to the old cut 100 frames later. A 540p preview was
+reviewed as a frame strip through 70–140 (hook → pull-out → phone): the
+motion is continuous, with no jump where the hook and its scrim leave. Frame
+numbers in the Revision 2 and 3 notes below are in the 2,700-frame cut.
 
 ### Revision 2 — the middle rebuilt for clarity
 
@@ -74,23 +93,22 @@ in `src/scenes/*.tsx`.
 
 | Family | When | What is on screen | Source |
 |---|---|---|---|
-| **Markets** | 0:00.00–0:03.33 [0–200] | SOL 1H candles, EMA 20, the live price tag, the prior-day pivots, the Pyth line "±0.0553 confidence · 19 publishers" | `fp/01-markets.mp4` |
-| Markets: funding and OI | 0:01.77–0:02.40 [106–144] | Hyperliquid funding extremes and largest open interest | `cx/pulse-funding.png`, `cx/pulse-oi.png` |
-| **Ask Elyra**: affordances | 0:05.50–0:06.67 [330–400] | Attach sheet (Photo; PDF, CSV, TXT, Markdown or JSON), the "/" shortcut list, the dictation mic, with labels anchored to each | `fpx/23-composer.mp4` |
-| Ask Elyra: evidence | 0:06.67–0:12.73 [400–764] | The real question card (sent on the recording's own send), "Elyra is working…", the answer "What to watch in SOL", held from 0:10.00; the sources card Pyth · Binance | `fp/02-ask-stream.mp4` on the phone; `c/02-recording-frame-15s.png`, `c/02-recording-frame-25s.png` |
-| **Capital Intelligence** | 0:12.50–0:15.10 [750–906] | Account context, 4 sources selected: Portfolio (Connected), Positions (None yet), Activity (None yet), Memory (Not set) | `c/03-capital-context.png` |
-| **Connected capital** | 0:15.20–0:17.73 [912–1064] | "Read-only access — view balances and positions, no trading or transfers"; Connections row "Hyperliquid, Binance and Polymarket · Read-only" | `cx/connections1.png`, `cx/account1.png` |
-| **Signals** | 0:17.73–0:19.13 [1064–1148] | "SOL · No thresholds crossed — A quiet market is a signal, too." | `cx/rtab-Signals.png` |
-| **Smart money** | 0:19.00–0:22.73 [1140–1364] | The consensus table (HYPE, ETH, ZEC, SOL), then HYPE's mark, average entry and wallets. Label: "Share of value: the observed share of position value on that side — not a win rate." | `c/07-signals.png`, `c/07-smart-money-expanded.png` |
-| **Research: Reports + PDF** | 0:22.73–0:24.60 [1364–1476] | NVIDIA Q2 FY2027 header, earnings scorecard, the PDF cover | `cx/report-top.png`, `cx/pdf3.png` |
-| Research: Backtests and Compare | 0:24.60–0:26.87 [1476–1612] | SOL RSI (12) card with its real equity curve traced; MACD / RSI / Bollinger compared; "No winner is named: one period on one asset is not a forecast." | `cx/bt-curve1.png`, `cx/bt4.png` |
-| Research: six more tools | 0:26.87–0:30.63 [1612–1838] | Prediction markets, Market recap, Signals, Yield (Galaxy USDT 8.49% APY), Unlocks (**Source unavailable**, as it is), SEC insider activity, each named large | `c/05-research-predictions.png`, `c/00-opened.png`, `cx/rtab-Signals.png`, `cx/yield-pools.png`, `cx/rtab-Unlocks.png`, `cx/sec-nvda1.png` |
-| Research: all eight | 0:30.63–0:31.90 [1838–1914] | All eight in one wall: "Eight research tools. One tab." | as above |
-| **Wallet** | 0:31.90–0:33.40 [1914–2004] | Receive · Swap · Transfer · Withdraw; "Swap, transfer, receive — every move signed by you." | `c/04-portfolio.png` |
-| Wallet: review controls | 0:33.40–0:36.23 [2004–2174] | "You stay in control: 01 Ask · 02 Review · 03 Sign — Nothing is sent until your wallet signs." | `cx/actions2.png` |
-| **Alerts** | 0:36.23–0:37.70 [2174–2262] | SOL price alerts: Rises above / Falls below, alert price, Now, Set alert | `c/08-alert-form.png` |
-| Alerts: delivery | 0:37.70–0:39.10 [2262–2346] | "Inbox only · price pushes are off — alerts you set are kept in your inbox"; "Tells you. Never trades." | `c/08-alert-form.png` |
-| **Launch** | 0:40.00–0:45.00 [2400–2700] | **Live on Solana dApp Store**, the unmodified badge, the emblem and wordmark, the handset (SOL chart and Decision brief), getelyra.xyz | `public/brand/*`, `fp/09-decision-brief.mp4` |
+| **Markets** | 0:00.00–0:03.00 [0–180] | SOL 1H candles and EMA 20 in macro under the hook; as the handset lands, the live price tag, the prior-day pivots and the Pyth line "±0.0553 confidence · 19 publishers" | `fp/01-markets.mp4` |
+| **Ask Elyra**: affordances | 0:03.83–0:05.00 [230–300] | Attach sheet (Photo; PDF, CSV, TXT, Markdown or JSON), the "/" shortcut list, the dictation mic, with labels anchored to each | `fpx/23-composer.mp4` |
+| Ask Elyra: evidence | 0:05.00–0:11.07 [300–664] | The real question card (sent on the recording's own send), "Elyra is working…", the answer "What to watch in SOL", held from 0:08.33; the sources card Pyth · Binance | `fp/02-ask-stream.mp4` on the phone; `c/02-recording-frame-15s.png`, `c/02-recording-frame-25s.png` |
+| **Capital Intelligence** | 0:10.83–0:13.43 [650–806] | Account context, 4 sources selected: Portfolio (Connected), Positions (None yet), Activity (None yet), Memory (Not set) | `c/03-capital-context.png` |
+| **Connected capital** | 0:13.53–0:16.07 [812–964] | "Read-only access — view balances and positions, no trading or transfers"; Connections row "Hyperliquid, Binance and Polymarket · Read-only" | `cx/connections1.png`, `cx/account1.png` |
+| **Signals** | 0:16.07–0:17.47 [964–1048] | "SOL · No thresholds crossed — A quiet market is a signal, too." | `cx/rtab-Signals.png` |
+| **Smart money** | 0:17.33–0:21.07 [1040–1264] | The consensus table (HYPE, ETH, ZEC, SOL), then HYPE's mark, average entry and wallets. Label: "Share of value: the observed share of position value on that side — not a win rate." | `c/07-signals.png`, `c/07-smart-money-expanded.png` |
+| **Research: Reports + PDF** | 0:21.07–0:22.93 [1264–1376] | NVIDIA Q2 FY2027 header, earnings scorecard, the PDF cover | `cx/report-top.png`, `cx/pdf3.png` |
+| Research: Backtests and Compare | 0:22.93–0:25.20 [1376–1512] | SOL RSI (12) card with its real equity curve traced; MACD / RSI / Bollinger compared; "No winner is named: one period on one asset is not a forecast." | `cx/bt-curve1.png`, `cx/bt4.png` |
+| Research: six more tools | 0:25.20–0:28.97 [1512–1738] | Prediction markets, Market recap, Signals, Yield (Galaxy USDT 8.49% APY), Unlocks (**Source unavailable**, as it is), SEC insider activity, each named large | `c/05-research-predictions.png`, `c/00-opened.png`, `cx/rtab-Signals.png`, `cx/yield-pools.png`, `cx/rtab-Unlocks.png`, `cx/sec-nvda1.png` |
+| Research: all eight | 0:28.97–0:30.23 [1738–1814] | All eight in one wall: "Eight research tools. One tab." | as above |
+| **Wallet** | 0:30.23–0:31.73 [1814–1904] | Receive · Swap · Transfer · Withdraw; "Swap, transfer, receive — every move signed by you." | `c/04-portfolio.png` |
+| Wallet: review controls | 0:31.73–0:34.57 [1904–2074] | "You stay in control: 01 Ask · 02 Review · 03 Sign — Nothing is sent until your wallet signs." | `cx/actions2.png` |
+| **Alerts** | 0:34.57–0:36.03 [2074–2162] | SOL price alerts: Rises above / Falls below, alert price, Now, Set alert | `c/08-alert-form.png` |
+| Alerts: delivery | 0:36.03–0:37.43 [2162–2246] | "Inbox only · price pushes are off — alerts you set are kept in your inbox"; "Tells you. Never trades." | `c/08-alert-form.png` |
+| **Launch** | 0:38.33–0:43.33 [2300–2600] | **Live on Solana dApp Store**, the unmodified badge, the emblem and wordmark, the handset (SOL chart and Decision brief), getelyra.xyz | `public/brand/*`, `fp/09-decision-brief.mp4` |
 
 ## Product truth kept
 
@@ -169,11 +187,11 @@ library was available. The edit is therefore finished with a **clearly
 identified temporary cue**.
 
 The temporary cue is composed to the cue map, not looped. It is D minor at
-144 BPM: a dry first transient, a pressure pulse, a hardware impact on 200, a
-breakbeat groove, a withdrawal and FM insight tone on 600, a darker bed for
+144 BPM: a dry first transient, a pressure pulse, a hardware impact on 100, a
+breakbeat groove, a withdrawal and FM insight tone on 500, a darker bed for
 Capital, syncopation for Signals, a research drive, a deliberate pause in bar
 20, a final climb into a true vacuum, and a D-major launch with a two-note
-D5 → A5 signature on 2400. It has a clean tail to 45.000 s.
+D5 → A5 signature on 2300. It has a clean tail to 43.333 s.
 
 Its loudness, peaks, band balance and sync were measured. The score has not
 been judged by ear. Treat it as a strong guide track. To finish, commission
@@ -200,8 +218,6 @@ sounds, then run `npm run render`.
 - **The prediction-market detail is a live political market** (US House
   control). It is neutral data, but a crypto market would suit the film
   better. A replacement was being filmed when the phone disconnected.
-- **The funding accent includes a real token named "USELESS"** for about
-  0.3 s.
 - **Disk space**: the machine's data volume was at 99% (≈2 GB free) during
   rendering. Remotion's webpack cache is disabled in this project for that
   reason.

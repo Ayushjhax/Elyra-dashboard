@@ -2,21 +2,21 @@ import React from "react";
 import { AbsoluteFill, Sequence, useCurrentFrame } from "remotion";
 import { Backdrop } from "../components/Backdrop";
 import { Device, deviceFor, deviceMap, type DeviceT } from "../components/Device";
-import { Media, Shot } from "../components/Shot";
+import { Media } from "../components/Shot";
 import { Headline, Label } from "../components/Type";
-import { k, prog, mix, ease, type Ease, track } from "../lib/motion";
+import { prog, mix, ease, type Ease, track } from "../lib/motion";
 import { FILM } from "../theme";
 
 /* ---------------------------------------------------------------------------
-   0–400 · Enter under pressure → Reveal one: the terminal is mobile.
+   0–300 · Enter under pressure → Reveal one: the terminal is mobile.
 
-   One object carries the whole opening: the handset. For the first 184
+   One object carries the whole opening: the handset. For the first 84
    frames it is so close that only its screen exists — an extreme macro of
    the real SOL chart (01-markets) drifting across candles toward the live
-   price. Three hard-cut accents show what the chart alone cannot explain:
-   real funding extremes, real open interest, and the Pyth provenance line.
-   At 184 the same image pulls out, without a cut, into the handset, which
-   lands on the bass impact at 200.
+   price, under "LOOK PAST THE PRICE." At 84 the same image pulls out,
+   without a cut, into the handset, which lands on the bass impact at 100.
+   (Revision 4 removed the three insert cuts and the price-tag hold that
+   used to sit between the hook and the pull-out — one bar, 100 frames.)
 --------------------------------------------------------------------------- */
 
 type DK = { f: number; x: number; y: number; s: number; ry: number; rx: number; e?: Ease; cut?: boolean };
@@ -24,15 +24,13 @@ type DK = { f: number; x: number; y: number; s: number; ry: number; rx: number; 
 /* focus = content point at the frame centre; s = output px per device px */
 const KEYS: DK[] = [
   { f: 0, x: 340, y: 1560, s: 3.0, ry: 0, rx: 0 },
-  { f: 106, x: 790, y: 1560, s: 2.66, ry: 0, rx: 0, e: "lin" },
-  { f: 162, x: 1010, y: 1536, s: 2.9, ry: 0, rx: 0, cut: true },
-  { f: 184, x: 1030, y: 1536, s: 3.12, ry: 0, rx: 0, e: "lin" },
-  { f: 202, x: 600, y: 1216, s: 0.345, ry: -15, rx: 5, e: "land" },
-  { f: 262, x: 600, y: 1216, s: 0.35, ry: -9, rx: 3, e: "land" },
-  { f: 302, x: 600, y: 1300, s: 0.37, ry: -3, rx: 1.5, e: "io" },
-  { f: 352, x: 600, y: 1470, s: 0.47, ry: -1, rx: 0.5, e: "io" },
-  { f: 390, x: 600, y: 1540, s: 0.62, ry: 0, rx: 0, e: "io" },
-  { f: 400, x: 600, y: 1480, s: 1.6, ry: 0, rx: 0, e: "in" },
+  { f: 84, x: 700, y: 1560, s: 2.74, ry: 0, rx: 0, e: "lin" },
+  { f: 102, x: 600, y: 1216, s: 0.345, ry: -15, rx: 5, e: "land" }, // the pull-out, landing on 100
+  { f: 162, x: 600, y: 1216, s: 0.35, ry: -9, rx: 3, e: "land" },
+  { f: 202, x: 600, y: 1300, s: 0.37, ry: -3, rx: 1.5, e: "io" },
+  { f: 252, x: 600, y: 1470, s: 0.47, ry: -1, rx: 0.5, e: "io" },
+  { f: 290, x: 600, y: 1540, s: 0.62, ry: 0, rx: 0, e: "io" },
+  { f: 300, x: 600, y: 1480, s: 1.6, ry: 0, rx: 0, e: "in" },
 ];
 
 function deviceAt(f: number): DeviceT {
@@ -62,12 +60,12 @@ function deviceAt(f: number): DeviceT {
  *  sheet, then the "/" shortcut list. */
 const Screen: React.FC = () => {
   const f = useCurrentFrame();
-  const pop = prog(f, 262, 280, "land");
-  const toShortcuts = prog(f, 352, 358, "lin");
+  const pop = prog(f, 162, 180, "land");
+  const toShortcuts = prog(f, 252, 258, "lin");
   return (
     <>
-      {f < 362 && f >= 262 && (
-        <Sequence from={262} layout="none">
+      {f < 262 && f >= 162 && (
+        <Sequence from={162} layout="none">
           <div
             style={{
               position: "absolute",
@@ -81,14 +79,14 @@ const Screen: React.FC = () => {
           </div>
         </Sequence>
       )}
-      {f >= 352 && (
-        <Sequence from={352} layout="none">
+      {f >= 252 && (
+        <Sequence from={252} layout="none">
           <div style={{ position: "absolute", inset: 0, opacity: toShortcuts }}>
             <Media src={{ v: "23-composer.mp4", t: 1318 }} />
           </div>
         </Sequence>
       )}
-      {f < 280 && (
+      {f < 180 && (
         <div
           style={{
             position: "absolute",
@@ -110,21 +108,21 @@ export const Opening: React.FC = () => {
   const scrim = track(
     [
       [0, 0.5],
-      [96, 0.5],
-      [106, 0.12, "out"],
+      [80, 0.5],
+      [90, 0.12, "out"],
     ],
     f,
   );
-  const glow = prog(f, 186, 214, "out");
+  const glow = prog(f, 86, 114, "out");
   return (
     <AbsoluteFill>
       <Backdrop glow={glow} glowY={560} />
-      <Device t={t} status={f < 271 ? "asset" : "home"} shadow={glow}>
+      <Device t={t} status={f < 171 ? "asset" : "home"} shadow={glow}>
         <Screen />
       </Device>
 
       {/* the hook sits over the chart macro */}
-      {f < 106 && (
+      {f < 90 && (
         <AbsoluteFill
           style={{
             background: `radial-gradient(1100px 620px at 50% 50%, rgba(8,12,8,${scrim}) 0%, rgba(8,12,8,${scrim * 0.6}) 60%, rgba(8,12,8,${scrim * 0.25}) 100%)`,
@@ -134,7 +132,7 @@ export const Opening: React.FC = () => {
       <Headline
         lines={[["LOOK", "PAST"], ["THE", "PRICE."]]}
         from={1}
-        to={104}
+        to={90}
         x={960}
         y={540 - 162}
         align="center"
@@ -146,19 +144,14 @@ export const Opening: React.FC = () => {
         dur={12}
       />
 
-      {/* what the chart alone cannot explain — real adjacent UI, hard cuts */}
-      <Shot from={106} to={125} src={{ img: "stills/pulse-funding.png" }} cam={[k(106, 600, 1000, 1.75), k(125, 600, 1018, 1.78, "lin")]} name="Funding extremes" />
-      <Shot from={125} to={144} src={{ img: "stills/pulse-oi.png" }} cam={[k(125, 600, 1060, 1.7), k(144, 600, 1084, 1.72, "lin")]} name="Largest open interest" />
-      <Shot from={144} to={162} src={{ v: "01-markets.mp4", t: 144 }} cam={[k(144, 566, 2404, 1.85), k(162, 566, 2396, 1.88, "lin")]} name="Pyth provenance" />
-
       {/* Reveal one */}
-      <Headline lines={[["A", "terminal."]]} from={205} to={300} x={688} y={318} align="right" size={100} stagger={4} />
-      <Headline lines={[["In", "your", "hand."]]} from={215} to={300} x={1232} y={652} align="left" size={100} stagger={4} />
+      <Headline lines={[["A", "terminal."]]} from={105} to={200} x={688} y={318} align="right" size={100} stagger={4} />
+      <Headline lines={[["In", "your", "hand."]]} from={115} to={200} x={1232} y={652} align="left" size={100} stagger={4} />
 
       {/* native affordances, anchored to the real controls on the handset */}
       <Label
-        from={330}
-        to={356}
+        from={230}
+        to={256}
         x={96}
         y={560}
         eyebrow="Ask Elyra"
@@ -168,8 +161,8 @@ export const Opening: React.FC = () => {
         leaderFrom={[520, 74]}
       />
       <Label
-        from={358}
-        to={400}
+        from={258}
+        to={300}
         x={1352}
         y={300}
         eyebrow="Ask Elyra"
@@ -178,8 +171,8 @@ export const Opening: React.FC = () => {
         leaderFrom={[-20, 74]}
       />
       <Label
-        from={364}
-        to={400}
+        from={264}
+        to={300}
         x={1352}
         y={620}
         text="Dictate into the composer"
@@ -187,11 +180,11 @@ export const Opening: React.FC = () => {
         leaderFrom={[-20, 24]}
       />
       {/* a hairline of light on the hardware edge as it lands */}
-      {f >= 196 && f < 236 && (
+      {f >= 96 && f < 136 && (
         <AbsoluteFill
           style={{
             background: `radial-gradient(900px 500px at 50% 52%, ${FILM.glow}, rgba(0,0,0,0))`,
-            opacity: 1 - prog(f, 200, 236, "out"),
+            opacity: 1 - prog(f, 100, 136, "out"),
           }}
         />
       )}

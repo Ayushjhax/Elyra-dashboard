@@ -7,14 +7,14 @@ DIR=../../output/launch-video-45s/stills
 mkdir -p "$DIR"
 rm -f "$DIR"/*.jpg
 NAMES=(
-  "0030:hook-look-past-the-price" "0130:funding-oi-accent" "0240:reveal-a-terminal-in-your-hand" "0345:ask-attach"
-  "0385:ask-shortcuts-dictation" "0440:ask-question" "0510:ask-working" "0575:intelligence-with-evidence"
-  "0670:answer" "0735:answer-sources" "0830:capital-in-context" "0980:read-only-by-design"
-  "1110:a-quiet-market" "1210:smart-money-consensus" "1320:smart-money-detail" "1440:reports-pdf"
-  "1540:backtest-trace" "1592:compare" "1640:prediction-markets" "1676:market-recap"
-  "1712:signals" "1748:yield" "1786:unlocks" "1826:sec-insiders"
-  "1890:eight-research-tools" "1970:prepare-your-move" "2120:you-stay-in-control" "2230:set-the-condition"
-  "2310:tells-you-never-trades" "2370:handset-returns" "2450:live-on-solana-dapp-store" "2690:end-frame"
+  "0030:hook-look-past-the-price" "0140:reveal-a-terminal-in-your-hand" "0245:ask-attach"
+  "0285:ask-shortcuts-dictation" "0340:ask-question" "0410:ask-working" "0475:intelligence-with-evidence"
+  "0570:answer" "0635:answer-sources" "0730:capital-in-context" "0880:read-only-by-design"
+  "1010:a-quiet-market" "1110:smart-money-consensus" "1220:smart-money-detail" "1340:reports-pdf"
+  "1440:backtest-trace" "1492:compare" "1540:prediction-markets" "1576:market-recap"
+  "1612:signals" "1648:yield" "1686:unlocks" "1726:sec-insiders"
+  "1790:eight-research-tools" "1870:prepare-your-move" "2020:you-stay-in-control" "2130:set-the-condition"
+  "2210:tells-you-never-trades" "2270:handset-returns" "2350:live-on-solana-dapp-store" "2590:end-frame"
 )
 LIST=()
 for e in "${NAMES[@]}"; do

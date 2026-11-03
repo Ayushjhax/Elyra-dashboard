@@ -1,6 +1,6 @@
 // Render stills straight from the composition.
 //   node scripts/stills.mjs                 → the review set
-//   node scripts/stills.mjs 0 200 600 2400  → specific frames
+//   node scripts/stills.mjs 0 100 500 2300  → specific frames
 // Output: out/stills/f####.png (and out/stills/contact.jpg for the review set).
 import { bundle } from "@remotion/bundler";
 import { renderStill, selectComposition } from "@remotion/renderer";
@@ -14,9 +14,9 @@ const out = path.join(root, "out", "stills");
 mkdirSync(out, { recursive: true });
 
 const REVIEW = [
-  0, 30, 116, 134, 152, 176, 196, 236, 290, 340, 380, 420, 462, 520, 580, 640, 690, 704, 745, 800, 835, 890,
-  960, 1040, 1070, 1140, 1220, 1258, 1300, 1335, 1356, 1400, 1460, 1512, 1570, 1605, 1640, 1672, 1705, 1736,
-  1785, 1830, 1880, 1950, 2020, 2080, 2150, 2190, 2214, 2245, 2285, 2325, 2370, 2400, 2550, 2699,
+  0, 30, 96, 136, 190, 240, 280, 320, 362, 420, 480, 540, 590, 604, 645, 700, 735, 790,
+  860, 940, 970, 1040, 1120, 1158, 1200, 1235, 1256, 1300, 1360, 1412, 1470, 1505, 1540, 1572, 1605, 1636,
+  1685, 1730, 1780, 1850, 1920, 1980, 2050, 2090, 2114, 2145, 2185, 2225, 2270, 2300, 2450, 2599,
 ];
 const args = process.argv.slice(2).map(Number).filter((n) => Number.isFinite(n));
 const frames = args.length ? args : REVIEW;

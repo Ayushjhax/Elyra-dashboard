@@ -56,6 +56,11 @@ export const CORE_MODULES = [
   "lib/portfolio/views.ts",
   "lib/assets/types.ts",
   "lib/assets/derive.ts",
+  "lib/invest/types.ts",
+  "lib/invest/catalog.ts",
+  "lib/invest/plan.ts",
+  "lib/passport/types.ts",
+  "lib/passport/derive.ts",
   "lib/wallet/types.ts",
   "lib/wallet/fold.ts",
   "lib/wallet/summarise.ts",
@@ -63,6 +68,7 @@ export const CORE_MODULES = [
   "lib/wallet/status.ts",
   "lib/wallet/flows.ts",
   "lib/solana/address.ts",
+  "lib/solana/amount.ts",
   "lib/activity/events.ts",
   "lib/activity/filter.ts",
   "lib/activity/notifications.ts",
@@ -115,6 +121,13 @@ export const CORE_MODULES = [
   "lib/backtest/types.ts",
   "lib/backtest/parse.ts",
   "lib/backtest/metrics.ts",
+
+  /* Arena: trade reviews, calls, the daily puzzle */
+  "lib/autotrade/rules.ts",
+  "lib/arena/review.ts",
+  "lib/arena/calls.ts",
+  "lib/arena/puzzle.ts",
+  "lib/arena/types.ts",
 
   /* brand */
   "lib/tokens.ts",

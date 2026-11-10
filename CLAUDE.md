@@ -91,15 +91,53 @@ data never lands under the next; the agent conversation ends the same way
 means the read succeeded and found nothing.
 
 Actions awaiting review are the stored `prepared_actions` rows, through
-`/api/actions`. The only thing the web finishes is a swap, in `SwapDialog`,
-signed in the person's wallet — and a row becomes `confirmed` only with that
-signature. Venue connections are read-only by design: a perp, an order or an
-exchange balance links to its venue and nothing here places, closes or
-cancels one. Keep it that way unless execution is genuinely built.
+`/api/actions`. The only thing the web finishes is a swap, signed in the
+person's wallet — in `SwapDialog`, or one leg at a time in an Intelligent
+Portfolio's `TradeDialog`, both through `lib/wallet/runSwap.ts`, the one
+quote-sign-submit path; nothing else may build its own — and a row becomes
+`confirmed` only with that signature.
 
-Automation rules are price alerts (`/api/alerts`). A rule tells the person;
-it never trades. Where a crossing goes — Telegram, muted, or nowhere — is
-said where the rule is set.
+Intelligent Portfolios (`/invest`) are published model portfolios, not
+tokens: `lib/invest/catalog.ts` holds the weights, every holding must be on
+the swap allowlist in `lib/trade.ts`, and a person buys each holding into
+their own wallet. What a portfolio holds is attributed only from proven
+fills — `portfolio_fills`, written by `/api/invest/fills` from the chain's own
+balance change for a transaction this account's wallet signed — and is held
+to the real wallet balance by `heldUnits`. No portfolio's name or copy may
+imply a third party designed or endorses it.
+
+Venue connections are read-only by design: a perp, an order or an exchange
+balance links to its venue and nothing in `lib/exchange/` places, closes or
+cancels one.
+
+The one exception is trading automation (`/automation`, `lib/autotrade/`),
+and it is the only code that calls Hyperliquid's `/exchange`. It trades a
+person's Hyperliquid perps through an API wallet they approved from their
+own wallet — a key that can place and cancel orders and cannot withdraw —
+stored encrypted and decrypted only to sign. Its signing is held to the
+official SDK's test vectors (`lib/autotrade/hyperliquid.test.ts`); never
+change the wire format without them. Every entry carries its take-profit
+and stop-loss in the same request, so the exchange holds them between
+checks. Setups are read on Hyperliquid's own candles; a short rule runs
+its strategy on the mirrored chart (`mirrorCandles`), never on a swapped
+entry and exit. Paper fills pay `PAPER_COSTS`. Markets are `PERP_MARKETS` in
+`lib/autotrade/rules.ts`: Hyperliquid's own perps (crypto, memecoins) and
+trade[XYZ]'s Nasdaq stock perps (`xyz:TICKER`, a HIP-3 builder dex whose
+asset ids are 100000 + dex index × 10000 + index, the index read live).
+Limit orders (`trading_orders`, `lib/autotrade/orders.ts`) rest on
+Hyperliquid's book with TP/SL attached when live, and are filled by the
+tick when paper; a fill becomes a position (`origin: "order"`). Trade notices go through
+`send` in `lib/notifications/deliver.ts` to the inbox, push and Telegram,
+and are not subject to alert preferences. The limits in `lib/autotrade/rules.ts` (`LIMITS`, `decide`) bound
+every rule and are not settings. Rules start on paper; live orders need
+`AUTOTRADE_LIVE=1`, and go to testnet unless `HYPERLIQUID_NETWORK=mainnet`.
+The pass runs on the five-minute tick, before delivery, and writes each
+position row before its order is sent (`unique (rule_id, signal_at)`), so a
+bar never trades twice.
+
+Price alerts (`/api/alerts`) stay alerts: a price rule tells the person; it
+never trades. Where a crossing goes — Telegram, muted, or nowhere — is said
+where the rule is set.
 
 The agent's conversation, its in-flight request and the composer draft live in
 the store, and `lib/agentChat.ts` sends and reads streamed replies outside any

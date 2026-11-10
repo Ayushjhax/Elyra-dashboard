@@ -90,7 +90,38 @@ The API column says `same` when the app calls the existing route unchanged.
 | Trading activity (positions, orders, history, filters) | `components/workspace/TradingActivity.tsx`, `lib/portfolio/ledger.ts` | `mobile/src/components/portfolio/TradingActivity.tsx` (cards on phones, column-priority tables on tablets) | same | done — verified on a Seeker |
 | Portfolio drawer (holdings, risk, DeFi) | `components/portfolio/PortfolioDrawer.tsx`, `lib/portfolio/drawer.ts` | `mobile/src/app/holdings.tsx`, `risk.tsx`, `defi.tsx`, `orders.tsx`, `fills.tsx` | `/api/app/views` (new: the agent's own tools, as the Mini App used) | done — verified on a Seeker |
 | Capital accounts (equity, allocation, venues, balances) | `components/assets/CapitalAccounts.tsx`, `tables.tsx`, `lib/assets/*` | `mobile/src/app/capital.tsx` | same | done — verified on a Seeker |
+| Asset Passport (what a token is, issuer, on-chain controls, sources) | `components/assets/AssetPassport.tsx`, opened from `tables.tsx`; contract and derivation shared in `lib/passport/types.ts`, `lib/passport/derive.ts` | — | `GET /api/assets/passport?mint=` | todo — web only for now |
 | Dashboard (holdings, network, account) | `components/dashboard/DashboardDrawer.tsx` | `mobile/src/app/dashboard.tsx` | same | done — verified on a Seeker |
+
+## Intelligent Portfolios
+
+Model portfolios bought into the person's own wallet, one signed swap per
+holding. The catalog and arithmetic are shared (`lib/invest/catalog.ts`,
+`lib/invest/plan.ts`, `lib/invest/types.ts`, all in `lib/core.ts`), so the app
+plans the same trades from the same numbers.
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Portfolio list (category, risk, minimum, 24h, your value and drift) | `app/invest/page.tsx`, `components/invest/InvestList.tsx`, `lib/invest/useInvest.ts` | — | `GET /api/invest` | todo |
+| Portfolio page (holdings, target vs yours, the 5/25 rule, why these, notes) | `app/invest/[id]/page.tsx`, `components/invest/PortfolioView.tsx` | — | same | todo |
+| Buy and rebalance (reviewed legs, sales first, retry, record each fill) | `components/invest/TradeDialog.tsx`, `lib/wallet/runSwap.ts` | — | `/api/swap/*` same; `POST /api/invest/fills` | todo — the app's two signers (Privy, MWA) each sign one leg at a time |
+
+## Trading automation
+
+Rules Elyra runs on Hyperliquid perps every five minutes, with TP and SL on
+the exchange. The server does all the trading; the app only manages rules and
+approves the key, so no signing logic is ported.
+
+Deferred by the owner on 2026-11-10: the app gets no Automation screens for
+now. Its people still receive every trade notice through push and the inbox.
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Status, pause, loss limit, open-position cap | `components/automation/AutomationView.tsx`, `lib/autotrade/useAutomation.ts` | — | `GET`/`POST /api/automation` | todo |
+| Approve Elyra's trading key | same (`KeyCard`, Privy `signTypedData`) | — | `POST /api/automation/agent` | todo — the app's MWA signer needs EIP-712 support checked |
+| Rules (add, on/off, paper/live, delete) and trades | same | — | `/api/automation/rules`, `/rules/[id]` | todo |
+| Limit orders (long/short at a level, TP/SL, cancel) | `components/automation/AutomationView.tsx` (`LimitOrders`), `lib/autotrade/orders.ts` | — | `POST /api/automation/orders`, `DELETE /orders/[id]` | todo — web only by the owner's choice |
+| Paper trade analysis (win rate, leverage bands, long/short, timing) | same (`Analysis`), `lib/autotrade/analysis.ts` | — | `GET /api/automation` (`analysis`) | todo — web only by the owner's choice |
 
 ## Elyra (AI)
 

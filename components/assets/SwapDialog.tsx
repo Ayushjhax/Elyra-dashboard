@@ -12,22 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { txExplorerUrl } from "@/lib/solana/address";
-import type { PreparedAction } from "@/lib/personalized/types";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import { signingFailure } from "@/lib/wallet/flows";
+import { buildSwap, runSwap, type BuiltSwap } from "@/lib/wallet/runSwap";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
    The swap, end to end.
 
-   Three steps, and the boundary between them is the point:
-
-     1. QUOTE   — the server asks Jupiter to build an order for this wallet
-                  and returns the unsigned bytes.
-     2. SIGN    — Privy signs those bytes in this browser. The key never
-                  leaves Privy and the server never sees it.
-     3. SUBMIT  — the signed bytes go back to the server, which forwards them
-                  to Jupiter unmodified.
+   Quote, sign, submit — lib/wallet/runSwap.ts, the one path that moves funds,
+   shared with each leg of an Intelligent Portfolio.
 
    A quote goes stale in about twenty seconds, so the confirm step re-quotes
    rather than signing bytes that have been sitting in a dialog. The freshly
@@ -41,29 +34,7 @@ interface TokenGroup {
   symbols: string[];
 }
 
-interface BuildResponse {
-  action?: PreparedAction;
-  note?: string;
-  unsignedTransaction?: string | null;
-  quoteRef?: string | null;
-  error?: string;
-}
-
-/** Base64 to bytes. Privy signs bytes; Jupiter speaks base64. */
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function encodeBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
+type BuildResponse = BuiltSwap;
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -126,91 +97,47 @@ export function SwapDialog({
     };
   }, []);
 
-  const build = useCallback(async (): Promise<BuildResponse | null> => {
-    const response = await authedFetch("/api/swap/build", {
-      method: "POST",
-      body: JSON.stringify({ fromSymbol, toSymbol, amount }),
-    });
-    const payload = (await response.json()) as BuildResponse;
-    if (!response.ok) {
-      setError(payload.error ?? "That could not be quoted.");
-      return null;
-    }
-    return payload;
-  }, [authedFetch, fromSymbol, toSymbol, amount]);
-
   const onQuote = useCallback(() => {
     setError(null);
     setSignature(null);
     setQuoting(true);
-    void build()
-      .then((payload) => setQuote(payload))
+    void buildSwap(authedFetch, { fromSymbol, toSymbol, amount })
+      .then((payload) => {
+        if (payload.error !== undefined) setError(payload.error);
+        else setQuote(payload);
+      })
       .finally(() => setQuoting(false));
-  }, [build]);
+  }, [authedFetch, fromSymbol, toSymbol, amount]);
 
   const onConfirm = useCallback(() => {
     setError(null);
+
+    const wallet = wallets.find((entry) => entry.address === address) ?? wallets[0];
+    if (wallet === undefined) {
+      setError("No Solana wallet is connected in this browser.");
+      return;
+    }
+
     setWorking(true);
-
-    void (async () => {
-      try {
-        /* Re-quoted, not reused. The bytes in `quote` were built for a price
-           that has moved on by now, and Jupiter will reject them as stale —
-           better to sign something current than to fail at the last step. */
-        const fresh = await build();
-        if (fresh === null) return;
-        setQuote(fresh);
-
-        const unsigned = fresh.unsignedTransaction;
-        const quoteRef = fresh.quoteRef;
-        if (
-          typeof unsigned !== "string" ||
-          unsigned.length === 0 ||
-          typeof quoteRef !== "string"
-        ) {
-          setError(fresh.action?.reason ?? "There is nothing to sign for that route.");
-          return;
+    /* Re-quoted, not reused. The bytes in `quote` were built for a price that
+       has moved on by now, and Jupiter will reject them as stale — better to
+       sign something current than to fail at the last step. */
+    void runSwap(
+      authedFetch,
+      async (transaction) => (await signTransaction({ transaction, wallet })).signedTransaction,
+      { fromSymbol, toSymbol, amount },
+      setQuote,
+    )
+      .then((result) => {
+        if (result.ok) {
+          setSignature(result.signature);
+          onExecuted?.(result.signature);
+        } else {
+          setError(result.error);
         }
-
-        const wallet = wallets.find((entry) => entry.address === address) ?? wallets[0];
-        if (wallet === undefined) {
-          setError("No Solana wallet is connected in this browser.");
-          return;
-        }
-
-        const { signedTransaction } = await signTransaction({
-          transaction: decodeBase64(unsigned),
-          wallet,
-        });
-
-        const response = await authedFetch("/api/swap/submit", {
-          method: "POST",
-          body: JSON.stringify({
-            signedTransaction: encodeBase64(signedTransaction),
-            quoteRef,
-          }),
-        });
-        const payload = (await response.json()) as {
-          signature?: string;
-          error?: string;
-        };
-
-        if (!response.ok || typeof payload.signature !== "string") {
-          setError(payload.error ?? "The swap did not land.");
-          return;
-        }
-
-        setSignature(payload.signature);
-        onExecuted?.(payload.signature);
-      } catch (caught: unknown) {
-        /* Closing Privy's modal rejects, and that is a decision rather than a
-           fault — it reads as "cancelled", not as an error to investigate. */
-        setError(signingFailure(caught, "The swap could not be completed."));
-      } finally {
-        setWorking(false);
-      }
-    })();
-  }, [authedFetch, build, wallets, address, signTransaction, onExecuted]);
+      })
+      .finally(() => setWorking(false));
+  }, [authedFetch, fromSymbol, toSymbol, amount, wallets, address, signTransaction, onExecuted]);
 
   const symbols = groups.flatMap((group) => group.symbols);
   const canQuote =

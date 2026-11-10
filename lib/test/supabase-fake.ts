@@ -21,6 +21,8 @@ export type Row = Record<string, unknown>;
 interface Result<T> {
   data: T;
   error: { message: string; code?: string } | null;
+  /** Set when the select asked for `{ count: "exact" }`. */
+  count?: number | null;
 }
 
 let counter = 0;
@@ -37,6 +39,7 @@ class Query implements PromiseLike<Result<Row[]>> {
   private conflictKeys: string[] = [];
   private ignoreDuplicates = false;
   private returning = false;
+  private counting: { head: boolean } | null = null;
 
   constructor(
     private readonly store: Map<string, Row[]>,
@@ -75,6 +78,11 @@ class Query implements PromiseLike<Result<Row[]>> {
     return this;
   }
 
+  gte(column: string, value: string) {
+    this.filters.push((row) => row[column] !== null && row[column] !== undefined && String(row[column]) >= value);
+    return this;
+  }
+
   in(column: string, values: readonly unknown[]) {
     this.filters.push((row) => values.includes(row[column]));
     return this;
@@ -96,9 +104,10 @@ class Query implements PromiseLike<Result<Row[]>> {
    * Column lists are accepted and ignored: whole rows come back. Tests here
    * assert on which rows a query returns, never on projection.
    */
-  select(...columns: string[]) {
+  select(columns?: string, options?: { count?: "exact"; head?: boolean }) {
     void columns;
     this.returning = true;
+    if (options?.count === "exact") this.counting = { head: options.head === true };
     return this;
   }
 
@@ -176,6 +185,10 @@ class Query implements PromiseLike<Result<Row[]>> {
           const right = String(b[column] ?? "");
           return ascending ? left.localeCompare(right) : right.localeCompare(left);
         });
+      }
+      if (this.counting !== null) {
+        /* { count: "exact" } counts every match, before any limit. */
+        return { data: this.counting.head ? [] : found.slice(0, this.limitTo ?? found.length), error: null, count: found.length };
       }
       if (this.limitTo !== null) found = found.slice(0, this.limitTo);
       return { data: found, error: null };
@@ -266,6 +279,31 @@ function collides(a: Row, b: Row): boolean {
     a.user_id === b.user_id &&
     a.kind === b.kind
   ) {
+    return true;
+  }
+
+  /* trading_positions (0018): one entry per rule per bar. */
+  /* NULL rule ids (limit-order fills) never collide, as in Postgres. */
+  if (a.rule_id !== undefined && a.rule_id !== null && a.signal_at !== undefined && a.rule_id === b.rule_id && a.signal_at === b.signal_at) {
+    return true;
+  }
+
+  /* Arena (0021). Rows are compared only within one table, so each key
+     names the columns that make it unique there. */
+  /* trade_reviews: one review per position. */
+  if (a.position_id !== undefined && a.position_id !== null && a.label !== undefined && a.position_id === b.position_id) return true;
+  /* arena_groups.invite_code; arena_profiles.handle (NULLs never collide). */
+  if (a.invite_code !== undefined && a.invite_code === b.invite_code) return true;
+  if (a.handle !== undefined && a.handle !== null && a.handle === b.handle) return true;
+  /* arena_puzzle_days (pk puzzle_date) and arena_puzzle_answers (pk user, date). */
+  if (a.puzzle_date !== undefined && a.puzzle_date === b.puzzle_date && a.user_id === b.user_id) return true;
+  /* arena_call_backings: one backing per person per call. */
+  if (a.call_id !== undefined && a.call_id === b.call_id && a.user_id === b.user_id) return true;
+  /* arena_group_members: pk (group, user). */
+  if (a.group_id !== undefined && a.group_id === b.group_id && a.user_id === b.user_id) return true;
+
+  /* portfolio_fills (0017): one row per token a swap moved. */
+  if (a.signature !== undefined && a.signature === b.signature && a.mint !== undefined && a.mint === b.mint) {
     return true;
   }
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { jupiterSwapQuote } from "@/lib/providers/jupiter";
 import { routePrices } from "@/lib/providers/router";
+import { toBaseUnits } from "@/lib/solana/amount";
 import { resolveTokens } from "@/lib/solana/tokens";
 import type { PreparedAction } from "@/lib/personalized/types";
 
@@ -37,13 +38,32 @@ import type { PreparedAction } from "@/lib/personalized/types";
    refused by name.
 --------------------------------------------------------------------------- */
 
-export type AssetClass = "crypto" | "stablecoin" | "metal" | "equity" | "index";
+export type AssetClass =
+  | "crypto"
+  | "meme"
+  | "stablecoin"
+  | "yield"
+  | "metal"
+  | "equity"
+  | "index"
+  | "bond";
+
+/**
+ * Who issues a tokenised security, where that is a fact worth checking.
+ *
+ * Each issuer mints from a recognisable address: Backed's xStocks all begin
+ * "Xs" and Ondo's tokens all end "ondo". The tests hold every entry to its
+ * issuer's pattern, which catches a pasted lookalike — it is not a
+ * substitute for verifying each mint by hand.
+ */
+export type Issuer = "backed" | "ondo";
 
 export interface TradableAsset {
   mint: string;
   decimals: number;
   name: string;
   class: AssetClass;
+  issuer?: Issuer;
 }
 
 /**
@@ -71,18 +91,68 @@ export interface TradableAsset {
  *
  * xStocks are issued by Backed Finance; their mints all begin "Xs", which is
  * a useful sanity check but not a substitute for verifying each one.
+ *
+ * ── Ondo tokens trade by request for quote, in their window ────────────
+ *
+ * The "on" symbols are Ondo Global Markets' tokenised stocks and ETFs. They
+ * have almost no pool liquidity; Jupiter routes them through JupiterZ, where
+ * Ondo's market maker quotes each order. Verified live on 9 November 2026:
+ * every one below is on Jupiter's verified list, carries a price, and filled
+ * a $250 USDC quote through JupiterZ at well under 0.1% impact — when the
+ * maker is quoting. Outside its window Jupiter answers "Trading is not
+ * available outside of market hours", and that sentence reaches the person
+ * as it is, because it is the true reason and it says when to come back.
+ *
+ * Verified but absent: HYGon, BILon, SHYon and IEIon have mints and no price,
+ * so a holding of one could not be valued — and a fund held at an unknown
+ * value cannot be rebalanced.
+ *
+ * Ondo's tokens, like xStocks, are not offered to US persons. That is a
+ * condition of the asset, not of this list, and the surfaces that offer
+ * them say so.
  */
 const MINTS: Record<string, TradableAsset> = {
   /* --- crypto --- */
   SOL: { mint: "So11111111111111111111111111111111111111112", decimals: 9, name: "Solana", class: "crypto" },
   JUP: { mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", decimals: 6, name: "Jupiter", class: "crypto" },
   JITOSOL: { mint: "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn", decimals: 9, name: "Jito Staked SOL", class: "crypto" },
-  BONK: { mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", decimals: 5, name: "Bonk", class: "crypto" },
   JLP: { mint: "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4", decimals: 6, name: "Jupiter Perps LP", class: "crypto" },
+  /* Coinbase's wrapped bitcoin: the deepest BTC on Solana, routed by both
+     pools and JupiterZ. */
+  CBBTC: { mint: "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij", decimals: 8, name: "Coinbase Wrapped BTC", class: "crypto" },
+
+  /* --- memecoins ---
+     Verified on 10 November 2026 like everything above: each is on Jupiter's
+     verified list (WIF is listed there as "$WIF" — the mint is what was
+     checked), holds over $1M of routable liquidity, and quoted $250 of USDC
+     at well under 1% impact. Every one of them has dozens of same-named
+     copies; only these mints trade. GIGA is absent: it priced fine but had
+     under $1M of liquidity. Memecoins can lose most of their value in hours;
+     the swap does not say otherwise. */
+  BONK: { mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", decimals: 5, name: "Bonk", class: "meme" },
+  WIF: { mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", decimals: 6, name: "dogwifhat", class: "meme" },
+  POPCAT: { mint: "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr", decimals: 9, name: "Popcat", class: "meme" },
+  PENGU: { mint: "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv", decimals: 6, name: "Pudgy Penguins", class: "meme" },
+  FARTCOIN: { mint: "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump", decimals: 6, name: "Fartcoin", class: "meme" },
+  TRUMP: { mint: "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN", decimals: 6, name: "OFFICIAL TRUMP", class: "meme" },
+  MEW: { mint: "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5", decimals: 5, name: "cat in a dogs world", class: "meme" },
+  BOME: { mint: "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82", decimals: 6, name: "BOOK OF MEME", class: "meme" },
+  MOODENG: { mint: "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY", decimals: 6, name: "Moo Deng", class: "meme" },
+  GOAT: { mint: "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump", decimals: 6, name: "Goatseus Maximus", class: "meme" },
+  PNUT: { mint: "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump", decimals: 6, name: "Peanut the Squirrel", class: "meme" },
+  USELESS: { mint: "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk", decimals: 6, name: "USELESS COIN", class: "meme" },
 
   /* --- stablecoins --- */
   USDC: { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6, name: "USD Coin", class: "stablecoin" },
   USDT: { mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6, name: "Tether", class: "stablecoin" },
+
+  /* --- yield-bearing dollars ---
+     Not stablecoins: each is priced above a dollar and rises as it earns, so
+     the yield is in the price rather than paid out. USDY is Ondo's claim on
+     short Treasuries and bank deposits (not offered to US persons); syrupUSDC
+     is Maple's overcollateralised lending pool. */
+  USDY: { mint: "A1KLoBrKBde8Ty9qtNQUtq3C2ortoC3u7twggz7sEto6", decimals: 6, name: "Ondo US Dollar Yield", class: "yield" },
+  SYRUPUSDC: { mint: "AvZZF1YaZDziPY2RCK4oJrRVrbN3mTD9NL24hPeaZeUj", decimals: 6, name: "Syrup USDC (Maple)", class: "yield" },
 
   /* --- metals ---
      Gold three ways. XAUT and PAXG are redeemable claims on allocated bullion;
@@ -91,22 +161,53 @@ const MINTS: Record<string, TradableAsset> = {
      and the names say which is which. */
   XAUT: { mint: "AymATz4TCL9sWNEEV9Kvyz45CHVhDZ6kUgjTJPzLpU9P", decimals: 6, name: "Tether Gold (1oz bullion)", class: "metal" },
   PAXG: { mint: "5GgRAEmv8ZxF2PR5hY72Qs5x1bnQ6UK2RbTPoqJ3wSwW", decimals: 8, name: "PAX Gold (1oz bullion)", class: "metal" },
-  GLDX: { mint: "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re", decimals: 8, name: "Gold xStock (SPDR GLD ETF)", class: "metal" },
+  GLDX: { mint: "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re", decimals: 8, name: "Gold xStock (SPDR GLD ETF)", class: "metal", issuer: "backed" },
+  GLDON: { mint: "hWfiw4mcxT8rnNFkk6fsCQSxoxgZ9yVhB6tyeVcondo", decimals: 9, name: "SPDR Gold Shares (Ondo)", class: "metal", issuer: "ondo" },
+  IAUON: { mint: "M77ZvkZ8zW5udRbuJCbuwSwavRa7bGAZYMTwru8ondo", decimals: 9, name: "iShares Gold Trust (Ondo)", class: "metal", issuer: "ondo" },
 
   /* --- tokenised equities --- */
-  TSLAX: { mint: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB", decimals: 8, name: "Tesla xStock", class: "equity" },
-  NVDAX: { mint: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh", decimals: 8, name: "NVIDIA xStock", class: "equity" },
-  AAPLX: { mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", decimals: 8, name: "Apple xStock", class: "equity" },
-  MSFTX: { mint: "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX", decimals: 8, name: "Microsoft xStock", class: "equity" },
-  GOOGLX: { mint: "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN", decimals: 8, name: "Alphabet xStock", class: "equity" },
-  AMZNX: { mint: "Xs3eBt7uRfJX8QUs4suhyU8p2M6DoUDrJyWBa8LLZsg", decimals: 8, name: "Amazon xStock", class: "equity" },
-  METAX: { mint: "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu", decimals: 8, name: "Meta xStock", class: "equity" },
-  COINX: { mint: "Xs7ZdzSHLU9ftNJsii5fCeJhoRWSC32SQGzGQtePxNu", decimals: 8, name: "Coinbase xStock", class: "equity" },
-  MSTRX: { mint: "XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ", decimals: 8, name: "MicroStrategy xStock", class: "equity" },
+  TSLAX: { mint: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB", decimals: 8, name: "Tesla xStock", class: "equity", issuer: "backed" },
+  NVDAX: { mint: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh", decimals: 8, name: "NVIDIA xStock", class: "equity", issuer: "backed" },
+  AAPLX: { mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", decimals: 8, name: "Apple xStock", class: "equity", issuer: "backed" },
+  MSFTX: { mint: "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX", decimals: 8, name: "Microsoft xStock", class: "equity", issuer: "backed" },
+  GOOGLX: { mint: "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN", decimals: 8, name: "Alphabet xStock", class: "equity", issuer: "backed" },
+  AMZNX: { mint: "Xs3eBt7uRfJX8QUs4suhyU8p2M6DoUDrJyWBa8LLZsg", decimals: 8, name: "Amazon xStock", class: "equity", issuer: "backed" },
+  METAX: { mint: "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu", decimals: 8, name: "Meta xStock", class: "equity", issuer: "backed" },
+  COINX: { mint: "Xs7ZdzSHLU9ftNJsii5fCeJhoRWSC32SQGzGQtePxNu", decimals: 8, name: "Coinbase xStock", class: "equity", issuer: "backed" },
+  MSTRX: { mint: "XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ", decimals: 8, name: "MicroStrategy xStock", class: "equity", issuer: "backed" },
+
+  NVDAON: { mint: "gEGtLTPNQ7jcg25zTetkbmF7teoDLcrfTnQfmn2ondo", decimals: 9, name: "NVIDIA (Ondo)", class: "equity", issuer: "ondo" },
+  MSFTON: { mint: "FRmH6iRkMr33DLG6zVLR7EM4LojBFAuq6NtFzG6ondo", decimals: 9, name: "Microsoft (Ondo)", class: "equity", issuer: "ondo" },
+  GOOGLON: { mint: "bbahNA5vT9WJeYft8tALrH1LXWffjwqVoUbqYa1ondo", decimals: 9, name: "Alphabet Class A (Ondo)", class: "equity", issuer: "ondo" },
+  METAON: { mint: "fDxs5y12E7x7jBwCKBXGqt71uJmCWsAQ3Srkte6ondo", decimals: 9, name: "Meta Platforms (Ondo)", class: "equity", issuer: "ondo" },
+  AMZNON: { mint: "14Tqdo8V1FhzKsE3W2pFsZCzYPQxxupXRcqw9jv6ondo", decimals: 9, name: "Amazon (Ondo)", class: "equity", issuer: "ondo" },
+  AAPLON: { mint: "123mYEnRLM2LLYsJW3K6oyYh8uP1fngj732iG638ondo", decimals: 9, name: "Apple (Ondo)", class: "equity", issuer: "ondo" },
+  TSLAON: { mint: "KeGv7bsfR4MheC1CkmnAVceoApjrkvBhHYjWb67ondo", decimals: 9, name: "Tesla (Ondo)", class: "equity", issuer: "ondo" },
+  AVGOON: { mint: "1FWZtdWN7y38BSXGzbs8D6Shk88oL9atDNgbVz9ondo", decimals: 9, name: "Broadcom (Ondo)", class: "equity", issuer: "ondo" },
+  TSMON: { mint: "keybg184d4vyXeQdFqs4o99YsMg7xBthxTJ6Ky3ondo", decimals: 9, name: "Taiwan Semiconductor (Ondo)", class: "equity", issuer: "ondo" },
+  AMDON: { mint: "14diAn5z8kjrKwSC8WLqvBqqe5YmihJhjxRxd8Z6ondo", decimals: 9, name: "AMD (Ondo)", class: "equity", issuer: "ondo" },
+  PLTRON: { mint: "HfsnTS5qtdStwec9DfBrunRqnAMYMMz1kjv9Hu9ondo", decimals: 9, name: "Palantir (Ondo)", class: "equity", issuer: "ondo" },
+  KOON: { mint: "e6G4pfFcrdKxJuZ4YXixRFfMbpMvgXG2Mjcus71ondo", decimals: 9, name: "Coca-Cola (Ondo)", class: "equity", issuer: "ondo" },
+  PGON: { mint: "GZ8v4NdSG7CTRZqHMgNsTPRULeVi8CpdWd9wZY8ondo", decimals: 9, name: "Procter & Gamble (Ondo)", class: "equity", issuer: "ondo" },
+  JNJON: { mint: "KUXt7LzHWSQXp5eyqMZRxWjAP6yM8BUh4LRHwiwondo", decimals: 9, name: "Johnson & Johnson (Ondo)", class: "equity", issuer: "ondo" },
+  XOMON: { mint: "qCYD74QnXzd9pzv6pGHQKJVwoibL6sNcPQDnpDiondo", decimals: 9, name: "Exxon Mobil (Ondo)", class: "equity", issuer: "ondo" },
+  VZON: { mint: "igu1coP6n3GPaWmbd8J9Z7UAyLpV254uQFFNfydondo", decimals: 9, name: "Verizon (Ondo)", class: "equity", issuer: "ondo" },
 
   /* --- indices --- */
-  SPYX: { mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", decimals: 8, name: "S&P 500 xStock", class: "index" },
-  QQQX: { mint: "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ", decimals: 8, name: "Nasdaq 100 xStock", class: "index" },
+  SPYX: { mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", decimals: 8, name: "S&P 500 xStock", class: "index", issuer: "backed" },
+  QQQX: { mint: "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ", decimals: 8, name: "Nasdaq 100 xStock", class: "index", issuer: "backed" },
+  QQQON: { mint: "HrYNm6jTQ71LoFphjVKBTdAE4uja7WsmLG8VxB8ondo", decimals: 9, name: "Invesco QQQ (Ondo)", class: "index", issuer: "ondo" },
+  IVVON: { mint: "CqW2pd6dCPG9xKZfAsTovzDsMmAGKJSDBNcwM96ondo", decimals: 9, name: "iShares Core S&P 500 ETF (Ondo)", class: "index", issuer: "ondo" },
+  VTION: { mint: "jCCU4GwukjNxAXJowG2S4KCrr5g6YyUB61WHYvGondo", decimals: 9, name: "Vanguard Total Stock Market ETF (Ondo)", class: "index", issuer: "ondo" },
+  EFAON: { mint: "AbvryMGnaba9oADMZk8Vp2Av6MtczsncGyfWaC4ondo", decimals: 9, name: "iShares MSCI EAFE ETF (Ondo)", class: "index", issuer: "ondo" },
+  IEMGON: { mint: "cdVNL7wK8mf1UCDqM6zdrziRv4hmvqWhXeTcck2ondo", decimals: 9, name: "iShares Core MSCI Emerging Markets ETF (Ondo)", class: "index", issuer: "ondo" },
+
+  /* --- bond funds --- */
+  SGOVON: { mint: "HjrN6ChZK2QRL6hMXayjGPLFvxhgjwKEy135VRjondo", decimals: 9, name: "iShares 0-3 Month Treasury Bond ETF (Ondo)", class: "bond", issuer: "ondo" },
+  IEFON: { mint: "D4uWxzR5StYC6sTRhVts8Eboy3pmVtHeNC62dnQondo", decimals: 9, name: "iShares 7-10 Year Treasury Bond ETF (Ondo)", class: "bond", issuer: "ondo" },
+  TLTON: { mint: "KaSLSWByKy6b9FrCYXPEJoHmLpuFZtTCJk1F1Z9ondo", decimals: 9, name: "iShares 20+ Year Treasury Bond ETF (Ondo)", class: "bond", issuer: "ondo" },
+  TIPON: { mint: "k6BPp2Xmf2TYgrZiUyWfUoZBKeqaDbvPoAVgSx2ondo", decimals: 9, name: "iShares TIPS Bond ETF (Ondo)", class: "bond", issuer: "ondo" },
+  AGGON: { mint: "13qTjKx53y6LKGGStiKeieGbnVx3fx1bbwopKFb3ondo", decimals: 9, name: "iShares Core US Aggregate Bond ETF (Ondo)", class: "bond", issuer: "ondo" },
 };
 
 /**
@@ -168,10 +269,13 @@ export function knownSymbols(): string[] {
 export function catalogue(): Array<{ label: string; symbols: string[] }> {
   const groups: Array<[AssetClass, string]> = [
     ["crypto", "Crypto"],
+    ["meme", "Memecoins"],
     ["stablecoin", "Stablecoins"],
+    ["yield", "Yield-bearing dollars"],
     ["metal", "Gold"],
     ["equity", "Stocks"],
-    ["index", "Indices"],
+    ["index", "Index funds"],
+    ["bond", "Bond funds"],
   ];
 
   return groups.map(([key, label]) => ({
@@ -187,33 +291,11 @@ export function refusalFor(symbol: string): string | null {
   return REFUSED[symbol.trim().toUpperCase()] ?? null;
 }
 
-/**
- * Converts a decimal amount STRING to base units, exactly.
- *
- * No floating point anywhere in here, which is the whole point. Two ways the
- * obvious implementations go wrong:
- *
- *   `1.1 * 10 ** 9`        → 1100000000.0000001 — a swap amount one lamport
- *                            off is one the venue rejects.
- *   `Number("1234.567891")` → 1234.56789099999991… — truncating THAT loses the
- *                            user's last unit, and rounding it up quotes a
- *                            swap for more than they typed.
- *
- * So the digits the user typed are shifted by hand. Precision beyond the
- * token's decimals is truncated, never rounded: rounding up would quote a
- * trade larger than the balance it was sized against.
- */
-export function toBaseUnits(amount: string, decimals: number): string | null {
-  const text = amount.trim().replace(/,/g, "");
-  if (!/^\d*\.?\d*$/.test(text) || text === "" || text === ".") return null;
-
-  const [whole = "", fraction = ""] = text.split(".");
-  const padded = fraction.padEnd(decimals, "0").slice(0, decimals);
-  const combined = `${whole}${padded}`.replace(/^0+(?=\d)/, "");
-
-  /* An amount that rounds away to nothing at this precision is not a trade. */
-  return /^\d+$/.test(combined) && /[1-9]/.test(combined) ? combined : null;
-}
+/* Exact decimal ↔ base-unit conversion lives in a pure module so the
+   website, the app and the portfolio planner share one definition of a valid
+   amount. Re-exported here for the callers that already import it from this
+   file. */
+export { toBaseUnits } from "@/lib/solana/amount";
 
 export interface SwapPreview {
   action: PreparedAction;
@@ -429,6 +511,18 @@ export function mintFor(symbol: string): string | null {
 
 export function assetFor(symbol: string): TradableAsset | null {
   return MINTS[symbol.trim().toUpperCase()] ?? null;
+}
+
+/**
+ * The verified entry for a MINT, with its symbol — the reverse of `assetFor`.
+ * Matched by address only: a token that merely shares a verified symbol is
+ * not the verified asset, and this is how the Asset Passport tells them apart.
+ */
+export function assetByMint(mint: string): (TradableAsset & { symbol: string }) | null {
+  for (const [symbol, asset] of Object.entries(MINTS)) {
+    if (asset.mint === mint) return { ...asset, symbol };
+  }
+  return null;
 }
 
 /** The token metadata service, for symbols not on the allowlist. */

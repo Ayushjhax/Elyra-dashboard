@@ -86,6 +86,212 @@ export interface PushTicketRow {
   receipt_message: string | null;
 }
 
+/* Trading automation (0018). Numeric columns may come back as string or number. */
+export interface TradingSettingsRow {
+  user_id: string;
+  paused: boolean;
+  daily_loss_limit_usd: string | number;
+  max_open_positions: number;
+  updated_at: string;
+}
+
+export interface TradingAgentRow {
+  user_id: string;
+  network: "mainnet" | "testnet";
+  account_address: string;
+  agent_address: string;
+  agent_key: string;
+  approval_nonce: string | number;
+  approved_at: string | null;
+  created_at: string;
+}
+
+export interface TradingRuleRow {
+  id: string;
+  user_id: string;
+  name: string;
+  /** 0019; "long" for every rule made before it. */
+  side: "long" | "short";
+  coin: string;
+  strategy_id: string;
+  params: Record<string, number>;
+  interval: string;
+  size_usd: string | number;
+  leverage: number;
+  take_profit_pct: string | number;
+  stop_loss_pct: string | number;
+  mode: "paper" | "live";
+  enabled: boolean;
+  last_signal_at: string | null;
+  last_checked_at: string | null;
+  last_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TradingPositionRow {
+  id: string;
+  user_id: string;
+  rule_id: string | null;
+  rule_name: string;
+  mode: "paper" | "live";
+  network: string | null;
+  coin: string;
+  side: "long" | "short";
+  size: string | number;
+  entry_price: string | number;
+  take_profit: string | number;
+  stop_loss: string | number;
+  signal_at: string;
+  entry_reason: string | null;
+  entry_cloid: string | null;
+  tp_cloid: string | null;
+  sl_cloid: string | null;
+  status: "opening" | "open" | "closed" | "failed";
+  exit_price: string | number | null;
+  exit_reason: string | null;
+  realised_pnl_usd: string | number | null;
+  error: string | null;
+  opened_at: string;
+  closed_at: string | null;
+  /** 0020: the leverage it was opened at; null for rows from before. */
+  leverage: number | null;
+  /** 0020: a rule's entry or a limit order's fill. */
+  origin: "rule" | "order";
+}
+
+/* Elyra Arena (0021). Numeric columns may come back as string or number. */
+export interface TradeReviewRow {
+  id: string;
+  user_id: string;
+  position_id: string;
+  label: "brilliant" | "great" | "good" | "inaccuracy" | "mistake" | "blunder";
+  facts: Record<string, unknown>;
+  coaching: string;
+  coaching_model: string;
+  created_at: string;
+}
+
+export interface ArenaProfileRow {
+  user_id: string;
+  handle: string | null;
+  public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ArenaGroupRow {
+  id: string;
+  name: string;
+  invite_code: string;
+  owner_id: string;
+  created_at: string;
+}
+
+export interface ArenaGroupMemberRow {
+  group_id: string;
+  user_id: string;
+  joined_at: string;
+}
+
+export interface ArenaCallRow {
+  id: string;
+  user_id: string;
+  market: string;
+  direction: "above" | "below";
+  price: string | number;
+  resolves_at: string;
+  confidence: number;
+  visibility: "private" | "groups" | "public";
+  statement: string;
+  receipt: string;
+  created_at: string;
+  status: "open" | "hit" | "miss" | "void";
+  settled_price: string | number | null;
+  settled_source: string | null;
+  settled_at: string | null;
+  brier: string | number | null;
+  card: string | null;
+  card_model: string | null;
+  onchain_signature: string | null;
+}
+
+export interface ArenaCallBackingRow {
+  id: string;
+  call_id: string;
+  user_id: string;
+  stance: "tail" | "fade";
+  points: number;
+  week: string;
+  settled_points: number | null;
+  created_at: string;
+}
+
+export interface ArenaPuzzleDayRow {
+  puzzle_date: string;
+  number: number;
+  market: string;
+  interval: string;
+  ends_at: string;
+  visible: unknown;
+  outcome: "up" | "down";
+  change_pct: string | number;
+  reveal: unknown;
+  bot_direction: "up" | "down";
+  bot_correct: boolean;
+  bot_rating: string | number;
+  created_at: string;
+}
+
+export interface ArenaPuzzleAnswerRow {
+  user_id: string;
+  puzzle_date: string;
+  direction: "up" | "down";
+  confidence: number;
+  correct: boolean;
+  rating_before: string | number;
+  rating_after: string | number;
+  streak: number;
+  created_at: string;
+}
+
+/** A limit order (0020). */
+export interface TradingOrderRow {
+  id: string;
+  user_id: string;
+  mode: "paper" | "live";
+  network: string | null;
+  coin: string;
+  side: "long" | "short";
+  limit_price: string | number;
+  size_usd: string | number;
+  leverage: number;
+  take_profit: string | number;
+  stop_loss: string | number;
+  status: "open" | "filled" | "cancelled" | "failed";
+  entry_cloid: string | null;
+  tp_cloid: string | null;
+  sl_cloid: string | null;
+  position_id: string | null;
+  error: string | null;
+  created_at: string;
+  filled_at: string | null;
+  cancelled_at: string | null;
+}
+
+/** One token a proven swap moved into or out of an Intelligent Portfolio (0017). */
+export interface PortfolioFillRow {
+  id: string;
+  user_id: string;
+  portfolio_id: string;
+  signature: string;
+  mint: string;
+  /** Signed base units. Numeric in Postgres; PostgREST returns it as a string or number. */
+  delta_units: string | number;
+  decimals: number;
+  created_at: string;
+}
+
 /** One entry in the app's inbox. */
 export interface NotificationRow {
   id: string;
@@ -549,6 +755,29 @@ export interface Database {
       push_tickets: Table<
         PushTicketRow,
         "notification_id" | "created_at" | "checked_at" | "receipt_status" | "receipt_message"
+      >;
+      portfolio_fills: Table<PortfolioFillRow, "id" | "created_at">;
+      trading_settings: Table<TradingSettingsRow, "paused" | "daily_loss_limit_usd" | "max_open_positions" | "updated_at">;
+      trading_agents: Table<TradingAgentRow, "created_at" | "approved_at">;
+      trading_rules: Table<
+        TradingRuleRow,
+        "id" | "side" | "params" | "mode" | "enabled" | "last_signal_at" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
+      >;
+      trading_positions: Table<TradingPositionRow, "id" | "side" | "opened_at" | "leverage" | "origin">;
+      trade_reviews: Table<TradeReviewRow, "id" | "created_at">;
+      arena_profiles: Table<ArenaProfileRow, "handle" | "public" | "created_at" | "updated_at">;
+      arena_groups: Table<ArenaGroupRow, "id" | "created_at">;
+      arena_group_members: Table<ArenaGroupMemberRow, "joined_at">;
+      arena_calls: Table<
+        ArenaCallRow,
+        "id" | "visibility" | "status" | "settled_price" | "settled_source" | "settled_at" | "brier" | "card" | "card_model" | "onchain_signature"
+      >;
+      arena_call_backings: Table<ArenaCallBackingRow, "id" | "settled_points" | "created_at">;
+      arena_puzzle_days: Table<ArenaPuzzleDayRow, "created_at">;
+      arena_puzzle_answers: Table<ArenaPuzzleAnswerRow, "created_at">;
+      trading_orders: Table<
+        TradingOrderRow,
+        "id" | "network" | "entry_cloid" | "tp_cloid" | "sl_cloid" | "position_id" | "error" | "created_at" | "filled_at" | "cancelled_at"
       >;
       telegram_links: Table<TelegramLink, "id" | "linked_at">;
       telegram_link_codes: Table<TelegramLinkCode, "consumed_at">;

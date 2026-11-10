@@ -54,6 +54,10 @@ const SOURCES = [
   "supabase/migrations/0014_android_app.sql",
   "supabase/migrations/0015_push_receipts.sql",
   "supabase/migrations/0016_app_notification_accounts.sql",
+  "supabase/migrations/0017_intelligent_portfolios.sql",
+  "supabase/migrations/0018_trading_automation.sql",
+  "supabase/migrations/0019_trading_shorts.sql",
+  "supabase/migrations/0020_trading_limit_orders.sql",
 ];
 
 const TARGET = "supabase/migrations/_apply_all.sql";

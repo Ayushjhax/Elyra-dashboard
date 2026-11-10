@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
-import { ExternalLink } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ExternalLink, ScrollText } from "lucide-react";
+import { AssetPassportDialog } from "@/components/assets/AssetPassport";
 import { Delta, Money, Quantity } from "@/components/portfolio/primitives";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { orderBalances, venueLabel, type BalanceGrouping } from "@/lib/assets/derive";
 import { formatPrice, truncateMiddle } from "@/lib/format";
-import { txExplorerUrl } from "@/lib/solana/address";
+import { isSolanaAddress, txExplorerUrl } from "@/lib/solana/address";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 import type { PerpPosition, SpotHolding } from "@/lib/portfolio/types";
@@ -40,6 +41,11 @@ export function BalancesTable({
   grouping: BalanceGrouping;
 }) {
   const rows = useMemo(() => orderBalances(holdings, grouping), [holdings, grouping]);
+  /* The Asset Passport opens for a wallet token with a mint — not native SOL,
+     which has none, and not an exchange balance, which is the venue's ledger. */
+  const [passport, setPassport] = useState<{ mint: string; symbol: string } | null>(null);
+  const passportMint = (row: SpotHolding) =>
+    row.venue === "wallet" && row.address !== null && isSolanaAddress(row.address) ? row.address : null;
 
   const columns: Column<SpotHolding>[] = [
     {
@@ -62,6 +68,21 @@ export function BalancesTable({
             >
               !
             </span>
+          )}
+          {passportMint(row) !== null && (
+            <button
+              type="button"
+              onClick={() => setPassport({ mint: passportMint(row) as string, symbol: row.symbol })}
+              aria-label={`Open the asset passport for ${row.symbol}`}
+              title="Asset passport"
+              className={cn(
+                "relative ml-auto grid size-6 shrink-0 place-items-center rounded-control text-text-muted",
+                "after:absolute after:-inset-1.5 hover:bg-surface-hover hover:text-text-primary",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
+              )}
+            >
+              <ScrollText size={13} strokeWidth={1.5} aria-hidden />
+            </button>
           )}
         </span>
       ),
@@ -157,12 +178,17 @@ export function BalancesTable({
   ];
 
   return (
-    <DataTable
-      caption="Token balances across capital accounts"
-      columns={columns}
-      rows={rows}
-      getRowKey={(row) => row.id}
-    />
+    <>
+      <DataTable
+        caption="Token balances across capital accounts"
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+      />
+      {passport !== null && (
+        <AssetPassportDialog mint={passport.mint} symbol={passport.symbol} onClose={() => setPassport(null)} />
+      )}
+    </>
   );
 }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { cronAuthorised } from "@/lib/notifications/cron";
+import { runArena } from "@/lib/arena/engine";
+import { runAutotrade } from "@/lib/autotrade/engine";
 import { deliverNotifications } from "@/lib/notifications/deliver";
 
 /* ---------------------------------------------------------------------------
@@ -39,8 +41,19 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
+  /* Trading automation first (lib/autotrade/engine.ts), so an entry or an
+     exit it records reaches the person in this same pass. Its failure never
+     holds up delivery. */
+  const automation = await runAutotrade().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Automation pass failed.",
+  }));
+  /* Then Arena (lib/arena/engine.ts): reviews of trades that just closed,
+     calls that came due, and their cards — capped per run. */
+  const arena = await runArena().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Arena pass failed.",
+  }));
   const report = await deliverNotifications();
-  return NextResponse.json(report, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ...report, automation, arena }, { headers: { "cache-control": "no-store" } });
 }
 
 /** Same work, for schedulers that only issue POSTs. */

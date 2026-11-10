@@ -220,6 +220,31 @@ async function recipients(): Promise<Map<string, Recipient>> {
   return map;
 }
 
+/**
+ * One person as a recipient: their linked Telegram chat (when that surface is
+ * on), whether they have the app, and its devices. For events raised outside
+ * the scan above — a trade the automation just made — so they reach the same
+ * channels, rendered the same way, through `send`.
+ */
+export async function recipientFor(userId: string): Promise<Recipient> {
+  const db = serviceClient();
+  const [link, appUsers, devices] = await Promise.all([
+    flags().telegram
+      ? db.from("telegram_links").select("telegram_chat_id").eq("user_id", userId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    accountsWithApp(),
+    devicesFor([userId]),
+  ]);
+  const chat = (link.data as { telegram_chat_id: number } | null)?.telegram_chat_id ?? null;
+  return {
+    userId,
+    solanaAddress: null,
+    chatId: chat,
+    hasApp: appUsers.includes(userId),
+    devices: devices.get(userId) ?? [],
+  };
+}
+
 /** Preferences, read once per recipient per pass. A failed read is all-off. */
 function preferencesReader(): (userId: string) => Promise<NotificationPreferences> {
   const cache = new Map<string, Promise<NotificationPreferences>>();

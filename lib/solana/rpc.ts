@@ -359,3 +359,85 @@ export async function getTransactionSummary(signature: string): Promise<Transact
   const { accountKeys, header } = result.transaction.message;
   return { err: result.meta?.err ?? null, signers: accountKeys.slice(0, header.numRequiredSignatures) };
 }
+
+interface WireTokenBalance {
+  mint: string;
+  owner?: string;
+  uiTokenAmount: { amount: string; decimals: number };
+}
+
+/** One token account owner's net change in one mint across a transaction. */
+export interface TokenBalanceChange {
+  owner: string;
+  mint: string;
+  decimals: number;
+  /** Signed base units, as a string — an amount, which a float would lose. */
+  delta: string;
+}
+
+export interface TransactionTokenChanges extends TransactionSummary {
+  changes: TokenBalanceChange[];
+}
+
+/**
+ * Net token balance changes per owner and mint, from the node's own record.
+ *
+ * `preTokenBalances` and `postTokenBalances` are the balances of every token
+ * account the transaction touched, before and after, as the validator
+ * recorded them — Token-2022 accounts included. An account missing from
+ * `pre` was created by the transaction and started at zero; one missing from
+ * `post` was closed and ended at zero. Summed per owner and mint, so a swap
+ * that routes through two of the wallet's accounts nets to one figure.
+ *
+ * This is what a fill is recorded from: the chain's account of what moved,
+ * never a quote.
+ */
+export function tokenChangesFrom(
+  pre: readonly WireTokenBalance[],
+  post: readonly WireTokenBalance[],
+): TokenBalanceChange[] {
+  const totals = new Map<string, { owner: string; mint: string; decimals: number; delta: bigint }>();
+  const add = (balance: WireTokenBalance, sign: 1 | -1) => {
+    if (balance.owner === undefined) return;
+    const key = `${balance.owner}:${balance.mint}`;
+    const entry = totals.get(key) ?? {
+      owner: balance.owner,
+      mint: balance.mint,
+      decimals: balance.uiTokenAmount.decimals,
+      delta: BigInt(0),
+    };
+    const amount = BigInt(balance.uiTokenAmount.amount);
+    entry.delta += sign === 1 ? amount : -amount;
+    totals.set(key, entry);
+  };
+  for (const balance of post) add(balance, 1);
+  for (const balance of pre) add(balance, -1);
+
+  return [...totals.values()]
+    .filter((entry) => entry.delta !== BigInt(0))
+    .map((entry) => ({ ...entry, delta: entry.delta.toString() }));
+}
+
+/** A landed transaction's outcome, signers and token balance changes, or null when unseen. */
+export async function getTransactionTokenChanges(
+  signature: string,
+): Promise<TransactionTokenChanges | null> {
+  const result = await rpcCall<{
+    meta: {
+      err: unknown;
+      preTokenBalances?: WireTokenBalance[] | null;
+      postTokenBalances?: WireTokenBalance[] | null;
+    } | null;
+    transaction: { message: { accountKeys: string[]; header: { numRequiredSignatures: number } } };
+  } | null>("getTransaction", [
+    signature,
+    { encoding: "json", commitment: "confirmed", maxSupportedTransactionVersion: 0 },
+  ]);
+  if (result === null) return null;
+  const { accountKeys, header } = result.transaction.message;
+  return {
+    err: result.meta?.err ?? null,
+    signers: accountKeys.slice(0, header.numRequiredSignatures),
+    changes: tokenChangesFrom(result.meta?.preTokenBalances ?? [], result.meta?.postTokenBalances ?? []),
+  };
+}

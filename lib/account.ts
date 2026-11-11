@@ -154,6 +154,14 @@ export interface UserSummary {
   solanaAddress: string | null;
   /** The first linked EVM wallet, for the Hyperliquid read. */
   walletAddress: string | null;
+  /** The first linked Sui wallet — a Privy embedded wallet on Sui. */
+  suiAddress: string | null;
+  /**
+   * That wallet's public key as Privy exposes it, for the Sui signature
+   * (`flag || sig || pk`). The server only accepts it if it derives to the
+   * address (lib/sui/keys.ts).
+   */
+  suiPublicKey: string | null;
 }
 
 type Raw = Record<string, unknown>;
@@ -231,5 +239,10 @@ export function summariseUser(user: Raw & { id: string }): UserSummary {
     },
     solanaAddress,
     walletAddress: addressFor("ethereum"),
+    suiAddress: addressFor("sui"),
+    suiPublicKey: (() => {
+      const raw = raws.find((entry) => text(entry.type) === "wallet" && text(field(entry, "chainType", "chain_type")) === "sui");
+      return raw === undefined ? null : text(field(raw, "publicKey", "public_key"));
+    })(),
   };
 }

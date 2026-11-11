@@ -258,11 +258,14 @@ interface Catalogue {
   byId: Map<number, PythAsset>;
   /** Upper-cased ticker → the preferred feed for it. */
   bySymbol: Map<string, PythAsset>;
+  /** The fully qualified feed name → its feed. Unique, so never a collision. */
+  byPythSymbol: Map<string, PythAsset>;
 }
 
 function index(assets: PythAsset[]): Catalogue {
   const byId = new Map<number, PythAsset>();
   const bySymbol = new Map<string, PythAsset>();
+  const byPythSymbol = new Map<string, PythAsset>();
 
   /* Crypto wins a ticker collision: `Crypto.SPX/USD` is the SPX6900 token
      while `Equity.US.SPXS/USD` is a fund, and on a Solana terminal the token
@@ -272,6 +275,7 @@ function index(assets: PythAsset[]): Catalogue {
 
   for (const asset of assets) {
     byId.set(asset.id, asset);
+    byPythSymbol.set(asset.pythSymbol, asset);
     const key = asset.symbol.toUpperCase();
     const existing = bySymbol.get(key);
     if (
@@ -283,7 +287,7 @@ function index(assets: PythAsset[]): Catalogue {
     }
   }
 
-  return { assets, byId, bySymbol };
+  return { assets, byId, bySymbol, byPythSymbol };
 }
 
 /* In-process memo. The cache below is shared across instances; this avoids
@@ -330,6 +334,25 @@ export async function assetsBySymbols(symbols: string[]): Promise<PythAsset[]> {
   for (const symbol of symbols) {
     const asset = bySymbol.get(symbol.trim().toUpperCase());
     if (asset) out.push(asset);
+  }
+  return out;
+}
+
+/**
+ * The regular-session US equity feed for each ticker, keyed by ticker.
+ *
+ * By exact feed name (`Equity.US.AAPL/USD`), never through `bySymbol`, where
+ * crypto wins a collision: a stock token for Visa ("V") or ON Semiconductor
+ * ("ON") must be priced as the share, not as whatever token shares its
+ * ticker. A ticker with no such feed is absent, and its holding is unpriced.
+ */
+export async function usEquityAssets(tickers: string[]): Promise<Map<string, PythAsset>> {
+  const { byPythSymbol } = await catalogue();
+  const out = new Map<string, PythAsset>();
+  for (const ticker of tickers) {
+    const key = ticker.trim().toUpperCase();
+    const asset = byPythSymbol.get(`Equity.US.${key}/USD`);
+    if (asset !== undefined && asset.assetType === "equity") out.set(key, asset);
   }
   return out;
 }

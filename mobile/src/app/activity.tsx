@@ -20,8 +20,10 @@ import { useMinute } from "~/lib/useClock";
 import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
-   Wallet activity — the website's Activity widget: the Solana wallet's
-   transactions and the actions awaiting review, filterable, in day groups.
+   Wallet activity — the website's Activity widget: the wallets'
+   transactions on Solana and the EVM networks and the actions
+   awaiting review, filterable, in day groups. A network whose history could
+   not be read is named under the list, so it is not taken for the whole.
 
    One virtualised list: the filters are its header, and each day is a
    section, so a long history scrolls without rendering it all.
@@ -107,6 +109,17 @@ export default function ActivityScreen() {
       renderSectionHeader={({ section }) => <DayHeader title={section.title} />}
       ListHeaderComponent={header}
       ListEmptyComponent={empty === null ? undefined : <>{empty}</>}
+      ListFooterComponent={
+        feed.notes.length > 0 ? (
+          <View style={styles.notes}>
+            {feed.notes.map((note) => (
+              <Text key={note} variant="label" tone="muted">
+                {note}
+              </Text>
+            ))}
+          </View>
+        ) : undefined
+      }
       stickySectionHeadersEnabled
       initialNumToRender={12}
       refreshControl={
@@ -135,4 +148,5 @@ const styles = StyleSheet.create({
   skeletons: { paddingVertical: 8 },
   skeletonRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
   empty: { alignItems: "center", gap: 8, paddingVertical: 24 },
+  notes: { gap: 6, paddingTop: 16 },
 });

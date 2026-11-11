@@ -35,8 +35,20 @@ export type Strategy =
 export interface SpotHolding {
   id: string;
   venue: Venue;
+  /**
+   * The network a wallet holding sits on: "Solana", "Ethereum" or "Robinhood
+   * Chain" (lib/evm/chains.ts). "—" for a venue's own ledger.
+   */
   chain: string;
-  /** Mint (Solana) or the venue's own symbol key. */
+  /**
+   * The `WalletScope` this holding was read through, by id.
+   *
+   * Set on wallet holdings, which share `venue: "wallet"` across chains — the
+   * venue alone would put an Ethereum balance under the Solana wallet's
+   * scope. Absent on a venue's holdings, which match their scope by venue.
+   */
+  scopeId?: string;
+  /** Mint (Solana), contract (EVM) or the venue's own symbol key. */
   address: string | null;
   symbol: string;
   name: string | null;
@@ -70,6 +82,22 @@ export interface SpotHolding {
   verified: boolean;
   /** True for stablecoins, which count toward available capital. */
   liquid: boolean;
+  /**
+   * What market venues know this asset by, for 24h change and candles.
+   *
+   * Absent means the symbol itself. Null means ask nobody: a stock token's
+   * ticker can name an unrelated crypto token on a crypto venue — "V" or
+   * "ON" — and a 24h move borrowed from it would be a wrong figure presented
+   * as a real one.
+   */
+  marketSymbol?: string | null;
+  /**
+   * A Robinhood Stock Token: an ERC-20 on Robinhood Chain giving economic
+   * exposure to a US share or ETF. `multiplier` is shares per token
+   * (ERC-8056 `uiMultiplier`, read on-chain), which reinvested dividends and
+   * splits move off 1 — so a token is worth the share price times it.
+   */
+  stockToken?: { ticker: string; multiplier: number };
 }
 
 export interface PerpPosition {

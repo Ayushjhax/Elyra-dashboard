@@ -21,6 +21,8 @@ export type Row = Record<string, unknown>;
 interface Result<T> {
   data: T;
   error: { message: string; code?: string } | null;
+  /** Set when the select asked for `{ count: "exact" }`. */
+  count?: number | null;
 }
 
 let counter = 0;
@@ -37,6 +39,7 @@ class Query implements PromiseLike<Result<Row[]>> {
   private conflictKeys: string[] = [];
   private ignoreDuplicates = false;
   private returning = false;
+  private counting: { head: boolean } | null = null;
 
   constructor(
     private readonly store: Map<string, Row[]>,
@@ -75,6 +78,11 @@ class Query implements PromiseLike<Result<Row[]>> {
     return this;
   }
 
+  gte(column: string, value: string) {
+    this.filters.push((row) => row[column] !== null && row[column] !== undefined && String(row[column]) >= value);
+    return this;
+  }
+
   in(column: string, values: readonly unknown[]) {
     this.filters.push((row) => values.includes(row[column]));
     return this;
@@ -96,9 +104,10 @@ class Query implements PromiseLike<Result<Row[]>> {
    * Column lists are accepted and ignored: whole rows come back. Tests here
    * assert on which rows a query returns, never on projection.
    */
-  select(...columns: string[]) {
+  select(columns?: string, options?: { count?: "exact"; head?: boolean }) {
     void columns;
     this.returning = true;
+    if (options?.count === "exact") this.counting = { head: options.head === true };
     return this;
   }
 
@@ -177,6 +186,10 @@ class Query implements PromiseLike<Result<Row[]>> {
           return ascending ? left.localeCompare(right) : right.localeCompare(left);
         });
       }
+      if (this.counting !== null) {
+        /* { count: "exact" } counts every match, before any limit. */
+        return { data: this.counting.head ? [] : found.slice(0, this.limitTo ?? found.length), error: null, count: found.length };
+      }
       if (this.limitTo !== null) found = found.slice(0, this.limitTo);
       return { data: found, error: null };
     }
@@ -214,10 +227,18 @@ class Query implements PromiseLike<Result<Row[]>> {
 
         if (index === -1) {
           const row = { id: uuid(), created_at: new Date().toISOString(), ...value };
+          /* A new row still meets every other unique key, as in Postgres. */
+          if (rows.some((existing) => collides(existing, row))) {
+            return { data: [], error: { message: "duplicate key value violates unique constraint", code: "23505" } };
+          }
           rows.push(row);
           written.push(row);
         } else if (!this.ignoreDuplicates) {
-          rows[index] = { ...rows[index], ...value };
+          const merged = { ...rows[index], ...value };
+          if (rows.some((existing, other) => other !== index && collides(existing, merged))) {
+            return { data: [], error: { message: "duplicate key value violates unique constraint", code: "23505" } };
+          }
+          rows[index] = merged;
           written.push(rows[index]);
         }
         /* ignoreDuplicates and a conflict: nothing written, nothing
@@ -269,6 +290,34 @@ function collides(a: Row, b: Row): boolean {
     return true;
   }
 
+  /* trading_positions (0018): one entry per rule per bar. */
+  /* NULL rule ids (limit-order fills) never collide, as in Postgres. */
+  if (a.rule_id !== undefined && a.rule_id !== null && a.signal_at !== undefined && a.rule_id === b.rule_id && a.signal_at === b.signal_at) {
+    return true;
+  }
+
+  /* agent_keys (0022): a key's hash is unique. */
+  if (a.key_hash !== undefined && a.key_hash === b.key_hash) return true;
+
+  /* Arena (0021). Rows are compared only within one table, so each key
+     names the columns that make it unique there. */
+  /* trade_reviews: one review per position. */
+  if (a.position_id !== undefined && a.position_id !== null && a.label !== undefined && a.position_id === b.position_id) return true;
+  /* arena_groups.invite_code; arena_profiles.handle (NULLs never collide). */
+  if (a.invite_code !== undefined && a.invite_code === b.invite_code) return true;
+  if (a.handle !== undefined && a.handle !== null && a.handle === b.handle) return true;
+  /* arena_puzzle_days (pk puzzle_date) and arena_puzzle_answers (pk user, date). */
+  if (a.puzzle_date !== undefined && a.puzzle_date === b.puzzle_date && a.user_id === b.user_id) return true;
+  /* arena_call_backings: one backing per person per call. */
+  if (a.call_id !== undefined && a.call_id === b.call_id && a.user_id === b.user_id) return true;
+  /* arena_group_members: pk (group, user). */
+  if (a.group_id !== undefined && a.group_id === b.group_id && a.user_id === b.user_id) return true;
+
+  /* portfolio_fills (0017): one row per token a swap moved. */
+  if (a.signature !== undefined && a.signature === b.signature && a.mint !== undefined && a.mint === b.mint) {
+    return true;
+  }
+
   return false;
 }
 
@@ -291,6 +340,23 @@ export class FakeSupabase {
   }
 
   async rpc(name: string, args: Record<string, unknown>) {
+    if (name === "claim_agent_key_call") {
+      /* 0022: one call against an agent key's daily cap. */
+      const keyId = String(args.p_key_id);
+      const limit = Number(args.p_limit);
+      const day = new Date().toISOString().slice(0, 10);
+      const usage = this.tables.get("agent_key_usage") ?? [];
+      this.tables.set("agent_key_usage", usage);
+      const row = usage.find((entry) => entry.key_id === keyId && entry.day === day);
+      if (row === undefined) {
+        usage.push({ key_id: keyId, day, calls: 1 });
+        return { data: [{ allowed: true, calls: 1 }], error: null };
+      }
+      const calls = Number(row.calls);
+      if (calls >= limit) return { data: [{ allowed: false, calls }], error: null };
+      row.calls = calls + 1;
+      return { data: [{ allowed: true, calls: calls + 1 }], error: null };
+    }
     if (name !== "claim_agent_run") {
       return { data: null, error: { message: `unknown rpc ${name}` } };
     }

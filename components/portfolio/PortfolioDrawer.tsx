@@ -21,9 +21,16 @@ import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClient
 import { IconButton, InfoTip, StatusDot, Tip } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { OptionMenu } from "@/components/ui/OptionMenu";
+import { EvmSwapDialog, evmWalletOf } from "@/components/wallet/EvmDialogs";
+import { SuiSwapDialog } from "@/components/wallet/SuiDialogs";
+import { NetworkMark } from "@/components/wallet/NetworkMark";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EVM_CHAIN_KEYS, EVM_CHAINS, evmChainNamed, type EvmChainKey } from "@/lib/evm/chains";
+import { swapTokenFor } from "@/lib/evm/swap";
 import { formatAge, formatPct, truncateMiddle } from "@/lib/format";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
+import { evmChainOf, onSolanaWallet, onSuiWallet } from "@/lib/portfolio/chain";
+import { suiTokenBySymbol } from "@/lib/sui/tokens";
 import { ALL_ACCOUNTS, drawerView, perpEquity, type DrawerView } from "@/lib/portfolio/drawer";
 import type { PortfolioFeed } from "@/lib/portfolio/usePortfolio";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
@@ -46,8 +53,6 @@ import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
    each look different. Only the last may say $0.00, and only it shows the
    onboarding beside it.
 --------------------------------------------------------------------------- */
-
-const SOL = ["SOL"] as const;
 
 const card = "min-w-0 rounded-panel border border-border-subtle bg-surface-raised";
 
@@ -94,21 +99,39 @@ function ScopeMenu({
   );
 }
 
-/** Which network this is read from. Not a menu: there is one network to read. */
-function NetworkBadge({ cluster }: { cluster: Cluster | null }) {
-  const logos = useTickerLogos(SOL);
+/** The EVM networks this snapshot read the account's EVM wallet on. */
+function evmNetworks(snapshot: PortfolioSnapshot): EvmChainKey[] {
+  return EVM_CHAIN_KEYS.filter((key) => {
+    const name = EVM_CHAINS[key].name;
+    return snapshot.scopes.some((scope) => scope.chain === name) || snapshot.notes.some((note) => note.scope === name.toLowerCase());
+  });
+}
+
+/**
+ * Which networks wallet balances are read from. Not a menu: every one of them
+ * is read on every refresh, and the Account menu is what narrows the view.
+ * A Solana node on the wrong cluster still turns it red.
+ */
+function NetworkBadge({ cluster, evm }: { cluster: Cluster | null; evm: EvmChainKey[] }) {
   const wrong = cluster !== null && cluster !== EXPECTED_CLUSTER;
-  const label = cluster === null || cluster === EXPECTED_CLUSTER ? "Solana" : CLUSTER_LABEL[cluster];
+  const solana = cluster === null || cluster === EXPECTED_CLUSTER ? "Solana" : CLUSTER_LABEL[cluster];
+  const names = [CLUSTER_LABEL[cluster ?? EXPECTED_CLUSTER], ...evm.map((key) => EVM_CHAINS[key].name)];
   return (
     <span
       className={cn(
         "type-body-sm inline-flex h-9 min-w-0 shrink-0 items-center gap-2 rounded-control border px-3",
         wrong ? "border-negative/50 text-negative" : "border-border-subtle text-text-primary",
       )}
-      title={`Balances are read from ${CLUSTER_LABEL[cluster ?? EXPECTED_CLUSTER]}`}
+      title={`Wallet balances are read from ${names.join(", ")}`}
     >
-      <CoinMark symbol="SOL" {...logos("SOL")} size={18} />
-      <span className="truncate">{label}</span>
+      <span aria-hidden className="flex shrink-0 -space-x-1.5">
+        <NetworkMark network="solana" size={18} />
+        {evm.map((key) => (
+          <NetworkMark key={key} network={key} size={18} />
+        ))}
+      </span>
+      <span className="truncate">{evm.length === 0 ? solana : wrong ? `${solana} + ${evm.length}` : `${evm.length + 1} networks`}</span>
+      <span className="sr-only">: {names.join(", ")}</span>
     </span>
   );
 }
@@ -379,8 +402,10 @@ function HoldingRow({
           "USDC" must not wear the USDC logo. */}
       <CoinMark
         symbol={holding.symbol}
-        logo={holding.verified ? (holding.logo ?? logo.logo) : holding.logo}
-        fallbackLogo={holding.verified ? logo.fallbackLogo : null}
+        logo={holding.verified && holding.stockToken === undefined ? (holding.logo ?? logo.logo) : holding.logo}
+        /* A stock token's ticker can name an unrelated coin; only its own
+           registry logo is drawn, then its letters. */
+        fallbackLogo={holding.verified && holding.stockToken === undefined ? logo.fallbackLogo : null}
         size={32}
       />
       <div className="min-w-0 flex-1">
@@ -390,8 +415,19 @@ function HoldingRow({
         <p className="type-label flex min-w-0 items-center gap-1.5 text-text-secondary">
           <span className="truncate">{holding.symbol}</span>
           {holding.venue !== "wallet" && <span className="shrink-0 capitalize text-text-muted">· {holding.venue}</span>}
+          {/* Off Solana, the network is named: the same ETH can sit on two. */}
+          {evmChainOf(holding) !== null && (
+            <span className="shrink-0 text-text-muted">· {evmChainOf(holding)?.shortName}</span>
+          )}
           {!holding.verified ? (
-            <Tip openOnTap label="Not recognised by Jupiter, so it is shown but never counted.">
+            <Tip
+              openOnTap
+              label={
+                evmChainOf(holding) === null
+                  ? "Not recognised by Jupiter, so it is shown but never counted."
+                  : "Not on Elyra's verified token list for this network, so it is shown but never counted."
+              }
+            >
               <span tabIndex={0} className={cn("shrink-0 rounded-chip border border-border-subtle px-1 text-text-muted")}>
                 Unverified
               </span>
@@ -430,12 +466,15 @@ function HoldingsPanel({
   onReceive,
   onRetry,
   onSwap,
+  canSwap,
 }: {
   view: DrawerView;
   snapshot: PortfolioSnapshot;
   onReceive: () => void;
   onRetry: () => void;
-  onSwap: ((holding: SpotHolding) => void) | null;
+  onSwap: (holding: SpotHolding) => void;
+  /** Whether a holding can be swapped from here — on its own chain, by a wallet that can sign there. */
+  canSwap: (holding: SpotHolding) => boolean;
 }) {
   const symbols = useMemo(() => view.holdings.map((holding) => holding.symbol), [view.holdings]);
   const logos = useTickerLogos(symbols);
@@ -449,7 +488,7 @@ function HoldingsPanel({
       <EmptyPanel title="No holdings in this account" body="Tokens held here will appear with their value and share of the portfolio." />
     );
   }
-  const swappable = (holding: SpotHolding) => onSwap !== null && holding.venue === "wallet" && holding.verified;
+  const swappable = (holding: SpotHolding) => holding.verified && canSwap(holding);
   const actionColumn = view.holdings.some(swappable);
   return (
     <ul className={cn(card, "list-none overflow-hidden")}>
@@ -641,14 +680,21 @@ function TrackList() {
   );
 }
 
-function FooterStrip({ cluster, feed }: { cluster: Cluster | null; feed: PortfolioFeed }) {
-  const logos = useTickerLogos(SOL);
+function FooterStrip({ cluster, evm, feed }: { cluster: Cluster | null; evm: EvmChainKey[]; feed: PortfolioFeed }) {
   const tone = feed.stale ? "caution" : feed.snapshot === null ? "negative" : "positive";
+  const names = [CLUSTER_LABEL[cluster ?? EXPECTED_CLUSTER], ...evm.map((key) => EVM_CHAINS[key].name)];
   return (
     <footer className={cn(card, "flex items-center gap-3 px-4 py-2.5")}>
-      <CoinMark symbol="SOL" {...logos("SOL")} size={24} />
+      <span aria-hidden className="flex shrink-0 -space-x-2">
+        <NetworkMark network="solana" size={24} />
+        {evm.map((key) => (
+          <NetworkMark key={key} network={key} size={24} />
+        ))}
+      </span>
       <div className="min-w-0 flex-1">
-        <p className="type-body-sm truncate text-text-primary">{CLUSTER_LABEL[cluster ?? EXPECTED_CLUSTER]}</p>
+        <p className="type-body-sm truncate text-text-primary" title={names.join(" · ")}>
+          {names.join(" · ")}
+        </p>
         {/* True: the snapshot polls every thirty seconds and on returning to the tab. */}
         <p className="type-label text-text-secondary">Balances update automatically</p>
       </div>
@@ -715,10 +761,38 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
   const [tab, setTab] = useState<Tab>("holdings");
   const [receiving, setReceiving] = useState(false);
   const [swapping, setSwapping] = useState<SpotHolding | null>(null);
+  const [evmSwapping, setEvmSwapping] = useState<{ chain: EvmChainKey; symbol: string } | null>(null);
+  const [suiSwapping, setSuiSwapping] = useState<string | null>(null);
 
   const view = useMemo(() => (feed.snapshot === null ? null : drawerView(feed.snapshot, scope)), [feed.snapshot, scope]);
   const address = auth.solanaAddress;
   const canSign = auth.available && address !== null;
+  const evmWallet = evmWalletOf(auth);
+
+  /* Each holding swaps on its own chain: Solana tokens through Jupiter, ETH
+     and listed tokens on Ethereum or Robinhood Chain through LI.FI — signed
+     by Elyra's embedded EVM wallet, and never a stock token (lib/evm/swap.ts). */
+  const canSwap = (holding: SpotHolding): boolean => {
+    if (onSuiWallet(holding)) return auth.available && auth.suiAddress !== null && suiTokenBySymbol(holding.symbol) !== null;
+    if (onSolanaWallet(holding)) return canSign;
+    const chain = evmChainOf(holding);
+    return (
+      chain !== null &&
+      auth.available &&
+      evmWallet.embedded &&
+      holding.stockToken === undefined &&
+      swapTokenFor(chain.key, holding.symbol) !== null
+    );
+  };
+  const onSwap = (holding: SpotHolding) => {
+    if (onSuiWallet(holding)) {
+      setSuiSwapping(holding.symbol);
+      return;
+    }
+    const chain = evmChainOf(holding);
+    if (chain === null) setSwapping(holding);
+    else setEvmSwapping({ chain: chain.key, symbol: holding.symbol });
+  };
 
   if (!auth.available) {
     return (
@@ -759,12 +833,16 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
 
   const snapshot = feed.snapshot;
   const openReceive = () => setReceiving(true);
+  const evm = evmNetworks(snapshot);
+  /* Scoped to an Ethereum or Robinhood Chain wallet, Receive opens on that
+     network rather than on Solana's. */
+  const receiveOn = view.scopeEntry === null ? "solana" : (evmChainNamed(view.scopeEntry.chain)?.key ?? "solana");
 
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ScopeMenu snapshot={snapshot} scope={view.scope} onChange={setScope} />
-        <NetworkBadge cluster={cluster} />
+        <NetworkBadge cluster={cluster} evm={evm} />
       </div>
 
       <BalanceCard view={view} feed={feed} />
@@ -797,7 +875,8 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
             snapshot={snapshot}
             onReceive={openReceive}
             onRetry={feed.refetch}
-            onSwap={canSign ? setSwapping : null}
+            onSwap={onSwap}
+            canSwap={canSwap}
           />
         </TabsContent>
         <TabsContent value="positions">
@@ -809,9 +888,9 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
       </Tabs>
 
       {view.unfunded && <TrackList />}
-      <FooterStrip cluster={cluster} feed={feed} />
+      <FooterStrip cluster={cluster} evm={evm} feed={feed} />
 
-      <ReceiveDialog open={receiving} onOpenChange={setReceiving} address={address} cluster={cluster} />
+      <ReceiveDialog open={receiving} onOpenChange={setReceiving} address={address} cluster={cluster} network={receiveOn} />
       {swapping !== null && canSign && (
         <SwapDialog
           address={address}
@@ -820,6 +899,10 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
           onExecuted={() => feed.refetch()}
           onClose={() => setSwapping(null)}
         />
+      )}
+      {suiSwapping !== null && <SuiSwapDialog initialFrom={suiSwapping} onClose={() => setSuiSwapping(null)} />}
+      {evmSwapping !== null && (
+        <EvmSwapDialog chain={evmSwapping.chain} initialFrom={evmSwapping.symbol} onClose={() => setEvmSwapping(null)} />
       )}
     </>
   );

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { candles } from "@/lib/market/router";
+import { marketSymbolOf } from "@/lib/portfolio/chain";
 import { describe, isUnreachable } from "@/lib/supabase/reachability";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Interval } from "@/lib/types";
@@ -163,7 +164,7 @@ async function readRecorded(
 --------------------------------------------------------------------------- */
 
 /** Stablecoins are held at $1 rather than looked up; no venue lists USDC/USD. */
-const PEGGED = new Set(["USDC", "USDT", "PYUSD", "USDE", "DAI", "FDUSD", "USDS"]);
+const PEGGED = new Set(["USDC", "USDT", "PYUSD", "USDE", "DAI", "FDUSD", "USDS", "USDG"]);
 
 /** Past this many symbols the candle fan-out costs more than the chart is worth. */
 const MAX_SYMBOLS = 8;
@@ -200,13 +201,23 @@ export async function reconstruct(
      which would make a stablecoin-heavy portfolio look far more volatile
      than it is. */
   const pegged = head.filter((holding) => PEGGED.has(holding.symbol.toUpperCase()));
-  const floating = head.filter((holding) => !PEGGED.has(holding.symbol.toUpperCase()));
+  /* A holding no market venue should be asked about — a stock token, whose
+     ticker a crypto venue may list as something else — is not reconstructed
+     from a stranger's candles. It is named as uncovered instead. */
+  const floating = head.filter(
+    (holding) => !PEGGED.has(holding.symbol.toUpperCase()) && marketSymbolOf(holding) !== null,
+  );
+  for (const holding of head) {
+    if (!PEGGED.has(holding.symbol.toUpperCase()) && marketSymbolOf(holding) === null) {
+      uncovered.push(holding.symbol);
+    }
+  }
   const peggedValue = pegged.reduce((sum, holding) => sum + holding.quantity, 0);
 
   const series = await Promise.all(
     floating.map(async (holding) => {
       try {
-        const rows = await candles(holding.symbol.toUpperCase(), interval, limit);
+        const rows = await candles(marketSymbolOf(holding) as string, interval, limit);
         return { holding, rows };
       } catch {
         return { holding, rows: [] };

@@ -123,4 +123,25 @@ describe("drawerView", () => {
     );
     expect(view.holdings.map((entry) => entry.id)).toEqual(["b", "a", "c", "spam"]);
   });
+  it("keeps each wallet scope to its own chain, though all share the wallet venue", () => {
+    const evm = "0xabc0000000000000000000000000000000000001";
+    const ethereumScope = { ...WALLET, id: `ethereum:${evm}`, label: "Ethereum wallet", address: evm, chain: "Ethereum", valueUsd: 300, availableUsd: 300 };
+    const robinhoodScope = { ...WALLET, id: `robinhood:${evm}`, label: "Robinhood Chain wallet", address: evm, chain: "Robinhood Chain", valueUsd: 50, availableUsd: 50 };
+    const data = snapshot({
+      scopes: [WALLET, ethereumScope, robinhoodScope, HYPERLIQUID],
+      spot: [
+        holding({ scopeId: "Wallet111" }),
+        holding({ id: `ethereum:${evm}:ETH`, scopeId: ethereumScope.id, chain: "Ethereum", symbol: "ETH", valueUsd: 300 }),
+        holding({ id: `robinhood:${evm}:ETH`, scopeId: robinhoodScope.id, chain: "Robinhood Chain", symbol: "ETH", valueUsd: 50 }),
+        holding({ id: "hyperliquid:USDC", venue: "hyperliquid", chain: "—", symbol: "USDC", valueUsd: 20 }),
+      ],
+    });
+
+    expect(drawerView(data, "Wallet111").holdings.map((row) => row.id)).toEqual(["wallet:SOL"]);
+    expect(drawerView(data, ethereumScope.id).holdings.map((row) => row.chain)).toEqual(["Ethereum"]);
+    expect(drawerView(data, robinhoodScope.id)).toMatchObject({ totalUsd: 50, inPositionsUsd: 0 });
+    expect(drawerView(data, robinhoodScope.id).holdings.map((row) => row.chain)).toEqual(["Robinhood Chain"]);
+    /* A venue's holdings carry no scope id and still match by venue. */
+    expect(drawerView(data, "hyperliquid").holdings.map((row) => row.symbol)).toEqual(["USDC"]);
+  });
 });

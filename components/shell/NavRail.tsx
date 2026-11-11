@@ -5,17 +5,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bot,
   ChevronsLeft,
   ChevronsRight,
   Coins,
   FileSearch,
   Gift,
+  Globe2,
+  Layers,
   LayoutDashboard,
+  Newspaper,
   Link2,
   PieChart,
   RotateCcw,
   Settings,
   Sparkles,
+  Swords,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -40,10 +45,15 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/dashboard", label: "Dashboard", icon: Wallet },
   { href: "/portfolio", label: "Portfolio", icon: PieChart },
+  { href: "/markets", label: "World markets", icon: Globe2 },
+  { href: "/invest", label: "Invest", icon: Layers },
+  { href: "/automation", label: "Automation", icon: Bot },
+  { href: "/arena", label: "Arena", icon: Swords },
   { href: "/personalized", label: "Personalized", icon: Sparkles },
   { href: "/assets", label: "Assets", icon: Coins },
   { href: "/agent", label: "Connections", icon: Link2 },
   { href: "/research", label: "Research", icon: FileSearch },
+  { href: "/events", label: "Events", icon: Newspaper },
   { href: "/referrals", label: "Referrals", icon: Gift },
 ];
 
@@ -71,7 +81,8 @@ export function NavList({
   return (
     <ul className="flex list-none flex-col gap-1">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href;
+        /* A route's own sub-pages (a portfolio under /invest) keep its link lit. */
+        const active = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
         const link = (
           <Link
             href={href}

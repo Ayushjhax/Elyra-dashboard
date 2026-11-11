@@ -1630,3 +1630,521 @@ alter table public.app_notification_accounts enable row level security;
 insert into public.app_notification_accounts (user_id)
 select distinct user_id from public.push_devices on conflict (user_id) do nothing;
 
+-- ============== 0017_intelligent_portfolios.sql ==============
+-- ---------------------------------------------------------------------------
+-- Intelligent Portfolios: what each landed swap added to a portfolio.
+--
+-- A portfolio is bought into the person's own wallet, one swap per holding,
+-- so the wallet alone cannot say which NVIDIA tokens belong to "AI leaders"
+-- and which to "High growth" — two portfolios can hold the same token. This
+-- ledger is how a position is attributed: one row per token a proven swap
+-- moved, keyed by its signature.
+--
+-- A row is written only after /api/invest/fills has read the transaction
+-- from the chain: it landed, it succeeded, this account's wallet signed it,
+-- and the amount is the wallet's actual token balance change in it — never a
+-- quote, never a figure the browser sent. A position is the sum of its rows.
+--
+-- `unique (signature, mint)` is the idempotency boundary: a retried or
+-- replayed record of the same swap changes nothing, and one swap cannot be
+-- counted toward two portfolios.
+--
+-- Same lockdown as the rest of the schema: RLS on with no policies, the
+-- service-role client the only writer, every query filtered by user_id.
+-- Deleting an account cascades from profiles. Additive; safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.portfolio_fills (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+
+  -- lib/invest/catalog.ts ids. Text, not an enum: the catalog is code.
+  portfolio_id  text not null,
+
+  signature     text not null,
+  mint          text not null,
+
+  -- The wallet's balance change for this mint in this transaction, in base
+  -- units: positive for a buy, negative for a sale. Numeric, because a
+  -- nine-decimal token overflows a bigint long before it is a large holding.
+  delta_units   numeric not null check (delta_units <> 0),
+  decimals      integer not null check (decimals between 0 and 18),
+
+  created_at    timestamptz not null default now(),
+
+  unique (signature, mint)
+);
+
+create index if not exists portfolio_fills_user_idx
+  on public.portfolio_fills(user_id, portfolio_id);
+
+alter table public.portfolio_fills enable row level security;
+
+-- ================ 0018_trading_automation.sql ================
+-- ---------------------------------------------------------------------------
+-- Trading automation: rules a person sets, and the positions Elyra opens
+-- for them on Hyperliquid.
+--
+-- Execution runs on a Hyperliquid API wallet ("agent") that the person
+-- approves from their own wallet. An agent can place and cancel orders for
+-- the account and cannot withdraw, transfer, or approve anything — so the
+-- key stored here can lose money only by trading, inside the limits below
+-- and in lib/autotrade/rules.ts, and the person can revoke it on Hyperliquid
+-- at any time without Elyra.
+--
+-- The key is encrypted with CREDENTIALS_ENC_KEY (lib/crypto/credentials.ts),
+-- like exchange API secrets, and is never returned by any route.
+--
+-- `unique (rule_id, signal_at)` is the idempotency boundary: one rule enters
+-- at most once per bar, however many ticks overlap. A position row is
+-- written BEFORE its order is sent, so a tick that dies mid-order leaves an
+-- `opening` row to reconcile rather than a position nobody recorded.
+--
+-- Same lockdown as the rest of the schema: RLS on with no policies, the
+-- service-role client the only writer, every query filtered by user_id.
+-- Deleting an account cascades from profiles. Additive; safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.trading_settings (
+  user_id               uuid primary key references public.profiles(id) on delete cascade,
+  -- Stops every new entry, account-wide. Open positions keep their TP and SL.
+  paused                boolean not null default false,
+  daily_loss_limit_usd  numeric not null default 100 check (daily_loss_limit_usd > 0 and daily_loss_limit_usd <= 5000),
+  max_open_positions    integer not null default 3 check (max_open_positions between 1 and 5),
+  updated_at            timestamptz not null default now()
+);
+
+alter table public.trading_settings enable row level security;
+
+create table if not exists public.trading_agents (
+  user_id          uuid primary key references public.profiles(id) on delete cascade,
+  network          text not null check (network in ('mainnet', 'testnet')),
+  -- The person's Hyperliquid account: the wallet that approved the agent.
+  account_address  text not null,
+  agent_address    text not null,
+  agent_key        text not null,
+  -- The nonce of the approval the person signs; checked when it comes back.
+  approval_nonce   bigint not null,
+  approved_at      timestamptz,
+  created_at       timestamptz not null default now()
+);
+
+alter table public.trading_agents enable row level security;
+
+create table if not exists public.trading_rules (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references public.profiles(id) on delete cascade,
+  name             text not null,
+  coin             text not null,
+  strategy_id      text not null,
+  params           jsonb not null default '{}'::jsonb,
+  interval         text not null check (interval in ('15m', '1h', '4h', '1d')),
+  size_usd         numeric not null check (size_usd >= 12 and size_usd <= 5000),
+  leverage         integer not null check (leverage between 1 and 5),
+  take_profit_pct  numeric not null check (take_profit_pct > 0),
+  stop_loss_pct    numeric not null check (stop_loss_pct > 0),
+  mode             text not null default 'paper' check (mode in ('paper', 'live')),
+  enabled          boolean not null default true,
+  -- Close time of the last bar this rule entered on.
+  last_signal_at   timestamptz,
+  -- What the scheduler saw last, in words, for the rule's row.
+  last_checked_at  timestamptz,
+  last_note        text,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+
+create index if not exists trading_rules_enabled_idx on public.trading_rules(enabled) where enabled;
+create index if not exists trading_rules_user_idx on public.trading_rules(user_id);
+
+alter table public.trading_rules enable row level security;
+
+create table if not exists public.trading_positions (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references public.profiles(id) on delete cascade,
+  rule_id           uuid references public.trading_rules(id) on delete set null,
+  rule_name         text not null,
+  mode              text not null check (mode in ('paper', 'live')),
+  network           text,
+  coin              text not null,
+  side              text not null default 'long' check (side in ('long')),
+  size              numeric not null check (size > 0),
+  entry_price       numeric not null check (entry_price > 0),
+  take_profit       numeric not null,
+  stop_loss         numeric not null,
+  -- The bar close the entry was taken on.
+  signal_at         timestamptz not null,
+  entry_reason      text,
+  entry_cloid       text,
+  tp_cloid          text,
+  sl_cloid          text,
+  status            text not null check (status in ('opening', 'open', 'closed', 'failed')),
+  exit_price        numeric,
+  exit_reason       text,
+  realised_pnl_usd  numeric,
+  error             text,
+  opened_at         timestamptz not null default now(),
+  closed_at         timestamptz,
+  unique (rule_id, signal_at)
+);
+
+create index if not exists trading_positions_user_idx on public.trading_positions(user_id, opened_at desc);
+create index if not exists trading_positions_open_idx on public.trading_positions(status) where status in ('opening', 'open');
+
+alter table public.trading_positions enable row level security;
+
+-- ================== 0019_trading_shorts.sql ==================
+-- ---------------------------------------------------------------------------
+-- Trading automation: short rules.
+--
+-- A rule now says which side it trades. A short rule runs its strategy on the
+-- price chart turned upside down (lib/autotrade/rules.ts `mirrorCandles`)
+-- and sells to open, with its take-profit below the entry and its stop above.
+--
+-- Additive, and safe to run whether or not 0018 already ran: existing rules
+-- and positions are longs, which is what the default says.
+-- ---------------------------------------------------------------------------
+
+alter table public.trading_rules
+  add column if not exists side text not null default 'long';
+
+do $migration$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'trading_rules_side_check') then
+    alter table public.trading_rules
+      add constraint trading_rules_side_check check (side in ('long', 'short'));
+  end if;
+end
+$migration$;
+
+-- 0018 allowed only longs. Replaced, not stacked, so a short can be recorded.
+alter table public.trading_positions drop constraint if exists trading_positions_side_check;
+alter table public.trading_positions
+  add constraint trading_positions_side_check check (side in ('long', 'short'));
+
+-- =============== 0020_trading_limit_orders.sql ===============
+-- ---------------------------------------------------------------------------
+-- Trading automation: limit orders, and what paper-trade analysis needs.
+--
+-- A limit order opens a long or a short when the price reaches a level, with
+-- its take-profit and stop-loss attached. A live one rests on Hyperliquid's
+-- book (its client order ids are kept here), so it fills whether or not
+-- Elyra is open; the five-minute check learns of the fill and records the
+-- position. A paper one is filled by that check when a bar trades through
+-- the level.
+--
+-- Positions now record the leverage they were opened at, so the analysis can
+-- band by it, and where they came from: a rule or a limit order.
+--
+-- Same lockdown as the rest of the schema. Additive; safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.trading_orders (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  mode          text not null check (mode in ('paper', 'live')),
+  network       text,
+  coin          text not null,
+  side          text not null check (side in ('long', 'short')),
+  limit_price   numeric not null check (limit_price > 0),
+  size_usd      numeric not null check (size_usd >= 12 and size_usd <= 5000),
+  leverage      integer not null check (leverage between 1 and 5),
+  take_profit   numeric not null check (take_profit > 0),
+  stop_loss     numeric not null check (stop_loss > 0),
+  status        text not null check (status in ('open', 'filled', 'cancelled', 'failed')),
+  entry_cloid   text,
+  tp_cloid      text,
+  sl_cloid      text,
+  position_id   uuid references public.trading_positions(id) on delete set null,
+  error         text,
+  created_at    timestamptz not null default now(),
+  filled_at     timestamptz,
+  cancelled_at  timestamptz
+);
+
+create index if not exists trading_orders_user_idx on public.trading_orders(user_id, created_at desc);
+create index if not exists trading_orders_open_idx on public.trading_orders(status) where status = 'open';
+
+alter table public.trading_orders enable row level security;
+
+alter table public.trading_positions add column if not exists leverage integer;
+alter table public.trading_positions add column if not exists origin text not null default 'rule';
+
+do $migration$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'trading_positions_origin_check') then
+    alter table public.trading_positions
+      add constraint trading_positions_origin_check check (origin in ('rule', 'order'));
+  end if;
+end
+$migration$;
+
+-- ======================= 0021_arena.sql =======================
+-- ---------------------------------------------------------------------------
+-- Elyra Arena, phase 1: trade reviews, calls with receipts, the daily chart
+-- puzzle, and the groups and profiles that decide who sees what.
+--
+-- Points and paper only. Nothing here holds, moves or promises money: no
+-- buy-ins, prizes, wagers, escrow or deposits (docs/ARENA_REAL_MONEY.md).
+--
+-- Calls are append-only: there is no update path in the API for a call's
+-- statement, and its receipt is a SHA-256 over the canonical text and the
+-- server timestamp, so a call cannot be quietly rewritten after the fact.
+-- `onchain_signature` is reserved for a Solana memo the person signs later.
+--
+-- Same lockdown as the rest of the schema: RLS on with no policies, the
+-- service-role client the only writer, every query filtered by user_id.
+-- Additive; safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.trade_reviews (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references public.profiles(id) on delete cascade,
+  position_id    uuid not null unique references public.trading_positions(id) on delete cascade,
+  label          text not null check (label in ('brilliant', 'great', 'good', 'inaccuracy', 'mistake', 'blunder')),
+  -- What the label and the coaching were computed from, exactly.
+  facts          jsonb not null,
+  coaching       text not null,
+  -- The model that wrote the coaching, or 'fallback' when the code did.
+  coaching_model text not null,
+  created_at     timestamptz not null default now()
+);
+create index if not exists trade_reviews_user_idx on public.trade_reviews(user_id, created_at desc);
+alter table public.trade_reviews enable row level security;
+
+create table if not exists public.arena_profiles (
+  user_id    uuid primary key references public.profiles(id) on delete cascade,
+  -- Chosen by the person, lower-case; never the wallet address.
+  handle     text unique check (handle ~ '^[a-z0-9_]{3,20}$'),
+  public     boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.arena_profiles enable row level security;
+
+create table if not exists public.arena_groups (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null check (char_length(name) between 1 and 40),
+  invite_code text not null unique,
+  owner_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at  timestamptz not null default now()
+);
+alter table public.arena_groups enable row level security;
+
+create table if not exists public.arena_group_members (
+  group_id  uuid not null references public.arena_groups(id) on delete cascade,
+  user_id   uuid not null references public.profiles(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+create index if not exists arena_group_members_user_idx on public.arena_group_members(user_id);
+alter table public.arena_group_members enable row level security;
+
+create table if not exists public.arena_calls (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references public.profiles(id) on delete cascade,
+  market            text not null,
+  direction         text not null check (direction in ('above', 'below')),
+  price             numeric not null check (price > 0),
+  resolves_at       timestamptz not null,
+  confidence        integer not null check (confidence between 50 and 99),
+  visibility        text not null default 'private' check (visibility in ('private', 'groups', 'public')),
+  statement         text not null,
+  receipt           text not null,
+  created_at        timestamptz not null,
+  status            text not null default 'open' check (status in ('open', 'hit', 'miss', 'void')),
+  settled_price     numeric,
+  settled_source    text,
+  settled_at        timestamptz,
+  brier             numeric,
+  -- The hit card or the eulogy, written once the call settles.
+  card              text,
+  card_model        text,
+  onchain_signature text
+);
+create index if not exists arena_calls_user_idx on public.arena_calls(user_id, created_at desc);
+create index if not exists arena_calls_open_idx on public.arena_calls(resolves_at) where status = 'open';
+alter table public.arena_calls enable row level security;
+
+create table if not exists public.arena_call_backings (
+  id             uuid primary key default gen_random_uuid(),
+  call_id        uuid not null references public.arena_calls(id) on delete cascade,
+  user_id        uuid not null references public.profiles(id) on delete cascade,
+  stance         text not null check (stance in ('tail', 'fade')),
+  points         integer not null check (points between 1 and 100),
+  -- The ISO week the points came out of, e.g. '2026-W46'.
+  week           text not null,
+  settled_points integer,
+  created_at     timestamptz not null default now(),
+  unique (call_id, user_id)
+);
+create index if not exists arena_call_backings_user_idx on public.arena_call_backings(user_id, week);
+alter table public.arena_call_backings enable row level security;
+
+create table if not exists public.arena_puzzle_days (
+  puzzle_date  date primary key,
+  number       integer not null,
+  market       text not null,
+  interval     text not null,
+  -- Close time of the last visible bar.
+  ends_at      timestamptz not null,
+  -- Visible bars, rebased so the first close is 100; the future is not here.
+  visible      jsonb not null,
+  -- The hidden answer and the bars that reveal it.
+  outcome      text not null check (outcome in ('up', 'down')),
+  change_pct   numeric not null,
+  reveal       jsonb not null,
+  bot_direction text not null check (bot_direction in ('up', 'down')),
+  bot_correct  boolean not null,
+  -- The momentum bot's rating after this puzzle.
+  bot_rating   numeric not null,
+  created_at   timestamptz not null default now()
+);
+alter table public.arena_puzzle_days enable row level security;
+
+create table if not exists public.arena_puzzle_answers (
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  puzzle_date   date not null references public.arena_puzzle_days(puzzle_date) on delete cascade,
+  direction     text not null check (direction in ('up', 'down')),
+  confidence    integer not null check (confidence between 50 and 99),
+  correct       boolean not null,
+  rating_before numeric not null,
+  rating_after  numeric not null,
+  streak        integer not null,
+  created_at    timestamptz not null default now(),
+  primary key (user_id, puzzle_date)
+);
+alter table public.arena_puzzle_answers enable row level security;
+
+-- ==================== 0022_agent_keys.sql ====================
+-- ---------------------------------------------------------------------------
+-- 0022 — Agent keys: Elyra's live context for outside AI agents.
+--
+-- A person creates a key in Connections and gives it to an agent (Claude,
+-- ChatGPT, a bot of their own). The agent calls Elyra's MCP endpoint
+-- (/api/mcp) or its REST mirror (/api/v1/tools) with that key. Every tool it
+-- can reach only reads: market data always, and the person's own portfolio
+-- only when the key was created with the `account` scope.
+--
+-- Only a SHA-256 of the key is stored; the key itself is shown once. A key is
+-- revoked, never deleted, so its usage history stays attributable.
+--
+-- RLS on, no policies: the server reads and writes with the service role.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.agent_keys (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  name          text not null check (length(name) between 1 and 60),
+  -- The first characters of the key, for recognising it in a list.
+  prefix        text not null,
+  key_hash      text not null unique,
+  scopes        text[] not null default array['market']::text[]
+                  check (scopes <@ array['market', 'account']::text[] and 'market' = any(scopes)),
+  created_at    timestamptz not null default now(),
+  last_used_at  timestamptz,
+  revoked_at    timestamptz
+);
+
+create index if not exists agent_keys_user_idx on public.agent_keys(user_id, created_at desc);
+
+alter table public.agent_keys enable row level security;
+
+-- Calls per key per UTC day, for the daily cap.
+create table if not exists public.agent_key_usage (
+  key_id  uuid not null references public.agent_keys(id) on delete cascade,
+  day     date not null,
+  calls   int not null default 0,
+  primary key (key_id, day)
+);
+
+alter table public.agent_key_usage enable row level security;
+
+-- Check and count one call in a single statement, so two concurrent calls at
+-- `limit - 1` cannot both pass (the same shape as claim_agent_run).
+create or replace function public.claim_agent_key_call(p_key_id uuid, p_limit int)
+returns table (allowed boolean, calls int)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_day   date := (now() at time zone 'utc')::date;
+  v_calls int;
+begin
+  insert into public.agent_key_usage as u (key_id, day, calls)
+  values (p_key_id, v_day, 1)
+  on conflict (key_id, day) do update
+     set calls = u.calls + 1
+   where u.calls < p_limit
+  returning u.calls into v_calls;
+
+  if v_calls is not null then
+    return query select true, v_calls;
+    return;
+  end if;
+
+  select u.calls into v_calls
+    from public.agent_key_usage u
+   where u.key_id = p_key_id and u.day = v_day;
+  return query select false, coalesce(v_calls, p_limit);
+end;
+$$;
+
+revoke all on function public.claim_agent_key_call(uuid, int) from public, anon, authenticated;
+
+-- ====================== 0023_events.sql ======================
+-- ---------------------------------------------------------------------------
+-- 0023 — Events: crypto's history and Elyra's AI posts, as a feed.
+--
+-- Only Elyra's AI posts. People react and save; nobody else posts or
+-- comments, so there is nothing to moderate. The feed mixes three sources:
+--
+--   - event_posts (here): what the AI writes from time to time on the
+--     five-minute tick — a new hack as DefiLlama records it, a large move in
+--     a major coin, and "on this day" — each written from computed facts and
+--     held to their numbers (lib/arena/writer.ts);
+--   - DefiLlama's hack list, read live;
+--   - a reviewed list of milestones kept in code (lib/events/history.ts).
+--
+-- A reaction or a save is keyed by the item's key — "post:<uuid>",
+-- "hack:<id>" or "milestone:<slug>" — so the same table covers all three.
+--
+-- RLS on, no policies: the server reads and writes with the service role.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.event_posts (
+  id           uuid primary key default gen_random_uuid(),
+  -- What the post is about, unique, so a tick never posts the same thing
+  -- twice: "hack:<defillama id>", "move:BTC:2026-11-11", "onthisday:2026-11-11".
+  post_key     text not null unique,
+  kind         text not null check (kind in ('hack', 'move', 'onthisday')),
+  -- The feed item it is about, if any ("hack:123", "milestone:the-merge").
+  refers_to    text,
+  title        text not null check (length(title) between 1 and 160),
+  body         text not null check (length(body) between 1 and 1200),
+  facts        jsonb not null default '[]'::jsonb,
+  model        text not null,
+  amount_usd   numeric,
+  chains       text[] not null default '{}',
+  source_url   text,
+  occurred_at  timestamptz not null,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists event_posts_created_idx on public.event_posts(created_at desc);
+
+alter table public.event_posts enable row level security;
+
+create table if not exists public.event_marks (
+  item_key    text not null check (item_key ~ '^(post|hack|milestone):[A-Za-z0-9._-]{1,80}$'),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  mark        text not null check (mark in ('like', 'save')),
+  created_at  timestamptz not null default now(),
+  primary key (item_key, user_id, mark)
+);
+
+create index if not exists event_marks_user_idx on public.event_marks(user_id, mark, created_at desc);
+
+alter table public.event_marks enable row level security;
+

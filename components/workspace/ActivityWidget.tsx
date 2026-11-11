@@ -44,6 +44,7 @@ import {
   type Network,
 } from "@/lib/activity/filter";
 import { useAccountEvents, type AccountFeed } from "@/lib/activity/useAccountEvents";
+import { explorerName as networkExplorer, networkName, networkShortName, WALLET_NETWORKS } from "@/lib/portfolio/chain";
 import { formatClock, formatDayGroup, formatRelativeTime, formatTimestamp } from "@/lib/format";
 import { accountExplorerUrl } from "@/lib/solana/address";
 import { useMinute } from "@/lib/useClock";
@@ -72,6 +73,11 @@ const DIRECTIONS: Array<{ id: Direction; label: string }> = [
 ];
 
 /* ---- What a row says ---- */
+
+/** Where a row's explorer link goes, by its network. */
+function explorerName(event: AccountEvent): string {
+  return networkExplorer(event.network);
+}
 
 function primarySymbol(amounts: TxAmount[], sign: 1 | -1): string | null {
   const entry = amounts.find((amount) => Math.sign(amount.amount) === sign);
@@ -207,9 +213,17 @@ function Details({ event }: { event: AccountEvent }) {
     if (summary.via) rows.push(["Via", summary.via]);
     if (summary.feeSol !== null) rows.push(["Network fee", `${formatTokenAmount(summary.feeSol)} SOL`]);
   }
+  if (event.kind === "transaction" && event.network !== undefined && event.network !== "solana") {
+    rows.push(["Network", networkName(event.network)]);
+  }
   rows.push(["Status", statusOf(event).label]);
   rows.push(["Time", event.at === null ? "Not yet in a block" : `${formatTimestamp(event.at)} UTC`]);
-  if (signature) rows.push(["Signature", <span key="s" className="type-mono-addr break-all text-text-secondary">{signature}</span>]);
+  if (signature) {
+    rows.push([
+      event.network === undefined || event.network === "solana" ? "Signature" : "Transaction hash",
+      <span key="s" className="type-mono-addr break-all text-text-secondary">{signature}</span>,
+    ]);
+  }
   if (event.kind === "transaction" && !summary) {
     rows.push(["Details", "This transaction could not be decoded; the explorer has the full record."]);
   }
@@ -224,7 +238,7 @@ function Details({ event }: { event: AccountEvent }) {
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 text-text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
       >
-        Open in Solscan
+        Open in {explorerName(event)}
         <ExternalLink size={11} strokeWidth={1.5} aria-hidden />
       </a>,
     ]);
@@ -283,8 +297,8 @@ function Row({ event }: { event: AccountEvent }) {
             href={event.href}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Open in Solscan"
-            title="Open in Solscan"
+            aria-label={`Open in ${explorerName(event)}`}
+            title={`Open in ${explorerName(event)}`}
             /* In a narrow column the link moves into the row's details, so
                the label and the amount keep the width. */
             className="mr-1.5 mt-2 inline-flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)] @max-[300px]:hidden"
@@ -622,7 +636,7 @@ export function ActivityView({
                 onChange={(value) => set("network", value)}
                 options={[
                   ["all", "All networks", "All"],
-                  ["solana", "Solana", "Solana"],
+                  ...WALLET_NETWORKS.map((network): [Network, string, string] => [network, networkName(network), networkShortName(network)]),
                 ]}
               />
             </div>
@@ -678,6 +692,18 @@ export function ActivityView({
               ))
             )}
           </div>
+
+          {/* A network whose history could not be read, named — so the list
+              above is not taken for the whole of this account's activity. */}
+          {feed.notes.length > 0 && (
+            <ul className="list-none border-t border-border-subtle px-3 py-2">
+              {feed.notes.map((note) => (
+                <li key={note} className="type-label text-text-muted">
+                  {note}
+                </li>
+              ))}
+            </ul>
+          )}
 
           {/* Footer */}
           <div className="flex items-center gap-2 border-t border-border-subtle px-3 py-2">

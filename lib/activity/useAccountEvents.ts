@@ -18,6 +18,8 @@ export interface AccountFeed {
   signedIn: boolean;
   loading: boolean;
   error: string | null;
+  /** Wallet history sources that could not be read while others could. */
+  notes: string[];
   /** The wallet feed's own fetch state, for refresh and "updated" labels. */
   fetchedAt: number | null;
   refreshing: boolean;
@@ -48,6 +50,7 @@ export function useAccountEvents(): AccountFeed {
     signedIn: portfolio.signedIn,
     loading: !portfolio.authReady || (portfolio.signedIn && wallet.isLoading && events.length === 0),
     error: wallet.error,
+    notes: wallet.notes,
     fetchedAt: wallet.fetchedAt,
     refreshing: wallet.refreshing,
     refetch: wallet.refetch,

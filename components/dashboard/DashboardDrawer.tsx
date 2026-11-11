@@ -30,6 +30,7 @@ import {
   Tip,
 } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
+import { NetworkMark } from "@/components/wallet/NetworkMark";
 import { methodLabel } from "@/lib/account";
 import { formatAge, formatPriceUsd, formatQty, formatRelativeTime, formatUsd, truncateMiddle } from "@/lib/format";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
@@ -285,12 +286,21 @@ function describe(entry: LinkedAccountSummary): {
   copyLabel: string;
 } {
   if (entry.type === "wallet" || entry.type === "smart_wallet") {
-    const chain = entry.chainType === "ethereum" ? "Ethereum" : entry.chainType === "solana" ? "Solana" : null;
+    const chain =
+      entry.chainType === "ethereum" ? "Ethereum" : entry.chainType === "solana" ? "Solana" : entry.chainType === "sui" ? "Sui" : null;
     const base = entry.type === "smart_wallet" ? "Smart wallet" : chain === null ? "Wallet" : `${chain} wallet`;
     return {
       label: base,
       mark:
-        chain === "Ethereum" ? <ChainMark symbol="ETH" /> : chain === "Solana" ? <ChainMark symbol="SOL" /> : <IconTile icon={Wallet} />,
+        chain === "Ethereum" ? (
+          <ChainMark symbol="ETH" />
+        ) : chain === "Solana" ? (
+          <ChainMark symbol="SOL" />
+        ) : chain === "Sui" ? (
+          <NetworkMark network="sui" size={32} className="bg-surface-base" />
+        ) : (
+          <IconTile icon={Wallet} />
+        ),
       value: entry.detail,
       display: entry.detail === null ? null : truncateMiddle(entry.detail, 6, 6),
       mono: true,
@@ -459,12 +469,12 @@ function ActivityRow({ item, now, cluster }: { item: WalletActivity; now: number
           </time>
         </Tip>
       )}
-      <Tip label="Open in Solscan">
+      <Tip label={item.href ? "Open in the explorer" : "Open in Solscan"}>
         <a
-          href={txExplorerUrl(item.signature, cluster)}
+          href={item.href ?? txExplorerUrl(item.signature, cluster)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Open transaction ${truncateMiddle(item.signature, 6, 6)} in Solscan`}
+          aria-label={`Open transaction ${truncateMiddle(item.signature, 6, 6)} in ${item.href ? "the explorer" : "Solscan"}`}
           className={cn(
             "-mr-1.5 grid size-8 shrink-0 place-items-center rounded-control text-text-muted",
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary",

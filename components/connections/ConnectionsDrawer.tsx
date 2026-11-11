@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link2, Lock, LogIn, ShieldCheck } from "lucide-react";
+import { AgentKeysCard } from "@/components/connections/AgentKeysCard";
 import { BinanceCard, HyperliquidCard, type ExchangeState } from "@/components/connections/ExchangeCards";
 import { PolymarketCard, type PredictionState } from "@/components/connections/PolymarketCard";
 import { InlineNote, primaryAction, useAccountFetch } from "@/components/connections/primitives";
@@ -149,6 +150,7 @@ function ConnectionCards() {
   const [prediction, reloadPrediction] = useConnectionRead<PredictionState>("/api/prediction/account");
   const [exchanges, reloadExchanges] = useConnectionRead<ExchangeState>("/api/exchanges");
   const exchangesId = useId();
+  const agentsId = useId();
   const { refetch } = feed;
 
   /* A change is visible everywhere the account is read: the card's own
@@ -174,6 +176,13 @@ function ConnectionCards() {
         </h2>
         <HyperliquidCard state={exchanges} feed={feed} onChanged={exchangesChanged} />
         <BinanceCard state={exchanges} feed={feed} onChanged={exchangesChanged} />
+      </section>
+
+      <section aria-labelledby={agentsId} className="flex flex-col gap-3 pt-2">
+        <h2 id={agentsId} className="type-eyebrow px-1 text-text-muted">
+          AI agents
+        </h2>
+        <AgentKeysCard />
       </section>
     </>
   );

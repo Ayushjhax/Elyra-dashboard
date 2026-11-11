@@ -10,6 +10,7 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react-native";
+import { explorerName } from "@/lib/portfolio/chain";
 import { formatRelativeTime } from "@/lib/format";
 import { txExplorerUrl } from "@/lib/solana/address";
 import type { TxKind } from "@/lib/wallet/summarise";
@@ -41,17 +42,17 @@ const KIND_ICON: Record<TxKind, LucideIcon> = {
 const STATUS_WORD = { confirmed: "Confirmed", pending: "Pending", failed: "Failed" } as const;
 const STATUS_TONE = { confirmed: "positive", pending: "caution", failed: "negative" } as const;
 
-/** One transaction: what it did, its real state and when — opening on Solscan. */
+/** One transaction: what it did, its real state and when — opening on its network's explorer. */
 export function ActivityRow({ item, now, first }: { item: WalletActivity; now: number; first: boolean }) {
   const Icon = KIND_ICON[item.summary?.kind ?? "other"];
   const title = item.summary?.title ?? (item.status === "failed" ? "Transaction failed" : "Transaction");
   const when = item.at === null ? "processing" : formatRelativeTime(item.at, now);
   return (
     <Pressable
-      onPress={() => openExternal(txExplorerUrl(item.signature))}
+      onPress={() => openExternal(item.href ?? txExplorerUrl(item.signature))}
       accessibilityRole="link"
       accessibilityLabel={`${title}. ${STATUS_WORD[item.status]}, ${when}`}
-      accessibilityHint="Opens the transaction on Solscan"
+      accessibilityHint={`Opens the transaction on ${explorerName(item.network)}`}
       android_ripple={{ color: color["surface-hover"] }}
       style={({ pressed }) => [styles.tx, !first && styles.ruled, pressed && styles.pressed]}
     >

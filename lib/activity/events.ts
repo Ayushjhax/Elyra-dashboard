@@ -38,6 +38,8 @@ export interface AccountEvent {
   attention: boolean;
   /** For a wallet transaction the RPC could read: what moved, and how. */
   summary?: TxSummary | null;
+  /** A wallet transaction's ledger: Solana, Ethereum or Robinhood Chain. */
+  network?: NonNullable<WalletActivity["network"]>;
 }
 
 export function accountEvents(input: {
@@ -73,7 +75,10 @@ export function accountEvents(input: {
             : "Wallet transaction confirmed"),
       at: tx.at,
       status: tx.status,
-      href: input.explorer(tx.signature),
+      /* An EVM row carries its own explorer link; a Solana row is linked by
+         signature, on the surface's own terms. */
+      href: tx.href ?? input.explorer(tx.signature),
+      network: tx.network ?? "solana",
       agent: false,
       attention: tx.status === "failed",
     });

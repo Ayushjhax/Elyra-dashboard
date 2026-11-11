@@ -26,6 +26,8 @@ export interface ActivityFeed {
   items: WalletActivity[];
   isLoading: boolean;
   error: string | null;
+  /** Sources that could not be read while others could (see ActivityResponse). */
+  notes: string[];
   unconfigured: boolean;
   /** When the last read succeeded, epoch ms. Null before the first. */
   fetchedAt: number | null;
@@ -37,6 +39,7 @@ export interface ActivityFeed {
 interface StoreState {
   items: WalletActivity[];
   error: string | null;
+  notes: string[];
   unconfigured: boolean;
   loading: boolean;
   fetchedAt: number | null;
@@ -46,6 +49,7 @@ interface StoreState {
 const INITIAL: StoreState = {
   items: [],
   error: null,
+  notes: [],
   unconfigured: false,
   loading: true,
   fetchedAt: null,
@@ -113,6 +117,7 @@ async function poll(): Promise<void> {
     emit({
       items: body.error === null ? body.items : state.items,
       error: body.error,
+      notes: body.error === null ? (body.notes ?? []) : state.notes,
       unconfigured: body.unconfigured,
       loading: false,
       fetchedAt: body.error === null ? Date.now() : state.fetchedAt,
@@ -192,6 +197,7 @@ export function useWalletActivity(limit = 20): ActivityFeed {
       /* Privy restoring is "unknown", not "signed out". */
       isLoading: !auth.ready || (signedIn && store.loading),
       error: signedIn ? store.error : null,
+      notes: signedIn ? store.notes : [],
       unconfigured: store.unconfigured,
       fetchedAt: signedIn ? store.fetchedAt : null,
       refreshing: signedIn && store.refreshing,

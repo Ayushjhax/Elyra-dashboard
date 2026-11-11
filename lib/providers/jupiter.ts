@@ -64,6 +64,73 @@ export const jupiterProvider: ProviderAdapter = {
 };
 
 /* ---------------------------------------------------------------------------
+   One token's listing — for the Asset Passport
+--------------------------------------------------------------------------- */
+
+/** What Jupiter's token index says about one mint. Every field is Jupiter's claim, not the chain's. */
+export interface TokenListing {
+  mint: string;
+  name: string | null;
+  symbol: string | null;
+  icon: string | null;
+  verified: boolean;
+  /** Jupiter's own tags, e.g. "rwa", "stocks", "token-2022". */
+  tags: string[];
+  holderCount: number | null;
+  /** When Jupiter last updated the listing, ISO. */
+  updatedAt: string | null;
+}
+
+interface SearchEntry {
+  id?: string;
+  name?: string;
+  symbol?: string;
+  icon?: string | null;
+  isVerified?: boolean;
+  tags?: unknown;
+  holderCount?: number;
+  updatedAt?: string;
+}
+
+const LISTING_TTL_MS = 10 * 60_000;
+
+/**
+ * Jupiter's listing for exactly `mint`, or NOT_FOUND.
+ *
+ * Searched by the full mint address and then matched on it exactly: a search
+ * by name returns every copy that shares the name, and the passport must
+ * describe this token, not a lookalike.
+ */
+export async function jupiterTokenListing(mint: string): Promise<ToolResult<TokenListing>> {
+  const result = await cached<SearchEntry[]>(`jup:listing:${mint}`, LISTING_TTL_MS, () =>
+    providerFetch<SearchEntry[]>({
+      provider: "jupiter",
+      url: `${GATEWAY}/tokens/v2/search?query=${encodeURIComponent(mint)}`,
+      headers: headers(),
+      timeoutMs: 6_000,
+    }),
+  );
+  if (!result.ok || result.data === undefined) {
+    return fail<TokenListing>("jupiter", result.error?.code ?? "UPSTREAM_UNAVAILABLE", result.error?.message ?? "Jupiter's token index did not answer.");
+  }
+  const entry = (Array.isArray(result.data) ? result.data : []).find((candidate) => candidate.id === mint);
+  if (entry === undefined) return fail<TokenListing>("jupiter", "NOT_FOUND", "Jupiter does not list this mint.");
+  return ok<TokenListing>(
+    {
+      mint,
+      name: typeof entry.name === "string" ? entry.name : null,
+      symbol: typeof entry.symbol === "string" ? entry.symbol : null,
+      icon: typeof entry.icon === "string" ? entry.icon : null,
+      verified: entry.isVerified === true,
+      tags: Array.isArray(entry.tags) ? entry.tags.filter((tag): tag is string => typeof tag === "string") : [],
+      holderCount: typeof entry.holderCount === "number" ? entry.holderCount : null,
+      updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : null,
+    },
+    "jupiter",
+  );
+}
+
+/* ---------------------------------------------------------------------------
    Prices
 --------------------------------------------------------------------------- */
 

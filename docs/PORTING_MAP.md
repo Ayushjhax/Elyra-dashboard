@@ -58,7 +58,13 @@ The API column says `same` when the app calls the existing route unchanged.
 | Fund wallet | `WalletActions.tsx` (Privy funding) | wallet sheet, `useFundSolanaWallet` from `@privy-io/expo/ui` (0.77 supports it; `PrivyElements` mounted in `AuthProvider`) | — | in progress — built; needs funding enabled in the Privy dashboard to test |
 | Export wallet | `WalletActions.tsx` (Privy export) | — | — | dropped — `@privy-io/expo` 0.77 has no export flow, and the app never renders a key; the wallet sheet says to export from getelyra.xyz. Revisit when Privy's Expo SDK adds one |
 | Transfer / withdraw | `components/assets/TransferDialog.tsx` | `mobile/src/app/transfer.tsx` (`?intent=withdraw`), QR scan in `ScanAddress.tsx`; shared rules in `lib/wallet/flows.ts` | `/api/transfer/*` same; status now says `expired` | in progress — built; on-chain test pending |
+| EVM balances on Ethereum, Base, Arbitrum, BNB Chain and Robinhood Chain (EVM wallet, stock tokens, unverified tokens) | `lib/evm/*`, `components/wallet/EvmWallets.tsx` | `mobile/src/components/wallet/EvmSection.tsx` on the wallet screen; network names in `HoldingsList`; per-chain scoping from the shared `drawer.ts` | `/api/portfolio` same | in progress — built; device screenshots pending |
+| Receive on every EVM network, and on Sui | network menu in `components/portfolio/ReceiveDialog.tsx` | network menu (Solana and the five EVM networks) in `mobile/src/app/receive.tsx` (`?network=`); Sui not yet | — | in progress — built; device check pending |
+| Send and swap on the EVM networks | `components/wallet/EvmDialogs.tsx`, `lib/wallet/runEvmTx.ts` (shared), `lib/evm/tx.ts`, `/api/evm/*` | `mobile/src/app/evm.tsx` (`?action=send\|swap&chain=` for all five chains), embedded-wallet signer `mobile/src/lib/wallet/evmSigner.ts` (unit-tested); Sell on EVM rows of `TradingActivity` | `/api/evm/transfer/build`, `/api/evm/swap/build`, `/api/evm/submit`, `/api/evm/status` same | in progress — built; on-chain test pending (needs a funded embedded EVM wallet) |
+| EVM wallet history | `lib/evm/activity.ts`, `lib/evm/history.ts` (shared), merged into `/api/wallet/activity` with `notes` | network filter, per-network explorer links and history notes in `mobile/src/components/wallet/Activity.tsx`, `ActivityRow.tsx`, `app/activity.tsx` | `/api/wallet/activity` same | in progress — built; device check pending |
 | Swap | `components/assets/SwapDialog.tsx` | `mobile/src/app/swap.tsx` | `/api/swap/*` same | in progress — built; on-chain test pending |
+| Buy or sell any token by address (Solana mint, EVM contract), acknowledged, unverified | "Other token…" in `components/assets/SwapDialog.tsx` and `components/wallet/EvmDialogs.tsx` | — | `/api/swap/build` (`fromMint`/`toMint`), `/api/evm/swap/build` (contract), both with `acknowledgeUnverified` | todo |
+| Sui wallet: balances, history, send, swap (any coin by type) | `components/wallet/SuiWallet.tsx`, `SuiDialogs.tsx`, `lib/sui/*`, `lib/wallet/runSuiTx.ts` (shared) | Sui balances and history arrive in the shared stores and show in holdings and Activity; no Sui section, Sell, send or swap yet | `/api/portfolio`, `/api/wallet/activity` same; `/api/sui/*` | todo — the app needs a Sui signer (Privy Expo's Sui raw-hash signing to be read and checked) |
 | Action dialogs | `components/assets/ActionDialogs.tsx` | Portfolio action bar (Receive, Swap, Transfer, Withdraw) | — | done |
 | Wallet activity | `components/workspace/ActivityWidget.tsx`, `lib/wallet/useWalletActivity.ts`, `lib/activity/*` | `mobile/src/app/activity.tsx` (Portfolio → Wallet activity), `mobile/src/lib/stores/activity.ts`; fired alerts and venue activity join with their stores | `/api/wallet/activity` same | in progress — verified on a Seeker with real history; moved to its own screen |
 | Actions awaiting review | `components/agent/PendingActions.tsx`, `lib/actions/useOpenActions.ts` | `mobile/src/components/actions/ReviewCards.tsx` (Portfolio and Elyra tabs), `mobile/src/lib/stores/actions.ts` | `/api/actions` same | in progress — built and unit-tested; device check pending |
@@ -90,7 +96,67 @@ The API column says `same` when the app calls the existing route unchanged.
 | Trading activity (positions, orders, history, filters) | `components/workspace/TradingActivity.tsx`, `lib/portfolio/ledger.ts` | `mobile/src/components/portfolio/TradingActivity.tsx` (cards on phones, column-priority tables on tablets) | same | done — verified on a Seeker |
 | Portfolio drawer (holdings, risk, DeFi) | `components/portfolio/PortfolioDrawer.tsx`, `lib/portfolio/drawer.ts` | `mobile/src/app/holdings.tsx`, `risk.tsx`, `defi.tsx`, `orders.tsx`, `fills.tsx` | `/api/app/views` (new: the agent's own tools, as the Mini App used) | done — verified on a Seeker |
 | Capital accounts (equity, allocation, venues, balances) | `components/assets/CapitalAccounts.tsx`, `tables.tsx`, `lib/assets/*` | `mobile/src/app/capital.tsx` | same | done — verified on a Seeker |
+| Asset Passport (what a token is, issuer, on-chain controls, sources) | `components/assets/AssetPassport.tsx`, opened from `tables.tsx`; contract and derivation shared in `lib/passport/types.ts`, `lib/passport/derive.ts` | — | `GET /api/assets/passport?mint=` | todo — web only for now |
 | Dashboard (holdings, network, account) | `components/dashboard/DashboardDrawer.tsx` | `mobile/src/app/dashboard.tsx` | same | done — verified on a Seeker |
+
+## Intelligent Portfolios
+
+Model portfolios bought into the person's own wallet, one signed swap per
+holding. The catalog and arithmetic are shared (`lib/invest/catalog.ts`,
+`lib/invest/plan.ts`, `lib/invest/types.ts`, all in `lib/core.ts`), so the app
+plans the same trades from the same numbers.
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Portfolio list (category, risk, minimum, 24h, your value and drift) | `app/invest/page.tsx`, `components/invest/InvestList.tsx`, `lib/invest/useInvest.ts` | — | `GET /api/invest` | todo |
+| Portfolio page (holdings, target vs yours, the 5/25 rule, why these, notes) | `app/invest/[id]/page.tsx`, `components/invest/PortfolioView.tsx` | — | same | todo |
+| Buy and rebalance (reviewed legs, sales first, retry, record each fill) | `components/invest/TradeDialog.tsx`, `lib/wallet/runSwap.ts` | — | `/api/swap/*` same; `POST /api/invest/fills` | todo — the app's two signers (Privy, MWA) each sign one leg at a time |
+
+## Trading automation
+
+Rules Elyra runs on Hyperliquid perps every five minutes, with TP and SL on
+the exchange. The server does all the trading; the app only manages rules and
+approves the key, so no signing logic is ported.
+
+Deferred by the owner on 2026-11-10: the app gets no Automation screens for
+now. Its people still receive every trade notice through push and the inbox.
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Status, pause, loss limit, open-position cap | `components/automation/AutomationView.tsx`, `lib/autotrade/useAutomation.ts` | — | `GET`/`POST /api/automation` | todo |
+| Approve Elyra's trading key | same (`KeyCard`, Privy `signTypedData`) | — | `POST /api/automation/agent` | todo — the app's MWA signer needs EIP-712 support checked |
+| Rules (add, on/off, paper/live, delete) and trades | same | — | `/api/automation/rules`, `/rules/[id]` | todo |
+| Limit orders (long/short at a level, TP/SL, cancel) | `components/automation/AutomationView.tsx` (`LimitOrders`), `lib/autotrade/orders.ts` | — | `POST /api/automation/orders`, `DELETE /orders/[id]` | todo — web only by the owner's choice |
+| Trade now (market long/short with TP/SL) and close a position by hand | same (`MarketOrder`, `TradeRow`), `lib/autotrade/orders.ts` (`validateMarketOrder`), `lib/autotrade/accountGate.ts` | — | `POST /api/automation/trade`, `DELETE /api/automation/positions/[id]` | todo — web only by the owner's choice |
+| Paper trade analysis (win rate, leverage bands, long/short, timing) | same (`Analysis`), `lib/autotrade/analysis.ts` | — | `GET /api/automation` (`analysis`) | todo — web only by the owner's choice |
+
+## AI agents
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Agent keys (create, scope, revoke, how to connect) | `components/connections/AgentKeysCard.tsx` | — | `GET`/`POST /api/agent-keys`, `DELETE /api/agent-keys/[id]`; agents use `/api/mcp`, `/api/v1/tools` | todo — web only |
+
+## World markets and events
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| World markets (sessions, benchmarks, listings, movers, FX, briefing) | `components/markets/WorldMarketsView.tsx`, `lib/markets/` | — | `GET /api/markets`, `/api/markets/[exchange]`, `/api/markets/brief` | todo — web only |
+| Events feed (AI posts, hacks, history; like, save, share) | `components/events/EventsFeed.tsx`, `lib/events/` | — | `GET /api/events`, `POST /api/events/marks` | todo — web only |
+
+## Arena
+
+Points and paper only — see `docs/ARENA.md`. The scoring, the puzzle and the
+review labels are pure and already shared (`lib/arena/review.ts`,
+`calls.ts`, `puzzle.ts`, `types.ts` in `lib/core.ts`), so the app ports
+screens, not rules. Reviews, settlements and their notices already reach the
+app through push and the inbox.
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Daily chart puzzle (answer, reveal, rating, streak, share text, beat the bot) | `components/arena/ArenaView.tsx` (`PuzzleTab`), `components/arena/PuzzleChart.tsx`, `lib/arena/puzzle.ts` | — | `GET /api/arena` (`puzzle`), `POST /api/arena/puzzle` | todo — web only |
+| Calls with receipts (post, calibration, tail and fade with weekly points) | same (`CallsTab`), `lib/arena/calls.ts` | — | `POST /api/arena/calls`, `POST /api/arena/calls/[id]/back` | todo — web only |
+| Trade Review (label distribution, coaching, link from a closed trade) | same (`ReviewsTab`), `lib/arena/review.ts`, `lib/arena/engine.ts` | — | `GET /api/arena` (`reviews`) | todo — web only |
+| Groups and handle (create, join by code, public or private) | same (`GroupsTab`) | — | `POST /api/arena/groups`, `POST /api/arena/profile` | todo — web only |
 
 ## Elyra (AI)
 

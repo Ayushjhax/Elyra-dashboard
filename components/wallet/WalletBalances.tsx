@@ -99,10 +99,12 @@ export function WalletTotal({ wallet }: { wallet: WalletDashboard }) {
   }
 
   return (
-    <section aria-label="Total balance" className="mx-5 border-t border-border-subtle py-4">
+    <section aria-label="Solana balance" className="mx-5 border-t border-border-subtle py-4">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="type-body-sm text-text-secondary">Total balance</p>
+          {/* Named for its wallet: the drawer also lists the EVM wallet's
+              balances, which this figure does not include. */}
+          <p className="type-body-sm text-text-secondary">Solana balance</p>
           {/* One line at the figure's height whatever is in it, so hiding,
               loading and landing never move the drawer. */}
           <p className="type-display mt-1 flex h-9 items-center truncate font-sans tabular-nums">{value}</p>
@@ -121,7 +123,8 @@ export function WalletTotal({ wallet }: { wallet: WalletDashboard }) {
   );
 }
 
-function AssetRow({
+/** One holding: its mark, name, amount and value. Shared with the EVM section. */
+export function AssetRow({
   symbol,
   name,
   logo,
@@ -149,7 +152,7 @@ function AssetRow({
           {unverified && (
             <Tip
               openOnTap
-              label="Unverified mint. Shown because it is in the wallet; not counted in the total, because anyone can mint a token under a name that is already taken."
+              label="Unverified token. Shown because it is in the wallet; not counted in the total, because anyone can create a token under a name that is already taken."
             >
               <button
                 type="button"

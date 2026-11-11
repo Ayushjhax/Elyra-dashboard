@@ -118,13 +118,20 @@ describe("mint resolution", () => {
     expect(assetFor("USDC")?.class).toBe("stablecoin");
   });
 
-  it("names every xStock mint with the issuer's prefix", () => {
-    /* Backed Finance mints all begin "Xs". Not a substitute for verifying
-       each one by hand, but it catches a paste of the wrong address. */
+  it("names every tokenised security's issuer, and holds its mint to that issuer's pattern", () => {
+    /* Backed Finance mints all begin "Xs"; Ondo's all end "ondo". Not a
+       substitute for verifying each one by hand, but it catches a paste of
+       the wrong address — and every lookalike of an Ondo portfolio token
+       found while adding these ended in "pump" or nothing at all. */
     for (const symbol of knownSymbols()) {
       const asset = assetFor(symbol)!;
-      if (asset.class === "equity" || asset.class === "index") {
-        expect(asset.mint.startsWith("Xs")).toBe(true);
+      if (asset.class === "equity" || asset.class === "index" || asset.class === "bond") {
+        expect(asset.issuer, symbol).toBeDefined();
+      }
+      if (asset.issuer === "backed") expect(asset.mint.startsWith("Xs"), symbol).toBe(true);
+      if (asset.issuer === "ondo") {
+        expect(asset.mint.endsWith("ondo"), symbol).toBe(true);
+        expect(symbol.endsWith("ON"), symbol).toBe(true);
       }
     }
   });

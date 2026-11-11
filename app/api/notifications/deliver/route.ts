@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { cronAuthorised } from "@/lib/notifications/cron";
+import { runArena } from "@/lib/arena/engine";
+import { runAutotrade } from "@/lib/autotrade/engine";
+import { runEvents } from "@/lib/events/engine";
 import { deliverNotifications } from "@/lib/notifications/deliver";
 
 /* ---------------------------------------------------------------------------
@@ -39,8 +42,24 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
+  /* Trading automation first (lib/autotrade/engine.ts), so an entry or an
+     exit it records reaches the person in this same pass. Its failure never
+     holds up delivery. */
+  const automation = await runAutotrade().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Automation pass failed.",
+  }));
+  /* Then Arena (lib/arena/engine.ts): reviews of trades that just closed,
+     calls that came due, and their cards — capped per run. */
+  const arena = await runArena().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Arena pass failed.",
+  }));
+  /* Then the events feed (lib/events/engine.ts): Elyra's AI posts a new
+     hack, a large move or "on this day" — only when there is one. */
+  const events = await runEvents().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Events pass failed.",
+  }));
   const report = await deliverNotifications();
-  return NextResponse.json(report, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ...report, automation, arena, events }, { headers: { "cache-control": "no-store" } });
 }
 
 /** Same work, for schedulers that only issue POSTs. */

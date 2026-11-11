@@ -1,10 +1,15 @@
 import "server-only";
 
+import { EVM_CHAIN_KEYS, isEvmAddress } from "@/lib/evm/chains";
+import { readEvmWallet } from "@/lib/evm/wallet";
+import { isSuiAddress } from "@/lib/sui/chain";
+import { readSuiWallet } from "@/lib/sui/wallet";
 import { getPortfolio } from "@/lib/exchange/portfolio";
 import { UpstreamError } from "@/lib/market/http";
 import { pythConfigured } from "@/lib/market/pyth/catalog";
 import { pricesForIds } from "@/lib/market/pyth/client";
 import { snapshots } from "@/lib/market/router";
+import { marketSymbolOf, SOLANA_CHAIN } from "@/lib/portfolio/chain";
 import { exposureOf, resolvingWithin } from "@/lib/prediction/analytics";
 import { predictionAccount } from "@/lib/prediction/account";
 import { polymarketPositions } from "@/lib/providers/polymarket-account";
@@ -38,9 +43,10 @@ import type {
    One portfolio, assembled from the services this app already has.
 
    Nothing here is a new data source. The Solana side goes through the same
-   RPC and token primitives the wallet panel uses; the venue side is
-   `getPortfolio`, which already reads Hyperliquid and Binance behind one
-   normalised shape. This file is the adapter between those and the page — the
+   RPC and token primitives the wallet panel uses; the account's EVM wallet
+   is read on Ethereum and Robinhood Chain by lib/evm/wallet.ts; the venue
+   side is `getPortfolio`, which already reads Hyperliquid and Binance behind
+   one normalised shape. This file is the adapter between those and the page — the
    "smallest clean abstraction", not a second backend.
 
    What it adds that neither source has on its own:
@@ -59,7 +65,7 @@ import type {
 --------------------------------------------------------------------------- */
 
 /** Counted as available capital: spendable now, at face value. */
-const STABLES = new Set(["USDC", "USDT", "PYUSD", "USDE", "DAI", "FDUSD", "USDS"]);
+const STABLES = new Set(["USDC", "USDT", "PYUSD", "USDE", "DAI", "FDUSD", "USDS", "USDG"]);
 
 /** Crypto.SOL/USD. Written out for the same reason the wallet route does. */
 const SOL_FEED_ID = 6;
@@ -300,10 +306,18 @@ async function readPrediction(userId: string | null): Promise<PredictionRead> {
 
 export interface ComposeOptions {
   solanaAddress: string | null;
-  /** EVM. Makes Hyperliquid readable with nothing connected. */
+  /**
+   * EVM. Makes Hyperliquid readable with nothing connected, and is the
+   * address the Ethereum and Robinhood Chain balances are read at.
+   */
   sessionWallet: string | null;
   /** Null when the profile store is unreachable — venues are then skipped. */
   userId: string | null;
+  /**
+   * The account's Sui wallet. Optional: only the surfaces that resolve it
+   * (the portfolio and activity routes) read Sui; the rest are unchanged.
+   */
+  suiAddress?: string | null;
 }
 
 function note(scope: string, reason: string, kind: SourceNote["kind"]): SourceNote {
@@ -418,7 +432,8 @@ async function readWallet(address: string | null): Promise<WalletRead> {
     holdings.push({
       id: `wallet:SOL`,
       venue: "wallet",
-      chain: "Solana",
+      chain: SOLANA_CHAIN,
+      scopeId: address,
       address: null,
       symbol: "SOL",
       name: "Solana",
@@ -443,7 +458,8 @@ async function readWallet(address: string | null): Promise<WalletRead> {
     holdings.push({
       id: `wallet:${token.mint}`,
       venue: "wallet",
-      chain: "Solana",
+      chain: SOLANA_CHAIN,
+      scopeId: address,
       address: token.mint,
       symbol,
       name: token.name,
@@ -486,6 +502,46 @@ async function readWallet(address: string | null): Promise<WalletRead> {
       unrealizedPnlUsd: null,
     },
     notes,
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   The EVM wallet, on Ethereum and on Robinhood Chain
+
+   One address, two ledgers. Each chain is its own scope with its own notes,
+   so Ethereum being unreachable never hides what Robinhood Chain holds, and
+   the total says it is partial rather than quietly dropping one of them.
+--------------------------------------------------------------------------- */
+
+interface EvmRead {
+  holdings: SpotHolding[];
+  scopes: WalletScope[];
+  notes: SourceNote[];
+}
+
+async function readEvm(address: string | null): Promise<EvmRead> {
+  if (address === null || !isEvmAddress(address)) return { holdings: [], scopes: [], notes: [] };
+
+  const reads = await Promise.all(
+    EVM_CHAIN_KEYS.map((chain) =>
+      readEvmWallet(chain, address).catch((error: unknown) => ({
+        holdings: [],
+        scope: null,
+        notes: [
+          note(
+            chain === "ethereum" ? "ethereum" : "robinhood chain",
+            error instanceof Error ? error.message.split("\n")[0] : "The wallet could not be read.",
+            "failed",
+          ),
+        ],
+      })),
+    ),
+  );
+
+  return {
+    holdings: reads.flatMap((read) => read.holdings),
+    scopes: reads.flatMap((read) => (read.scope === null ? [] : [read.scope])),
+    notes: reads.flatMap((read) => read.notes),
   };
 }
 
@@ -638,11 +694,14 @@ async function readVenues(options: ComposeOptions): Promise<VenueRead> {
 --------------------------------------------------------------------------- */
 
 async function applyChange24h(holdings: SpotHolding[]): Promise<void> {
+  /* By market symbol, not the holding's own: WETH moves as ETH does, and a
+     stock token is asked about nowhere — see `SpotHolding.marketSymbol`. */
   const symbols = [
     ...new Set(
       holdings
         .filter((holding) => holding.verified && holding.valueUsd !== null)
-        .map((holding) => holding.symbol.toUpperCase()),
+        .map(marketSymbolOf)
+        .filter((symbol): symbol is string => symbol !== null),
     ),
   ];
   if (symbols.length === 0) return;
@@ -651,7 +710,8 @@ async function applyChange24h(holdings: SpotHolding[]): Promise<void> {
   const changeOf = new Map(rows.map((row) => [row.symbol, row.change24hPct]));
 
   for (const holding of holdings) {
-    const change = changeOf.get(holding.symbol.toUpperCase());
+    const symbol = marketSymbolOf(holding);
+    const change = symbol === null ? undefined : changeOf.get(symbol);
     if (change !== undefined) holding.change24hPct = change;
   }
 }
@@ -663,14 +723,22 @@ async function applyChange24h(holdings: SpotHolding[]): Promise<void> {
 export async function composePortfolio(
   options: ComposeOptions,
 ): Promise<PortfolioSnapshot> {
-  const [wallet, venues, defi, prediction] = await Promise.all([
+  const [wallet, evm, sui, venues, defi, prediction] = await Promise.all([
     readWallet(options.solanaAddress),
+    readEvm(options.sessionWallet),
+    options.suiAddress === undefined || options.suiAddress === null || !isSuiAddress(options.suiAddress)
+      ? Promise.resolve({ holdings: [], scope: null, notes: [] })
+      : readSuiWallet(options.suiAddress).catch((error: unknown) => ({
+          holdings: [] as SpotHolding[],
+          scope: null,
+          notes: [note("sui", error instanceof Error ? error.message.split("\n")[0] : "Sui could not be read.", "failed")],
+        })),
     readVenues(options),
     readDefi(options.solanaAddress),
     readPrediction(options.userId),
   ]);
 
-  const spot = [...wallet.holdings, ...venues.spot];
+  const spot = [...wallet.holdings, ...evm.holdings, ...sui.holdings, ...venues.spot];
   await applyChange24h(spot);
 
   /* A receipt token for a DeFi position is the SAME dollars the protocol is
@@ -692,6 +760,8 @@ export async function composePortfolio(
 
   const notes = [
     ...wallet.notes,
+    ...evm.notes,
+    ...sui.notes,
     ...venues.notes,
     ...defi.notes,
     ...prediction.notes,
@@ -707,7 +777,9 @@ export async function composePortfolio(
     venues.perps.length === 0 &&
     defi.positions.length === 0 &&
     prediction.valueUsd === null &&
-    wallet.notes.length > 0
+    (wallet.notes.length > 0 ||
+      evm.notes.some((entry) => entry.kind === "failed") ||
+      sui.notes.some((entry) => entry.kind === "failed"))
       ? null
       : spotValue + perpValue + (defi.valueUsd ?? 0) + (prediction.valueUsd ?? 0);
 
@@ -726,6 +798,8 @@ export async function composePortfolio(
 
   const scopes: WalletScope[] = [
     ...(wallet.scope ? [wallet.scope] : []),
+    ...evm.scopes,
+    ...(sui.scope ? [sui.scope] : []),
     ...venues.scopes,
   ];
 

@@ -1,5 +1,9 @@
 import { underlyingSymbol } from "@/lib/personalized/calculations";
-import type { PortfolioSnapshot, Venue } from "@/lib/portfolio/types";
+import type { EvmChainKey } from "@/lib/evm/chains";
+import { swapTokenFor } from "@/lib/evm/swap";
+import { evmChainOf, onSolanaWallet, onSuiWallet } from "@/lib/portfolio/chain";
+import { suiTokenBySymbol } from "@/lib/sui/tokens";
+import type { PortfolioSnapshot, SpotHolding, Venue } from "@/lib/portfolio/types";
 import type { MarketType } from "@/lib/types";
 import type { WalletActivity } from "@/lib/wallet/types";
 
@@ -21,8 +25,12 @@ import type { WalletActivity } from "@/lib/wallet/types";
 --------------------------------------------------------------------------- */
 
 export type LedgerAction =
-  /** Sell a wallet holding through the swap dialog, signed in this browser. */
-  | { kind: "swap"; symbol: string; quantity: number }
+  /**
+   * Sell a wallet holding through the swap dialog, signed in this browser.
+   * `chain` is set for a holding on Ethereum or Robinhood Chain, which sells
+   * through the EVM swap rather than Jupiter; absent means Solana.
+   */
+  | { kind: "swap"; symbol: string; quantity: number; chain?: EvmChainKey | "sui" }
   /** Managed on the venue itself — a link, never an order from here. */
   | { kind: "venue"; venue: string; href: string | null }
   | null;
@@ -96,6 +104,27 @@ function venueName(venue: string): string {
   return venue.charAt(0).toUpperCase() + venue.slice(1);
 }
 
+/**
+ * What a wallet holding offers. A stablecoin is the thing a sale turns into,
+ * so it gets no Sell. Off Solana, a holding sells on its own chain — on an
+ * EVM network only one the EVM swap can name (never a Robinhood Stock
+ * Token, never a token on no list: lib/evm/swap.ts), on Sui only a listed
+ * coin (lib/sui/tokens.ts). An unlisted token is sold from the swap dialog,
+ * by contract, after the person acknowledges it — not from a table row.
+ */
+function walletAction(holding: SpotHolding, symbol: string): LedgerAction {
+  if (holding.liquid) return null;
+  if (onSuiWallet(holding)) {
+    return holding.verified && suiTokenBySymbol(holding.symbol) !== null
+      ? { kind: "swap", symbol: holding.symbol, quantity: holding.quantity, chain: "sui" }
+      : null;
+  }
+  const chain = evmChainOf(holding);
+  if (chain === null) return onSolanaWallet(holding) ? { kind: "swap", symbol, quantity: holding.quantity } : null;
+  if (holding.stockToken !== undefined || swapTokenFor(chain.key, holding.symbol) === null) return null;
+  return { kind: "swap", symbol: holding.symbol, quantity: holding.quantity, chain: chain.key };
+}
+
 export function ledgerPositions(snapshot: PortfolioSnapshot): LedgerPosition[] {
   const rows: LedgerPosition[] = [];
 
@@ -107,11 +136,14 @@ export function ledgerPositions(snapshot: PortfolioSnapshot): LedgerPosition[] {
     if (holding.valueUsd !== null && holding.valueUsd < 0.01) continue;
     const symbol = holding.symbol.toUpperCase();
     const inWallet = holding.venue === "wallet";
+    /* The Solana wallet's tokens read as bare symbols, as they always have;
+       one on another chain says which, since the same ETH can sit on two. */
+    const where = inWallet ? (onSolanaWallet(holding) ? null : holding.chain) : venueName(holding.venue);
     rows.push({
       id: `spot:${holding.id}`,
       market: "spot",
       symbol,
-      label: inWallet ? symbol : `${symbol} · ${venueName(holding.venue)}`,
+      label: where === null ? symbol : `${symbol} · ${where}`,
       venue: holding.venue,
       side: null,
       category: null,
@@ -123,12 +155,7 @@ export function ledgerPositions(snapshot: PortfolioSnapshot): LedgerPosition[] {
       pnlUsd: holding.pnlUsd,
       pnlPct: holding.pnlPct,
       marginUsd: null,
-      /* A stablecoin is the thing a sale turns into, so it gets no Sell. */
-      action: inWallet
-        ? holding.liquid
-          ? null
-          : { kind: "swap", symbol, quantity: holding.quantity }
-        : { kind: "venue", venue: holding.venue, href: null },
+      action: inWallet ? walletAction(holding, symbol) : { kind: "venue", venue: holding.venue, href: null },
     });
   }
 
@@ -271,7 +298,7 @@ export function ledgerHistory(
       venue: "wallet",
       status: item.status,
       at: item.at,
-      href: explorer(item.signature),
+      href: item.href ?? explorer(item.signature),
     });
   }
 

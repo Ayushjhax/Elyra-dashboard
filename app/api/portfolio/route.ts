@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
+import { suiWalletFor } from "@/lib/auth/sui";
 import { composePortfolio } from "@/lib/portfolio/compose";
 import { recordSnapshot } from "@/lib/portfolio/history";
 import { isSolanaAddress } from "@/lib/solana/address";
@@ -63,6 +64,9 @@ export async function GET(request: Request): Promise<NextResponse<PortfolioRespo
     const portfolio = await composePortfolio({
       solanaAddress,
       sessionWallet: user.walletAddress,
+      /* The Sui wallet, from Privy (lib/auth/sui.ts). An unreachable lookup
+         reads as no Sui wallet here; the Sui routes report it themselves. */
+      suiAddress: await suiWalletFor(user.privyDid).then((lookup) => (lookup.ok ? (lookup.wallet?.address ?? null) : null)),
       /* Null when the profile store is unreachable. The composer then skips
          stored venue connections and says so in a note, rather than failing
          the whole read — the Solana side needs no database at all. */

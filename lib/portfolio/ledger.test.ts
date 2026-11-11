@@ -229,3 +229,27 @@ describe("markToLive", () => {
     expect(marked.pnlUsd).toBeNull();
   });
 });
+
+describe("selling a wallet holding on its own chain", () => {
+  const evm = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
+  it("sells Solana tokens through Jupiter, EVM crypto on its chain, and never a stock token", () => {
+    const rows = ledgerPositions(
+      snapshot({
+        spot: [
+          holding({ id: "wallet:SOL", symbol: "SOL", chain: "Solana", venue: "wallet", quantity: 2, valueUsd: 300 }),
+          holding({ id: `ethereum:${evm}:ETH`, symbol: "ETH", chain: "Ethereum", venue: "wallet", quantity: 1, valueUsd: 3000 }),
+          holding({ id: `robinhood:${evm}:nvda`, symbol: "NVDA", chain: "Robinhood Chain", venue: "wallet", quantity: 3, valueUsd: 570, marketSymbol: null, stockToken: { ticker: "NVDA", multiplier: 1 } }),
+          holding({ id: `ethereum:${evm}:eurc`, symbol: "EURC", chain: "Ethereum", venue: "wallet", quantity: 9, valueUsd: 10 }),
+          holding({ id: `ethereum:${evm}:usdc`, symbol: "USDC", chain: "Ethereum", venue: "wallet", quantity: 9, valueUsd: 9, liquid: true }),
+        ],
+      }),
+    );
+    const action = (symbol: string) => rows.find((row) => row.symbol === symbol)?.action;
+    expect(action("SOL")).toEqual({ kind: "swap", symbol: "SOL", quantity: 2 });
+    expect(action("ETH")).toEqual({ kind: "swap", symbol: "ETH", quantity: 1, chain: "ethereum" });
+    expect(action("NVDA")).toBeNull();
+    /* Not on the EVM swap list, so nothing could quote it. */
+    expect(action("EURC")).toBeNull();
+    expect(action("USDC")).toBeNull();
+  });
+});

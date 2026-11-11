@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeftRight, ExternalLink, Inbox, Wallet } from "lucide-react";
 import { SwapDialog } from "@/components/assets/SwapDialog";
+import { EvmSwapDialog, evmWalletOf } from "@/components/wallet/EvmDialogs";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -20,6 +21,7 @@ import {
   formatTimestamp,
   formatUsd,
 } from "@/lib/format";
+import type { EvmChainKey } from "@/lib/evm/chains";
 import { priceDecimals } from "@/lib/market/precision";
 import { useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
 import {
@@ -85,6 +87,9 @@ function PositionKind({ row }: { row: LedgerPosition }) {
 /** Left behind on a SOL sale for network fees and rent. */
 const SOL_FEE_RESERVE = 0.01;
 
+/** ETH kept back for gas when an ETH sale is prefilled; the amount stays editable. */
+const ETH_FEE_RESERVE: Record<EvmChainKey, number> = { ethereum: 0.003, robinhood: 0.0002 };
+
 function Dash() {
   return <span className="text-text-muted">—</span>;
 }
@@ -111,22 +116,26 @@ function actionable(action: LedgerAction): boolean {
 function ActionCell({
   action,
   canSign,
+  canSignEvm = false,
   onSell,
 }: {
   action: LedgerAction;
   canSign: boolean;
-  onSell: (symbol: string, quantity: number) => void;
+  /** Elyra's embedded EVM wallet can sign, for a holding on Ethereum or Robinhood Chain. */
+  canSignEvm?: boolean;
+  onSell: (symbol: string, quantity: number, chain?: EvmChainKey) => void;
 }) {
   if (action === null) return null;
   if (action.kind === "swap") {
+    const able = action.chain === undefined ? canSign : canSignEvm;
     return (
       <Button
         size="xs"
         variant="quiet"
         className="px-1.5"
-        disabled={!canSign}
-        title={canSign ? `Swap ${action.symbol} to USDC, signed in your wallet` : "Wallet signing is unavailable"}
-        onClick={() => onSell(action.symbol, action.quantity)}
+        disabled={!able}
+        title={able ? `Swap ${action.symbol} to a stablecoin, signed in your wallet` : "Wallet signing is unavailable"}
+        onClick={() => onSell(action.symbol, action.quantity, action.chain)}
       >
         Sell
       </Button>
@@ -250,6 +259,8 @@ export function TradingActivity() {
   const snapshot = portfolio.snapshot;
   const canSign = auth.available && auth.solanaAddress !== null;
   const [sell, setSell] = useState<{ symbol: string; amount: string } | null>(null);
+  const [evmSell, setEvmSell] = useState<{ chain: EvmChainKey; symbol: string; amount: string } | null>(null);
+  const canSignEvm = auth.available && evmWalletOf(auth).embedded;
 
   const basePositions = useMemo(() => (snapshot === null ? [] : ledgerPositions(snapshot)), [snapshot]);
 
@@ -303,7 +314,14 @@ export function TradingActivity() {
 
   /* SOL pays the network fee, so a full-balance sale would fail at signing.
      A small reserve stays behind; the amount is editable. */
-  const startSell = (symbol: string, quantity: number) => {
+  const startSell = (symbol: string, quantity: number, chain?: EvmChainKey) => {
+    if (chain !== undefined) {
+      /* ETH pays the network fee on its own chain, so a little stays behind
+         for it — more on Ethereum, where a swap's gas costs more. */
+      const amount = symbol === "ETH" ? Math.max(0, quantity - ETH_FEE_RESERVE[chain]) : quantity;
+      setEvmSell({ chain, symbol, amount: amount.toFixed(9).replace(/\.?0+$/, "") });
+      return;
+    }
     const amount = symbol === "SOL" ? Math.max(0, quantity - SOL_FEE_RESERVE) : quantity;
     setSell({ symbol, amount: amount.toFixed(9).replace(/\.?0+$/, "") });
   };
@@ -384,7 +402,7 @@ export function TradingActivity() {
       align: "right",
       width: "96px",
       headerSrOnly: true,
-      render: (row) => <ActionCell action={row.action} canSign={canSign} onSell={startSell} />,
+      render: (row) => <ActionCell action={row.action} canSign={canSign} canSignEvm={canSignEvm} onSell={startSell} />,
     },
   ];
 
@@ -407,7 +425,7 @@ export function TradingActivity() {
       </dl>
       {actionable(row.action) && (
         <div className="mt-2 flex justify-end">
-          <ActionCell action={row.action} canSign={canSign} onSell={startSell} />
+          <ActionCell action={row.action} canSign={canSign} canSignEvm={canSignEvm} onSell={startSell} />
         </div>
       )}
     </>
@@ -769,6 +787,14 @@ export function TradingActivity() {
           initialAmount={sell.amount}
           onExecuted={() => portfolio.refetch()}
           onClose={() => setSell(null)}
+        />
+      )}
+      {evmSell !== null && canSignEvm && (
+        <EvmSwapDialog
+          chain={evmSell.chain}
+          initialFrom={evmSell.symbol}
+          initialAmount={evmSell.amount}
+          onClose={() => setEvmSell(null)}
         />
       )}
     </Section>

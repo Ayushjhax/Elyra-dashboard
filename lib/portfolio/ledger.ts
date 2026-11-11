@@ -1,6 +1,8 @@
 import { underlyingSymbol } from "@/lib/personalized/calculations";
-import { onSolanaWallet } from "@/lib/portfolio/chain";
-import type { PortfolioSnapshot, Venue } from "@/lib/portfolio/types";
+import type { EvmChainKey } from "@/lib/evm/chains";
+import { swapTokenFor } from "@/lib/evm/swap";
+import { evmChainOf, onSolanaWallet } from "@/lib/portfolio/chain";
+import type { PortfolioSnapshot, SpotHolding, Venue } from "@/lib/portfolio/types";
 import type { MarketType } from "@/lib/types";
 import type { WalletActivity } from "@/lib/wallet/types";
 
@@ -22,8 +24,12 @@ import type { WalletActivity } from "@/lib/wallet/types";
 --------------------------------------------------------------------------- */
 
 export type LedgerAction =
-  /** Sell a wallet holding through the swap dialog, signed in this browser. */
-  | { kind: "swap"; symbol: string; quantity: number }
+  /**
+   * Sell a wallet holding through the swap dialog, signed in this browser.
+   * `chain` is set for a holding on Ethereum or Robinhood Chain, which sells
+   * through the EVM swap rather than Jupiter; absent means Solana.
+   */
+  | { kind: "swap"; symbol: string; quantity: number; chain?: EvmChainKey }
   /** Managed on the venue itself — a link, never an order from here. */
   | { kind: "venue"; venue: string; href: string | null }
   | null;
@@ -97,6 +103,20 @@ function venueName(venue: string): string {
   return venue.charAt(0).toUpperCase() + venue.slice(1);
 }
 
+/**
+ * What a wallet holding offers. A stablecoin is the thing a sale turns into,
+ * so it gets no Sell. Off Solana, a holding sells on its own chain — and
+ * only one the EVM swap can name: never a Robinhood Stock Token, and never a
+ * token on no list (lib/evm/swap.ts).
+ */
+function walletAction(holding: SpotHolding, symbol: string): LedgerAction {
+  if (holding.liquid) return null;
+  const chain = evmChainOf(holding);
+  if (chain === null) return onSolanaWallet(holding) ? { kind: "swap", symbol, quantity: holding.quantity } : null;
+  if (holding.stockToken !== undefined || swapTokenFor(chain.key, holding.symbol) === null) return null;
+  return { kind: "swap", symbol: holding.symbol, quantity: holding.quantity, chain: chain.key };
+}
+
 export function ledgerPositions(snapshot: PortfolioSnapshot): LedgerPosition[] {
   const rows: LedgerPosition[] = [];
 
@@ -127,12 +147,7 @@ export function ledgerPositions(snapshot: PortfolioSnapshot): LedgerPosition[] {
       pnlUsd: holding.pnlUsd,
       pnlPct: holding.pnlPct,
       marginUsd: null,
-      /* A stablecoin is the thing a sale turns into, so it gets no Sell. */
-      action: inWallet
-        ? holding.liquid
-          ? null
-          : { kind: "swap", symbol, quantity: holding.quantity }
-        : { kind: "venue", venue: holding.venue, href: null },
+      action: inWallet ? walletAction(holding, symbol) : { kind: "venue", venue: holding.venue, href: null },
     });
   }
 

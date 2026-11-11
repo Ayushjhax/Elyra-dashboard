@@ -17,9 +17,14 @@ import { isSolanaAddress } from "@/lib/solana/address";
 /** The `chain` every Solana wallet holding carries. */
 export const SOLANA_CHAIN = "Solana";
 
-/** Held in the account's Solana wallet. */
+/**
+ * Held in the account's Solana wallet: a wallet holding on no EVM chain.
+ * Solana is the only other chain a wallet is read on, and asking it this way
+ * round keeps a row that spells its chain differently ("solana") a Solana row
+ * rather than quietly dropping it from every Solana flow.
+ */
 export function onSolanaWallet(holding: Pick<SpotHolding, "venue" | "chain">): boolean {
-  return holding.venue === "wallet" && holding.chain === SOLANA_CHAIN;
+  return holding.venue === "wallet" && evmChainNamed(holding.chain) === null;
 }
 
 /** The EVM chain a wallet holding is on, or null for Solana and venues. */

@@ -13,7 +13,7 @@ import { useEvmSigner } from "~/lib/wallet/evmSigner";
 const EMBEDDED = "0xAbC0000000000000000000000000000000000001";
 
 const mockRequest = jest.fn(async (_request: unknown) => "0x02f8signed");
-let mockWallets: Array<{ address: string; getProvider: () => Promise<{ request: typeof mockRequest }> }> = [];
+let mockWallets: { address: string; getProvider: () => Promise<{ request: typeof mockRequest }> }[] = [];
 let mockSession: string | null = EMBEDDED;
 
 jest.mock("@privy-io/expo", () => ({

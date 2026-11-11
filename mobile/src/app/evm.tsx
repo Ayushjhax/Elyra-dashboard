@@ -63,7 +63,7 @@ function message(error: unknown, fallback: string): string {
 }
 
 export default function EvmScreen() {
-  const params = useLocalSearchParams<{ action?: string; chain?: string; asset?: string; from?: string }>();
+  const params = useLocalSearchParams<{ action?: string; chain?: string; asset?: string; from?: string; amount?: string }>();
   const chain: EvmChainKey = params.chain === "robinhood" ? "robinhood" : "ethereum";
   const action = params.action === "swap" ? "swap" : "send";
   const network = EVM_CHAINS[chain].name;
@@ -84,7 +84,7 @@ export default function EvmScreen() {
       ) : action === "send" ? (
         <SendFlow chain={chain} initialAsset={params.asset ?? "native"} bottom={insets.bottom} />
       ) : (
-        <SwapFlow chain={chain} initialFrom={params.from ?? "ETH"} bottom={insets.bottom} />
+        <SwapFlow chain={chain} initialFrom={params.from ?? "ETH"} initialAmount={params.amount ?? ""} bottom={insets.bottom} />
       )}
     </KeyboardAvoidingView>
   );
@@ -342,14 +342,14 @@ function SendFlow({ chain, initialAsset, bottom }: { chain: EvmChainKey; initial
 
 /* ---- swap ---- */
 
-function SwapFlow({ chain, initialFrom, bottom }: { chain: EvmChainKey; initialFrom: string; bottom: number }) {
+function SwapFlow({ chain, initialFrom, initialAmount, bottom }: { chain: EvmChainKey; initialFrom: string; initialAmount: string; bottom: number }) {
   const network = EVM_CHAINS[chain].name;
   const signer = useEvmSigner();
   const tokens = useMemo(() => swapTokens(chain), [chain]);
   const start = tokens.find((token) => token.symbol.toUpperCase() === initialFrom.toUpperCase())?.symbol ?? "ETH";
   const [from, setFrom] = useState(start);
   const [to, setTo] = useState(tokens.find((token) => token.symbol !== start && /^USD/.test(token.symbol))?.symbol ?? "ETH");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(initialAmount);
   const [built, setBuilt] = useState<BuiltSwap | null>(null);
   const [approved, setApproved] = useState(false);
   const [busy, setBusy] = useState<"quoting" | "signing" | null>(null);

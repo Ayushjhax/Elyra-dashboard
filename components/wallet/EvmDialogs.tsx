@@ -437,10 +437,13 @@ interface BuiltSwapStep extends BuiltEvmStep {
 export function EvmSwapDialog({
   chain,
   initialFrom = "ETH",
+  initialAmount = "",
   onClose,
 }: {
   chain: EvmChainKey;
   initialFrom?: string;
+  /** Prefilled, editable — a sale from a holdings row starts at the holding. */
+  initialAmount?: string;
   onClose: () => void;
 }) {
   const network = EVM_CHAINS[chain].name;
@@ -453,7 +456,7 @@ export function EvmSwapDialog({
   const start = tokens.find((token) => token.symbol.toUpperCase() === initialFrom.toUpperCase())?.symbol ?? "ETH";
   const [from, setFrom] = useState(start);
   const [to, setTo] = useState(tokens.find((token) => token.symbol !== start && /^USD/.test(token.symbol))?.symbol ?? "ETH");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(initialAmount);
   const [built, setBuilt] = useState<BuiltSwapStep | null>(null);
   const [busy, setBusy] = useState<"quoting" | "signing" | null>(null);
   const [approved, setApproved] = useState(false);

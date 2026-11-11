@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { ExternalLink } from "lucide-react-native";
+import { EVM_CHAINS, type EvmChainKey } from "@/lib/evm/chains";
 import { deriveAccounts } from "@/lib/assets/derive";
 import { formatCompactUsd, formatPct, formatPriceUsd, formatRelativeTime, formatTimestamp } from "@/lib/format";
 import {
@@ -63,6 +64,8 @@ const FILTERS: { value: MarketFilter; label: string }[] = [
 
 /** Left behind on a SOL sale for network fees and rent. */
 const SOL_FEE_RESERVE = 0.01;
+/** ETH kept back for gas when an ETH sale is prefilled; the amount stays editable. */
+const ETH_FEE_RESERVE: Record<EvmChainKey, number> = { ethereum: 0.003, robinhood: 0.0002 };
 
 function inFilter(market: MarketType, filter: MarketFilter): boolean {
   return filter === "all" || market === filter;
@@ -120,6 +123,22 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 function Action({ action, canSign }: { action: LedgerAction; canSign: boolean }) {
   if (action === null) return null;
   if (action.kind === "swap") {
+    /* A holding on Ethereum or Robinhood Chain sells on its own chain, on
+       the EVM screen — which says so itself when the wallet cannot sign. */
+    if (action.chain !== undefined) {
+      const chain = action.chain;
+      const amount = action.symbol === "ETH" ? Math.max(0, action.quantity - ETH_FEE_RESERVE[chain]) : action.quantity;
+      return (
+        <Button
+          label="Sell"
+          size="sm"
+          accessibilityLabel={`Sell ${action.symbol} on ${EVM_CHAINS[chain].name}, signed in your wallet`}
+          onPress={() =>
+            router.push({ pathname: "/evm", params: { action: "swap", chain, from: action.symbol, amount: amount.toFixed(9).replace(/\.?0+$/, "") } })
+          }
+        />
+      );
+    }
     const amount = action.symbol === "SOL" ? Math.max(0, action.quantity - SOL_FEE_RESERVE) : action.quantity;
     return (
       <Button

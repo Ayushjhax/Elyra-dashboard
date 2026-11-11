@@ -21,7 +21,7 @@ import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
    Wallet activity — the website's Activity widget: the wallets'
-   transactions on Solana, Ethereum and Robinhood Chain and the actions
+   transactions on Solana and the EVM networks and the actions
    awaiting review, filterable, in day groups. A network whose history could
    not be read is named under the list, so it is not taken for the whole.
 

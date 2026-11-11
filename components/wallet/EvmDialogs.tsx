@@ -10,7 +10,7 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 import { EVM_CHAINS, evmScopeId, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
 import { swapTokens } from "@/lib/evm/swap";
 import type { BuiltEvmStep, EvmTxRequest } from "@/lib/evm/wire";
-import { formatQty, formatUsd } from "@/lib/format";
+import { formatQty, formatUsd, truncateMiddle } from "@/lib/format";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { runEvmTx, type EvmTxRun } from "@/lib/wallet/runEvmTx";
@@ -77,13 +77,13 @@ function useEvmSigner(): (tx: EvmTxRequest, summary: string) => Promise<string> 
   );
 }
 
-const FIELD =
+export const FIELD =
   "type-mono-addr w-full rounded-control border border-border-subtle bg-surface-raised px-3 py-2 text-text-primary outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-focus-ring";
 
-const SELECT =
+export const SELECT =
   "type-data-sm rounded-control border border-border-subtle bg-surface-base px-2 py-1 text-text-primary";
 
-function ErrorBox({ error }: { error: string | null }) {
+export function ErrorBox({ error }: { error: string | null }) {
   if (error === null) return null;
   return (
     <div role="alert" className="rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
@@ -92,7 +92,7 @@ function ErrorBox({ error }: { error: string | null }) {
   );
 }
 
-function ExplorerLink({ href, label = "View on explorer" }: { href: string | null | undefined; label?: string }) {
+export function ExplorerLink({ href, label = "View on explorer" }: { href: string | null | undefined; label?: string }) {
   if (href === null || href === undefined) return null;
   return (
     <a
@@ -175,11 +175,12 @@ export function EvmSendDialog({
   onClose,
 }: {
   chain: EvmChainKey;
-  /** "native" for ETH, or a token contract. */
+  /** "native" for the gas coin (ETH, or BNB on BNB Chain), or a token contract. */
   initialAsset?: string;
   onClose: () => void;
 }) {
   const network = EVM_CHAINS[chain].name;
+  const gas = EVM_CHAINS[chain].nativeSymbol;
   const wallet = useEvmWallet();
   const feed = usePortfolio();
   const authedFetch = useAuthedFetch();
@@ -206,8 +207,10 @@ export function EvmSendDialog({
   }, [feed.snapshot, wallet.address, chain]);
   const options = useMemo(() => {
     const rows = holdings.map((holding) => ({ value: holding.address ?? "native", label: holding.symbol, quantity: holding.quantity, verified: holding.verified }));
-    return rows.some((row) => row.value === "native") ? rows : [{ value: "native", label: "ETH", quantity: 0, verified: true }, ...rows];
-  }, [holdings]);
+    return rows.some((row) => row.value === "native")
+      ? rows
+      : [{ value: "native", label: EVM_CHAINS[chain].nativeSymbol, quantity: 0, verified: true }, ...rows];
+  }, [holdings, chain]);
   const selected = options.find((option) => option.value.toLowerCase() === asset.toLowerCase()) ?? null;
 
   const review = useCallback(() => {
@@ -271,7 +274,7 @@ export function EvmSendDialog({
           <DialogTitle asChild>
             <Eyebrow>Send on {network}</Eyebrow>
           </DialogTitle>
-          <DialogDescription className="sr-only">Send ETH or a token from your EVM wallet on {network}.</DialogDescription>
+          <DialogDescription className="sr-only">Send {gas} or a token from your EVM wallet on {network}.</DialogDescription>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
@@ -297,7 +300,7 @@ export function EvmSendDialog({
                   {built.symbol} is not on Elyra&rsquo;s verified list. Check the token before sending it.
                 </p>
               )}
-              <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} ETH, paid on {network}.</p>
+              <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} {gas}, paid on {network}.</p>
               <div className="flex items-start gap-2 rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0 text-negative" aria-hidden />
                 <p className="type-label text-text-secondary">
@@ -421,6 +424,10 @@ export function EvmSendDialog({
 interface SwapView {
   sellSymbol: string;
   buySymbol: string;
+  sellVerified: boolean;
+  buyVerified: boolean;
+  /** "native", or the bought token's contract. */
+  buyAddress: string;
   sellAmount: string;
   buyAmount: string;
   buyAmountMin: string;
@@ -434,28 +441,56 @@ interface BuiltSwapStep extends BuiltEvmStep {
   quote: SwapView;
 }
 
+/** The "Receive" choice that opens a contract field: buy any token. */
+const OTHER_TOKEN = "__other";
+
 export function EvmSwapDialog({
   chain,
-  initialFrom = "ETH",
+  initialFrom,
   initialAmount = "",
   onClose,
 }: {
   chain: EvmChainKey;
+  /** A listed symbol, or the contract of a held token. Defaults to the gas coin. */
   initialFrom?: string;
   /** Prefilled, editable — a sale from a holdings row starts at the holding. */
   initialAmount?: string;
   onClose: () => void;
 }) {
   const network = EVM_CHAINS[chain].name;
+  const gas = EVM_CHAINS[chain].nativeSymbol;
   const wallet = useEvmWallet();
   const feed = usePortfolio();
   const authedFetch = useAuthedFetch();
   const sign = useEvmSigner();
   const tokens = useMemo(() => swapTokens(chain), [chain]);
 
-  const start = tokens.find((token) => token.symbol.toUpperCase() === initialFrom.toUpperCase())?.symbol ?? "ETH";
+  /* What may be sold: the listed tokens, then anything else this wallet
+     holds on this chain, named by its contract. The server reads such a
+     token from the chain and holds the swap to an acknowledgement. */
+  const scope = wallet.address === null ? null : evmScopeId(chain, wallet.address);
+  const unlistedHeld = useMemo(() => {
+    if (feed.snapshot === null || scope === null) return [];
+    const listed = new Set(tokens.map((token) => token.address.toLowerCase()));
+    return feed.snapshot.spot.filter(
+      (holding) =>
+        holding.scopeId === scope &&
+        !holding.verified &&
+        holding.quantity > 0 &&
+        holding.address !== null &&
+        holding.address !== undefined &&
+        !listed.has(holding.address.toLowerCase()),
+    );
+  }, [feed.snapshot, scope, tokens]);
+
+  const wanted = initialFrom ?? gas;
+  const start =
+    tokens.find((token) => token.symbol.toUpperCase() === wanted.toUpperCase())?.symbol ??
+    (isEvmAddress(wanted) ? wanted : gas);
   const [from, setFrom] = useState(start);
-  const [to, setTo] = useState(tokens.find((token) => token.symbol !== start && /^USD/.test(token.symbol))?.symbol ?? "ETH");
+  const [to, setTo] = useState(tokens.find((token) => token.symbol !== start && /^USD/.test(token.symbol))?.symbol ?? gas);
+  const [otherToken, setOtherToken] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
   const [amount, setAmount] = useState(initialAmount);
   const [built, setBuilt] = useState<BuiltSwapStep | null>(null);
   const [busy, setBusy] = useState<"quoting" | "signing" | null>(null);
@@ -465,19 +500,37 @@ export function EvmSwapDialog({
   const [run, setRun] = useState<EvmTxRun | null>(null);
   const abort = useRef<AbortController | null>(null);
 
-  const heldOf = (symbol: string): number | null => {
-    if (feed.snapshot === null || wallet.address === null) return null;
-    const scope = evmScopeId(chain, wallet.address);
+  /* Annotated so it does not narrow `from` where it is tested. */
+  const sellsUnlisted: boolean = isEvmAddress(from);
+  const fromLabel = sellsUnlisted
+    ? (unlistedHeld.find((holding) => holding.address?.toLowerCase() === from.toLowerCase())?.symbol ?? truncateMiddle(from, 6, 4))
+    : from;
+  const held = useMemo((): number | null => {
+    if (feed.snapshot === null || scope === null) return null;
     return feed.snapshot.spot
-      .filter((holding) => holding.scopeId === scope && holding.symbol.toUpperCase() === symbol.toUpperCase())
+      .filter(
+        (holding) =>
+          holding.scopeId === scope &&
+          (sellsUnlisted
+            ? holding.address?.toLowerCase() === from.toLowerCase()
+            : holding.verified && holding.symbol.toUpperCase() === from.toUpperCase()),
+      )
       .reduce((sum, holding) => sum + holding.quantity, 0);
-  };
-  const held = heldOf(from);
+  }, [feed.snapshot, scope, from, sellsUnlisted]);
+
+  const target = to === OTHER_TOKEN ? otherToken.trim() : to;
+  const needsAcknowledgement = sellsUnlisted || to === OTHER_TOKEN;
 
   const quote = useCallback(async (): Promise<BuiltSwapStep | null> => {
     const response = await authedFetch("/api/evm/swap/build", {
       method: "POST",
-      body: JSON.stringify({ chain, fromSymbol: from, toSymbol: to, amount }),
+      body: JSON.stringify({
+        chain,
+        fromSymbol: from,
+        toSymbol: target,
+        amount,
+        acknowledgeUnverified: needsAcknowledgement && acknowledged,
+      }),
     });
     const payload = (await response.json().catch(() => ({}))) as Partial<BuiltSwapStep> & { error?: string };
     if (!response.ok || payload.tx === undefined) {
@@ -485,7 +538,7 @@ export function EvmSwapDialog({
       return null;
     }
     return payload as BuiltSwapStep;
-  }, [authedFetch, chain, from, to, amount]);
+  }, [authedFetch, chain, from, target, amount, needsAcknowledgement, acknowledged]);
 
   const review = useCallback(() => {
     setError(null);
@@ -545,7 +598,14 @@ export function EvmSwapDialog({
   };
 
   const finished = run !== null || pending !== null;
-  const canReview = wallet.embedded && busy === null && from !== to && amount.trim().length > 0;
+  const targetValid = to !== OTHER_TOKEN || isEvmAddress(target);
+  const canReview =
+    wallet.embedded &&
+    busy === null &&
+    from.toLowerCase() !== target.toLowerCase() &&
+    targetValid &&
+    (!needsAcknowledgement || acknowledged) &&
+    amount.trim().length > 0;
 
   return (
     <Dialog open onOpenChange={(next) => !next && close()}>
@@ -554,7 +614,7 @@ export function EvmSwapDialog({
           <DialogTitle asChild>
             <Eyebrow>Swap on {network}</Eyebrow>
           </DialogTitle>
-          <DialogDescription className="sr-only">Swap between ETH and listed tokens on {network}.</DialogDescription>
+          <DialogDescription className="sr-only">Swap between {gas}, listed tokens and any token by contract on {network}.</DialogDescription>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
@@ -588,9 +648,15 @@ export function EvmSwapDialog({
                       <Row label="Route fee" value={`${formatUsd(built.quote.routeFeeUsd)}, taken from the swap`} />
                     )}
                   </dl>
+                  {!built.quote.buyVerified && (
+                    <p className="type-label text-caution">
+                      {built.quote.buySymbol} at {truncateMiddle(built.quote.buyAddress, 6, 4)} is not on Elyra&rsquo;s verified list. It
+                      will show in your wallet unverified, and is never valued or counted.
+                    </p>
+                  )}
                 </>
               )}
-              <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} ETH, paid on {network}.</p>
+              <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} {gas}, paid on {network}.</p>
               <ErrorBox error={error} />
             </>
           ) : (
@@ -611,24 +677,62 @@ export function EvmSwapDialog({
                         {token.symbol}
                       </option>
                     ))}
+                    {unlistedHeld.length > 0 && (
+                      <optgroup label="Unverified, held">
+                        {unlistedHeld.map((holding) => (
+                          <option key={holding.id} value={holding.address ?? ""}>
+                            {holding.symbol} · {truncateMiddle(holding.address ?? "", 6, 4)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {sellsUnlisted && !unlistedHeld.some((holding) => holding.address?.toLowerCase() === from.toLowerCase()) && (
+                      <option value={from}>{fromLabel}</option>
+                    )}
                   </select>
                 </div>
                 <span className="type-label text-text-muted">
-                  {held === null ? "Reading balances…" : `Balance ${formatQty(held, 6)} ${from} on ${network}`}
+                  {held === null ? "Reading balances…" : `Balance ${formatQty(held, 6)} ${fromLabel} on ${network}`}
                 </span>
               </div>
               <ArrowDown size={14} className="mx-auto text-text-muted" aria-hidden />
-              <div className="flex items-center justify-between gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
-                <span className="type-body-sm text-text-secondary">Receive</span>
-                <select value={to} onChange={(event) => setTo(event.target.value)} aria-label="Token to buy" className={SELECT}>
-                  {tokens.map((token) => (
-                    <option key={token.symbol} value={token.symbol}>
-                      {token.symbol}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="type-body-sm text-text-secondary">Receive</span>
+                  <select value={to} onChange={(event) => setTo(event.target.value)} aria-label="Token to buy" className={SELECT}>
+                    {tokens.map((token) => (
+                      <option key={token.symbol} value={token.symbol}>
+                        {token.symbol}
+                      </option>
+                    ))}
+                    <option value={OTHER_TOKEN}>Other token…</option>
+                  </select>
+                </div>
+                {to === OTHER_TOKEN && (
+                  <>
+                    <input
+                      value={otherToken}
+                      onChange={(event) => setOtherToken(event.target.value)}
+                      placeholder="Token contract, 0x…"
+                      aria-label="Contract of the token to buy"
+                      spellCheck={false}
+                      autoComplete="off"
+                      className={FIELD}
+                    />
+                    {otherToken.trim().length > 0 && !isEvmAddress(otherToken.trim()) && (
+                      <p className="type-label text-negative">That is not a contract address (0x followed by 40 hex characters).</p>
+                    )}
+                  </>
+                )}
               </div>
-              {from === to && <p className="type-label text-negative">Choose two different tokens.</p>}
+              {from.toLowerCase() === target.toLowerCase() && <p className="type-label text-negative">Choose two different tokens.</p>}
+              {needsAcknowledgement && (
+                <label className="type-label flex items-start gap-2 text-text-secondary">
+                  <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-0.5" />
+                  I have checked this token&rsquo;s contract on {EVM_CHAINS[chain].explorer.name}. Anyone can deploy a token under any
+                  name; Elyra has not verified this one and will not value or count it.
+                </label>
+              )}
               <p className="type-label text-text-muted">
                 Quoted by LI.FI, which charges its own fee; the quote shows it. Robinhood Stock Tokens are not swappable in Elyra
                 — they are securities with sale restrictions Elyra cannot check.
@@ -660,7 +764,7 @@ export function EvmSwapDialog({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+export function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="type-label shrink-0 text-text-muted">{label}</dt>

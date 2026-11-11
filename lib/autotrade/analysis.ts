@@ -107,6 +107,7 @@ const EXIT_LABEL: Record<string, string> = {
   stop_loss: "Stop-loss",
   exit_rule: "Exit rule",
   closed_outside_elyra: "Closed outside Elyra",
+  closed_by_hand: "Closed by you",
   other: "Other",
 };
 

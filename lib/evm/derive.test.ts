@@ -8,6 +8,7 @@ import {
   type TokenBalanceRead,
 } from "@/lib/evm/derive";
 import {
+  EVM_CHAIN_KEYS,
   EVM_CHAINS,
   evmAddressUrl,
   evmChainNamed,
@@ -15,8 +16,17 @@ import {
   evmTokenUrl,
   isEvmAddress,
 } from "@/lib/evm/chains";
+import { swapTokenFor, swapTokens } from "@/lib/evm/swap";
 import { EVM_TOKENS } from "@/lib/evm/tokens";
-import { evmChainOf, isSolanaScope, marketSymbolOf, onSolanaWallet } from "@/lib/portfolio/chain";
+import {
+  evmChainOf,
+  isSolanaScope,
+  marketSymbolOf,
+  networkName,
+  onSolanaWallet,
+  onSuiWallet,
+  WALLET_NETWORKS,
+} from "@/lib/portfolio/chain";
 
 const WEI = BigInt("1000000000000000000");
 const ADDRESS = "0x1111111111111111111111111111111111111111";
@@ -220,6 +230,26 @@ describe("which network a holding is on", () => {
     expect(onSolanaWallet({ venue: "binance", chain: "—" })).toBe(false);
     expect(evmChainOf({ ...base, chain: "Robinhood Chain" })?.key).toBe("robinhood");
     expect(evmChainOf({ venue: "hyperliquid", chain: "Ethereum" })).toBeNull();
+  });
+
+  it("knows every EVM network the one address is read on, BNB as BNB Chain's gas", () => {
+    expect(EVM_CHAIN_KEYS.map((key) => EVM_CHAINS[key].id)).toEqual([1, 8453, 42161, 56, 4663]);
+    expect(EVM_CHAINS.bsc.nativeSymbol).toBe("BNB");
+    expect(swapTokens("bsc")[0]).toMatchObject({ symbol: "BNB", address: "native" });
+    expect(swapTokens("base")[0]).toMatchObject({ symbol: "ETH", address: "native" });
+    expect(swapTokenFor("arbitrum", "arb")?.address).toBe(EVM_TOKENS.arbitrum.find((entry) => entry.symbol === "ARB")?.address);
+    for (const key of EVM_CHAIN_KEYS) {
+      expect(evmChainNamed(EVM_CHAINS[key].name)?.key).toBe(key);
+      expect(evmChainOf({ ...base, chain: EVM_CHAINS[key].name })?.key).toBe(key);
+    }
+  });
+
+  it("keeps a Sui holding out of the Solana and EVM flows", () => {
+    expect(onSuiWallet({ ...base, chain: "Sui" })).toBe(true);
+    expect(onSolanaWallet({ ...base, chain: "Sui" })).toBe(false);
+    expect(evmChainOf({ ...base, chain: "Sui" })).toBeNull();
+    expect(WALLET_NETWORKS).toEqual(["solana", ...EVM_CHAIN_KEYS, "sui"]);
+    expect(WALLET_NETWORKS.map(networkName)).toEqual(["Solana", "Ethereum", "Base", "Arbitrum", "BNB Chain", "Robinhood Chain", "Sui"]);
   });
 
   it("finds the Solana scope by its address, not by venue", () => {

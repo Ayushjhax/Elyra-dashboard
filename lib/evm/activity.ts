@@ -19,12 +19,13 @@ import type { WalletActivity } from "@/lib/wallet/types";
      1. Alchemy's transfers API (`alchemy_getAssetTransfers`), when the
         chain's RPC URL is an Alchemy endpoint that serves it. Native,
         internal (Ethereum) and ERC-20 movements, in one place.
-     2. Blockscout's public API, on Ethereum only. Robinhood Chain's
-        Blockscout refuses server requests (it sits behind a browser
-        challenge), and its public RPC caps log queries at a few hours of
-        blocks — so without an Alchemy endpoint, Robinhood Chain history is
-        reported as unavailable, with the setting that fixes it, rather than
-        shown as an empty list that reads like "no transactions".
+     2. Blockscout's public API, on Ethereum only. The Base, Arbitrum and
+        Robinhood Chain instances refuse server requests (they sit behind a
+        browser challenge), BNB Chain has none, and public RPCs cap log
+        queries at a few hours of blocks — so without an Alchemy endpoint,
+        those chains' history is reported as unavailable, with the setting
+        that fixes it, rather than shown as an empty list that reads like "no
+        transactions".
 
    Read-only, cached for thirty seconds — the activity poll is a minute.
 --------------------------------------------------------------------------- */
@@ -36,6 +37,12 @@ export interface EvmActivityRead {
   items: WalletActivity[];
   /** Why this chain's history is missing or partial. Null when it was read. */
   note: string | null;
+  /**
+   * No indexer can serve this chain on this deployment. Set apart from
+   * `note` so the route can name every such chain in one line instead of one
+   * line per chain.
+   */
+  needsIndexer?: boolean;
 }
 
 type Raw = Record<string, unknown>;
@@ -142,7 +149,7 @@ async function alchemyRead(chain: EvmChainKey, owner: string, limit: number): Pr
     movements.push({
       hash,
       contract: address,
-      symbol: address === null ? "ETH" : (tokens.get(address.toLowerCase()) ?? null),
+      symbol: address === null ? EVM_CHAINS[chain].nativeSymbol : (tokens.get(address.toLowerCase()) ?? null),
       icon: null,
       amount: incoming ? amount : -amount,
       counterparty: incoming ? from : to,
@@ -222,7 +229,7 @@ async function blockscoutRead(
     const incoming = to?.toLowerCase() === me;
     const outgoing = from.toLowerCase() === me;
     if (incoming === outgoing) continue;
-    movements.push({ hash, contract: null, symbol: "ETH", icon: null, amount: incoming ? value : -value, counterparty: incoming ? from : to });
+    movements.push({ hash, contract: null, symbol: EVM_CHAINS[chain].nativeSymbol, icon: null, amount: incoming ? value : -value, counterparty: incoming ? from : to });
   }
 
   for (const entry of transfers) {
@@ -287,6 +294,7 @@ export async function readEvmActivity(chain: EvmChainKey, owner: string, limit: 
           return {
             items: [],
             note: `${network} history needs an indexer: set ${RPC_ENV[chain]} to an Alchemy endpoint. Balances are unaffected.`,
+            needsIndexer: true,
           };
         }
         return { items: [], note: `${network} history could not be read: ${error instanceof Error ? error.message : "explorer error"}.` };

@@ -3,11 +3,11 @@ import { ScrollView, Share, StyleSheet, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Copy, ExternalLink, QrCode as QrIcon, Share2 } from "lucide-react-native";
-import { EVM_CHAINS, evmAddressUrl, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
+import { EVM_CHAIN_KEYS, EVM_CHAINS, evmAddressUrl, isEvmAddress, isEvmChainKey, type EvmChainKey } from "@/lib/evm/chains";
 import { hyperliquidIcon } from "@/lib/market/tickerLogoData";
 import { accountExplorerUrl } from "@/lib/solana/address";
 import { CLUSTER_LABEL, EXPECTED_CLUSTER } from "@/lib/solana/cluster";
-import { Button, SegmentedControl } from "~/components/ui/controls";
+import { Button, OptionMenu } from "~/components/ui/controls";
 import { CoinMark, QrCode } from "~/components/ui/marks";
 import { Text } from "~/components/ui/Text";
 import { Notice, openExternal, SheetHeader, useCopy } from "~/components/wallet/parts";
@@ -18,14 +18,15 @@ import { color, radius } from "~/theme/tokens";
 /* ---------------------------------------------------------------------------
    Where to send funds — the website's ReceiveDialog.
 
-   One network at a time, named outright. The account holds two wallets: a
-   Solana one, and an EVM one whose single address is valid on both Ethereum
-   and Robinhood Chain. Each address is shown whole, never truncated, with
-   copy and share beside the code, and the network is said in words — the two
-   EVM tabs share an address, but a balance sent on one network never appears
-   on the other.
+   One network at a time, named outright. The account holds a Solana wallet
+   and an EVM one whose single address is valid on Ethereum, Base, Arbitrum,
+   BNB Chain and Robinhood Chain. Each address is shown whole, never
+   truncated, with copy and share beside the code, and the network is said in
+   words — the EVM networks share an address, but a balance sent on one never
+   appears on another. The network is a menu, not tabs: six do not fit across
+   a phone.
 
-   `?network=ethereum` or `robinhood` opens on that network.
+   `?network=<an EVM chain key>` opens on that network.
 --------------------------------------------------------------------------- */
 
 type Network = "solana" | EvmChainKey;
@@ -36,7 +37,7 @@ export default function ReceiveScreen() {
   const params = useLocalSearchParams<{ network?: string }>();
   const evmAddress = isEvmAddress(auth.walletAddress) ? auth.walletAddress : null;
   const [chosen, setChosen] = useState<Network>(
-    params.network === "ethereum" || params.network === "robinhood" ? params.network : "solana",
+    isEvmChainKey(params.network) ? params.network : "solana",
   );
   const network: Network = evmAddress === null ? "solana" : chosen;
   const insets = useSafeAreaInsets();
@@ -46,15 +47,11 @@ export default function ReceiveScreen() {
       <SheetHeader title="Receive" icon={QrIcon} closeLabel="Close receive" />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
         {evmAddress !== null && (
-          <SegmentedControl<Network>
-            accessibilityLabel="Network"
+          <OptionMenu<Network>
+            label="Network"
             value={network}
             onChange={setChosen}
-            choices={[
-              { value: "solana", label: "Solana" },
-              { value: "ethereum", label: "Ethereum" },
-              { value: "robinhood", label: "Robinhood" },
-            ]}
+            choices={[{ value: "solana", label: "Solana" }, ...EVM_CHAIN_KEYS.map((key) => ({ value: key, label: EVM_CHAINS[key].name }))]}
           />
         )}
         {network === "solana" ? (
@@ -158,19 +155,23 @@ function SolanaReceive({ wallet, embedded }: { wallet: ReturnType<typeof useWall
   );
 }
 
+/* A network drawn by its own coin, where it has one. */
+const COIN_OF: Partial<Record<EvmChainKey, string>> = { ethereum: "ETH", arbitrum: "ARB", bsc: "BNB" };
+
 function EvmReceive({ chain, address, embedded }: { chain: EvmChainKey; address: string; embedded: boolean }) {
   const here = EVM_CHAINS[chain];
-  const other = EVM_CHAINS[chain === "ethereum" ? "robinhood" : "ethereum"];
+  const others = EVM_CHAIN_KEYS.filter((key) => key !== chain).map((key) => EVM_CHAINS[key].name);
+  const coin = COIN_OF[chain];
   return (
     <>
       <Text variant="body-sm" tone="secondary">
-        Send ETH or tokens on {here.name} to this address.
+        Send {here.nativeSymbol} or tokens on {here.name} to this address.
       </Text>
 
       <View style={styles.network}>
-        {/* Robinhood Chain has no coin of its own; it is drawn as its letters,
-            never with a borrowed brand mark. */}
-        <CoinMark symbol={chain === "ethereum" ? "ETH" : here.name} logo={chain === "ethereum" ? hyperliquidIcon("ETH") : null} size={24} />
+        {/* Base and Robinhood Chain have no coin of their own; they are drawn
+            as their letters, never with a borrowed brand mark. */}
+        <CoinMark symbol={coin ?? here.name} logo={coin === undefined ? null : hyperliquidIcon(coin)} size={24} />
         <View style={styles.flex}>
           <Text variant="body-sm">{here.name}</Text>
           <Text variant="label" tone="secondary">
@@ -182,7 +183,7 @@ function EvmReceive({ chain, address, embedded }: { chain: EvmChainKey; address:
       <AddressBlock address={address} shareTitle={`My ${here.name} address`} />
 
       <Notice tone="caution">
-        {`Only send on ${here.name}. This address is also yours on ${other.name}, but each network keeps its own balance — funds sent on one never appear on the other. Never send from Solana.`}
+        {`Only send on ${here.name}. This address is also yours on ${others.join(", ")}, but each network keeps its own balance — funds sent on one never appear on another. Never send from Solana.`}
       </Notice>
 
       <Button

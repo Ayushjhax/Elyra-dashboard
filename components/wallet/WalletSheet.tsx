@@ -7,6 +7,7 @@ import { IconButton } from "@/components/shell/RouteDrawer";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FundWallet, WalletActions } from "@/components/wallet/WalletActions";
 import { EvmWallets } from "@/components/wallet/EvmWallets";
+import { SuiWallet } from "@/components/wallet/SuiWallet";
 import { WalletAssets, WalletTotal } from "@/components/wallet/WalletBalances";
 import { WalletIdentity } from "@/components/wallet/WalletIdentity";
 import { WalletSync } from "@/components/wallet/WalletSync";
@@ -71,8 +72,7 @@ export function WalletSheet() {
           {/* Radix requires a description or an explicit opt-out; this is the
               accessible summary of what the drawer holds. */}
           <DialogDescription className="sr-only">
-            Addresses, balances, assets and actions for your Solana wallet and your EVM wallet on Ethereum and
-            Robinhood Chain.
+            Addresses, balances, assets and actions for your wallets on Solana, the EVM networks and Sui.
           </DialogDescription>
           {signedIn && (
             <IconButton
@@ -122,6 +122,7 @@ export function WalletSheet() {
                 </>
               )}
               <EvmWallets cluster={wallet.cluster} />
+              <SuiWallet cluster={wallet.cluster} />
               <WalletActions wallet={wallet} onSignedOut={() => setOpen(false)} />
               {wallet.address !== null && <WalletSync wallet={wallet} />}
             </>

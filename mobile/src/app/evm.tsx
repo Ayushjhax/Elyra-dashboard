@@ -3,7 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, View }
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeftRight, ExternalLink, Send } from "lucide-react-native";
-import { EVM_CHAINS, evmScopeId, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
+import { EVM_CHAINS, evmScopeId, isEvmAddress, isEvmChainKey, type EvmChainKey } from "@/lib/evm/chains";
 import { swapTokens } from "@/lib/evm/swap";
 import type { BuiltEvmStep } from "@/lib/evm/wire";
 import { formatQty, formatUsd } from "@/lib/format";
@@ -21,9 +21,9 @@ import { fontFamily } from "~/theme/fonts";
 import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
-   Sending and swapping on Ethereum and Robinhood Chain — the website's
+   Sending and swapping on the EVM networks — the website's
    EvmSendDialog and EvmSwapDialog, as one screen: `?action=send|swap` and
-   `?chain=ethereum|robinhood`.
+   `?chain=<an EVM chain key>`: ethereum, base, arbitrum, bsc or robinhood.
 
    The website's rules, kept. The server builds every transaction for the
    session's own address and seals it; the embedded EVM wallet signs it here;
@@ -64,7 +64,7 @@ function message(error: unknown, fallback: string): string {
 
 export default function EvmScreen() {
   const params = useLocalSearchParams<{ action?: string; chain?: string; asset?: string; from?: string; amount?: string }>();
-  const chain: EvmChainKey = params.chain === "robinhood" ? "robinhood" : "ethereum";
+  const chain: EvmChainKey = isEvmChainKey(params.chain) ? params.chain : "ethereum";
   const action = params.action === "swap" ? "swap" : "send";
   const network = EVM_CHAINS[chain].name;
   const signer = useEvmSigner();
@@ -84,7 +84,7 @@ export default function EvmScreen() {
       ) : action === "send" ? (
         <SendFlow chain={chain} initialAsset={params.asset ?? "native"} bottom={insets.bottom} />
       ) : (
-        <SwapFlow chain={chain} initialFrom={params.from ?? "ETH"} initialAmount={params.amount ?? ""} bottom={insets.bottom} />
+        <SwapFlow chain={chain} initialFrom={params.from ?? EVM_CHAINS[chain].nativeSymbol} initialAmount={params.amount ?? ""} bottom={insets.bottom} />
       )}
     </KeyboardAvoidingView>
   );
@@ -170,12 +170,13 @@ function SendFlow({ chain, initialAsset, bottom }: { chain: EvmChainKey; initial
   const abort = useRef<AbortController | null>(null);
 
   const options = useMemo(() => {
-    if (feed.snapshot === null || signer.address === null) return [{ value: "native", label: "ETH", quantity: 0, verified: true }];
+    const gas = { value: "native", label: EVM_CHAINS[chain].nativeSymbol, quantity: 0, verified: true };
+    if (feed.snapshot === null || signer.address === null) return [gas];
     const scope = evmScopeId(chain, signer.address);
     const rows = feed.snapshot.spot
       .filter((holding) => holding.scopeId === scope && holding.quantity > 0)
       .map((holding) => ({ value: holding.address ?? "native", label: holding.symbol, quantity: holding.quantity, verified: holding.verified }));
-    return rows.some((row) => row.value === "native") ? rows : [{ value: "native", label: "ETH", quantity: 0, verified: true }, ...rows];
+    return rows.some((row) => row.value === "native") ? rows : [gas, ...rows];
   }, [feed.snapshot, signer.address, chain]);
   const selected = options.find((option) => option.value.toLowerCase() === asset.toLowerCase()) ?? null;
   const trimmed = recipient.trim();
@@ -241,7 +242,7 @@ function SendFlow({ chain, initialAsset, bottom }: { chain: EvmChainKey; initial
               </Text>
             )}
             <Text variant="label" tone="muted">
-              Network fee: up to {built.networkFeeMax} ETH, paid on {network}.
+              Network fee: up to {built.networkFeeMax} {EVM_CHAINS[chain].nativeSymbol}, paid on {network}.
             </Text>
             <Notice tone="negative">
               {`Check the address and the network. A send cannot be reversed, and funds sent on ${network} arrive only on ${network}.`}
@@ -346,9 +347,10 @@ function SwapFlow({ chain, initialFrom, initialAmount, bottom }: { chain: EvmCha
   const network = EVM_CHAINS[chain].name;
   const signer = useEvmSigner();
   const tokens = useMemo(() => swapTokens(chain), [chain]);
-  const start = tokens.find((token) => token.symbol.toUpperCase() === initialFrom.toUpperCase())?.symbol ?? "ETH";
+  const gas = EVM_CHAINS[chain].nativeSymbol;
+  const start = tokens.find((token) => token.symbol.toUpperCase() === initialFrom.toUpperCase())?.symbol ?? gas;
   const [from, setFrom] = useState(start);
-  const [to, setTo] = useState(tokens.find((token) => token.symbol !== start && /^USD/.test(token.symbol))?.symbol ?? "ETH");
+  const [to, setTo] = useState(tokens.find((token) => token.symbol !== start && /^USD/.test(token.symbol))?.symbol ?? gas);
   const [amount, setAmount] = useState(initialAmount);
   const [built, setBuilt] = useState<BuiltSwap | null>(null);
   const [approved, setApproved] = useState(false);
@@ -448,7 +450,7 @@ function SwapFlow({ chain, initialFrom, initialAmount, bottom }: { chain: EvmCha
               </>
             )}
             <Text variant="label" tone="muted">
-              Network fee: up to {built.networkFeeMax} ETH, paid on {network}.
+              Network fee: up to {built.networkFeeMax} {EVM_CHAINS[chain].nativeSymbol}, paid on {network}.
             </Text>
             {outcome.pending !== undefined && (
               <Notice tone="neutral" icon={<ActivityIndicator size="small" color={color["text-secondary"]} />}>

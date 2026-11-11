@@ -1,7 +1,8 @@
 import { underlyingSymbol } from "@/lib/personalized/calculations";
 import type { EvmChainKey } from "@/lib/evm/chains";
 import { swapTokenFor } from "@/lib/evm/swap";
-import { evmChainOf, onSolanaWallet } from "@/lib/portfolio/chain";
+import { evmChainOf, onSolanaWallet, onSuiWallet } from "@/lib/portfolio/chain";
+import { suiTokenBySymbol } from "@/lib/sui/tokens";
 import type { PortfolioSnapshot, SpotHolding, Venue } from "@/lib/portfolio/types";
 import type { MarketType } from "@/lib/types";
 import type { WalletActivity } from "@/lib/wallet/types";
@@ -29,7 +30,7 @@ export type LedgerAction =
    * `chain` is set for a holding on Ethereum or Robinhood Chain, which sells
    * through the EVM swap rather than Jupiter; absent means Solana.
    */
-  | { kind: "swap"; symbol: string; quantity: number; chain?: EvmChainKey }
+  | { kind: "swap"; symbol: string; quantity: number; chain?: EvmChainKey | "sui" }
   /** Managed on the venue itself — a link, never an order from here. */
   | { kind: "venue"; venue: string; href: string | null }
   | null;
@@ -105,12 +106,19 @@ function venueName(venue: string): string {
 
 /**
  * What a wallet holding offers. A stablecoin is the thing a sale turns into,
- * so it gets no Sell. Off Solana, a holding sells on its own chain — and
- * only one the EVM swap can name: never a Robinhood Stock Token, and never a
- * token on no list (lib/evm/swap.ts).
+ * so it gets no Sell. Off Solana, a holding sells on its own chain — on an
+ * EVM network only one the EVM swap can name (never a Robinhood Stock
+ * Token, never a token on no list: lib/evm/swap.ts), on Sui only a listed
+ * coin (lib/sui/tokens.ts). An unlisted token is sold from the swap dialog,
+ * by contract, after the person acknowledges it — not from a table row.
  */
 function walletAction(holding: SpotHolding, symbol: string): LedgerAction {
   if (holding.liquid) return null;
+  if (onSuiWallet(holding)) {
+    return holding.verified && suiTokenBySymbol(holding.symbol) !== null
+      ? { kind: "swap", symbol: holding.symbol, quantity: holding.quantity, chain: "sui" }
+      : null;
+  }
   const chain = evmChainOf(holding);
   if (chain === null) return onSolanaWallet(holding) ? { kind: "swap", symbol, quantity: holding.quantity } : null;
   if (holding.stockToken !== undefined || swapTokenFor(chain.key, holding.symbol) === null) return null;

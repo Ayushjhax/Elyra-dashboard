@@ -209,7 +209,8 @@ export async function readEvmWallet(chainKey: EvmChainKey, address: string): Pro
 
   /* ---- Prices ---- */
 
-  const cryptoSymbols = [...new Set(["ETH", ...held.flatMap((entry) => (entry.token.priceSymbol === null ? [] : [entry.token.priceSymbol]))])];
+  const nativeSymbol = chain.nativeSymbol;
+  const cryptoSymbols = [...new Set([nativeSymbol, ...held.flatMap((entry) => (entry.token.priceSymbol === null ? [] : [entry.token.priceSymbol]))])];
   const tickers = [...new Set(stocks.map((entry) => entry.token.symbol))];
 
   const cryptoAsset = new Map<string, PythAsset>();
@@ -239,10 +240,10 @@ export async function readEvmWallet(chainKey: EvmChainKey, address: string): Pro
   const priceOf = (asset: PythAsset | undefined): number | null =>
     asset === undefined ? null : (priceById.get(asset.id) ?? null);
 
-  const ethAsset = cryptoAsset.get("ETH");
+  const ethAsset = cryptoAsset.get(nativeSymbol);
   const ethUsd = priceOf(ethAsset);
   if (ethUsd === null && native.value > BigInt(0) && pythConfigured()) {
-    notes.push(note("pyth", `ETH price unavailable; ${chain.name} ETH is listed uncounted.`));
+    notes.push(note("pyth", `${nativeSymbol} price unavailable; ${chain.name} ${nativeSymbol} is listed uncounted.`));
   }
 
   const tokens: TokenBalanceRead[] = held.map(({ token, raw }) => {

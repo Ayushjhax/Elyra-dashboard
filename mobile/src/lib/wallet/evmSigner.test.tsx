@@ -3,7 +3,7 @@ import type { EvmTxRequest } from "@/lib/evm/wire";
 import { useEvmSigner } from "~/lib/wallet/evmSigner";
 
 /* ---------------------------------------------------------------------------
-   Signing on Ethereum and Robinhood Chain.
+   Signing on the EVM networks.
 
    The embedded EVM wallet signs exactly the transaction the server built —
    every field passed through, numbers as hex — and nothing for any other

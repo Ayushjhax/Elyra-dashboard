@@ -44,7 +44,7 @@ import {
   type Network,
 } from "@/lib/activity/filter";
 import { useAccountEvents, type AccountFeed } from "@/lib/activity/useAccountEvents";
-import { EVM_CHAINS } from "@/lib/evm/chains";
+import { explorerName as networkExplorer, networkName, networkShortName, WALLET_NETWORKS } from "@/lib/portfolio/chain";
 import { formatClock, formatDayGroup, formatRelativeTime, formatTimestamp } from "@/lib/format";
 import { accountExplorerUrl } from "@/lib/solana/address";
 import { useMinute } from "@/lib/useClock";
@@ -76,7 +76,7 @@ const DIRECTIONS: Array<{ id: Direction; label: string }> = [
 
 /** Where a row's explorer link goes, by its network. */
 function explorerName(event: AccountEvent): string {
-  return event.network === undefined || event.network === "solana" ? "Solscan" : EVM_CHAINS[event.network].explorer.name;
+  return networkExplorer(event.network);
 }
 
 function primarySymbol(amounts: TxAmount[], sign: 1 | -1): string | null {
@@ -214,7 +214,7 @@ function Details({ event }: { event: AccountEvent }) {
     if (summary.feeSol !== null) rows.push(["Network fee", `${formatTokenAmount(summary.feeSol)} SOL`]);
   }
   if (event.kind === "transaction" && event.network !== undefined && event.network !== "solana") {
-    rows.push(["Network", EVM_CHAINS[event.network].name]);
+    rows.push(["Network", networkName(event.network)]);
   }
   rows.push(["Status", statusOf(event).label]);
   rows.push(["Time", event.at === null ? "Not yet in a block" : `${formatTimestamp(event.at)} UTC`]);
@@ -636,9 +636,7 @@ export function ActivityView({
                 onChange={(value) => set("network", value)}
                 options={[
                   ["all", "All networks", "All"],
-                  ["solana", "Solana", "Solana"],
-                  ["ethereum", "Ethereum", "Ethereum"],
-                  ["robinhood", "Robinhood Chain", "Robinhood"],
+                  ...WALLET_NETWORKS.map((network): [Network, string, string] => [network, networkName(network), networkShortName(network)]),
                 ]}
               />
             </div>

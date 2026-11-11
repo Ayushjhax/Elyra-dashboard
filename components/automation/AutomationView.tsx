@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSignTypedData } from "@privy-io/react-auth";
-import { BarChart3, Bot, Crosshair, History, KeyRound, ListChecks, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { BarChart3, Bot, Crosshair, History, KeyRound, ListChecks, Pause, Play, Plus, Trash2, Zap } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { DrawerCard, StatusDot } from "@/components/shell/RouteDrawer";
 import { Button } from "@/components/ui/Button";
@@ -19,7 +19,9 @@ import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
-   Trading automation: rules Elyra runs on Hyperliquid perps.
+   Trading automation: rules Elyra runs on Hyperliquid perps, and the trades
+   a person places by hand through the same key — a market order now, or a
+   limit order at a level — each with its take-profit and stop-loss.
 
    Every rule is checked on each five-minute tick against its latest closed
    bar; an entry goes to Hyperliquid with its take-profit and stop-loss in the
@@ -373,6 +375,98 @@ function NewRule({ data, feed }: { data: AutomationResponse; feed: AutomationFee
 
 const marketLabel = (coin: string) => marketFor(coin)?.label ?? coin;
 
+/* ---- market orders: trade now, by hand ---- */
+
+function MarketOrder({ data, feed }: { data: AutomationResponse; feed: AutomationFeed }) {
+  const [form, setForm] = useState({ coin: "BTC", sizeUsd: "50", leverage: "2", takeProfitPct: "4", stopLossPct: "2", mode: "paper" });
+  const [busy, setBusy] = useState<"long" | "short" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const liveReady = data.live.enabled && data.agent !== null && data.agent.approved && data.agent.network === data.live.network;
+  const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((current) => ({ ...current, [key]: event.target.value }));
+
+  const trade = (side: "long" | "short") => {
+    setBusy(side);
+    setError(null);
+    setDone(null);
+    void feed
+      .write("/api/automation/trade", "POST", {
+        coin: form.coin,
+        side,
+        sizeUsd: Number(form.sizeUsd),
+        leverage: Number(form.leverage),
+        takeProfitPct: Number(form.takeProfitPct),
+        stopLossPct: Number(form.stopLossPct),
+        mode: form.mode,
+      })
+      .then((result) => {
+        setError(result.error);
+        if (result.error === null) {
+          setDone(`${side === "long" ? "Long" : "Short"} ${marketLabel(form.coin)} opened (${form.mode === "live" ? `live ${data.live.network}` : "paper"}). It is under Trades.`);
+        }
+      })
+      .finally(() => setBusy(null));
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="col-span-2 flex flex-col gap-1">
+          <Label htmlFor="trade-coin">Market</Label>
+          <select id="trade-coin" className={field} value={form.coin} onChange={set("coin")}>
+            <MarketOptions />
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="trade-size">Size ($)</Label>
+          <input id="trade-size" inputMode="decimal" className={field} value={form.sizeUsd} onChange={set("sizeUsd")} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="trade-leverage">Leverage (1–{LIMITS.maxLeverage}x)</Label>
+          <input id="trade-leverage" inputMode="numeric" className={field} value={form.leverage} onChange={set("leverage")} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="trade-tp">Take-profit (%)</Label>
+          <input id="trade-tp" inputMode="decimal" className={field} value={form.takeProfitPct} onChange={set("takeProfitPct")} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="trade-sl">Stop-loss (%)</Label>
+          <input id="trade-sl" inputMode="decimal" className={field} value={form.stopLossPct} onChange={set("stopLossPct")} />
+        </div>
+        <div className="col-span-2 flex flex-col gap-1">
+          <Label htmlFor="trade-mode">Mode</Label>
+          <select id="trade-mode" className={field} value={form.mode} onChange={set("mode")}>
+            <option value="paper">Paper</option>
+            <option value="live" disabled={!liveReady}>
+              {liveReady ? `Live (${data.live.network})` : "Live — not available"}
+            </option>
+          </select>
+        </div>
+      </div>
+      <p className="type-label text-text-muted">
+        Opens at the market now, isolated margin, with the take-profit and stop-loss set from the fill and placed on Hyperliquid in the
+        same request. Stock markets are trade[XYZ] perps — contracts that track the share price, not shares — and keep their own margin
+        on Hyperliquid.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="accent" disabled={busy !== null} onClick={() => trade("long")}>
+          {busy === "long" ? "Opening" : "Long now"}
+        </Button>
+        <Button size="sm" variant="quiet" disabled={busy !== null} onClick={() => trade("short")}>
+          {busy === "short" ? "Opening" : "Short now"}
+        </Button>
+      </div>
+      {done !== null && (
+        <p role="status" className="type-label text-positive">
+          {done}
+        </p>
+      )}
+      <Problem text={error} />
+    </div>
+  );
+}
+
 /* ---- limit orders ---- */
 
 function OrderRow({ order, feed, now }: { order: OrderView; feed: AutomationFeed; now: number | null }) {
@@ -639,10 +733,13 @@ const EXIT_WORDS: Record<string, string> = {
   stop_loss: "Stop-loss",
   exit_rule: "Exit rule",
   closed_outside_elyra: "Closed outside Elyra",
+  closed_by_hand: "Closed by you",
 };
 
-function TradeRow({ trade, now }: { trade: TradeView; now: number | null }) {
+function TradeRow({ trade, feed, now }: { trade: TradeView; feed: AutomationFeed; now: number | null }) {
   const pnl = trade.realisedPnlUsd;
+  const [closing, setClosing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
     <li className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0">
       <div className="flex items-baseline justify-between gap-2">
@@ -662,6 +759,26 @@ function TradeRow({ trade, now }: { trade: TradeView; now: number | null }) {
         {now !== null && <> · {formatRelativeTime(trade.openedAt, now)}</>}
       </span>
       {trade.error !== null && <span className="type-label text-negative">{trade.error}</span>}
+      {trade.status === "open" && (
+        <div>
+          <Button
+            size="xs"
+            variant="quiet"
+            disabled={closing}
+            onClick={() => {
+              setClosing(true);
+              setError(null);
+              void feed
+                .write(`/api/automation/positions/${trade.id}`, "DELETE")
+                .then((result) => setError(result.error))
+                .finally(() => setClosing(false));
+            }}
+          >
+            {closing ? "Closing" : trade.mode === "live" ? "Close on Hyperliquid now" : "Close now"}
+          </Button>
+        </div>
+      )}
+      <Problem text={error} />
       {trade.status === "closed" && (
         <span>
           <Link
@@ -725,6 +842,9 @@ export function AutomationView() {
       <DrawerCard icon={Plus} title="New rule">
         <NewRule data={data} feed={feed} />
       </DrawerCard>
+      <DrawerCard icon={Zap} title="Trade now">
+        <MarketOrder data={data} feed={feed} />
+      </DrawerCard>
       <DrawerCard icon={Crosshair} title="Limit orders">
         <LimitOrders data={data} feed={feed} now={now} />
       </DrawerCard>
@@ -734,7 +854,7 @@ export function AutomationView() {
         ) : (
           <ul className="flex flex-col divide-y divide-border-subtle">
             {data.trades.map((trade) => (
-              <TradeRow key={trade.id} trade={trade} now={now} />
+              <TradeRow key={trade.id} trade={trade} feed={feed} now={now} />
             ))}
           </ul>
         )}

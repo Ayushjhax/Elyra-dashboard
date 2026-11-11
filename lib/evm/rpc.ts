@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createPublicClient, http, type PublicClient } from "viem";
-import { mainnet, robinhood } from "viem/chains";
+import { arbitrum, base, bsc, mainnet, robinhood, type Chain } from "viem/chains";
 import { optional } from "@/lib/env";
 import type { EvmChainKey } from "@/lib/evm/chains";
 
@@ -24,14 +24,25 @@ import type { EvmChainKey } from "@/lib/evm/chains";
 const FALLBACK: Record<EvmChainKey, string> = {
   /* Allnodes' public node: no key, and checked to answer eth_chainId 0x1. */
   ethereum: "https://ethereum-rpc.publicnode.com",
+  /* Each operator's own public endpoint, checked to answer its chain id. */
+  base: "https://mainnet.base.org",
+  arbitrum: "https://arb1.arbitrum.io/rpc",
+  bsc: "https://bsc-dataseed.bnbchain.org",
   /* Robinhood's own public endpoint (docs.robinhood.com/chain/connecting). */
   robinhood: "https://rpc.mainnet.chain.robinhood.com",
 };
 
-export const RPC_ENV: Record<EvmChainKey, "ETHEREUM_RPC_URL" | "ROBINHOOD_RPC_URL"> = {
+export type RpcEnvKey = "ETHEREUM_RPC_URL" | "BASE_RPC_URL" | "ARBITRUM_RPC_URL" | "BSC_RPC_URL" | "ROBINHOOD_RPC_URL";
+
+export const RPC_ENV: Record<EvmChainKey, RpcEnvKey> = {
   ethereum: "ETHEREUM_RPC_URL",
+  base: "BASE_RPC_URL",
+  arbitrum: "ARBITRUM_RPC_URL",
+  bsc: "BSC_RPC_URL",
   robinhood: "ROBINHOOD_RPC_URL",
 };
+
+const VIEM_CHAIN: Record<EvmChainKey, Chain> = { ethereum: mainnet, base, arbitrum, bsc, robinhood };
 
 /** True when the chain is read from a configured endpoint rather than the public fallback. */
 export function rpcIsPublic(chain: EvmChainKey): boolean {
@@ -48,7 +59,7 @@ export function evmClient(chain: EvmChainKey): PublicClient {
   if (existing !== undefined) return existing;
 
   const client = createPublicClient({
-    chain: chain === "ethereum" ? mainnet : robinhood,
+    chain: VIEM_CHAIN[chain],
     transport: http(url, { timeout: 10_000, retryCount: 1 }),
   }) as PublicClient;
   clients.set(key, client);

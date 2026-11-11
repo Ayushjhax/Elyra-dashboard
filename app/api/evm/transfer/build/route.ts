@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { encodeFunctionData, erc20Abi, getAddress, type Hex } from "viem";
 import { readEvmAsset } from "@/lib/evm/assets";
-import { EVM_CHAINS, isEvmAddress } from "@/lib/evm/chains";
+import { EVM_CHAINS, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
 import { evmClient } from "@/lib/evm/rpc";
 import { badRequest, chainFrom, startEvmRoute } from "@/lib/evm/route";
 import { feeQuote, firstLine, maxFeeWei, prepareTx, sealTx } from "@/lib/evm/tx";
@@ -44,6 +44,8 @@ export async function POST(request: Request) {
   const chain = chainFrom(body.chain);
   if (chain === null) return badRequest("Choose Ethereum or Robinhood Chain.");
   const network = EVM_CHAINS[chain].name;
+  /* The gas coin: ETH, or BNB on BNB Chain. */
+  const gas = EVM_CHAINS[chain].nativeSymbol;
 
   const toText = typeof body.to === "string" ? body.to.trim() : "";
   if (!isEvmAddress(toText)) {
@@ -90,14 +92,14 @@ export async function POST(request: Request) {
       const sendable = asset.balance - fee;
       if (sendable <= BigInt(0)) {
         return badRequest(
-          `There is not enough ETH on ${network} to cover the network fee (up to ${fromBaseUnits(fee, 18)} ETH), so nothing can be sent.`,
+          `There is not enough ${gas} on ${network} to cover the network fee (up to ${fromBaseUnits(fee, 18)} ${gas}), so nothing can be sent.`,
         );
       }
       const requested = max ? sendable.toString() : toBaseUnits(amountText, 18);
       if (requested === null) return badRequest("That is not an amount I can send.");
       if (BigInt(requested) > sendable) {
         return badRequest(
-          `That is more than this wallet can send. ${fromBaseUnits(sendable, 18)} ETH is available once the network fee is covered.`,
+          `That is more than this wallet can send. ${fromBaseUnits(sendable, 18)} ${gas} is available once the network fee is covered.`,
         );
       }
       value = BigInt(requested);
@@ -125,7 +127,7 @@ export async function POST(request: Request) {
     const fee = maxFeeWei(tx);
     if (ethBalance < fee) {
       return badRequest(
-        `This wallet needs up to ${fromBaseUnits(fee, 18)} ETH on ${network} to pay the network fee, and holds ${fromBaseUnits(ethBalance, 18)}.`,
+        `This wallet needs up to ${fromBaseUnits(fee, 18)} ${gas} on ${network} to pay the network fee, and holds ${fromBaseUnits(ethBalance, 18)}.`,
       );
     }
     return respond({ tx, asset, tokenAmount, to, toIsContract, network, chain });
@@ -141,7 +143,7 @@ function respond(input: {
   to: string;
   toIsContract: boolean;
   network: string;
-  chain: "ethereum" | "robinhood";
+  chain: EvmChainKey;
 }) {
   const amount = fromBaseUnits(input.tokenAmount, input.asset.decimals);
   return NextResponse.json({

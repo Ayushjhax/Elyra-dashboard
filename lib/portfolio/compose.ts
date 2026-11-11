@@ -2,6 +2,8 @@ import "server-only";
 
 import { EVM_CHAIN_KEYS, isEvmAddress } from "@/lib/evm/chains";
 import { readEvmWallet } from "@/lib/evm/wallet";
+import { isSuiAddress } from "@/lib/sui/chain";
+import { readSuiWallet } from "@/lib/sui/wallet";
 import { getPortfolio } from "@/lib/exchange/portfolio";
 import { UpstreamError } from "@/lib/market/http";
 import { pythConfigured } from "@/lib/market/pyth/catalog";
@@ -311,6 +313,11 @@ export interface ComposeOptions {
   sessionWallet: string | null;
   /** Null when the profile store is unreachable — venues are then skipped. */
   userId: string | null;
+  /**
+   * The account's Sui wallet. Optional: only the surfaces that resolve it
+   * (the portfolio and activity routes) read Sui; the rest are unchanged.
+   */
+  suiAddress?: string | null;
 }
 
 function note(scope: string, reason: string, kind: SourceNote["kind"]): SourceNote {
@@ -716,15 +723,22 @@ async function applyChange24h(holdings: SpotHolding[]): Promise<void> {
 export async function composePortfolio(
   options: ComposeOptions,
 ): Promise<PortfolioSnapshot> {
-  const [wallet, evm, venues, defi, prediction] = await Promise.all([
+  const [wallet, evm, sui, venues, defi, prediction] = await Promise.all([
     readWallet(options.solanaAddress),
     readEvm(options.sessionWallet),
+    options.suiAddress === undefined || options.suiAddress === null || !isSuiAddress(options.suiAddress)
+      ? Promise.resolve({ holdings: [], scope: null, notes: [] })
+      : readSuiWallet(options.suiAddress).catch((error: unknown) => ({
+          holdings: [] as SpotHolding[],
+          scope: null,
+          notes: [note("sui", error instanceof Error ? error.message.split("\n")[0] : "Sui could not be read.", "failed")],
+        })),
     readVenues(options),
     readDefi(options.solanaAddress),
     readPrediction(options.userId),
   ]);
 
-  const spot = [...wallet.holdings, ...evm.holdings, ...venues.spot];
+  const spot = [...wallet.holdings, ...evm.holdings, ...sui.holdings, ...venues.spot];
   await applyChange24h(spot);
 
   /* A receipt token for a DeFi position is the SAME dollars the protocol is
@@ -747,6 +761,7 @@ export async function composePortfolio(
   const notes = [
     ...wallet.notes,
     ...evm.notes,
+    ...sui.notes,
     ...venues.notes,
     ...defi.notes,
     ...prediction.notes,
@@ -762,7 +777,9 @@ export async function composePortfolio(
     venues.perps.length === 0 &&
     defi.positions.length === 0 &&
     prediction.valueUsd === null &&
-    (wallet.notes.length > 0 || evm.notes.some((entry) => entry.kind === "failed"))
+    (wallet.notes.length > 0 ||
+      evm.notes.some((entry) => entry.kind === "failed") ||
+      sui.notes.some((entry) => entry.kind === "failed"))
       ? null
       : spotValue + perpValue + (defi.valueUsd ?? 0) + (prediction.valueUsd ?? 0);
 
@@ -782,6 +799,7 @@ export async function composePortfolio(
   const scopes: WalletScope[] = [
     ...(wallet.scope ? [wallet.scope] : []),
     ...evm.scopes,
+    ...(sui.scope ? [sui.scope] : []),
     ...venues.scopes,
   ];
 

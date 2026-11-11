@@ -97,3 +97,60 @@ export function paperLimitFill<T extends { closeTime: number; low: number; high:
   }
   return null;
 }
+
+/* ---------------------------------------------------------------------------
+   Market orders: open a long or a short now, by hand.
+
+   The same limits as a rule — size, leverage, and a take-profit and stop-loss
+   as percentages from the fill — because a trade placed by hand is no less
+   leveraged than one a rule placed. Every entry still carries both exits in
+   the same request (`openPosition`), so the exchange holds them.
+--------------------------------------------------------------------------- */
+
+export interface MarketOrderInput {
+  coin: string;
+  side: Side;
+  sizeUsd: number;
+  leverage: number;
+  takeProfitPct: number;
+  stopLossPct: number;
+  mode: RuleMode;
+}
+
+const between = (value: unknown, min: number, max: number): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+
+/** A market order as typed, checked against the limits, or what is wrong with it in words. */
+export function validateMarketOrder(input: Record<string, unknown>): { order: MarketOrderInput } | { error: string } {
+  const market = marketFor(input.coin);
+  if (market === null) return { error: "Choose one of Elyra's markets." };
+  if (input.side !== "long" && input.side !== "short") return { error: "Choose long or short." };
+  const { sizeUsd, leverage, takeProfitPct, stopLossPct } = input;
+
+  if (!between(sizeUsd, LIMITS.minSizeUsd, LIMITS.maxSizeUsd)) {
+    return { error: `Size must be between $${LIMITS.minSizeUsd} and $${LIMITS.maxSizeUsd.toLocaleString("en-US")}.` };
+  }
+  if (!between(leverage, 1, LIMITS.maxLeverage) || !Number.isInteger(leverage)) {
+    return { error: `Leverage must be a whole number from 1 to ${LIMITS.maxLeverage}.` };
+  }
+  if (!between(takeProfitPct, LIMITS.minTakeProfitPct, LIMITS.maxTakeProfitPct)) {
+    return { error: `Take-profit must be between ${LIMITS.minTakeProfitPct}% and ${LIMITS.maxTakeProfitPct}%.` };
+  }
+  if (!between(stopLossPct, LIMITS.minStopLossPct, LIMITS.maxStopLossPct)) {
+    return { error: `Stop-loss must be between ${LIMITS.minStopLossPct}% and ${LIMITS.maxStopLossPct}%.` };
+  }
+  if (stopLossPct * leverage >= 80) {
+    return { error: "At that leverage the position would be liquidated before the stop-loss. Lower one of them." };
+  }
+  return {
+    order: {
+      coin: market.coin,
+      side: input.side,
+      sizeUsd,
+      leverage,
+      takeProfitPct,
+      stopLossPct,
+      mode: input.mode === "live" ? "live" : "paper",
+    },
+  };
+}

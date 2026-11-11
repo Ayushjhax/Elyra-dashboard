@@ -17,6 +17,8 @@
     "smoke": "node --experimental-strip-types scripts/smoke.mts"
   },
   "dependencies": {
+    "@mysten/sui": "2.38.0",
+    "@noble/hashes": "2.4.0",
     "@polymarket/sdk": "^8.0.1",
     "@privy-io/node": "^0.34.0",
     "@privy-io/react-auth": "^3.38.0",

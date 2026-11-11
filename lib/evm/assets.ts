@@ -59,12 +59,12 @@ export async function readEvmAsset(
   const client = evmClient(chain);
   const account = getAddress(owner);
 
-  if (asset === "native" || asset.toUpperCase() === "ETH") {
+  if (asset === "native" || asset.toUpperCase() === EVM_CHAINS[chain].nativeSymbol) {
     const balance = await client.getBalance({ address: account });
     return {
       address: "native",
-      symbol: "ETH",
-      name: chain === "ethereum" ? "Ether" : `Ether on ${EVM_CHAINS[chain].name}`,
+      symbol: EVM_CHAINS[chain].nativeSymbol,
+      name: EVM_CHAINS[chain].nativeName,
       decimals: 18,
       balance,
       verified: true,

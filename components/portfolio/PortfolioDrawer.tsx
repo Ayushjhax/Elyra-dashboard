@@ -22,13 +22,15 @@ import { IconButton, InfoTip, StatusDot, Tip } from "@/components/shell/RouteDra
 import { CoinMark } from "@/components/ui/CoinMark";
 import { OptionMenu } from "@/components/ui/OptionMenu";
 import { EvmSwapDialog, evmWalletOf } from "@/components/wallet/EvmDialogs";
+import { SuiSwapDialog } from "@/components/wallet/SuiDialogs";
 import { NetworkMark } from "@/components/wallet/NetworkMark";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EVM_CHAIN_KEYS, EVM_CHAINS, evmChainNamed, type EvmChainKey } from "@/lib/evm/chains";
 import { swapTokenFor } from "@/lib/evm/swap";
 import { formatAge, formatPct, truncateMiddle } from "@/lib/format";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
-import { evmChainOf, onSolanaWallet } from "@/lib/portfolio/chain";
+import { evmChainOf, onSolanaWallet, onSuiWallet } from "@/lib/portfolio/chain";
+import { suiTokenBySymbol } from "@/lib/sui/tokens";
 import { ALL_ACCOUNTS, drawerView, perpEquity, type DrawerView } from "@/lib/portfolio/drawer";
 import type { PortfolioFeed } from "@/lib/portfolio/usePortfolio";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
@@ -760,6 +762,7 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
   const [receiving, setReceiving] = useState(false);
   const [swapping, setSwapping] = useState<SpotHolding | null>(null);
   const [evmSwapping, setEvmSwapping] = useState<{ chain: EvmChainKey; symbol: string } | null>(null);
+  const [suiSwapping, setSuiSwapping] = useState<string | null>(null);
 
   const view = useMemo(() => (feed.snapshot === null ? null : drawerView(feed.snapshot, scope)), [feed.snapshot, scope]);
   const address = auth.solanaAddress;
@@ -770,6 +773,7 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
      and listed tokens on Ethereum or Robinhood Chain through LI.FI — signed
      by Elyra's embedded EVM wallet, and never a stock token (lib/evm/swap.ts). */
   const canSwap = (holding: SpotHolding): boolean => {
+    if (onSuiWallet(holding)) return auth.available && auth.suiAddress !== null && suiTokenBySymbol(holding.symbol) !== null;
     if (onSolanaWallet(holding)) return canSign;
     const chain = evmChainOf(holding);
     return (
@@ -781,6 +785,10 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
     );
   };
   const onSwap = (holding: SpotHolding) => {
+    if (onSuiWallet(holding)) {
+      setSuiSwapping(holding.symbol);
+      return;
+    }
     const chain = evmChainOf(holding);
     if (chain === null) setSwapping(holding);
     else setEvmSwapping({ chain: chain.key, symbol: holding.symbol });
@@ -892,6 +900,7 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
           onClose={() => setSwapping(null)}
         />
       )}
+      {suiSwapping !== null && <SuiSwapDialog initialFrom={suiSwapping} onClose={() => setSuiSwapping(null)} />}
       {evmSwapping !== null && (
         <EvmSwapDialog chain={evmSwapping.chain} initialFrom={evmSwapping.symbol} onClose={() => setEvmSwapping(null)} />
       )}

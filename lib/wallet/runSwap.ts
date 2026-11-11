@@ -25,6 +25,11 @@ export interface SwapRequest {
   toSymbol: string;
   /** Human units of `fromSymbol`, as an exact decimal string. */
   amount: string;
+  /** A side named by mint instead — any token, listed or not. Takes precedence over the symbol. */
+  fromMint?: string;
+  toMint?: string;
+  /** The person ticked that they checked an unlisted mint. Without it the server refuses one. */
+  acknowledgeUnverified?: boolean;
 }
 
 export interface BuiltSwap {

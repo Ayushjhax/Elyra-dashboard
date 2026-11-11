@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
+import { suiWalletFor } from "@/lib/auth/sui";
 import { composePortfolio } from "@/lib/portfolio/compose";
 import { isRangeKey, portfolioHistory } from "@/lib/portfolio/history";
 import { isSolanaAddress } from "@/lib/solana/address";
@@ -48,6 +49,9 @@ export async function GET(request: Request): Promise<NextResponse<HistoryRespons
     const portfolio = await composePortfolio({
       solanaAddress,
       sessionWallet: user.walletAddress,
+      /* The Sui wallet, from Privy (lib/auth/sui.ts). An unreachable lookup
+         reads as no Sui wallet here; the Sui routes report it themselves. */
+      suiAddress: await suiWalletFor(user.privyDid).then((lookup) => (lookup.ok ? (lookup.wallet?.address ?? null) : null)),
       userId: user.userId,
     });
 

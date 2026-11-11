@@ -7,21 +7,36 @@ import { useTickerLogos } from "@/lib/market/tickerLogos";
 /* ---------------------------------------------------------------------------
    The mark for a network the account holds a wallet on.
 
-   Solana and Ethereum wear their coins' artwork, from the same catalogue as
-   every other logo. Robinhood Chain has no coin of its own — its gas token is
-   ETH — and is drawn as the lettered monogram rather than with a borrowed
-   brand mark: a network label, never a suggestion of affiliation.
+   Solana, Ethereum, Arbitrum, BNB Chain and Sui wear their coins' artwork,
+   from the same catalogue as every other logo. Base and Robinhood Chain have
+   no coin of their own — both pay gas in ETH — and are drawn as the lettered
+   monogram rather than with a borrowed brand mark: a network label, never a
+   suggestion of affiliation.
 --------------------------------------------------------------------------- */
 
-export type Network = "solana" | EvmChainKey;
+export type Network = "solana" | EvmChainKey | "sui";
 
 export const NETWORK_NAME: Record<Network, string> = {
   solana: "Solana",
   ethereum: EVM_CHAINS.ethereum.name,
+  base: EVM_CHAINS.base.name,
+  arbitrum: EVM_CHAINS.arbitrum.name,
+  bsc: EVM_CHAINS.bsc.name,
   robinhood: EVM_CHAINS.robinhood.name,
+  sui: "Sui",
 };
 
-const COINS = ["SOL", "ETH"] as const;
+/* A network drawn by its own coin's artwork, where it has one. Base and
+   Robinhood Chain have no coin of their own and get their letters. */
+const COIN_OF: Partial<Record<Network, string>> = {
+  solana: "SOL",
+  ethereum: "ETH",
+  arbitrum: "ARB",
+  bsc: "BNB",
+  sui: "SUI",
+};
+
+const COINS = ["SOL", "ETH", "ARB", "BNB", "SUI"] as const;
 
 export function NetworkMark({
   network,
@@ -33,9 +48,9 @@ export function NetworkMark({
   className?: string;
 }) {
   const logos = useTickerLogos(COINS);
-  if (network === "robinhood") {
-    return <CoinMark symbol={EVM_CHAINS.robinhood.name} size={size} className={className} />;
+  const coin = COIN_OF[network];
+  if (coin === undefined) {
+    return <CoinMark symbol={NETWORK_NAME[network]} size={size} className={className} />;
   }
-  const symbol = network === "solana" ? "SOL" : "ETH";
-  return <CoinMark symbol={symbol} {...logos(symbol)} size={size} className={className} />;
+  return <CoinMark symbol={coin} {...logos(coin)} size={size} className={className} />;
 }

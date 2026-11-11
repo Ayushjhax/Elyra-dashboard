@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
+import { suiWalletFor } from "@/lib/auth/sui";
+import { readSuiActivity } from "@/lib/sui/activity";
 import { readEvmActivity } from "@/lib/evm/activity";
-import { EVM_CHAIN_KEYS, isEvmAddress } from "@/lib/evm/chains";
+import { EVM_CHAIN_KEYS, EVM_CHAINS, isEvmAddress } from "@/lib/evm/chains";
+import { RPC_ENV } from "@/lib/evm/rpc";
 import { UpstreamError } from "@/lib/market/http";
 import { isSolanaAddress } from "@/lib/solana/address";
 import { describeSignatures } from "@/lib/wallet/helius";
@@ -125,8 +128,18 @@ export async function GET(request: Request): Promise<NextResponse<ActivityRespon
   }
 
   const evmAddress = isEvmAddress(user.walletAddress) ? user.walletAddress : null;
+  const suiLookup = await suiWalletFor(user.privyDid);
+  const suiAddress = suiLookup.ok && suiLookup.wallet !== null ? suiLookup.wallet.address : null;
+  const suiRead =
+    suiAddress === null
+      ? Promise.resolve(null)
+      : readSuiActivity(suiAddress, limit).catch((error: unknown) => ({
+          items: [] as WalletActivity[],
+          note: error instanceof Error ? error.message : "Sui history could not be read.",
+        }));
 
-  const [solana, ...evm] = await Promise.all([
+  const [sui, solana, ...evm] = await Promise.all([
+    suiRead,
     readSolana(user.solanaAddress, user.addressesUnresolved, limit),
     ...(evmAddress === null
       ? []
@@ -134,23 +147,35 @@ export async function GET(request: Request): Promise<NextResponse<ActivityRespon
           readEvmActivity(chain, evmAddress, limit).catch((error: unknown) => ({
             items: [] as WalletActivity[],
             note: error instanceof Error ? error.message : "History could not be read.",
+            needsIndexer: false,
           })),
         )),
   ]);
 
-  if (solana === null && evmAddress === null) {
+  if (solana === null && evmAddress === null && suiAddress === null) {
     return fail("This account has no wallet yet.");
   }
 
   /* Newest first; a row not yet in a block has no time and leads. */
   const time = (row: WalletActivity) => (row.at === null ? Number.MAX_SAFE_INTEGER : Date.parse(row.at) || 0);
-  const items = [...(solana?.items ?? []), ...evm.flatMap((read) => read.items)]
+  const items = [...(solana?.items ?? []), ...evm.flatMap((read) => read.items), ...(sui?.items ?? [])]
     .sort((a, b) => time(b) - time(a))
     .slice(0, limit);
 
+  /* Chains with no indexer are named together, once — four near-identical
+     lines under a list would bury it. */
+  const unindexed = evmAddress === null ? [] : EVM_CHAIN_KEYS.filter((_chain, index) => evm[index]?.needsIndexer === true);
   const notes = [
     ...(solana?.problem ? [solana.problem.message] : []),
-    ...evm.flatMap((read) => (read.note === null ? [] : [read.note])),
+    ...evm.flatMap((read) => (read.note === null || read.needsIndexer === true ? [] : [read.note])),
+    ...(sui?.note ? [sui.note] : []),
+    ...(unindexed.length === 0
+      ? []
+      : [
+          `${unindexed.map((chain) => EVM_CHAINS[chain].name).join(", ")} history needs an indexer: set ${unindexed
+            .map((chain) => RPC_ENV[chain])
+            .join(", ")} to Alchemy endpoints. Balances are unaffected.`,
+        ]),
   ];
 
   /* Nothing readable at all is an error, as it always was; a Solana-only

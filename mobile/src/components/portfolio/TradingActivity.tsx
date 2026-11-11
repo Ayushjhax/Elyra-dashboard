@@ -64,8 +64,8 @@ const FILTERS: { value: MarketFilter; label: string }[] = [
 
 /** Left behind on a SOL sale for network fees and rent. */
 const SOL_FEE_RESERVE = 0.01;
-/** ETH kept back for gas when an ETH sale is prefilled; the amount stays editable. */
-const ETH_FEE_RESERVE: Record<EvmChainKey, number> = { ethereum: 0.003, robinhood: 0.0002 };
+/** The gas coin kept back when its sale is prefilled; the amount stays editable. */
+const GAS_RESERVE: Record<EvmChainKey, number> = { ethereum: 0.003, base: 0.0002, arbitrum: 0.0002, bsc: 0.002, robinhood: 0.0002 };
 
 function inFilter(market: MarketType, filter: MarketFilter): boolean {
   return filter === "all" || market === filter;
@@ -123,11 +123,15 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 function Action({ action, canSign }: { action: LedgerAction; canSign: boolean }) {
   if (action === null) return null;
   if (action.kind === "swap") {
-    /* A holding on Ethereum or Robinhood Chain sells on its own chain, on
-       the EVM screen — which says so itself when the wallet cannot sign. */
+    /* Sui is read in the app but not signed for yet, so a Sui holding
+       offers no Sell here; the website sells it. */
+    if (action.chain === "sui") return null;
+    /* A holding on an EVM network sells on its own chain, on the EVM screen
+       — which says so itself when the wallet cannot sign. */
     if (action.chain !== undefined) {
       const chain = action.chain;
-      const amount = action.symbol === "ETH" ? Math.max(0, action.quantity - ETH_FEE_RESERVE[chain]) : action.quantity;
+      const amount =
+        action.symbol === EVM_CHAINS[chain].nativeSymbol ? Math.max(0, action.quantity - GAS_RESERVE[chain]) : action.quantity;
       return (
         <Button
           label="Sell"

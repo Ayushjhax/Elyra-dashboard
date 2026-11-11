@@ -30,6 +30,7 @@ import {
   Tip,
 } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
+import { NetworkMark } from "@/components/wallet/NetworkMark";
 import { methodLabel } from "@/lib/account";
 import { formatAge, formatPriceUsd, formatQty, formatRelativeTime, formatUsd, truncateMiddle } from "@/lib/format";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
@@ -285,12 +286,21 @@ function describe(entry: LinkedAccountSummary): {
   copyLabel: string;
 } {
   if (entry.type === "wallet" || entry.type === "smart_wallet") {
-    const chain = entry.chainType === "ethereum" ? "Ethereum" : entry.chainType === "solana" ? "Solana" : null;
+    const chain =
+      entry.chainType === "ethereum" ? "Ethereum" : entry.chainType === "solana" ? "Solana" : entry.chainType === "sui" ? "Sui" : null;
     const base = entry.type === "smart_wallet" ? "Smart wallet" : chain === null ? "Wallet" : `${chain} wallet`;
     return {
       label: base,
       mark:
-        chain === "Ethereum" ? <ChainMark symbol="ETH" /> : chain === "Solana" ? <ChainMark symbol="SOL" /> : <IconTile icon={Wallet} />,
+        chain === "Ethereum" ? (
+          <ChainMark symbol="ETH" />
+        ) : chain === "Solana" ? (
+          <ChainMark symbol="SOL" />
+        ) : chain === "Sui" ? (
+          <NetworkMark network="sui" size={32} className="bg-surface-base" />
+        ) : (
+          <IconTile icon={Wallet} />
+        ),
       value: entry.detail,
       display: entry.detail === null ? null : truncateMiddle(entry.detail, 6, 6),
       mono: true,

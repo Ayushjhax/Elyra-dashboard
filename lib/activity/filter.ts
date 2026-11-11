@@ -1,4 +1,5 @@
 import type { AccountEvent } from "@/lib/activity/events";
+import type { WalletActivity } from "@/lib/wallet/types";
 
 /* ---------------------------------------------------------------------------
    The Activity widget's filters, as one pure function.
@@ -8,14 +9,14 @@ import type { AccountEvent } from "@/lib/activity/events";
    out (a send, a stake). A swap moves both ways and is neither, so it shows
    under All only; so does a transaction the RPC could not decode.
 
-   Wallet transactions are on Solana, Ethereum or Robinhood Chain. Alerts and
-   actions awaiting review belong to no network, so choosing a network leaves
-   that network's wallet transactions alone.
+   Wallet transactions are on Solana, an EVM chain or Sui. Alerts and actions
+   awaiting review belong to no network, so choosing a network leaves that
+   network's wallet transactions alone.
 --------------------------------------------------------------------------- */
 
 export type Direction = "all" | "received" | "sent";
 export type DateRange = "all" | "today" | "7d" | "30d";
-export type Network = "all" | "solana" | "ethereum" | "robinhood";
+export type Network = "all" | NonNullable<WalletActivity["network"]>;
 
 export interface ActivityFilters {
   direction: Direction;

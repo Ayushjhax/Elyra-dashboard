@@ -6,7 +6,7 @@ import { apiUrl, authHeaders } from "~/lib/api";
 import { useElyraAuth } from "~/lib/auth/AuthProvider";
 
 /* ---------------------------------------------------------------------------
-   Signing on Ethereum and Robinhood Chain — the account's embedded EVM
+   Signing on the EVM networks — the account's embedded EVM
    wallet, through Privy's Expo SDK.
 
    The website's rule, kept: the server builds every transaction with every

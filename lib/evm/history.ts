@@ -74,7 +74,8 @@ export function summariseEvmTx(owner: string, head: EvmTxHead, movements: EvmMov
     if (existing !== undefined) existing.amount += move.amount;
     else {
       byAsset.set(key, {
-        symbol: move.contract === null ? "ETH" : move.symbol,
+        /* The gas coin carries its own symbol (ETH, or BNB on BNB Chain). */
+        symbol: move.contract === null ? (move.symbol ?? "ETH") : move.symbol,
         mint: move.contract,
         amount: move.amount,
         icon: move.icon,

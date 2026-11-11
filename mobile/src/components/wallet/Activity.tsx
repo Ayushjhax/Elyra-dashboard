@@ -16,7 +16,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
-import { EVM_CHAINS } from "@/lib/evm/chains";
+import { explorerName, networkName, WALLET_NETWORKS } from "@/lib/portfolio/chain";
 import { accountEvents, type AccountEvent } from "@/lib/activity/events";
 import {
   directionOf,
@@ -134,12 +134,7 @@ export function ActivityFilterBar({
           label="Network"
           value={filters.network}
           onChange={(value) => set("network", value)}
-          choices={[
-            { value: "all", label: "All networks" },
-            { value: "solana", label: "Solana" },
-            { value: "ethereum", label: "Ethereum" },
-            { value: "robinhood", label: "Robinhood Chain" },
-          ]}
+          choices={[{ value: "all", label: "All networks" }, ...WALLET_NETWORKS.map((value) => ({ value, label: networkName(value) }))]}
         />
       </View>
     </View>
@@ -270,7 +265,7 @@ function Details({ event }: { event: AccountEvent }) {
     if (summary.feeSol !== null) rows.push(["Network fee", `${formatTokenAmount(summary.feeSol)} SOL`, "secondary"]);
   }
   if (event.kind === "transaction" && event.network !== undefined && event.network !== "solana") {
-    rows.push(["Network", EVM_CHAINS[event.network].name, "secondary"]);
+    rows.push(["Network", networkName(event.network), "secondary"]);
   }
   rows.push(["Status", statusOf(event).label, "secondary"]);
   rows.push(["Time", event.at === null ? "Not yet in a block" : `${formatTimestamp(event.at)} UTC`, "secondary"]);
@@ -340,7 +335,7 @@ export function ActivityRow({ event }: { event: AccountEvent }) {
         </Pressable>
         {event.href !== null && (
           <IconButton
-            accessibilityLabel={`Open in ${event.network === undefined || event.network === "solana" ? "Solscan" : EVM_CHAINS[event.network].explorer.name}`}
+            accessibilityLabel={`Open in ${explorerName(event.network)}`}
             onPress={() => openExternal(event.href as string)}
           >
             <ExternalLink size={15} strokeWidth={1.5} color={color["text-muted"]} />

@@ -62,7 +62,54 @@ const ROBINHOOD: readonly EvmToken[] = [
   { address: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", symbol: "USDG", name: "Global Dollar", decimals: 6, priceSymbol: "USDG", stable: true },
 ];
 
+/* Base, Arbitrum and BNB Chain: each address read back from its contract on
+   2026-11-11 like the lists above (`symbol()`, `decimals()`), and each price
+   symbol checked against Pyth's catalogue. Wrapped gas coins price as the
+   coin itself; Binance-peg and bridged tokens price as their underlying. */
+
+const BASE: readonly EvmToken[] = [
+  { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", symbol: "USDC", name: "USD Coin", decimals: 6, priceSymbol: "USDC", stable: true },
+  { address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", symbol: "USDbC", name: "USD Base Coin (bridged USDC)", decimals: 6, priceSymbol: "USDC", stable: true, marketSymbol: "USDC" },
+  { address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", symbol: "DAI", name: "Dai", decimals: 18, priceSymbol: "DAI", stable: true },
+  { address: "0x4200000000000000000000000000000000000006", symbol: "WETH", name: "Wrapped Ether", decimals: 18, priceSymbol: "ETH", stable: false, marketSymbol: "ETH" },
+  { address: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", symbol: "cbBTC", name: "Coinbase Wrapped BTC", decimals: 8, priceSymbol: "CBBTC", stable: false, marketSymbol: "BTC" },
+  { address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22", symbol: "cbETH", name: "Coinbase Wrapped Staked ETH", decimals: 18, priceSymbol: "CBETH", stable: false },
+  { address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631", symbol: "AERO", name: "Aerodrome", decimals: 18, priceSymbol: "AERO", stable: false },
+  { address: "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b", symbol: "VIRTUAL", name: "Virtuals Protocol", decimals: 18, priceSymbol: "VIRTUAL", stable: false },
+  { address: "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed", symbol: "DEGEN", name: "Degen", decimals: 18, priceSymbol: "DEGEN", stable: false },
+  { address: "0x532f27101965dd16442E59d40670FaF5eBB142E4", symbol: "BRETT", name: "Brett", decimals: 18, priceSymbol: "BRETT", stable: false },
+];
+
+const ARBITRUM: readonly EvmToken[] = [
+  { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", symbol: "USDC", name: "USD Coin", decimals: 6, priceSymbol: "USDC", stable: true },
+  { address: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", symbol: "USDT0", name: "USD₮0 (Tether)", decimals: 6, priceSymbol: "USDT", stable: true, marketSymbol: "USDT" },
+  { address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", symbol: "DAI", name: "Dai", decimals: 18, priceSymbol: "DAI", stable: true },
+  { address: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", symbol: "USDe", name: "Ethena USDe", decimals: 18, priceSymbol: "USDE", stable: true },
+  { address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", symbol: "WETH", name: "Wrapped Ether", decimals: 18, priceSymbol: "ETH", stable: false, marketSymbol: "ETH" },
+  { address: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f", symbol: "WBTC", name: "Wrapped BTC", decimals: 8, priceSymbol: "WBTC", stable: false, marketSymbol: "BTC" },
+  { address: "0x912CE59144191C1204E64559FE8253a0e49E6548", symbol: "ARB", name: "Arbitrum", decimals: 18, priceSymbol: "ARB", stable: false },
+  { address: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a", symbol: "GMX", name: "GMX", decimals: 18, priceSymbol: "GMX", stable: false },
+  { address: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4", symbol: "LINK", name: "Chainlink", decimals: 18, priceSymbol: "LINK", stable: false },
+  { address: "0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8", symbol: "PENDLE", name: "Pendle", decimals: 18, priceSymbol: "PENDLE", stable: false },
+];
+
+const BSC: readonly EvmToken[] = [
+  { address: "0x55d398326f99059fF775485246999027B3197955", symbol: "USDT", name: "Tether USD (BSC)", decimals: 18, priceSymbol: "USDT", stable: true },
+  { address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", symbol: "USDC", name: "USD Coin (BSC)", decimals: 18, priceSymbol: "USDC", stable: true },
+  { address: "0xc5f0f7b66764F6ec8C8Dff7BA683102295E16409", symbol: "FDUSD", name: "First Digital USD", decimals: 18, priceSymbol: "FDUSD", stable: true },
+  { address: "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3", symbol: "DAI", name: "Dai (BSC)", decimals: 18, priceSymbol: "DAI", stable: true },
+  { address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", symbol: "WBNB", name: "Wrapped BNB", decimals: 18, priceSymbol: "BNB", stable: false, marketSymbol: "BNB" },
+  { address: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8", symbol: "ETH", name: "Ethereum (Binance-peg)", decimals: 18, priceSymbol: "ETH", stable: false },
+  { address: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c", symbol: "BTCB", name: "Bitcoin (Binance-peg)", decimals: 18, priceSymbol: "BTC", stable: false, marketSymbol: "BTC" },
+  { address: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82", symbol: "CAKE", name: "PancakeSwap", decimals: 18, priceSymbol: "CAKE", stable: false },
+  { address: "0x1D2F0da169ceB9fC7B3144628dB156f3F6c60dBE", symbol: "XRP", name: "XRP (Binance-peg)", decimals: 18, priceSymbol: "XRP", stable: false },
+  { address: "0xbA2aE424d960c26247Dd6c32edC70B295c744C43", symbol: "DOGE", name: "Dogecoin (Binance-peg)", decimals: 8, priceSymbol: "DOGE", stable: false },
+];
+
 export const EVM_TOKENS: Record<EvmChainKey, readonly EvmToken[]> = {
   ethereum: ETHEREUM,
+  base: BASE,
+  arbitrum: ARBITRUM,
+  bsc: BSC,
   robinhood: ROBINHOOD,
 };

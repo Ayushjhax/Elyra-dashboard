@@ -1,7 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { analysePaperTrades, leverageBand, MIN_SAMPLE, type ClosedTrade } from "@/lib/autotrade/analysis";
-import { paperLimitFill, validateLimitOrder } from "@/lib/autotrade/orders";
+import { paperLimitFill, validateLimitOrder, validateMarketOrder } from "@/lib/autotrade/orders";
 import { dexOf, marketFor } from "@/lib/autotrade/rules";
+
+describe("validateMarketOrder", () => {
+  const NOW = { coin: "xyz:nvda", side: "short", sizeUsd: 50, leverage: 3, takeProfitPct: 4, stopLossPct: 2, mode: "live" };
+
+  it("accepts a trade inside the limits, on a stock perp as on crypto", () => {
+    expect(validateMarketOrder(NOW)).toEqual({ order: { ...NOW, coin: "xyz:NVDA" } });
+    expect(validateMarketOrder({ ...NOW, coin: "BTC", side: "long", mode: "anything" })).toMatchObject({
+      order: { coin: "BTC", side: "long", mode: "paper" },
+    });
+  });
+
+  it("refuses anything outside them, in words", () => {
+    expect(validateMarketOrder({ ...NOW, coin: "PEPE" })).toEqual({ error: "Choose one of Elyra's markets." });
+    expect(validateMarketOrder({ ...NOW, side: "up" })).toEqual({ error: "Choose long or short." });
+    expect(validateMarketOrder({ ...NOW, sizeUsd: 5 })).toMatchObject({ error: expect.stringMatching(/^Size/) });
+    expect(validateMarketOrder({ ...NOW, leverage: 2.5 })).toMatchObject({ error: expect.stringMatching(/^Leverage/) });
+    expect(validateMarketOrder({ ...NOW, leverage: 6 })).toMatchObject({ error: expect.stringMatching(/^Leverage/) });
+    expect(validateMarketOrder({ ...NOW, takeProfitPct: 0 })).toMatchObject({ error: expect.stringMatching(/^Take-profit/) });
+    expect(validateMarketOrder({ ...NOW, stopLossPct: 30 })).toMatchObject({ error: expect.stringMatching(/^Stop-loss/) });
+  });
+
+  it("refuses a stop the position would be liquidated before reaching", () => {
+    expect(validateMarketOrder({ ...NOW, leverage: 5, stopLossPct: 16 })).toMatchObject({ error: expect.stringMatching(/liquidated/) });
+  });
+});
 
 const LONG = { coin: "btc", side: "long", price: 95, sizeUsd: 100, leverage: 2, takeProfit: 105, stopLoss: 90, mode: "paper" };
 

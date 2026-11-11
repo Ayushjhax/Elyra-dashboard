@@ -33,12 +33,10 @@ export interface SwapToken {
   decimals: number;
 }
 
-const NATIVE: Omit<SwapToken, "name"> = { symbol: "ETH", address: "native", decimals: 18 };
-
-/** The tokens a swap may name on a chain, ETH first. */
+/** The tokens a swap may name on a chain, its gas coin (ETH, or BNB on BNB Chain) first. */
 export function swapTokens(chain: EvmChainKey): SwapToken[] {
   return [
-    { ...NATIVE, name: chain === "ethereum" ? "Ether" : `Ether on ${EVM_CHAINS[chain].name}` },
+    { symbol: EVM_CHAINS[chain].nativeSymbol, address: "native", decimals: 18, name: EVM_CHAINS[chain].nativeName },
     ...EVM_TOKENS[chain].map((token) => ({
       symbol: token.symbol,
       name: token.name,

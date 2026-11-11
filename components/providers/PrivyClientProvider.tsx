@@ -1,13 +1,14 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
+import { useCreateWallet } from "@privy-io/react-auth/extended-chains";
 import {
   toSolanaWalletConnectors,
   useSolanaFundingPlugin,
 } from "@privy-io/react-auth/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
-import { mainnet, robinhood } from "viem/chains";
+import { arbitrum, base, bsc, mainnet, robinhood } from "viem/chains";
 import { PRIVY_MODAL_ACCENT, PRIVY_MODAL_THEME } from "@/lib/brand";
 import { PRIVY_APP_ID_LENGTH, publicEnv } from "@/lib/env";
 import { summariseUser, type ElyraAccount, type LinkedAccountSummary } from "@/lib/account";
@@ -94,6 +95,12 @@ export interface ElyraAuth {
   walletAddress: string | null;
   /** Solana — this app's native chain, and what the rail displays. */
   solanaAddress: string | null;
+  /** Sui: a Privy embedded wallet, created for the account on first sign-in. */
+  suiAddress: string | null;
+  /** Its public key, as Privy exposes it — sent beside a signature, checked by the server. */
+  suiPublicKey: string | null;
+  /** Creates the account's Sui wallet when it has none. Resolves to its address. */
+  createSuiWallet: () => Promise<string | null>;
   login: () => void;
   logout: () => Promise<void>;
   /** The access token to send as a bearer, or null when signed out. */
@@ -110,6 +117,9 @@ const UNAVAILABLE: ElyraAuth = {
   authenticated: false,
   walletAddress: null,
   solanaAddress: null,
+  suiAddress: null,
+  suiPublicKey: null,
+  createSuiWallet: async () => null,
   login: () => {},
   logout: async () => {},
   getAccessToken: async () => null,
@@ -148,6 +158,26 @@ function PrivyBridge({ children }: { children: React.ReactNode }) {
      provider's configuration changed. */
   useSolanaFundingPlugin();
 
+  /* One account across every chain. Privy creates the Solana and EVM wallets
+     at sign-in (`createOnLogin` below); Sui is one of its extended chains,
+     which it creates only on request — so the bridge asks, once per session,
+     for a signed-in account that has none. A failure (Sui wallets switched
+     off in the Privy dashboard, a network blip) is logged and left: the Sui
+     section offers the same call as a button. */
+  const { createWallet } = useCreateWallet();
+  const asked = useRef<string | null>(null);
+  const userId = privy.user?.id ?? null;
+  const hasSui = (privy.user?.linkedAccounts ?? []).some(
+    (account) => account.type === "wallet" && "chainType" in account && (account as { chainType?: string }).chainType === "sui",
+  );
+  useEffect(() => {
+    if (!privy.ready || !privy.authenticated || userId === null || hasSui || asked.current === userId) return;
+    asked.current = userId;
+    createWallet({ chainType: "sui" }).catch((error: unknown) => {
+      console.warn("[elyra] Could not create a Sui wallet:", error instanceof Error ? error.message : error);
+    });
+  }, [privy.ready, privy.authenticated, userId, hasSui, createWallet]);
+
   const value = useMemo<ElyraAuth>(() => {
     /* Which wallet is the account's, and how it signed in — read by the same
        function the Android app uses (lib/account.ts). */
@@ -162,12 +192,18 @@ function PrivyBridge({ children }: { children: React.ReactNode }) {
       authenticated: privy.authenticated,
       walletAddress: summary?.walletAddress ?? null,
       solanaAddress: summary?.solanaAddress ?? null,
+      suiAddress: summary?.suiAddress ?? null,
+      suiPublicKey: summary?.suiPublicKey ?? null,
+      createSuiWallet: async () => {
+        const { wallet } = await createWallet({ chainType: "sui" });
+        return wallet.address;
+      },
       login: () => privy.login(),
       logout: () => privy.logout(),
       getAccessToken: () => privy.getAccessToken(),
       account: summary?.account ?? null,
     };
-  }, [privy]);
+  }, [privy, createWallet]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -238,7 +274,7 @@ export function PrivyClientProvider({
            one in (lib/evm/tx.ts). Typed-data signing, which the Hyperliquid
            approval uses, is not limited by this list. */
         defaultChain: mainnet,
-        supportedChains: [mainnet, robinhood],
+        supportedChains: [mainnet, base, arbitrum, bsc, robinhood],
       }}
     >
       <PrivyBridge>{children}</PrivyBridge>

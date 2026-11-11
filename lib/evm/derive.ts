@@ -222,10 +222,10 @@ export function evmWalletRows(input: EvmWalletInput): EvmWalletRows {
     const value = input.ethUsd === null ? null : eth * input.ethUsd;
     if (value === null || value >= DUST_USD) {
       push({
-        id: `${input.scopeId}:ETH`,
+        id: `${input.scopeId}:${chain.nativeSymbol}`,
         address: null,
-        symbol: "ETH",
-        name: chain.key === "ethereum" ? "Ether" : `Ether on ${chain.name}`,
+        symbol: chain.nativeSymbol,
+        name: chain.nativeName,
         logo: input.ethLogo,
         quantity: eth,
         decimals: 18,

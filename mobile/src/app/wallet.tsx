@@ -17,7 +17,7 @@ import { color } from "~/theme/tokens";
    The wallet — the website's wallet drawer (components/wallet/
    WalletSheet.tsx), as one scrolling screen: who and where, the total with
    Fund wallet, the assets and any unverified mints, the EVM wallet on
-   Ethereum and Robinhood Chain (EvmSection), and the wallet's details folded
+   the EVM networks (EvmSection), and the wallet's details folded
    behind one row until asked for.
 
    It reads the same wallet store as every other balance, so opening it

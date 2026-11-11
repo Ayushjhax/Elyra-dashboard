@@ -297,6 +297,14 @@ export function refusalFor(symbol: string): string | null {
    file. */
 export { toBaseUnits } from "@/lib/solana/amount";
 
+/** A token outside the allowlist, as the swap route resolved it from the chain. */
+export interface UnlistedMint {
+  mint: string;
+  decimals: number;
+  /** What the person is told, before they sign, about this token. */
+  warnings: string[];
+}
+
 export interface SwapPreview {
   action: PreparedAction;
   /** Rendered separately so the caller can decide where the caveat goes. */
@@ -326,6 +334,13 @@ const fmt = (value: number, digits = 6): string =>
 export async function previewSwap(input: {
   request: SwapRequest;
   solanaAddress: string | null;
+  /**
+   * A side named by a mint that is not on the allowlist, resolved by the
+   * caller from the chain (decimals from the mint account, never the
+   * request) after the person acknowledged it. Only the website's swap
+   * route passes this; the chat command resolves symbols alone.
+   */
+  unlisted?: { from?: UnlistedMint; to?: UnlistedMint };
 }): Promise<SwapPreview | { error: string }> {
   const { fromSymbol, toSymbol, amount } = input.request;
 
@@ -333,8 +348,11 @@ export async function previewSwap(input: {
     return { error: "Those are the same token." };
   }
 
-  const from = MINTS[fromSymbol];
-  const to = MINTS[toSymbol];
+  const from: { mint: string; decimals: number } | undefined = input.unlisted?.from ?? MINTS[fromSymbol];
+  const to: { mint: string; decimals: number } | undefined = input.unlisted?.to ?? MINTS[toSymbol];
+  if (from !== undefined && to !== undefined && from.mint === to.mint) {
+    return { error: "Those are the same token." };
+  }
 
   if (from === undefined || to === undefined) {
     const unknown = from === undefined ? fromSymbol : toSymbol;
@@ -447,7 +465,10 @@ export async function previewSwap(input: {
     });
   }
 
-  const warnings: string[] = [];
+  const warnings: string[] = [
+    ...(input.unlisted?.from?.warnings ?? []),
+    ...(input.unlisted?.to?.warnings ?? []),
+  ];
 
   /* Above roughly one percent the quoted output is materially worse than the
      mid price, and someone reading a rate on a phone will not work that out

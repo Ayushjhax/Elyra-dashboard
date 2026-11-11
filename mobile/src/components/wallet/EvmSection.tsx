@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { ArrowLeftRight, Copy, QrCode, Send } from "lucide-react-native";
-import { EVM_CHAIN_KEYS, EVM_CHAINS, evmAddressUrl, evmScopeId, evmTokenUrl, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
+import { EVM_CHAIN_KEYS, EVM_CHAINS, EVM_NETWORKS_LABEL, evmAddressUrl, evmScopeId, evmTokenUrl, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
 import { formatPrice, truncateMiddle } from "@/lib/format";
 import { hyperliquidIcon } from "@/lib/market/tickerLogoData";
 import type { PortfolioSnapshot, SpotHolding } from "@/lib/portfolio/types";
@@ -19,7 +19,7 @@ import { useEvmSigner } from "~/lib/wallet/evmSigner";
 import { color, radius } from "~/theme/tokens";
 
 /* ---------------------------------------------------------------------------
-   The account's EVM wallet on Ethereum and Robinhood Chain — the website's
+   The account's EVM wallet on every EVM network Elyra reads — the website's
    EvmWallets section, for the wallet screen.
 
    One address, two ledgers: the address once, then each network's balances
@@ -143,7 +143,7 @@ export function EvmSection() {
     <View style={styles.section}>
       <View style={styles.card}>
         <View style={styles.head}>
-          <FlowHeading small>Ethereum and Robinhood Chain</FlowHeading>
+          <FlowHeading small>EVM networks</FlowHeading>
         </View>
         <View style={styles.addressRow}>
           <Text variant="mono-addr" selectable style={styles.flex} accessibilityLabel={`EVM wallet address ${address}`}>
@@ -153,14 +153,14 @@ export function EvmSection() {
             <Copy size={20} strokeWidth={1.5} color={color["text-primary"]} />
           </IconButton>
           <IconButton
-            accessibilityLabel="Receive on Ethereum or Robinhood Chain"
+            accessibilityLabel="Receive on an EVM network"
             onPress={() => router.push({ pathname: "/receive", params: { network: "ethereum" } })}
           >
             <QrCode size={20} strokeWidth={1.5} color={color["text-primary"]} />
           </IconButton>
         </View>
         <Text variant="label" tone="muted" style={styles.note}>
-          The same address on both networks; each keeps its own balance.
+          The same address on {EVM_NETWORKS_LABEL}; each keeps its own balance.
         </Text>
         {signer.address === null && (
           <View style={styles.note}>
@@ -171,7 +171,7 @@ export function EvmSection() {
 
       {snapshot === null ? (
         feed.loading ? (
-          <View style={[styles.card, styles.skeleton]} accessibilityLabel="Reading Ethereum and Robinhood Chain">
+          <View style={[styles.card, styles.skeleton]} accessibilityLabel="Reading the EVM networks">
             <Skeleton width={140} />
             <Skeleton width={200} />
           </View>

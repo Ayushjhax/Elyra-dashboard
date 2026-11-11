@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSignTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { AlertTriangle, ArrowDown, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -10,8 +10,10 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AssetPassportDialog } from "@/components/assets/AssetPassport";
 import { Eyebrow } from "@/components/ui/Eyebrow";
-import { txExplorerUrl } from "@/lib/solana/address";
+import { isSolanaAddress, txExplorerUrl } from "@/lib/solana/address";
+import { truncateMiddle } from "@/lib/format";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { buildSwap, runSwap, type BuiltSwap } from "@/lib/wallet/runSwap";
 import { cn } from "@/lib/utils";
@@ -27,7 +29,18 @@ import { cn } from "@/lib/utils";
    quoted numbers are shown before anything is signed — a swap that executes
    at a price the operator never saw is the failure this avoids, and it is
    worth an extra round trip.
+
+   Either side may be "Other token…" — any mint, typed in. The server reads
+   it from the chain and refuses it until the person ticks that they have
+   checked it; its Asset Passport is one tap away, and the quote carries its
+   live mint controls as warnings.
 --------------------------------------------------------------------------- */
+
+const OTHER = "__other";
+
+const PICKER = "type-data-sm rounded-control border border-border-subtle bg-surface-base px-2 py-1 text-text-primary";
+const MINT_FIELD =
+  "type-mono-addr h-10 w-full rounded-control border border-border-subtle bg-surface-base px-3 text-text-primary outline-none placeholder:text-text-muted focus-visible:border-accent";
 
 interface TokenGroup {
   label: string;
@@ -72,8 +85,13 @@ export function SwapDialog({
   const authedFetch = useAuthedFetch();
 
   const [groups, setGroups] = useState<TokenGroup[]>([]);
-  const [fromSymbol, setFromSymbol] = useState(initialFrom);
-  const [toSymbol, setToSymbol] = useState(initialTo);
+  /* A prefill may be a mint — a sale of an unlisted holding starts there. */
+  const [fromSymbol, setFromSymbol] = useState(isSolanaAddress(initialFrom) ? OTHER : initialFrom);
+  const [toSymbol, setToSymbol] = useState(isSolanaAddress(initialTo) ? OTHER : initialTo);
+  const [fromMint, setFromMint] = useState(isSolanaAddress(initialFrom) ? initialFrom : "");
+  const [toMint, setToMint] = useState(isSolanaAddress(initialTo) ? initialTo : "");
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [passport, setPassport] = useState<string | null>(null);
   const [amount, setAmount] = useState(initialAmount);
 
   const [quote, setQuote] = useState<BuildResponse | null>(null);
@@ -97,17 +115,31 @@ export function SwapDialog({
     };
   }, []);
 
+  const sellsOther = fromSymbol === OTHER;
+  const buysOther = toSymbol === OTHER;
+  const request = useMemo(
+    () => ({
+      fromSymbol: sellsOther ? "" : fromSymbol,
+      toSymbol: buysOther ? "" : toSymbol,
+      amount,
+      ...(sellsOther ? { fromMint: fromMint.trim() } : {}),
+      ...(buysOther ? { toMint: toMint.trim() } : {}),
+      acknowledgeUnverified: (sellsOther || buysOther) && acknowledged,
+    }),
+    [sellsOther, buysOther, fromSymbol, toSymbol, fromMint, toMint, amount, acknowledged],
+  );
+
   const onQuote = useCallback(() => {
     setError(null);
     setSignature(null);
     setQuoting(true);
-    void buildSwap(authedFetch, { fromSymbol, toSymbol, amount })
+    void buildSwap(authedFetch, request)
       .then((payload) => {
         if (payload.error !== undefined) setError(payload.error);
         else setQuote(payload);
       })
       .finally(() => setQuoting(false));
-  }, [authedFetch, fromSymbol, toSymbol, amount]);
+  }, [authedFetch, request]);
 
   const onConfirm = useCallback(() => {
     setError(null);
@@ -125,7 +157,7 @@ export function SwapDialog({
     void runSwap(
       authedFetch,
       async (transaction) => (await signTransaction({ transaction, wallet })).signedTransaction,
-      { fromSymbol, toSymbol, amount },
+      request,
       setQuote,
     )
       .then((result) => {
@@ -137,11 +169,18 @@ export function SwapDialog({
         }
       })
       .finally(() => setWorking(false));
-  }, [authedFetch, fromSymbol, toSymbol, amount, wallets, address, signTransaction, onExecuted]);
+  }, [authedFetch, request, wallets, address, signTransaction, onExecuted]);
 
   const symbols = groups.flatMap((group) => group.symbols);
+  const mintsValid = (!sellsOther || isSolanaAddress(fromMint.trim())) && (!buysOther || isSolanaAddress(toMint.trim()));
+  const sameToken = sellsOther && buysOther ? fromMint.trim() === toMint.trim() : fromSymbol === toSymbol;
   const canQuote =
-    amount.trim().length > 0 && fromSymbol !== toSymbol && address !== null && !working;
+    amount.trim().length > 0 &&
+    !sameToken &&
+    mintsValid &&
+    (!(sellsOther || buysOther) || acknowledged) &&
+    address !== null &&
+    !working;
   const ready = quote?.action?.readiness === "ready";
 
   return (
@@ -179,15 +218,27 @@ export function SwapDialog({
                       setQuote(null);
                     }}
                     aria-label="Token to sell"
-                    className="type-data-sm rounded-control border border-border-subtle bg-surface-base px-2 py-1 text-text-primary"
+                    className={PICKER}
                   >
                     {symbols.map((symbol) => (
                       <option key={symbol} value={symbol}>
                         {symbol}
                       </option>
                     ))}
+                    <option value={OTHER}>Other token…</option>
                   </select>
                 </div>
+                {sellsOther && (
+                  <MintField
+                    value={fromMint}
+                    label="Mint of the token to sell"
+                    onChange={(value) => {
+                      setFromMint(value);
+                      setQuote(null);
+                    }}
+                    onPassport={setPassport}
+                  />
+                )}
 
                 <div className="flex items-center justify-center">
                   <ArrowDown size={14} className="text-text-muted" aria-hidden />
@@ -201,16 +252,44 @@ export function SwapDialog({
                       setQuote(null);
                     }}
                     aria-label="Token to receive"
-                    className="type-data-sm rounded-control border border-border-subtle bg-surface-base px-2 py-1 text-text-primary"
+                    className={PICKER}
                   >
                     {symbols.map((symbol) => (
                       <option key={symbol} value={symbol}>
                         {symbol}
                       </option>
                     ))}
+                    <option value={OTHER}>Other token…</option>
                   </select>
                 </div>
+                {buysOther && (
+                  <MintField
+                    value={toMint}
+                    label="Mint of the token to buy"
+                    onChange={(value) => {
+                      setToMint(value);
+                      setQuote(null);
+                    }}
+                    onPassport={setPassport}
+                  />
+                )}
               </div>
+
+              {(sellsOther || buysOther) && (
+                <label className="type-label flex items-start gap-2 text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={acknowledged}
+                    onChange={(event) => {
+                      setAcknowledged(event.target.checked);
+                      setQuote(null);
+                    }}
+                    className="mt-0.5"
+                  />
+                  I have checked this mint and its Asset Passport. Anyone can create a token under any name; Elyra has not
+                  verified this one and will not value or count it.
+                </label>
+              )}
 
               {quote?.action !== undefined && (
                 <div className="flex flex-col divide-y divide-border-subtle rounded-card border border-border-subtle bg-surface-raised px-3 py-1">
@@ -296,6 +375,49 @@ export function SwapDialog({
             ))}
         </footer>
       </DialogContent>
+      {passport !== null && (
+        <AssetPassportDialog mint={passport} symbol={truncateMiddle(passport, 4, 4)} onClose={() => setPassport(null)} />
+      )}
     </Dialog>
+  );
+}
+
+/** A typed mint, checked as it is typed, with its passport a tap away. */
+function MintField({
+  value,
+  label,
+  onChange,
+  onPassport,
+}: {
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+  onPassport: (mint: string) => void;
+}) {
+  const typed = value.trim();
+  const valid = isSolanaAddress(typed);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Token mint address"
+        aria-label={label}
+        spellCheck={false}
+        autoComplete="off"
+        className={MINT_FIELD}
+      />
+      {typed.length > 0 && !valid ? (
+        <p className="type-label text-negative">That is not a Solana mint address.</p>
+      ) : valid ? (
+        <button
+          type="button"
+          onClick={() => onPassport(typed)}
+          className="type-label self-start text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
+        >
+          Check its Asset Passport
+        </button>
+      ) : null}
+    </div>
   );
 }

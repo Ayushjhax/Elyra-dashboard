@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { EvmSendDialog, EvmSwapDialog, useEvmWallet } from "@/components/wallet/EvmDialogs";
 import { NetworkMark } from "@/components/wallet/NetworkMark";
 import { AssetRow } from "@/components/wallet/WalletBalances";
-import { EVM_CHAIN_KEYS, EVM_CHAINS, evmAddressUrl, evmScopeId, type EvmChainKey } from "@/lib/evm/chains";
+import { EVM_CHAIN_KEYS, EVM_CHAINS, EVM_NETWORKS_LABEL, evmAddressUrl, evmScopeId, type EvmChainKey } from "@/lib/evm/chains";
 import { formatPrice, truncateMiddle } from "@/lib/format";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
 import type { PortfolioSnapshot, SpotHolding } from "@/lib/portfolio/types";
@@ -172,7 +172,7 @@ export function EvmWallets({ cluster }: { cluster: Cluster | null }) {
   return (
     <section aria-labelledby="evm-wallets-heading" className="mx-5 border-t border-border-subtle py-4">
       <h3 id="evm-wallets-heading" className="type-h2 font-sans text-text-secondary">
-        Ethereum and Robinhood Chain
+        EVM networks
       </h3>
 
       <div className="mt-2 flex items-center gap-0.5">
@@ -181,15 +181,15 @@ export function EvmWallets({ cluster }: { cluster: Cluster | null }) {
           <span className="sr-only"> (full address: {address})</span>
         </span>
         <CopyButton value={address} label="EVM wallet address" />
-        <IconButton label="Show QR code to receive on Ethereum or Robinhood Chain" onClick={() => setReceiving(true)}>
+        <IconButton label="Show QR code to receive on an EVM network" onClick={() => setReceiving(true)}>
           <QrCode size={15} strokeWidth={1.5} aria-hidden />
         </IconButton>
       </div>
-      <p className="type-label text-text-muted">The same address on both networks; each keeps its own balance.</p>
+      <p className="type-label text-text-muted">One address on {EVM_NETWORKS_LABEL}; each network keeps its own balance.</p>
 
       {snapshot === null ? (
         feed.loading ? (
-          <div aria-busy="true" aria-label="Reading Ethereum and Robinhood Chain" className="mt-3 flex flex-col gap-3">
+          <div aria-busy="true" aria-label="Reading the EVM networks" className="mt-3 flex flex-col gap-3">
             {EVM_CHAIN_KEYS.map((key) => (
               <div key={key} aria-hidden className="flex items-center gap-3">
                 <span className="skeleton size-5 rounded-pill" />

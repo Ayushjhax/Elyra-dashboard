@@ -10,7 +10,7 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react-native";
-import { EVM_CHAINS } from "@/lib/evm/chains";
+import { explorerName } from "@/lib/portfolio/chain";
 import { formatRelativeTime } from "@/lib/format";
 import { txExplorerUrl } from "@/lib/solana/address";
 import type { TxKind } from "@/lib/wallet/summarise";
@@ -38,11 +38,6 @@ const KIND_ICON: Record<TxKind, LucideIcon> = {
   account: UserRound,
   other: ArrowLeftRight,
 };
-
-/** The explorer a row opens on, named for its network. */
-function explorerName(network: WalletActivity["network"]): string {
-  return network === undefined || network === "solana" ? "Solscan" : EVM_CHAINS[network].explorer.name;
-}
 
 const STATUS_WORD = { confirmed: "Confirmed", pending: "Pending", failed: "Failed" } as const;
 const STATUS_TONE = { confirmed: "positive", pending: "caution", failed: "negative" } as const;

@@ -95,7 +95,13 @@ Actions awaiting review are the stored `prepared_actions` rows, through
 person's wallet — in `SwapDialog`, or one leg at a time in an Intelligent
 Portfolio's `TradeDialog`, both through `lib/wallet/runSwap.ts`, the one
 quote-sign-submit path; nothing else may build its own — and a row becomes
-`confirmed` only with that signature.
+`confirmed` only with that signature. A symbol resolves only through the
+allowlist in `lib/trade.ts`; any other token is named by mint
+(`fromMint`/`toMint` on `/api/swap/build`), its decimals read from the mint
+account (the Asset Passport's `readMint`), refused without
+`acknowledgeUnverified`, labelled by its claimed symbol and its address, and
+quoted with its live mint controls as warnings. The chat command resolves
+symbols only.
 
 Intelligent Portfolios (`/invest`) are published model portfolios, not
 tokens: `lib/invest/catalog.ts` holds the weights, every holding must be on
@@ -126,7 +132,15 @@ trade[XYZ]'s Nasdaq stock perps (`xyz:TICKER`, a HIP-3 builder dex whose
 asset ids are 100000 + dex index × 10000 + index, the index read live).
 Limit orders (`trading_orders`, `lib/autotrade/orders.ts`) rest on
 Hyperliquid's book with TP/SL attached when live, and are filled by the
-tick when paper; a fill becomes a position (`origin: "order"`). Trade notices go through
+tick when paper; a fill becomes a position (`origin: "order"`). A person
+also trades by hand: a market order (`/api/automation/trade`,
+`validateMarketOrder`) goes through the same `openPosition` with its TP/SL,
+its row written as `opening` before it is sent, and any open position closes
+by hand (`DELETE /api/automation/positions/[id]`, `closePosition`,
+`exit_reason: "closed_by_hand"`, closed only while still `open`). Both hand
+paths and limit orders pass `accountGate` (`lib/autotrade/accountGate.ts`) —
+paused, the day's loss limit, the open count, one live position per coin.
+Trade notices go through
 `send` in `lib/notifications/deliver.ts` to the inbox, push and Telegram,
 and are not subject to alert preferences. The limits in `lib/autotrade/rules.ts` (`LIMITS`, `decide`) bound
 every rule and are not settings. Rules start on paper; live orders need
@@ -175,17 +189,22 @@ close for its minute, or is void. `runArena` runs on the tick after the
 trading pass, capped per run (`REVIEW_CAP`, `SETTLE_CAP`, `CARD_CAP`). A
 person is shown by handle or not at all, never by wallet.
 
-Wallets are read on three networks: Solana, and the account's one EVM
-address on Ethereum and Robinhood Chain (`lib/evm/`, chain ids 1 and 4663).
-Anything Solana-specific asks `onSolanaWallet` (`lib/portfolio/chain.ts`),
-never `venue === "wallet"`, which every chain's holdings share; Intelligent
-Portfolios stay Solana-only. Each chain is its own `WalletScope`
-(`evmScopeId`), and a wallet holding names its scope by `scopeId`. Counted
+Wallets are read on seven networks: Solana; the account's one EVM address on
+Ethereum, Base, Arbitrum, BNB Chain and Robinhood Chain (`lib/evm/`,
+`EVM_CHAIN_KEYS`, chain ids 1, 8453, 42161, 56 and 4663 — BNB Chain's gas
+coin is BNB, so a gas coin is `EVM_CHAINS[chain].nativeSymbol`, never "ETH");
+and the account's Sui wallet (`lib/sui/`), a Privy embedded wallet created
+at sign-in. Anything Solana-specific asks `onSolanaWallet`
+(`lib/portfolio/chain.ts`), Sui `onSuiWallet`, never `venue === "wallet"`,
+which every chain's holdings share; a surface that lists networks uses
+`WALLET_NETWORKS` and `networkName`. Intelligent Portfolios stay
+Solana-only. Each chain is its own `WalletScope` (`evmScopeId`,
+`suiScopeId`), and a wallet holding names its scope by `scopeId`. Counted
 tokens are an allowlist, verified by construction: `lib/evm/tokens.ts` (each
 address read back from its contract) and, on Robinhood Chain, Robinhood's
 stock-token registry (`lib/evm/stockTokens.ts`). Anything else an indexer
 finds (`lib/evm/discover.ts`) is shown unverified and never priced or
-counted. A stock token is priced at Pyth's `Equity.US.<T>/USD` times its
+counted; on Sui the list is `lib/sui/tokens.ts`, by full coin type. A stock token is priced at Pyth's `Equity.US.<T>/USD` times its
 on-chain `uiMultiplier`, never through the crypto ticker lookup; only a
 ticker Pyth has no feed for falls back to Robinhood's own token quote. It
 carries `marketSymbol: null` so no crypto venue is asked for its 24h change
@@ -199,12 +218,27 @@ broadcasting; `/api/evm/submit` refuses it unless the seal is fresh, the
 signer is the session's address and destination, value, calldata, chain and
 nonce match what was built. External EVM wallets are read, not signed for.
 Swaps are quoted by LI.FI and held to the request by `checkLifiQuote` —
-output to the session's address — with exact-amount approvals only.
-Robinhood Stock Tokens are not swappable: they are securities Robinhood says
-may not be sold to U.S. persons, and Elyra cannot check eligibility
-(`lib/evm/swap.ts`). EVM history comes from an indexer (`lib/evm/activity.ts`:
-Alchemy when the RPC is one, else Blockscout on Ethereum); a chain that
-cannot be read is named in the activity response's `notes`.
+output to the session's address — with exact-amount approvals only. A listed
+token is named by symbol; any other by contract, read from the chain by
+`readEvmAsset` and refused without `acknowledgeUnverified`.
+Robinhood Stock Tokens are not swappable, by symbol or by contract: they are
+securities Robinhood says may not be sold to U.S. persons, and Elyra cannot
+check eligibility (`lib/evm/swap.ts`). Stocks trade as Solana's xStocks and
+Ondo tokens and as trade[XYZ] perps instead. EVM history comes from an
+indexer (`lib/evm/activity.ts`: Alchemy when the RPC is one, else Blockscout
+on Ethereum); a chain that cannot be read is named in the activity
+response's `notes`.
+
+Sends and swaps on Sui go through `lib/wallet/runSuiTx.ts`, the one Sui
+sign-submit path. The server builds the bytes (`lib/sui/tx.ts`), simulates
+them and seals them; Privy's embedded Sui wallet signs only the 32-byte
+Blake2b hash of the intent message (`signRawHash`); `/api/sui/submit`
+refuses it unless the seal is fresh, the sender is the session's Sui
+address, a public key that derives to that address is found
+(`suiPublicKeyFor`) and the signature verifies, then executes. A swap is
+LI.FI's, held to the request by `checkLifiSuiQuote` and then by its own
+simulated balance changes (`checkSuiSwap`) before anyone signs. Sui is read
+in the app but not yet signed for there.
 
 Price alerts (`/api/alerts`) stay alerts: a price rule tells the person; it
 never trades. Where a crossing goes — Telegram, muted, or nowhere — is said

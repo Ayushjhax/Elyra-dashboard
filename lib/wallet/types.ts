@@ -106,7 +106,7 @@ export interface WalletActivity {
    * Which ledger it is on. Absent means Solana — every row from before the
    * EVM chains were read, and every row the Solana RPC returns.
    */
-  network?: "solana" | EvmChainKey;
+  network?: "solana" | EvmChainKey | "sui";
   /**
    * Its explorer page, when the row is not Solana's. A surface links a row
    * here when set, and to Solscan by signature otherwise.

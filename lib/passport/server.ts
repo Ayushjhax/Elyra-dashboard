@@ -39,7 +39,8 @@ interface ParsedAccount {
   };
 }
 
-async function readMint(mint: string): Promise<MintAccountFacts> {
+/** The mint account itself, read on-chain — the authority for a token's decimals. */
+export async function readMint(mint: string): Promise<MintAccountFacts> {
   let result: ParsedAccount;
   try {
     result = await rpcCall<ParsedAccount>("getAccountInfo", [mint, { encoding: "jsonParsed", commitment: "confirmed" }]);

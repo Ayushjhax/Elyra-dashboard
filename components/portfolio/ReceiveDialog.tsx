@@ -1,31 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, TriangleAlert } from "lucide-react";
+import { ExternalLink, Network as NetworkIcon, TriangleAlert } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { CopyButton } from "@/components/shell/RouteDrawer";
+import { OptionMenu } from "@/components/ui/OptionMenu";
 import { QrCode } from "@/components/ui/QrCode";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NETWORK_NAME, NetworkMark, type Network } from "@/components/wallet/NetworkMark";
-import { EVM_CHAINS, evmAddressUrl, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
+import { EVM_CHAIN_KEYS, EVM_CHAINS, evmAddressUrl, isEvmAddress, type EvmChainKey } from "@/lib/evm/chains";
 import { accountExplorerUrl } from "@/lib/solana/address";
 import { CLUSTER_LABEL, EXPECTED_CLUSTER, type Cluster } from "@/lib/solana/cluster";
+import { isSuiAddress, suiAddressUrl, SUI_EXPLORER } from "@/lib/sui/chain";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
    Where to send funds.
 
-   One network at a time, named outright. The account holds two wallets — a
-   Solana one, and an EVM one whose single address is valid on both Ethereum
-   and Robinhood Chain — so the dialog asks which network first and then says
-   which wallet and which network in words, beside the code, rather than
-   leaving the person to infer it from an address's shape.
+   One network at a time, named outright. The account holds three wallets —
+   Solana; one EVM wallet whose single address is valid on Ethereum, Base,
+   Arbitrum, BNB Chain and Robinhood Chain; and Sui — so the dialog asks
+   which network first and then says which wallet and which network in
+   words, beside the code, rather than leaving the person to infer it from
+   an address's shape.
 
-   The two EVM tabs show the same address on purpose, and say why: the key is
-   the same, the ledgers are not. ETH sent on Ethereum lands on Ethereum and
-   is not visible on Robinhood Chain, which is the mistake the warning
-   under each code exists to prevent.
+   The EVM networks show the same address on purpose, and say why: the key
+   is the same, the ledgers are not. ETH sent on Base lands on Base and is
+   not visible on Ethereum, which is the mistake the warning under each code
+   exists to prevent.
 
    Solana is read on the cluster the node reported — not the one the config
    assumes — and a non-mainnet cluster turns its warning red.
@@ -49,6 +51,7 @@ export function ReceiveDialog({
 }) {
   const auth = useElyraAuth();
   const evmAddress = isEvmAddress(auth.walletAddress) ? auth.walletAddress : null;
+  const suiAddress = isSuiAddress(auth.suiAddress) ? auth.suiAddress : null;
   const [chosen, setChosen] = useState<Network>(initial);
   /* Reopened from a different entry point, the dialog starts where that
      entry point asked rather than where it was last left. */
@@ -57,7 +60,14 @@ export function ReceiveDialog({
     setOpened(open);
     if (open) setChosen(initial);
   }
-  const network: Network = evmAddress === null ? "solana" : chosen;
+
+  /* Every network this account has a wallet on, in the app's order. */
+  const networks: Network[] = [
+    "solana",
+    ...(evmAddress === null ? [] : EVM_CHAIN_KEYS),
+    ...(suiAddress === null ? [] : (["sui"] as const)),
+  ];
+  const network: Network = networks.includes(chosen) ? chosen : "solana";
 
   const accounts = auth.account?.accounts ?? [];
   const evmEmbedded = accounts.some(
@@ -76,44 +86,36 @@ export function ReceiveDialog({
           <DialogDescription className="type-body-sm text-text-secondary">
             {network === "solana"
               ? "Send SOL or Solana tokens to this address."
-              : `Send ETH or tokens on ${NETWORK_NAME[network]} to this address.`}
+              : network === "sui"
+                ? "Send SUI or Sui coins to this address."
+                : `Send ${EVM_CHAINS[network].nativeSymbol} or tokens on ${NETWORK_NAME[network]} to this address.`}
           </DialogDescription>
         </DialogHeader>
 
-        {/* The dialog is capped in height; the body scrolls under the header
-            and the network tabs rather than clipping the explorer link off
-            a short screen. */}
-        {evmAddress === null ? (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            <SolanaReceive address={address} cluster={cluster} embedded={auth.account?.solanaIsEmbedded === true} />
+        {networks.length > 1 && (
+          <div className="shrink-0 border-b border-border-subtle px-4 py-2">
+            <OptionMenu
+              label="Network"
+              icon={NetworkIcon}
+              value={network}
+              onChange={(id) => setChosen(id as Network)}
+              options={networks.map((key) => ({ id: key, label: NETWORK_NAME[key] }))}
+            />
           </div>
-        ) : (
-          <Tabs value={network} onValueChange={(value) => setChosen(value as Network)} className="min-h-0 flex-1">
-            <TabsList aria-label="Network" className="shrink-0 border-b border-border-subtle px-2">
-              {(["solana", "ethereum", "robinhood"] as const).map((key) => (
-                <TabsTrigger key={key} value={key} className="h-11 gap-1.5">
-                  <NetworkMark network={key} size={16} />
-                  {key === "robinhood" ? (
-                    <>
-                      <span className="hidden min-[400px]:inline">{NETWORK_NAME.robinhood}</span>
-                      <span className="min-[400px]:hidden">{EVM_CHAINS.robinhood.shortName}</span>
-                    </>
-                  ) : (
-                    NETWORK_NAME[key]
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <TabsContent value="solana" className="overflow-y-auto overscroll-contain">
-              <SolanaReceive address={address} cluster={cluster} embedded={auth.account?.solanaIsEmbedded === true} />
-            </TabsContent>
-            {(["ethereum", "robinhood"] as const).map((key) => (
-              <TabsContent key={key} value={key} className="overflow-y-auto overscroll-contain">
-                <EvmReceive chain={key} address={evmAddress} embedded={evmEmbedded} />
-              </TabsContent>
-            ))}
-          </Tabs>
         )}
+
+        {/* The dialog is capped in height; the body scrolls under the header
+            and the network menu rather than clipping the explorer link off
+            a short screen. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {network === "solana" ? (
+            <SolanaReceive address={address} cluster={cluster} embedded={auth.account?.solanaIsEmbedded === true} />
+          ) : network === "sui" ? (
+            <SuiReceive address={suiAddress as string} />
+          ) : (
+            <EvmReceive chain={network} address={evmAddress as string} embedded={evmEmbedded} />
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -210,7 +212,6 @@ function SolanaReceive({
 
 function EvmReceive({ chain, address, embedded }: { chain: EvmChainKey; address: string; embedded: boolean }) {
   const here = EVM_CHAINS[chain];
-  const other = EVM_CHAINS[chain === "ethereum" ? "robinhood" : "ethereum"];
   return (
     <div className="flex flex-col items-center gap-4 px-4 pb-4 pt-4">
       <NetworkCard
@@ -220,10 +221,24 @@ function EvmReceive({ chain, address, embedded }: { chain: EvmChainKey; address:
       />
       <AddressBlock address={address} />
       <Warning>
-        Only send on {here.name}. This address is also yours on {other.name}, but each network keeps its own
-        balance — funds sent on one never appear on the other. Never send from Solana.
+        Only send on {here.name}. This address is also yours on the other EVM networks, but each keeps its own
+        balance — funds sent on one never appear on another. Never send from Solana or Sui.
       </Warning>
       <ExplorerLink href={evmAddressUrl(chain, address)} name={here.explorer.name} />
+    </div>
+  );
+}
+
+function SuiReceive({ address }: { address: string }) {
+  return (
+    <div className="flex flex-col items-center gap-4 px-4 pb-4 pt-4">
+      <NetworkCard network="sui" label="Sui" detail="Your Elyra Sui wallet" />
+      <AddressBlock address={address} />
+      <Warning>
+        Only send SUI or Sui coins, on Sui. A Sui address is longer than an EVM one and is not the same wallet —
+        funds sent from Ethereum or Solana can be lost.
+      </Warning>
+      <ExplorerLink href={suiAddressUrl(address)} name={SUI_EXPLORER.name} />
     </div>
   );
 }

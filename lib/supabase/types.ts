@@ -255,6 +255,44 @@ export interface ArenaPuzzleAnswerRow {
   created_at: string;
 }
 
+/** One of Elyra's AI posts on the events feed (0023). */
+export interface EventPostRow {
+  id: string;
+  post_key: string;
+  kind: "hack" | "move" | "onthisday";
+  refers_to: string | null;
+  title: string;
+  body: string;
+  facts: string[];
+  model: string;
+  amount_usd: string | number | null;
+  chains: string[];
+  source_url: string | null;
+  occurred_at: string;
+  created_at: string;
+}
+
+/** A like or a save on an events-feed item (0023), keyed by the item's key. */
+export interface EventMarkRow {
+  item_key: string;
+  user_id: string;
+  mark: "like" | "save";
+  created_at: string;
+}
+
+/** A key an outside AI agent uses to read Elyra (0022). Only its hash is stored. */
+export interface AgentKeyRow {
+  id: string;
+  user_id: string;
+  name: string;
+  prefix: string;
+  key_hash: string;
+  scopes: ("market" | "account")[];
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
 /** A limit order (0020). */
 export interface TradingOrderRow {
   id: string;
@@ -933,6 +971,10 @@ export interface Database {
         { user_id: string; day: string; runs: number },
         "runs"
       >;
+      agent_keys: Table<AgentKeyRow, "id" | "scopes" | "created_at" | "last_used_at" | "revoked_at">;
+      agent_key_usage: Table<{ key_id: string; day: string; calls: number }, "calls">;
+      event_posts: Table<EventPostRow, "id" | "refers_to" | "facts" | "amount_usd" | "chains" | "source_url" | "created_at">;
+      event_marks: Table<EventMarkRow, "created_at">;
     };
     Views: Record<never, never>;
     Functions: {
@@ -940,6 +982,11 @@ export interface Database {
       claim_agent_run: {
         Args: { p_user_id: string; p_limit: number };
         Returns: { allowed: boolean; runs: number }[];
+      };
+      /** One call against an agent key's daily cap (0022). */
+      claim_agent_key_call: {
+        Args: { p_key_id: string; p_limit: number };
+        Returns: { allowed: boolean; calls: number }[];
       };
     };
     Enums: Record<never, never>;

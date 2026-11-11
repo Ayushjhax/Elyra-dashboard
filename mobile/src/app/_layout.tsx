@@ -77,7 +77,7 @@ function RootLayout() {
   );
 }
 
-const MODALS = ["wallet", "swap", "transfer", "receive", "search", "notifications", "alert"] as const;
+const MODALS = ["wallet", "swap", "transfer", "receive", "evm", "search", "notifications", "alert"] as const;
 
 /* Pushed screens: the portfolio's detail views and the account dashboard. */
 const DETAILS = ["capital", "holdings", "risk", "defi", "orders", "fills", "activity", "dashboard", "asset/[symbol]", "notification-settings", "report/[id]", "company/[query]", "prediction/[id]", "connections", "referrals", "automation", "settings", "legal", "licenses", "delete-account"] as const;

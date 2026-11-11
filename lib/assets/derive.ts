@@ -28,7 +28,11 @@ import type { AssetAccount, AssetAccountType } from "@/lib/assets/types";
 /** Holdings below this are noise in a capital view. */
 const DUST_USD = 0.01;
 
-/** The venue string `composePortfolio` tags Solana wallet holdings with. */
+/**
+ * The venue string `composePortfolio` tags wallet holdings with — on Solana,
+ * Ethereum and Robinhood Chain alike. All three are the Spot account; each
+ * holding's `chain` says which network it sits on.
+ */
 const WALLET_VENUE = "wallet";
 
 /* ---------------------------------------------------------------------------
@@ -48,7 +52,7 @@ const NOT_INTEGRATED: Partial<Record<AssetAccountType, string>> = {
 
 /** What an account that could be linked, but is not, says instead of a value. */
 const NOT_LINKED: Partial<Record<AssetAccountType, string>> = {
-  spot: "Link a Solana wallet to read its token balances.",
+  spot: "Link a wallet to read its token balances.",
   hyperliquid: "Connect Hyperliquid to read its equity and positions.",
   prediction: "Link a prediction-market account to read its positions.",
 };
@@ -130,7 +134,7 @@ export function deriveAccounts(snapshot: PortfolioSnapshot): AssetAccount[] {
   const share = (value: number | null): number | null =>
     value === null || total === null || total <= 0 ? null : (value / total) * 100;
 
-  /* ---- Spot: the Solana wallet ---- */
+  /* ---- Spot: the account's wallets, on every chain read ---- */
   const spot = walletHoldings(snapshot);
   const counted = spot.filter(
     (holding) => holding.verified && holding.valueUsd !== null && holding.valueUsd >= DUST_USD,
@@ -154,6 +158,11 @@ export function deriveAccounts(snapshot: PortfolioSnapshot): AssetAccount[] {
         ? null
         : [
             `${counted.length} asset${counted.length === 1 ? "" : "s"}`,
+            /* Named only once there is more than one, so a Solana-only
+               wallet reads exactly as it did. */
+            new Set(counted.map((holding) => holding.chain)).size > 1
+              ? `${new Set(counted.map((holding) => holding.chain)).size} networks`
+              : null,
             spotChange === null
               ? null
               : `${spotChange.pnlPct >= 0 ? "+" : ""}${spotChange.pnlPct.toFixed(2)}% today`,

@@ -58,6 +58,7 @@ The API column says `same` when the app calls the existing route unchanged.
 | Fund wallet | `WalletActions.tsx` (Privy funding) | wallet sheet, `useFundSolanaWallet` from `@privy-io/expo/ui` (0.77 supports it; `PrivyElements` mounted in `AuthProvider`) | — | in progress — built; needs funding enabled in the Privy dashboard to test |
 | Export wallet | `WalletActions.tsx` (Privy export) | — | — | dropped — `@privy-io/expo` 0.77 has no export flow, and the app never renders a key; the wallet sheet says to export from getelyra.xyz. Revisit when Privy's Expo SDK adds one |
 | Transfer / withdraw | `components/assets/TransferDialog.tsx` | `mobile/src/app/transfer.tsx` (`?intent=withdraw`), QR scan in `ScanAddress.tsx`; shared rules in `lib/wallet/flows.ts` | `/api/transfer/*` same; status now says `expired` | in progress — built; on-chain test pending |
+| Ethereum and Robinhood Chain balances (EVM wallet, stock tokens) | `lib/evm/*`, `components/wallet/EvmWallets.tsx`, network tabs in `ReceiveDialog.tsx` | — (holdings already arrive in `/api/portfolio`; `drawer.ts` scopes them per chain) | `/api/portfolio` same | todo |
 | Swap | `components/assets/SwapDialog.tsx` | `mobile/src/app/swap.tsx` | `/api/swap/*` same | in progress — built; on-chain test pending |
 | Action dialogs | `components/assets/ActionDialogs.tsx` | Portfolio action bar (Receive, Swap, Transfer, Withdraw) | — | done |
 | Wallet activity | `components/workspace/ActivityWidget.tsx`, `lib/wallet/useWalletActivity.ts`, `lib/activity/*` | `mobile/src/app/activity.tsx` (Portfolio → Wallet activity), `mobile/src/lib/stores/activity.ts`; fired alerts and venue activity join with their stores | `/api/wallet/activity` same | in progress — verified on a Seeker with real history; moved to its own screen |
@@ -122,6 +123,34 @@ now. Its people still receive every trade notice through push and the inbox.
 | Rules (add, on/off, paper/live, delete) and trades | same | — | `/api/automation/rules`, `/rules/[id]` | todo |
 | Limit orders (long/short at a level, TP/SL, cancel) | `components/automation/AutomationView.tsx` (`LimitOrders`), `lib/autotrade/orders.ts` | — | `POST /api/automation/orders`, `DELETE /orders/[id]` | todo — web only by the owner's choice |
 | Paper trade analysis (win rate, leverage bands, long/short, timing) | same (`Analysis`), `lib/autotrade/analysis.ts` | — | `GET /api/automation` (`analysis`) | todo — web only by the owner's choice |
+
+## AI agents
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Agent keys (create, scope, revoke, how to connect) | `components/connections/AgentKeysCard.tsx` | — | `GET`/`POST /api/agent-keys`, `DELETE /api/agent-keys/[id]`; agents use `/api/mcp`, `/api/v1/tools` | todo — web only |
+
+## World markets and events
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| World markets (sessions, benchmarks, listings, movers, FX, briefing) | `components/markets/WorldMarketsView.tsx`, `lib/markets/` | — | `GET /api/markets`, `/api/markets/[exchange]`, `/api/markets/brief` | todo — web only |
+| Events feed (AI posts, hacks, history; like, save, share) | `components/events/EventsFeed.tsx`, `lib/events/` | — | `GET /api/events`, `POST /api/events/marks` | todo — web only |
+
+## Arena
+
+Points and paper only — see `docs/ARENA.md`. The scoring, the puzzle and the
+review labels are pure and already shared (`lib/arena/review.ts`,
+`calls.ts`, `puzzle.ts`, `types.ts` in `lib/core.ts`), so the app ports
+screens, not rules. Reviews, settlements and their notices already reach the
+app through push and the inbox.
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Daily chart puzzle (answer, reveal, rating, streak, share text, beat the bot) | `components/arena/ArenaView.tsx` (`PuzzleTab`), `components/arena/PuzzleChart.tsx`, `lib/arena/puzzle.ts` | — | `GET /api/arena` (`puzzle`), `POST /api/arena/puzzle` | todo — web only |
+| Calls with receipts (post, calibration, tail and fade with weekly points) | same (`CallsTab`), `lib/arena/calls.ts` | — | `POST /api/arena/calls`, `POST /api/arena/calls/[id]/back` | todo — web only |
+| Trade Review (label distribution, coaching, link from a closed trade) | same (`ReviewsTab`), `lib/arena/review.ts`, `lib/arena/engine.ts` | — | `GET /api/arena` (`reviews`) | todo — web only |
+| Groups and handle (create, join by code, public or private) | same (`GroupsTab`) | — | `POST /api/arena/groups`, `POST /api/arena/profile` | todo — web only |
 
 ## Elyra (AI)
 

@@ -6,6 +6,7 @@ import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { IconButton } from "@/components/shell/RouteDrawer";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FundWallet, WalletActions } from "@/components/wallet/WalletActions";
+import { EvmWallets } from "@/components/wallet/EvmWallets";
 import { WalletAssets, WalletTotal } from "@/components/wallet/WalletBalances";
 import { WalletIdentity } from "@/components/wallet/WalletIdentity";
 import { WalletSync } from "@/components/wallet/WalletSync";
@@ -24,8 +25,10 @@ import { cn } from "@/lib/utils";
    meets the viewport — and on a phone it takes the screen's width.
 
    It reads the same `useWalletDashboard` store as every other balance, so
-   opening it costs no request: the subscription is reference counted and
-   the poll is already running.
+   the Solana half costs no request: the subscription is reference counted
+   and the poll is already running. The Ethereum and Robinhood Chain half
+   reads the portfolio store, which polls only while something — this
+   drawer, or the Portfolio page — is open.
 --------------------------------------------------------------------------- */
 
 export function WalletSheet() {
@@ -68,7 +71,8 @@ export function WalletSheet() {
           {/* Radix requires a description or an explicit opt-out; this is the
               accessible summary of what the drawer holds. */}
           <DialogDescription className="sr-only">
-            Address, balance, assets and actions for your Solana wallet.
+            Addresses, balances, assets and actions for your Solana wallet and your EVM wallet on Ethereum and
+            Robinhood Chain.
           </DialogDescription>
           {signedIn && (
             <IconButton
@@ -117,6 +121,7 @@ export function WalletSheet() {
                   <WalletAssets wallet={wallet} />
                 </>
               )}
+              <EvmWallets cluster={wallet.cluster} />
               <WalletActions wallet={wallet} onSignedOut={() => setOpen(false)} />
               {wallet.address !== null && <WalletSync wallet={wallet} />}
             </>

@@ -70,20 +70,28 @@ async function decodeFeeds(
   response: RawLatestPriceResponse,
 ): Promise<PythPrice[]> {
   const { byId } = await catalogue();
+  return decodeWith(response, (id) => byId.get(id)?.symbol);
+}
+
+/** Decode raw feeds, labelling each through `label`; a feed it cannot label is dropped. */
+function decodeWith(
+  response: RawLatestPriceResponse,
+  label: (id: number) => string | undefined,
+): PythPrice[] {
   const out: PythPrice[] = [];
 
   for (const feed of response.priceFeeds) {
-    const asset = byId.get(feed.priceFeedId);
+    const symbol = label(feed.priceFeedId);
     /* A feed with no catalogue entry cannot be labelled, so it is dropped
        rather than surfaced as an unnamed row. */
-    if (!asset) continue;
+    if (symbol === undefined) continue;
 
     const expo = feed.exponent;
     const publishedAtUs = feed.feedUpdateTimestamp ?? Number(response.timestampUs);
 
     out.push({
       id: feed.priceFeedId,
-      symbol: asset.symbol,
+      symbol,
       price: decodePrice(feed.price, expo),
       confidence:
         feed.confidence === undefined || feed.confidence === null
@@ -182,4 +190,35 @@ export async function pricesForSymbols(symbols: string[]): Promise<PythPrice[]> 
 export async function priceForSymbol(symbol: string): Promise<PythPrice | null> {
   const prices = await pricesForSymbols([symbol]);
   return prices[0] ?? null;
+}
+
+/**
+ * Prices for feeds outside the USD catalogue — the world equities and FX
+ * crosses the markets page shows in their own currency (lib/markets). The
+ * caller labels each feed, since the catalogue does not hold them. Batched
+ * and cached like `pricesForIds`, under its own keys.
+ */
+export async function pricesForLabelledIds(labels: ReadonlyMap<number, string>): Promise<PythPrice[]> {
+  const ids = [...labels.keys()].filter((id) => Number.isInteger(id) && id > 0).sort((a, b) => a - b);
+  const batches: number[][] = [];
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) batches.push(ids.slice(i, i + BATCH_SIZE));
+
+  const settled = await Promise.allSettled(
+    batches.map(async (batch) => {
+      const result = await cached(`pyth:price:labelled:${batch.join(",")}`, TTL.price, async () => {
+        const response = await fetchBatch(batch);
+        return decodeWith(response, (id) => labels.get(id));
+      });
+      return result.value;
+    }),
+  );
+
+  const prices: PythPrice[] = [];
+  let firstError: unknown = null;
+  for (const outcome of settled) {
+    if (outcome.status === "fulfilled") prices.push(...outcome.value);
+    else firstError ??= outcome.reason;
+  }
+  if (prices.length === 0 && firstError) throw firstError;
+  return prices;
 }

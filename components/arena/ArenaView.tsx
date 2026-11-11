@@ -372,13 +372,15 @@ function CallsTab({ data, feed, now }: { data: ArenaResponse; feed: ArenaFeed; n
           {calibration.buckets.map((bucket) => (
             <li key={bucket.label} className="grid grid-cols-[1fr_auto_auto] items-baseline gap-3 px-2.5 py-1.5">
               <span className="type-data-sm text-text-primary">Said {bucket.label}</span>
-              <span className="type-label text-text-muted">{bucket.calls} calls</span>
+              <span className="type-label text-text-muted">
+                {bucket.calls} {bucket.calls === 1 ? "call" : "calls"}
+              </span>
               <span className="type-data-sm text-text-secondary">{bucket.hitPct === null ? "—" : `hit ${bucket.hitPct.toFixed(0)}%`}</span>
             </li>
           ))}
         </ul>
         <p className="type-label text-text-muted">
-          Points this week: {points.spent} of {points.budget} used · settled so far {points.seasonNet >= 0 ? "+" : ""}
+          Points this week: {points.spent} of {points.budget} used · net from settled backings {points.seasonNet >= 0 ? "+" : ""}
           {points.seasonNet}. Points are a scoreboard; they cannot be bought or cashed out.
         </p>
       </Card>
@@ -436,7 +438,7 @@ function ReviewRow({ review, highlighted }: { review: ReviewView; highlighted: b
       <span className="type-label text-text-muted">
         In {formatPriceUsd(facts.entryPrice)} · out {formatPriceUsd(facts.exitPrice)} · {formatUsd(facts.pnlUsd, { sign: true })}
         {facts.rMultiple !== null && <> ({facts.rMultiple.toFixed(1)}R)</>}
-        {facts.capture !== null && <> · kept {Math.round(facts.capture * 100)}% of the best move</>}
+        {facts.capture !== null && facts.pnlUsd > 0 && <> · kept {Math.round(facts.capture * 100)}% of the best move</>}
       </span>
     </li>
   );
@@ -504,7 +506,7 @@ function GroupsTab({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
           <input id="arena-handle" className={field} value={handle} onChange={(event) => setHandle(event.target.value)} placeholder="3–20 letters, numbers or _" />
         </div>
         <label className="type-body-sm flex items-center gap-2 text-text-secondary">
-          <input type="checkbox" checked={isPublic} onChange={(event) => setPublic(event.target.checked)} />
+          <input type="checkbox" className="size-4 shrink-0 accent-[var(--accent)]" checked={isPublic} onChange={(event) => setPublic(event.target.checked)} />
           Public — show my public calls to everyone under this handle
         </label>
         <p className="type-label text-text-muted">Others only ever see your handle, never your wallet. Calls stay private unless you share each one.</p>

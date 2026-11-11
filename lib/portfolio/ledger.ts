@@ -1,4 +1,5 @@
 import { underlyingSymbol } from "@/lib/personalized/calculations";
+import { onSolanaWallet } from "@/lib/portfolio/chain";
 import type { PortfolioSnapshot, Venue } from "@/lib/portfolio/types";
 import type { MarketType } from "@/lib/types";
 import type { WalletActivity } from "@/lib/wallet/types";
@@ -107,11 +108,14 @@ export function ledgerPositions(snapshot: PortfolioSnapshot): LedgerPosition[] {
     if (holding.valueUsd !== null && holding.valueUsd < 0.01) continue;
     const symbol = holding.symbol.toUpperCase();
     const inWallet = holding.venue === "wallet";
+    /* The Solana wallet's tokens read as bare symbols, as they always have;
+       one on another chain says which, since the same ETH can sit on two. */
+    const where = inWallet ? (onSolanaWallet(holding) ? null : holding.chain) : venueName(holding.venue);
     rows.push({
       id: `spot:${holding.id}`,
       market: "spot",
       symbol,
-      label: inWallet ? symbol : `${symbol} · ${venueName(holding.venue)}`,
+      label: where === null ? symbol : `${symbol} · ${where}`,
       venue: holding.venue,
       side: null,
       category: null,
@@ -271,7 +275,7 @@ export function ledgerHistory(
       venue: "wallet",
       status: item.status,
       at: item.at,
-      href: explorer(item.signature),
+      href: item.href ?? explorer(item.signature),
     });
   }
 

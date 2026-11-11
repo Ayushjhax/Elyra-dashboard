@@ -459,12 +459,12 @@ function ActivityRow({ item, now, cluster }: { item: WalletActivity; now: number
           </time>
         </Tip>
       )}
-      <Tip label="Open in Solscan">
+      <Tip label={item.href ? "Open in the explorer" : "Open in Solscan"}>
         <a
-          href={txExplorerUrl(item.signature, cluster)}
+          href={item.href ?? txExplorerUrl(item.signature, cluster)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Open transaction ${truncateMiddle(item.signature, 6, 6)} in Solscan`}
+          aria-label={`Open transaction ${truncateMiddle(item.signature, 6, 6)} in ${item.href ? "the explorer" : "Solscan"}`}
           className={cn(
             "-mr-1.5 grid size-8 shrink-0 place-items-center rounded-control text-text-muted",
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary",

@@ -12,6 +12,7 @@
    the exact moment its user most needs it not to.
 --------------------------------------------------------------------------- */
 
+import type { EvmChainKey } from "@/lib/evm/chains";
 import type { Cluster } from "@/lib/solana/cluster";
 import type { TxSummary } from "@/lib/wallet/summarise";
 
@@ -91,20 +92,38 @@ export interface WalletResponse {
 export type ActivityStatus = "pending" | "confirmed" | "failed";
 
 export interface WalletActivity {
+  /** The Solana signature, or an EVM transaction hash. */
   signature: string;
   status: ActivityStatus;
+  /** The slot, or an EVM block number. */
   slot: number;
   /** ISO. Null while the block is too new to carry a time. */
   at: string | null;
   memo: string | null;
   /** What it did, where the RPC can say (lib/wallet/helius.ts). */
   summary?: TxSummary | null;
+  /**
+   * Which ledger it is on. Absent means Solana — every row from before the
+   * EVM chains were read, and every row the Solana RPC returns.
+   */
+  network?: "solana" | EvmChainKey;
+  /**
+   * Its explorer page, when the row is not Solana's. A surface links a row
+   * here when set, and to Solscan by signature otherwise.
+   */
+  href?: string | null;
 }
 
 export interface ActivityResponse {
   items: WalletActivity[];
+  /** Set only when nothing at all could be read. */
   error: string | null;
   unconfigured: boolean;
+  /**
+   * Sources that could not be read while others could — "Ethereum history
+   * could not be read" — so a merged list does not pass for the whole.
+   */
+  notes?: string[];
 }
 
 /**

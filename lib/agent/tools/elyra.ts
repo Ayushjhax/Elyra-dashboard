@@ -87,7 +87,8 @@ export const portfolioOverview: RegisteredTool = {
   def: {
     name: "portfolio_overview",
     description:
-      "The caller's total capital across every connected venue: wallet, " +
+      "The caller's total capital across every connected venue: wallets " +
+      "(Solana, plus the EVM wallet on Ethereum and Robinhood Chain), " +
       "exchanges, perpetuals and DeFi protocols. Returns equity, available " +
       "capital, unrealised PnL and a per-venue breakdown. Perpetual accounts " +
       "are counted at MARGIN, not notional — a 5x position on $1,000 adds " +
@@ -132,9 +133,14 @@ export const portfolioHoldings: RegisteredTool = {
     name: "portfolio_holdings",
     description:
       "Every spot token the caller holds, with quantity, USD value, 24h " +
-      "change and share of the portfolio. Unverified tokens are listed with " +
-      "counted:false — they are excluded from every total because anyone can " +
-      "airdrop a token named USDC into a wallet.",
+      "change, share of the portfolio and the network it is on (Solana, " +
+      "Ethereum, Robinhood Chain, or an exchange). The same symbol on two " +
+      "networks is two holdings. A Robinhood Stock Token carries stockToken " +
+      "{ticker, sharesPerToken}: an ERC-20 on Robinhood Chain giving economic " +
+      "exposure to a US share or ETF, valued at the share price times " +
+      "sharesPerToken. Unverified tokens are listed with counted:false — they " +
+      "are excluded from every total because anyone can airdrop a token named " +
+      "USDC into a wallet.",
     parameters: {
       type: "object",
       properties: {
@@ -157,6 +163,10 @@ export const portfolioHoldings: RegisteredTool = {
       .map((holding) => ({
         symbol: holding.symbol,
         venue: holding.venue,
+        network: holding.venue === "wallet" ? holding.chain : null,
+        ...(holding.stockToken !== undefined
+          ? { stockToken: { ticker: holding.stockToken.ticker, sharesPerToken: holding.stockToken.multiplier } }
+          : {}),
         quantity: holding.quantity,
         valueUsd: money(holding.valueUsd),
         change24hPct: holding.change24hPct,

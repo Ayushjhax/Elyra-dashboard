@@ -110,7 +110,7 @@ export async function runArena(now: number = Date.now()): Promise<ArenaReport> {
             user_id: row.user_id,
             position_id: row.id,
             label,
-            facts,
+            facts: { ...facts },
             coaching: coaching.text,
             coaching_model: coaching.model,
           });

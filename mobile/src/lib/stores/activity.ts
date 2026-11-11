@@ -14,23 +14,32 @@ import { createAccountStore, type AccountFeed } from "~/lib/stores/createAccount
 
 const FETCH_LIMIT = 25;
 
-const activityStore = createAccountStore<WalletActivity[]>({
+interface ActivityRead {
+  items: WalletActivity[];
+  /** Networks whose history could not be read while others could. */
+  notes: string[];
+}
+
+const activityStore = createAccountStore<ActivityRead>({
   pollMs: 60_000,
   retryMs: 120_000,
   async load(signal) {
     const body = await api.get<ActivityResponse>(`/api/wallet/activity?limit=${FETCH_LIMIT}`, { signal });
     if (body.error !== null) throw new ApiError(body.error, 200, body.unconfigured, body);
-    return body.items;
+    return { items: body.items, notes: body.notes ?? [] };
   },
 });
-
-export interface ActivityFeed extends Omit<AccountFeed<WalletActivity[]>, "data"> {
+export interface ActivityFeed extends Omit<AccountFeed<ActivityRead>, "data"> {
   items: WalletActivity[];
+  /** Networks whose history could not be read — said beside the list, never dropped. */
+  notes: string[];
 }
-
 export function useWalletActivity(limit = 20): ActivityFeed {
   const feed = activityStore.useFeed();
-  return useMemo(() => ({ ...feed, items: (feed.data ?? []).slice(0, limit) }), [feed, limit]);
+  return useMemo(
+    () => ({ ...feed, items: (feed.data?.items ?? []).slice(0, limit), notes: feed.data?.notes ?? [] }),
+    [feed, limit],
+  );
 }
 
 export const refetchActivity = activityStore.refetch;

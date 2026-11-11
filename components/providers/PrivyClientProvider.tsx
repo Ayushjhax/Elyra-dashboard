@@ -7,6 +7,7 @@ import {
   useSolanaFundingPlugin,
 } from "@privy-io/react-auth/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
+import { mainnet, robinhood } from "viem/chains";
 import { PRIVY_MODAL_ACCENT, PRIVY_MODAL_THEME } from "@/lib/brand";
 import { PRIVY_APP_ID_LENGTH, publicEnv } from "@/lib/env";
 import { summariseUser, type ElyraAccount, type LinkedAccountSummary } from "@/lib/account";
@@ -218,8 +219,9 @@ export function PrivyClientProvider({
            simply has no Hyperliquid to read, which the portfolio layer
            reports rather than guesses at.
 
-           Read-only either way — this pass signs nothing and sends no
-           transaction. */
+           The EVM wallet is also the one Ethereum and Robinhood Chain
+           balances are read at, and the one sends and swaps on those chains
+           are signed with (components/wallet/EvmDialogs.tsx). */
         embeddedWallets: {
           ethereum: { createOnLogin: "users-without-wallets" },
           solana: { createOnLogin: "users-without-wallets" },
@@ -228,6 +230,15 @@ export function PrivyClientProvider({
         /* Without this, every Solana wallet-standard hook — signing a
            transfer or a swap included — throws the moment it is called. */
         solana: { rpcs: solanaRpcs },
+
+        /* The EVM networks the embedded wallet may sign for. Privy refuses
+           to sign a transaction whose chain is not listed here, and Robinhood
+           Chain is not among its defaults. The server fixes every field of
+           what is signed (nonce, gas, fees), so Privy is never asked to fill
+           one in (lib/evm/tx.ts). Typed-data signing, which the Hyperliquid
+           approval uses, is not limited by this list. */
+        defaultChain: mainnet,
+        supportedChains: [mainnet, robinhood],
       }}
     >
       <PrivyBridge>{children}</PrivyBridge>

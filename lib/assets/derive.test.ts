@@ -208,7 +208,7 @@ describe("connection", () => {
 
     const unlinked = deriveAccounts(snapshot({}));
     expect(unlinked[0]).toMatchObject({ connection: "disconnected", status: "empty", valueUsd: null });
-    expect(unlinked[0].detail).toMatch(/Link a Solana wallet/);
+    expect(unlinked[0].detail).toMatch(/Link a wallet/);
     expect(unlinked[1]).toMatchObject({ id: "solana-perps", connection: "unsupported" });
   });
 

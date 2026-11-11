@@ -135,6 +135,77 @@ The pass runs on the five-minute tick, before delivery, and writes each
 position row before its order is sent (`unique (rule_id, signal_at)`), so a
 bar never trades twice.
 
+World markets (`/markets`, `lib/markets/`) prices every exchange from Pyth
+in its own currency, through its own symbol read (`worldCatalogue`), since
+the main catalogue keeps dollar feeds only. Session hours and holidays come
+from the schedule Pyth publishes for one feed per exchange
+(`lib/markets/schedule.ts`), never a table kept here. A market whose local
+feeds are not live is shown through funds and New York listings, labelled
+as such; it fills in by itself when Pyth turns its region on. The change is
+against the previous close (`changeFor`, `range=1d`) and is a dash where
+Yahoo has none.
+
+Events (`/events`, `lib/events/`) is a feed only Elyra's AI posts to; people
+like, save and share. Hacks are DefiLlama's record (`api.llama.fi/hacks`),
+read live, never copied; other history is the reviewed list in
+`lib/events/history.ts`, each with a source. `runEvents` posts on the tick
+only when there is something — a new hack, an 8% move in BTC/ETH/SOL, an
+anniversary — each written from facts through `writeFromFacts`, once
+(`post_key` is unique).
+
+Outside AI agents reach Elyra through agent keys (`lib/agentApi/`,
+`docs/AGENT_API.md`): MCP at `/api/mcp` (Streamable HTTP, stateless, tools
+only) and a REST mirror at `/api/v1/tools`. Exposure is an allowlist in
+`lib/agentApi/tools.ts`, never the whole registry, and nothing on it writes.
+Market tools run with no account; account tools only for a key created with
+that scope, reading the owner's addresses from their profile. A key is
+stored as a SHA-256 only, shown once, revocable, and held to a per-minute
+and a daily cap (`claim_agent_key_call`). These routes accept an agent key
+and nothing else — never a session.
+
+Arena (`/arena`, `lib/arena/`, `docs/ARENA.md`) is points and paper only:
+nothing in it moves money, and points cannot be bought or cashed out
+(real-money ideas are design only, in `docs/ARENA_REAL_MONEY.md`). Labels,
+settlements and ratings are computed by code; the model only writes around
+those facts through `writeFromFacts`, which discards any reply carrying a
+number the facts do not. Scores reward calibration (Brier), never volume,
+size or leverage. A call is append-only and its receipt is SHA-256 over the
+statement and the server's time; it settles on Hyperliquid's one-minute
+close for its minute, or is void. `runArena` runs on the tick after the
+trading pass, capped per run (`REVIEW_CAP`, `SETTLE_CAP`, `CARD_CAP`). A
+person is shown by handle or not at all, never by wallet.
+
+Wallets are read on three networks: Solana, and the account's one EVM
+address on Ethereum and Robinhood Chain (`lib/evm/`, chain ids 1 and 4663).
+Anything Solana-specific asks `onSolanaWallet` (`lib/portfolio/chain.ts`),
+never `venue === "wallet"`, which every chain's holdings share; Intelligent
+Portfolios stay Solana-only. Each chain is its own `WalletScope`
+(`evmScopeId`), and a wallet holding names its scope by `scopeId`. Counted
+tokens are an allowlist, verified by construction: `lib/evm/tokens.ts` (each
+address read back from its contract) and, on Robinhood Chain, Robinhood's
+stock-token registry (`lib/evm/stockTokens.ts`). Anything else an indexer
+finds (`lib/evm/discover.ts`) is shown unverified and never priced or
+counted. A stock token is priced at Pyth's `Equity.US.<T>/USD` times its
+on-chain `uiMultiplier`, never through the crypto ticker lookup; only a
+ticker Pyth has no feed for falls back to Robinhood's own token quote. It
+carries `marketSymbol: null` so no crypto venue is asked for its 24h change
+or candles. The node's chain id is checked on every read.
+
+Sends, approvals and swaps on those chains go through
+`lib/wallet/runEvmTx.ts`, the one EVM sign-submit path; nothing else may
+build its own. The server builds every transaction with every field fixed
+and seals it (`lib/evm/tx.ts`); Privy's embedded EVM wallet signs it without
+broadcasting; `/api/evm/submit` refuses it unless the seal is fresh, the
+signer is the session's address and destination, value, calldata, chain and
+nonce match what was built. External EVM wallets are read, not signed for.
+Swaps are quoted by LI.FI and held to the request by `checkLifiQuote` —
+output to the session's address — with exact-amount approvals only.
+Robinhood Stock Tokens are not swappable: they are securities Robinhood says
+may not be sold to U.S. persons, and Elyra cannot check eligibility
+(`lib/evm/swap.ts`). EVM history comes from an indexer (`lib/evm/activity.ts`:
+Alchemy when the RPC is one, else Blockscout on Ethereum); a chain that
+cannot be read is named in the activity response's `notes`.
+
 Price alerts (`/api/alerts`) stay alerts: a price rule tells the person; it
 never trades. Where a crossing goes — Telegram, muted, or nowhere — is said
 where the rule is set.

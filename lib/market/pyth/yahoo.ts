@@ -103,7 +103,11 @@ export async function changeFor(symbol: string): Promise<number | null> {
   try {
     body = await fetchJson<ChartResponse>({
       source: "yahoo",
-      url: `${BASE}/${encodeURIComponent(symbol)}?range=5d&interval=1d`,
+      /* range=1d, never more: `chartPreviousClose` is the close before the
+         chart's range, so a 5-day range made this a five-day change. With one
+         day it is the previous session's close — verified against Yahoo's own
+         daily closes for ^GSPC, AAPL, 2330.TW and NIFTYBEES.NS. */
+      url: `${BASE}/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
       /* Yahoo answers a bare programmatic client with a consent redirect. */
       headers: { "user-agent": "Mozilla/5.0 (compatible; Elyra/1.0)" },
       timeoutMs: 6_000,

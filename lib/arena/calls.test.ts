@@ -138,7 +138,7 @@ describe("backing", () => {
 
   it.each([
     [{ stance: "tail", points: 10 }, { ownCall: true }, "You cannot back your own call."],
-    [{ stance: "tail", points: 10 }, { status: "hit" }, "That call has settled."],
+    [{ stance: "tail", points: 10 }, { status: "hit" as CallStatus }, "That call has settled."],
     [{ stance: "tail", points: 10 }, { resolvesAt: new Date(NOW + 59 * 60_000).toISOString() }, "Backing closes an hour before a call resolves."],
     [{ stance: "double", points: 10 }, {}, "Choose tail or fade."],
     [{ stance: "tail", points: 0 }, {}, "Back with a whole number of points."],

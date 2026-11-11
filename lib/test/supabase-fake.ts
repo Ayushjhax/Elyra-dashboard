@@ -227,10 +227,18 @@ class Query implements PromiseLike<Result<Row[]>> {
 
         if (index === -1) {
           const row = { id: uuid(), created_at: new Date().toISOString(), ...value };
+          /* A new row still meets every other unique key, as in Postgres. */
+          if (rows.some((existing) => collides(existing, row))) {
+            return { data: [], error: { message: "duplicate key value violates unique constraint", code: "23505" } };
+          }
           rows.push(row);
           written.push(row);
         } else if (!this.ignoreDuplicates) {
-          rows[index] = { ...rows[index], ...value };
+          const merged = { ...rows[index], ...value };
+          if (rows.some((existing, other) => other !== index && collides(existing, merged))) {
+            return { data: [], error: { message: "duplicate key value violates unique constraint", code: "23505" } };
+          }
+          rows[index] = merged;
           written.push(rows[index]);
         }
         /* ignoreDuplicates and a conflict: nothing written, nothing
@@ -288,6 +296,9 @@ function collides(a: Row, b: Row): boolean {
     return true;
   }
 
+  /* agent_keys (0022): a key's hash is unique. */
+  if (a.key_hash !== undefined && a.key_hash === b.key_hash) return true;
+
   /* Arena (0021). Rows are compared only within one table, so each key
      names the columns that make it unique there. */
   /* trade_reviews: one review per position. */
@@ -329,6 +340,23 @@ export class FakeSupabase {
   }
 
   async rpc(name: string, args: Record<string, unknown>) {
+    if (name === "claim_agent_key_call") {
+      /* 0022: one call against an agent key's daily cap. */
+      const keyId = String(args.p_key_id);
+      const limit = Number(args.p_limit);
+      const day = new Date().toISOString().slice(0, 10);
+      const usage = this.tables.get("agent_key_usage") ?? [];
+      this.tables.set("agent_key_usage", usage);
+      const row = usage.find((entry) => entry.key_id === keyId && entry.day === day);
+      if (row === undefined) {
+        usage.push({ key_id: keyId, day, calls: 1 });
+        return { data: [{ allowed: true, calls: 1 }], error: null };
+      }
+      const calls = Number(row.calls);
+      if (calls >= limit) return { data: [{ allowed: false, calls }], error: null };
+      row.calls = calls + 1;
+      return { data: [{ allowed: true, calls: calls + 1 }], error: null };
+    }
     if (name !== "claim_agent_run") {
       return { data: null, error: { message: `unknown rpc ${name}` } };
     }

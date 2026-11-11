@@ -2,6 +2,7 @@
 
 import { CATEGORY_LABEL, RISK_LABEL } from "@/lib/invest/catalog";
 import type { PricedPortfolio, RiskLevel } from "@/lib/invest/types";
+import { onSolanaWallet } from "@/lib/portfolio/chain";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 import { cn } from "@/lib/utils";
 
@@ -35,18 +36,22 @@ export function walletUnits(
   }
   const units: Record<string, number> = {};
   for (const holding of snapshot.spot) {
-    if (holding.venue !== "wallet" || !holding.verified || holding.address === null) continue;
+    if (!onSolanaWallet(holding) || !holding.verified || holding.address === null) continue;
     const symbol = symbolByMint.get(holding.address);
     if (symbol !== undefined) units[symbol] = (units[symbol] ?? 0) + holding.quantity;
   }
   return units;
 }
 
-/** The wallet's verified USDC, which is what a purchase spends. */
+/**
+ * The Solana wallet's verified USDC, which is what a purchase spends. USDC on
+ * Ethereum or Robinhood Chain is real money but cannot pay for a Solana swap,
+ * so it is not counted as spendable here.
+ */
 export function walletUsdc(snapshot: PortfolioSnapshot | null): number | null {
   if (snapshot === null) return null;
   return snapshot.spot
-    .filter((holding) => holding.venue === "wallet" && holding.verified && holding.symbol === "USDC")
+    .filter((holding) => onSolanaWallet(holding) && holding.verified && holding.symbol === "USDC")
     .reduce((sum, holding) => sum + holding.quantity, 0);
 }
 

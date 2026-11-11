@@ -41,13 +41,15 @@ export async function writeFromFacts(
   task: string,
   facts: readonly string[],
   fallback: string,
+  /** Another surface's voice (the markets brief); the number guard is the same. */
+  options: { system?: string; maxTokens?: number } = {},
 ): Promise<{ text: string; model: string }> {
   try {
     const result = await route({
-      system: { stable: SYSTEM, volatile: "" },
+      system: { stable: options.system ?? SYSTEM, volatile: "" },
       messages: [{ role: "user", content: `${task}\n\nFacts:\n${facts.map((line) => `- ${line}`).join("\n")}` }],
       tools: [],
-      maxTokens: 220,
+      maxTokens: options.maxTokens ?? 220,
       timeoutMs: 15_000,
     });
     const text = result.text?.trim() ?? "";

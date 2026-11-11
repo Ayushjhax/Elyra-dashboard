@@ -32,7 +32,7 @@ import type {
 const DUST_USD = 0.5;
 
 /** Counted as deployable at face value. */
-const STABLES = new Set(["USDC", "USDT", "PYUSD", "USDE", "DAI", "FDUSD", "USDS"]);
+const STABLES = new Set(["USDC", "USDT", "PYUSD", "USDE", "DAI", "FDUSD", "USDS", "USDG"]);
 
 /** A perp market's underlying symbol: "SOL-PERP" and "SOL/USD" are both SOL. */
 export function underlyingSymbol(market: string): string {

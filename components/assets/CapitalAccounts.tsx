@@ -46,6 +46,7 @@ import {
 import type { AssetAccount, AssetAccountType } from "@/lib/assets/types";
 import { formatAge, formatPct } from "@/lib/format";
 import { hyperliquidIcon, useTickerLogos } from "@/lib/market/tickerLogos";
+import { isSolanaScope } from "@/lib/portfolio/chain";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 import { usePortfolio, type PortfolioFeed } from "@/lib/portfolio/usePortfolio";
 import { useElyraStore } from "@/lib/store";
@@ -351,7 +352,7 @@ function AllocationCard({
 --------------------------------------------------------------------------- */
 
 const VENUE_COPY: Record<AssetAccountType, string> = {
-  spot: "Wallet token balances",
+  spot: "Wallet balances on Solana, Ethereum and Robinhood Chain",
   "solana-perps": "Perpetual positions on Solana",
   hyperliquid: "Perpetuals and balances on Hyperliquid",
   prediction: "Prediction market balances",
@@ -1119,7 +1120,10 @@ export function CapitalAccountsView({
   const scoped = accounts.find((entry) => entry.id === activeScope) ?? null;
   const view = useMemo(() => (snapshot === null ? null : scopeSnapshot(snapshot, activeScope)), [snapshot, activeScope]);
   const allocation = useMemo(() => (snapshot === null ? null : capitalAllocation(snapshot, activeScope)), [snapshot, activeScope]);
-  const address = wallet.address ?? snapshot?.scopes.find((entry) => entry.venue === "wallet")?.address ?? null;
+  /* The Solana scope's address only: the EVM wallet's scopes share the
+     "wallet" venue, and an 0x address handed to the Solana receive tab would
+     be a destination funds sent on Solana could never reach. */
+  const address = wallet.address ?? snapshot?.scopes.find(isSolanaScope)?.address ?? null;
 
   const unfunded =
     snapshot !== null &&

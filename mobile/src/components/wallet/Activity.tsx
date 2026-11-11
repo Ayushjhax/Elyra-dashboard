@@ -16,6 +16,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react-native";
+import { EVM_CHAINS } from "@/lib/evm/chains";
 import { accountEvents, type AccountEvent } from "@/lib/activity/events";
 import {
   directionOf,
@@ -136,6 +137,8 @@ export function ActivityFilterBar({
           choices={[
             { value: "all", label: "All networks" },
             { value: "solana", label: "Solana" },
+            { value: "ethereum", label: "Ethereum" },
+            { value: "robinhood", label: "Robinhood Chain" },
           ]}
         />
       </View>
@@ -266,9 +269,12 @@ function Details({ event }: { event: AccountEvent }) {
     if (summary.via) rows.push(["Via", summary.via, "secondary"]);
     if (summary.feeSol !== null) rows.push(["Network fee", `${formatTokenAmount(summary.feeSol)} SOL`, "secondary"]);
   }
+  if (event.kind === "transaction" && event.network !== undefined && event.network !== "solana") {
+    rows.push(["Network", EVM_CHAINS[event.network].name, "secondary"]);
+  }
   rows.push(["Status", statusOf(event).label, "secondary"]);
   rows.push(["Time", event.at === null ? "Not yet in a block" : `${formatTimestamp(event.at)} UTC`, "secondary"]);
-  if (signature) rows.push(["Signature", signature, "secondary"]);
+  if (signature) rows.push([event.network === undefined || event.network === "solana" ? "Signature" : "Transaction hash", signature, "secondary"]);
   if (event.kind === "transaction" && !summary) {
     rows.push(["Details", "This transaction could not be decoded; the explorer has the full record.", "secondary"]);
   }
@@ -279,7 +285,7 @@ function Details({ event }: { event: AccountEvent }) {
           <Text variant="label" tone="muted" style={styles.detailLabel}>
             {label}
           </Text>
-          <Text variant={label === "Signature" || label === "To" || label === "From" ? "mono-addr" : "label"} tone={tone} selectable style={styles.flex}>
+          <Text variant={label === "Signature" || label === "Transaction hash" || label === "To" || label === "From" ? "mono-addr" : "label"} tone={tone} selectable style={styles.flex}>
             {value}
           </Text>
         </View>
@@ -333,7 +339,10 @@ export function ActivityRow({ event }: { event: AccountEvent }) {
           />
         </Pressable>
         {event.href !== null && (
-          <IconButton accessibilityLabel="Open in Solscan" onPress={() => openExternal(event.href as string)}>
+          <IconButton
+            accessibilityLabel={`Open in ${event.network === undefined || event.network === "solana" ? "Solscan" : EVM_CHAINS[event.network].explorer.name}`}
+            onPress={() => openExternal(event.href as string)}
+          >
             <ExternalLink size={15} strokeWidth={1.5} color={color["text-muted"]} />
           </IconButton>
         )}

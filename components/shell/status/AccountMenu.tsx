@@ -11,6 +11,8 @@ import { CopyButton, IconButton, StatusDot } from "@/components/shell/RouteDrawe
 import { Button } from "@/components/ui/Button";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { Popover } from "@/components/ui/Popover";
+import { NetworkMark } from "@/components/wallet/NetworkMark";
+import { isEvmAddress } from "@/lib/evm/chains";
 import { formatAge, truncateMiddle } from "@/lib/format";
 import { useTickerLogos } from "@/lib/market/tickerLogos";
 import { accountExplorerUrl } from "@/lib/solana/address";
@@ -30,9 +32,11 @@ import { cn } from "@/lib/utils";
    balance is a skeleton, never "$0.00", because $0.00 is a claim and the most
    alarming wrong one there is to make about somebody's wallet.
 
-   It is the SOLANA wallet's menu, so it shows the Solana address and nothing
-   else — an account's EVM wallet is a different wallet, read for Hyperliquid,
-   and never stands in for it here.
+   The balance and the trigger are the SOLANA wallet's. The account's EVM
+   wallet — one address on Ethereum and Robinhood Chain, also read for
+   Hyperliquid — is a different wallet, so it gets its own labelled row below
+   and never stands in for the Solana one. Its balances are in the wallet
+   drawer, per network.
 
    Disconnecting stays behind a confirmation, because it is one click from
    everything else here and signing back in goes through email or OAuth.
@@ -56,7 +60,7 @@ export function AccountMenuView({
   auth,
   wallet,
 }: {
-  auth: Pick<ElyraAuth, "available" | "ready" | "authenticated" | "solanaAddress" | "login" | "logout">;
+  auth: Pick<ElyraAuth, "available" | "ready" | "authenticated" | "solanaAddress" | "walletAddress" | "login" | "logout">;
   wallet: WalletDashboard;
 }) {
   const router = useRouter();
@@ -89,6 +93,7 @@ export function AccountMenuView({
   }
 
   const address = auth.solanaAddress;
+  const evmAddress = isEvmAddress(auth.walletAddress) ? auth.walletAddress : null;
   const state = walletStatus(wallet);
   const network = CLUSTER_LABEL[wallet.cluster ?? EXPECTED_CLUSTER];
   const snapshot = wallet.snapshot;
@@ -125,7 +130,7 @@ export function AccountMenuView({
     <>
       <Popover
         id="account-menu"
-        label="Solana wallet"
+        label="Wallet"
         open={open}
         onOpenChange={close}
         surface="glass"
@@ -279,6 +284,27 @@ export function AccountMenuView({
                   </a>
                 </div>
               </>
+            )}
+
+            {evmAddress !== null && (
+              <section aria-label="EVM wallet" className={cn("mt-4 border-t pt-3", DIVIDER)}>
+                <p className="type-body-sm text-text-secondary">EVM wallet</p>
+                <div className="glass-inset mt-1.5 flex items-center gap-2.5 rounded-[10px] border py-2 pl-3 pr-1.5">
+                  {/* Both marks, overlapped: one address, two networks. */}
+                  <span aria-hidden className="flex shrink-0 -space-x-1">
+                    <NetworkMark network="ethereum" size={20} />
+                    <NetworkMark network="robinhood" size={20} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="type-mono-addr truncate text-text-primary" title={evmAddress}>
+                      {truncateMiddle(evmAddress, 6, 4)}
+                      <span className="sr-only"> (full address: {evmAddress})</span>
+                    </p>
+                    <p className="type-label truncate text-text-secondary">Ethereum · Robinhood Chain</p>
+                  </div>
+                  <CopyButton value={evmAddress} label="EVM wallet address" className="size-9" />
+                </div>
+              </section>
             )}
 
             <nav aria-label="Wallet" className={cn("mt-4 flex flex-col gap-0.5 border-t pt-3", DIVIDER)}>

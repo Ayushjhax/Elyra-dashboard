@@ -58,6 +58,9 @@ const SOURCES = [
   "supabase/migrations/0018_trading_automation.sql",
   "supabase/migrations/0019_trading_shorts.sql",
   "supabase/migrations/0020_trading_limit_orders.sql",
+  "supabase/migrations/0021_arena.sql",
+  "supabase/migrations/0022_agent_keys.sql",
+  "supabase/migrations/0023_events.sql",
 ];
 
 const TARGET = "supabase/migrations/_apply_all.sql";

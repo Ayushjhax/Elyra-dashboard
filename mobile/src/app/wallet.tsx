@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FlowBar, FlowTitle } from "~/components/shell/flow";
+import { EvmSection } from "~/components/wallet/EvmSection";
 import {
   WalletBalanceCard,
   WalletDetailsSection,
@@ -15,8 +16,9 @@ import { color } from "~/theme/tokens";
 /* ---------------------------------------------------------------------------
    The wallet — the website's wallet drawer (components/wallet/
    WalletSheet.tsx), as one scrolling screen: who and where, the total with
-   Fund wallet, the assets and any unverified mints, and the wallet's
-   details folded behind one row until asked for.
+   Fund wallet, the assets and any unverified mints, the EVM wallet on
+   Ethereum and Robinhood Chain (EvmSection), and the wallet's details folded
+   behind one row until asked for.
 
    It reads the same wallet store as every other balance, so opening it
    costs no request: the poll is already running for the header.
@@ -62,6 +64,7 @@ export default function WalletScreen() {
             <WalletHoldings wallet={wallet} />
           </>
         )}
+        <EvmSection />
         <View onLayout={(event) => (detailsY.current = event.nativeEvent.layout.y)}>
           <WalletDetailsSection
             wallet={wallet}

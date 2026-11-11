@@ -252,6 +252,7 @@ export async function createCall(userId: string, input: Record<string, unknown>,
       statement,
       receipt: sha256(receiptPayload(statement, createdAt)),
       created_at: createdAt,
+      status: "open",
     })
     .select("id")
     .single();
@@ -273,7 +274,9 @@ export async function backCall(userId: string, callId: string, input: Record<str
     spentThisWeek: (spent.data ?? []).reduce((sum, row) => sum + row.points, 0),
   });
   if ("error" in checked) throw new ArenaError(checked.error);
-  const { error } = await db.from("arena_call_backings").insert({ call_id: callId, user_id: userId, stance: checked.stance, points: checked.points, week });
+  const { error } = await db
+    .from("arena_call_backings")
+    .insert({ call_id: callId, user_id: userId, stance: checked.stance, points: checked.points, week, settled_points: null });
   if (error !== null) throw new ArenaError("You have already backed this call.");
 }
 

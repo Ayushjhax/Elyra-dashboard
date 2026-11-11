@@ -96,8 +96,16 @@ export function drawerView(snapshot: PortfolioSnapshot, requested: string): Draw
     };
   }
 
+  /* A wallet holding names its scope outright: the Solana, Ethereum and
+     Robinhood Chain wallets all share `venue: "wallet"`, so matching by venue
+     would list every chain's tokens under each of them. A venue's holdings
+     carry no scope id and match by venue, as before. */
   const holdings = snapshot.spot
-    .filter((holding) => holding.venue === entry.venue || holding.id.startsWith(`${entry.id}:`))
+    .filter((holding) =>
+      holding.scopeId !== undefined
+        ? holding.scopeId === entry.id
+        : holding.venue === entry.venue || holding.id.startsWith(`${entry.id}:`),
+    )
     .sort(byValue);
   const perps = snapshot.perps.filter((position) => position.venue === entry.venue);
   const total = entry.valueUsd ?? null;

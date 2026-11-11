@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { ShieldAlert } from "lucide-react-native";
+import { evmChainOf } from "@/lib/portfolio/chain";
 import { orderBalances, venueLabel, type BalanceGrouping } from "@/lib/assets/derive";
 import { formatCompactUsd, formatPrice, truncateMiddle } from "@/lib/format";
 import { priceDecimals } from "@/lib/market/precision";
@@ -178,6 +179,12 @@ function holdingName(holding: SpotHolding): string {
   return holding.name ?? (holding.address !== null ? truncateMiddle(holding.address, 4, 4) : holding.symbol);
 }
 
+/** The account a holding sits in — and, off Solana, its network: the same ETH can sit on two. */
+function accountLabel(row: SpotHolding): string {
+  const chain = evmChainOf(row);
+  return chain === null ? venueLabel(row.venue) : `${venueLabel(row.venue)} · ${chain.shortName}`;
+}
+
 export function HoldingsList({ holdings, grouping = "asset" }: { holdings: SpotHolding[]; grouping?: BalanceGrouping }) {
   const rows = orderBalances(holdings, grouping);
   const columns: DataColumn<SpotHolding>[] = [
@@ -195,7 +202,7 @@ export function HoldingsList({ holdings, grouping = "asset" }: { holdings: SpotH
         </View>
       ),
     },
-    { key: "venue", header: "Account", width: 100, priority: 2, render: (row) => <Text variant="label" tone="secondary">{venueLabel(row.venue)}</Text> },
+    { key: "venue", header: "Account", width: 120, priority: 2, render: (row) => <Text variant="label" tone="secondary" numberOfLines={1}>{accountLabel(row)}</Text> },
     { key: "qty", header: "Quantity", align: "right", width: 110, render: (row) => <Quantity value={row.quantity} /> },
     {
       key: "price",
@@ -220,7 +227,7 @@ export function HoldingsList({ holdings, grouping = "asset" }: { holdings: SpotH
           {!row.verified && <UnverifiedMark />}
         </View>
         <Text variant="label" tone="muted" numberOfLines={1}>
-          {holdingName(row)} · {venueLabel(row.venue)}
+          {holdingName(row)} · {accountLabel(row)}
           {row.allocationPct !== null ? ` · ${row.allocationPct.toFixed(1)}% of the portfolio` : ""}
         </Text>
       </View>

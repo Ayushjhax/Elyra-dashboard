@@ -73,6 +73,21 @@ describe("inline formatting", () => {
     );
   });
 
+  it("never hides where a link goes unless Elyra itself links there", () => {
+    /* A reply carrying an injected phishing link must show its destination. */
+    expect(html("[Open your Elyra wallet](https://elyra-claim.example/drop)")).toBe(
+      "Open your Elyra wallet (https://elyra-claim.example/drop)",
+    );
+    /* A lookalike that merely starts with a trusted name is not that name. */
+    expect(html("[Solscan](https://solscan.io.evil.example/tx)")).toBe("Solscan (https://solscan.io.evil.example/tx)");
+    /* Plain http, credentials in the URL and tg:// deep links are never links. */
+    expect(html("[x](http://solscan.io/tx)")).toBe("x (http://solscan.io/tx)");
+    expect(html("[x](https://user:pw@solscan.io/tx)")).toBe("x (https://user:pw@solscan.io/tx)");
+    expect(html("[join](tg://join?invite=abc)")).toBe("[join](tg://join?invite=abc)");
+    /* A subdomain of a listed host still links. */
+    expect(html("[app](https://app.hyperliquid.xyz/trade)")).toBe('<a href="https://app.hyperliquid.xyz/trade">app</a>');
+  });
+
   it("does not linkify a javascript: url", () => {
     /* Emitted as text rather than handed to a Telegram client. */
     const result = html("[click](javascript:alert(1))");
@@ -81,8 +96,8 @@ describe("inline formatting", () => {
   });
 
   it("does not read underscores in a url as italics", () => {
-    expect(html("[x](https://a.com/a_b_c)")).toBe(
-      '<a href="https://a.com/a_b_c">x</a>',
+    expect(html("[x](https://solscan.io/a_b_c)")).toBe(
+      '<a href="https://solscan.io/a_b_c">x</a>',
     );
   });
 });

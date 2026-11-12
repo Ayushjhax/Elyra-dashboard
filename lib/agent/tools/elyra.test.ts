@@ -155,6 +155,18 @@ describe("portfolio_holdings", () => {
        can be made to display any figure an attacker likes. */
     expect(fake?.counted).toBe(false);
   });
+
+  it("never hands the model an unverified token's claimed name — a deployer can name it an instruction", async () => {
+    const { portfolioHoldings } = await import("@/lib/agent/tools/elyra");
+    const result = (await portfolioHoldings.execute({}, CONTEXT)) as {
+      holdings: Array<{ symbol: string | null; counted: boolean; unverifiedContract?: string | null }>;
+    };
+    for (const row of result.holdings.filter((entry) => !entry.counted)) {
+      expect(row.symbol).toBeNull();
+      expect("unverifiedContract" in row).toBe(true);
+    }
+    expect(result.holdings.filter((entry) => entry.counted).every((entry) => typeof entry.symbol === "string")).toBe(true);
+  });
 });
 
 describe("portfolio_risk", () => {

@@ -101,7 +101,13 @@ allowlist in `lib/trade.ts`; any other token is named by mint
 account (the Asset Passport's `readMint`), refused without
 `acknowledgeUnverified`, labelled by its claimed symbol and its address, and
 quoted with its live mint controls as warnings. The chat command resolves
-symbols only.
+symbols only. No bytes reach the wallet until `/api/swap/build` has
+simulated Jupiter's transaction with `guardSwap` (`lib/solana/swapGuard.ts`):
+it watches exactly the person's accounts the transaction declares (static
+keys and lookup-table entries) and refuses unless the sold token falls by no
+more than asked, nothing else falls, SOL leaves only for fees (or the amount
+sold), no account gains a delegate, owner or close authority, and the
+wallet still belongs to the System Program. It fails closed.
 
 Intelligent Portfolios (`/invest`) are published model portfolios, not
 tokens: `lib/invest/catalog.ts` holds the weights, every holding must be on
@@ -243,6 +249,23 @@ in the app but not yet signed for there.
 Price alerts (`/api/alerts`) stay alerts: a price rule tells the person; it
 never trades. Where a crossing goes — Telegram, muted, or nowhere — is said
 where the rule is set.
+
+AI safety. The model reads and writes words; it never moves money. No tool
+places an order or builds a transaction, and a prepared action is rebuilt by
+the server from live state (`lib/personalized/actions.ts`), never taken from
+model output. The only tools that change anything — creating and deleting a
+prediction alert — run only when the operator's own message this turn asks
+(`operatorAskedFor`, `ToolContext.operatorMessage`); an outside agent's key
+has no message, so nothing changes. Text Elyra did not write is data: both
+system prompts say so (pinned by `lib/agent/prompt.test.ts`), an unverified
+token reaches a model by address only, never by its claimed name, and a
+model-supplied ticker is held to `TICKER` in `lib/agent/tools/args.ts`. No
+reply links anywhere the operator did not give it: the web renders replies as
+text, Telegram links only `LINKABLE_HOSTS` and prints any other destination
+in full, and `writeFromFacts` — the Events feed, Arena cards, the markets
+brief — discards a reply carrying a link or a domain the facts do not hold.
+Every model run for a person claims `claimAgentRun` (`lib/agent/quota.ts`),
+one durable daily cap shared by the agent and Ask Elyra.
 
 The agent's conversation, its in-flight request and the composer draft live in
 the store, and `lib/agentChat.ts` sends and reads streamed replies outside any

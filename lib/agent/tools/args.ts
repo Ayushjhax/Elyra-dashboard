@@ -26,7 +26,7 @@ export function symbol(args: Args, key = "symbol"): string {
       `"${key}" must be a ticker string such as "SOL".`,
     );
   }
-  return normaliseSymbol(raw);
+  return checkedTicker(normaliseSymbol(raw), key);
 }
 
 /**
@@ -39,6 +39,21 @@ export function normaliseSymbol(raw: string): string {
   value = value.replace(/[-_/]?(PERP|SWAP|USDT|USDC|USD|BUSD|FDUSD)$/g, "");
   value = value.replace(/[-_/]$/, "");
   return value.length > 0 ? value : raw.trim().toUpperCase();
+}
+
+/**
+ * What a ticker can look like: letters and digits, with the separators real
+ * instruments use ("XYZ:NVDA", "BRK.B", "1000PEPE"), and short. A symbol is
+ * model output that ends up in upstream requests and cache keys, so anything
+ * longer or stranger is refused rather than passed along.
+ */
+const TICKER = /^[A-Z0-9$][A-Z0-9$.:_-]{0,31}$/;
+
+function checkedTicker(value: string, key: string): string {
+  if (!TICKER.test(value)) {
+    throw new ToolArgumentError(`"${key}" must be a ticker such as "SOL" — letters and digits, at most 32 characters.`);
+  }
+  return value;
 }
 
 export function symbols(args: Args, key = "symbols", max = 20): string[] {
@@ -57,7 +72,7 @@ export function symbols(args: Args, key = "symbols", max = 20): string[] {
   const cleaned = list
     .filter((entry): entry is string => typeof entry === "string")
     .map(normaliseSymbol)
-    .filter((entry) => entry.length > 0);
+    .filter((entry) => TICKER.test(entry));
 
   if (cleaned.length === 0) {
     throw new ToolArgumentError(`"${key}" contained no usable tickers.`);
@@ -83,6 +98,28 @@ export function integer(
      want and an unreasonable thing to fetch; the summary says what window it
      actually covered, so the model is not misled. */
   return Math.min(Math.max(Math.round(parsed), min), max);
+}
+
+/* ---------------------------------------------------------------------------
+   Changes need the operator's own words.
+
+   The few tools that change anything (an alert) run only when the
+   operator's message in THIS turn asks for that kind of change. A tool
+   result, a document or a market description can talk the model into
+   calling a tool; it cannot edit what the operator typed, so this is
+   checked against the message rather than trusted to the model.
+--------------------------------------------------------------------------- */
+
+export type OperatorChange = "create_alert" | "delete_alert";
+
+const MENTIONS_ALERT = /\b(alerts?|notif(y|ication|ications)|ping me|tell me when|let me know when|remind me|warn me)\b/i;
+const MENTIONS_REMOVAL = /\b(delete|remove|cancel|clear|turn off|switch off|disable|stop|drop|get rid of)\b/i;
+
+/** Whether `message` — the operator's own words this turn — asks for `change`. */
+export function operatorAskedFor(message: string | null | undefined, change: OperatorChange): boolean {
+  if (typeof message !== "string" || message.trim().length === 0) return false;
+  if (change === "create_alert") return MENTIONS_ALERT.test(message);
+  return /\balerts?\b/i.test(message) && MENTIONS_REMOVAL.test(message);
 }
 
 export function oneOf<T extends string>(

@@ -15,6 +15,7 @@ import {
   runPersonalized,
 } from "@/lib/personalized/orchestrator";
 import { rateLimited, resolve } from "@/lib/personalized/session";
+import { claimAgentRun, UsageLimitError } from "@/lib/agent/quota";
 import {
   CONTEXT_SOURCES,
   isContextSource,
@@ -126,6 +127,21 @@ export async function POST(request: Request): Promise<Response> {
       { error: "Too many requests. Wait a moment and try again." },
       { status: 429 },
     );
+  }
+
+  /* The durable daily cap, shared with the agent: the per-minute limiter
+     above is per server instance, so on its own it bounds nothing across a
+     day. Without a profile there is nowhere to count, and nothing may be
+     written either — the in-memory limiter is all that applies. */
+  if (session.userId !== null) {
+    try {
+      await claimAgentRun(session.userId);
+    } catch (error: unknown) {
+      if (error instanceof UsageLimitError) {
+        return NextResponse.json({ error: error.message }, { status: 429 });
+      }
+      return NextResponse.json({ error: "Your usage could not be checked, so nothing was sent." }, { status: 503 });
+    }
   }
 
   const requestedConversation =

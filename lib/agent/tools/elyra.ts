@@ -134,13 +134,15 @@ export const portfolioHoldings: RegisteredTool = {
     description:
       "Every spot token the caller holds, with quantity, USD value, 24h " +
       "change, share of the portfolio and the network it is on (Solana, " +
-      "Ethereum, Robinhood Chain, or an exchange). The same symbol on two " +
-      "networks is two holdings. A Robinhood Stock Token carries stockToken " +
-      "{ticker, sharesPerToken}: an ERC-20 on Robinhood Chain giving economic " +
-      "exposure to a US share or ETF, valued at the share price times " +
-      "sharesPerToken. Unverified tokens are listed with counted:false — they " +
-      "are excluded from every total because anyone can airdrop a token named " +
-      "USDC into a wallet.",
+      "Ethereum, Base, Arbitrum, BNB Chain, Robinhood Chain, Sui, or an " +
+      "exchange). The same symbol on two networks is two holdings. A Robinhood " +
+      "Stock Token carries stockToken {ticker, sharesPerToken}: an ERC-20 on " +
+      "Robinhood Chain giving economic exposure to a US share or ETF, valued " +
+      "at the share price times sharesPerToken. Unverified tokens are listed " +
+      "with counted:false, symbol null and their contract address — anyone can " +
+      "airdrop a token into a wallet and name it anything, including an " +
+      "instruction, so its claimed name is withheld and it is excluded from " +
+      "every total.",
     parameters: {
       type: "object",
       properties: {
@@ -161,7 +163,11 @@ export const portfolioHoldings: RegisteredTool = {
       .sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0))
       .slice(0, 50)
       .map((holding) => ({
-        symbol: holding.symbol,
+        /* An unverified token's name and symbol are whatever its deployer
+           wrote — the classic place to hide an instruction or a phishing
+           link. The model gets its address and nothing it claims. */
+        symbol: holding.verified ? holding.symbol : null,
+        ...(holding.verified ? {} : { unverifiedContract: holding.address ?? null }),
         venue: holding.venue,
         network: holding.venue === "wallet" ? holding.chain : null,
         ...(holding.stockToken !== undefined

@@ -319,6 +319,8 @@ export interface SwapPreview {
   unsignedTransaction?: string;
   /** Jupiter's handle for this order, required to submit the signed bytes. */
   quoteRef?: string;
+  /** What the order sells, for the swap guard to hold its simulation to. */
+  sell?: { mint: string; amount: string };
 }
 
 const fmt = (value: number, digits = 6): string =>
@@ -522,6 +524,7 @@ export async function previewSwap(input: {
       : "Nothing has been sent.",
     unsignedTransaction: signable ? unsignedTransaction : undefined,
     quoteRef: signable ? quote.data.quoteRef : undefined,
+    sell: { mint: from.mint, amount: baseUnits },
   };
 }
 

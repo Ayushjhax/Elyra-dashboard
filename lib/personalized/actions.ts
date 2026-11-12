@@ -9,29 +9,22 @@
    attacker-controlled text and a prompt injection inside one must not be able
    to describe a transfer.
 
-   ── What can actually execute today ────────────────────────────────────
+   ── What can actually execute ──────────────────────────────────────────
 
-   Nothing. Confirmed by inspection: `sendTransaction`, `signTransaction` and
-   `signAndSendTransaction` appear nowhere in this repository, and
-   lib/exchange states its own rule — "Nothing in lib/exchange/ may call an
-   endpoint that places, modifies or cancels an order". There is no swap
-   route, no transfer builder and no order system.
-
-   So every action this file prepares resolves to `unsupported`: correct,
-   fully validated, priced against real balances, and not executable. That is
-   deliberate. The alternative — building three money-moving flows against
-   live funds inside this task — is not something to do as a side effect of a
-   chat feature, and a Confirm button that silently does nothing would be
-   worse than one that says why.
-
-   When execution lands, `readiness` becomes "ready" for the kinds it covers
-   and the confirm route hands off to it. The boundary does not change.
+   A swap, and only a swap: it opens the swap dialog prefilled, where Jupiter
+   quotes it, the server simulates it against the operator's own accounts
+   (lib/solana/swapGuard.ts) and the operator signs it in their own wallet.
+   Every other kind resolves to `unsupported`, with the reason — a transfer
+   has no recipient field, and venue connections are read-only by design.
+   The model never carries an action past this file: it proposes, this file
+   re-derives, and a person signs.
 
    No `server-only`: the validator is pure over a snapshot and is exercised
    directly by unit tests.
 --------------------------------------------------------------------------- */
 
 import { holdingFor, riskiestPosition, underlyingSymbol } from "@/lib/personalized/calculations";
+import { onSolanaWallet } from "@/lib/portfolio/chain";
 import { formatPriceUsd } from "@/lib/format";
 import type {
   PreparedAction,
@@ -170,13 +163,20 @@ export function prepareAction(
 
     /* The balance is read from the snapshot, never from the model. This is
        the line that makes "sell half my SOL" safe: half of what the operator
-       actually holds right now, not half of a number a model recalled. */
-    const holding = holdingFor(snapshot, symbol);
+       actually holds right now, not half of a number a model recalled.
+
+       A swap runs on the Solana wallet, so it is sized from the Solana
+       wallet's balance — never from USDC on Base or on an exchange, which
+       share the symbol but are not what the swap would sell. */
+    const holding =
+      proposal.kind === "swap" ? holdingFor(snapshot, symbol, onSolanaWallet) : holdingFor(snapshot, symbol);
     if (holding === null) {
       return rejected(
         proposal.kind,
         `Move ${symbol}`,
-        `No ${symbol} balance was found in this account.`,
+        proposal.kind === "swap"
+          ? `No ${symbol} balance was found in your Solana wallet, which is where a swap from here runs.`
+          : `No ${symbol} balance was found in this account.`,
       );
     }
 

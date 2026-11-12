@@ -15,10 +15,13 @@ import { BACKTEST_TOOLS } from "@/lib/backtest/tool";
 /* ---------------------------------------------------------------------------
    The tool registry.
 
-   Defined once, in the neutral format, and adapted per provider. Nothing here
-   writes: every tool reads market data or the caller's own account. There is
-   no tool that places, modifies or cancels an order, and adding one would
-   mean more than appending to this list — see lib/exchange/types.ts.
+   Defined once, in the neutral format, and adapted per provider. Every tool
+   reads market data or the caller's own account, with two exceptions: the
+   prediction alert tools create and delete the caller's own alerts, and
+   only when the operator's message this turn asks for it
+   (`operatorAskedFor`). There is no tool that moves funds or places,
+   modifies or cancels an order, and adding one would mean more than
+   appending to this list — see lib/exchange/types.ts.
 --------------------------------------------------------------------------- */
 
 /**
@@ -47,6 +50,13 @@ export interface ToolContext {
    * it is the difference between "no positions" and "cannot see positions".
    */
   polymarketAddress?: string | null;
+  /**
+   * What the operator typed this turn, verbatim — never model output. The
+   * tools that change something are held to it (`operatorAskedFor`), so text
+   * in a tool result cannot make the model change the operator's records.
+   * Absent (an outside agent, a scheduled run): nothing may be changed.
+   */
+  operatorMessage?: string | null;
 }
 
 export interface RegisteredTool {

@@ -16,7 +16,7 @@ import {
 } from "@/lib/agent/tools/registry";
 import { sourcesFrom, toolLabel } from "@/lib/agent/sources";
 import { describeAttachments, type Attachment } from "@/lib/attachments";
-import { maxRunsPerDay } from "@/lib/env";
+import { claimAgentRun, UsageLimitError } from "@/lib/agent/quota";
 import { predictionAccount } from "@/lib/prediction/account";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Surface } from "@/lib/supabase/types";
@@ -73,27 +73,13 @@ export interface RunAgentInput {
 }
 
 export type { AgentEvent };
+export { claimAgentRun, UsageLimitError };
 
 export interface RunAgentResult {
   reply: string;
   runId: string;
   /** Where the figures in the reply came from, read from the tool results. */
   sources: string[];
-}
-
-export class UsageLimitError extends Error {
-  readonly runs: number;
-  readonly limit: number;
-
-  constructor(runs: number, limit: number) {
-    super(
-      `You have used all ${limit} agent runs for today. The counter resets at ` +
-        "00:00 UTC.",
-    );
-    this.name = "UsageLimitError";
-    this.runs = runs;
-    this.limit = limit;
-  }
 }
 
 /* ------------------------------------------------------------------------- */
@@ -210,20 +196,10 @@ async function runTools(
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const startedAt = Date.now();
   const db = serviceClient();
-  const limit = maxRunsPerDay();
 
   /* Check and increment atomically, before any model spend. A read-then-write
      here would let two concurrent runs both pass the last available slot. */
-  const claim = await db.rpc("claim_agent_run", {
-    p_user_id: input.userId,
-    p_limit: limit,
-  });
-  if (claim.error) throw claim.error;
-
-  const claimed = claim.data?.[0];
-  if (claimed && !claimed.allowed) {
-    throw new UsageLimitError(claimed.runs, limit);
-  }
+  await claimAgentRun(input.userId);
 
   const context: ToolContext = {
     userId: input.userId,
@@ -232,6 +208,9 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     /* Resolved from the profile rather than passed in: it is an identity,
        and identities do not travel through request bodies here. */
     polymarketAddress: (await predictionAccount(input.userId))?.address ?? null,
+    /* The operator's words this turn, which the tools that change anything
+       are held to. Never the model's text, and never a tool result's. */
+    operatorMessage: input.message,
   };
 
   const [history, system] = await Promise.all([

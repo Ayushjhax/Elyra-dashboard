@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PassportError, assetPassport, readMint } from "@/lib/passport/server";
 import { resolve } from "@/lib/personalized/session";
+import { guardSwap } from "@/lib/solana/swapGuard";
 import { isSolanaAddress, truncateAddress } from "@/lib/solana/address";
 import { assetByMint, parseSwapCommand, previewSwap, type UnlistedMint } from "@/lib/trade";
 
@@ -96,6 +97,29 @@ export async function POST(request: Request) {
 
   if ("error" in preview) {
     return NextResponse.json({ error: preview.error }, { status: 400 });
+  }
+
+  /* Before any bytes go to the wallet, the transaction is simulated against
+     the person's own accounts and held to the swap they asked for
+     (lib/solana/swapGuard.ts). A swap that fails the check — or cannot be
+     checked — is shown with the reason and nothing to sign. */
+  if (preview.unsignedTransaction !== undefined && preview.sell !== undefined && session.solanaAddress !== null) {
+    const verdict = await guardSwap({
+      owner: session.solanaAddress,
+      transaction: preview.unsignedTransaction,
+      sellMint: preview.sell.mint,
+      sellAmount: preview.sell.amount,
+      label: (mint) => (mint === preview.sell?.mint ? swap.fromSymbol : (assetByMint(mint)?.symbol ?? `${mint.slice(0, 4)}…${mint.slice(-4)}`)),
+    });
+    if (!verdict.ok) {
+      return NextResponse.json({
+        action: { ...preview.action, readiness: "unsupported", reason: verdict.error },
+        note: "Nothing has been sent.",
+        unsignedTransaction: null,
+        quoteRef: null,
+        signer: session.solanaAddress,
+      });
+    }
   }
 
   return NextResponse.json({

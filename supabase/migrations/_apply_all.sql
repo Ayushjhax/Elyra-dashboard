@@ -2148,3 +2148,291 @@ create index if not exists event_marks_user_idx on public.event_marks(user_id, m
 
 alter table public.event_marks enable row level security;
 
+
+-- ==================== 0024_agent_rails.sql ====================
+
+-- ---------------------------------------------------------------------------
+-- 0024 — Agent rails: the permissioned path between AI agents and money.
+--
+-- An outside agent holds an Elyra agent key (0022), never a wallet key. The
+-- person who owns the key grants it a MANDATE: which kinds of transaction it
+-- may ask for, which assets, a per-intent and a daily dollar cap, which payees
+-- it may pay, when the grant ends, and whether perp orders may run without a
+-- review. The agent then submits INTENTS — a swap, a stablecoin payment, a
+-- perp order — and Elyra decides each one against the mandate and a
+-- sanctions screen, then routes it: the person approves and signs it in their
+-- own wallet, or (perp orders only, within the mandate) it runs through the
+-- Hyperliquid API wallet they already approved, which cannot withdraw.
+--
+-- Every step is written to RAILS_LEDGER, an append-only chain per account:
+-- each event carries the SHA-256 of the one before it, so the history of
+-- what every agent asked for, what was decided and what settled on-chain is
+-- tamper-evident and can be verified by anyone holding the export.
+--
+-- PAYMENT_REQUESTS let an agent (or the person) get paid in USDC on Solana: a
+-- Solana Pay request with a reference key, settled when the chain shows a
+-- transfer of at least the amount to the recipient that carries the
+-- reference.
+--
+-- RLS on, no policies: the server reads and writes with the service role.
+-- Additive; safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.agent_mandates (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references public.profiles(id) on delete cascade,
+  key_id          uuid not null references public.agent_keys(id) on delete cascade,
+  kinds           text[] not null
+                    check (cardinality(kinds) > 0
+                           and kinds <@ array['swap', 'payment', 'perp_order', 'payment_request']::text[]),
+  -- Null: any asset the action itself allows. Otherwise upper-case symbols.
+  assets          text[],
+  per_intent_usd  numeric not null check (per_intent_usd > 0 and per_intent_usd <= 10000),
+  daily_usd       numeric not null check (daily_usd >= per_intent_usd and daily_usd <= 50000),
+  -- Empty: any payee that passes screening. Otherwise the only addresses a payment may go to.
+  payees          text[] not null default '{}',
+  -- Perp orders within the mandate run without a review (through the API wallet, which cannot withdraw).
+  auto_perps      boolean not null default false,
+  -- Perp orders may go live (still subject to the server's own live switch and the approved key).
+  live_perps      boolean not null default false,
+  expires_at      timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  revoked_at      timestamptz
+);
+
+-- One live mandate per key.
+create unique index if not exists agent_mandates_live_key_idx
+  on public.agent_mandates(key_id) where revoked_at is null;
+create index if not exists agent_mandates_user_idx on public.agent_mandates(user_id, created_at desc);
+
+alter table public.agent_mandates enable row level security;
+
+create table if not exists public.agent_intents (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  key_id        uuid not null references public.agent_keys(id) on delete cascade,
+  kind          text not null check (kind in ('swap', 'payment', 'perp_order')),
+  -- The intent as Elyra normalised it: resolved symbols, base units, the payee.
+  params        jsonb not null,
+  usd_value     numeric,
+  status        text not null check (status in
+                  ('rejected', 'pending', 'approved', 'executed', 'declined', 'expired', 'failed')),
+  reasons       text[] not null default '{}',
+  -- The agent's own words for why. Untrusted text: shown as text, never acted on.
+  memo          text check (memo is null or length(memo) <= 280),
+  screening     jsonb,
+  -- What happened: the observed balance changes, or the order placed.
+  result        jsonb,
+  -- The transaction that carried it out. Unique: one signature settles one intent.
+  signature     text unique,
+  -- The ledger hash of the proposal: the agent's receipt.
+  receipt       text,
+  created_at    timestamptz not null default now(),
+  expires_at    timestamptz not null,
+  decided_at    timestamptz,
+  settled_at    timestamptz
+);
+
+create index if not exists agent_intents_user_idx on public.agent_intents(user_id, created_at desc);
+create index if not exists agent_intents_key_idx on public.agent_intents(key_id, created_at desc);
+create index if not exists agent_intents_open_idx
+  on public.agent_intents(expires_at) where status in ('pending', 'approved');
+
+alter table public.agent_intents enable row level security;
+
+create table if not exists public.rails_ledger (
+  id           bigint generated always as identity primary key,
+  user_id      uuid not null references public.profiles(id) on delete cascade,
+  seq          integer not null check (seq > 0),
+  -- The exact ISO time that was hashed, kept as text so it round-trips byte for byte.
+  occurred_at  text not null,
+  -- "person", "elyra", or "agent:<key id>".
+  actor        text not null,
+  event        text not null,
+  subject_id   uuid,
+  body         jsonb not null default '{}'::jsonb,
+  prev_hash    text not null,
+  hash         text not null unique,
+  created_at   timestamptz not null default now(),
+  -- A chain never forks: one event per position, one successor per event.
+  unique (user_id, seq),
+  unique (user_id, prev_hash)
+);
+
+create index if not exists rails_ledger_user_idx on public.rails_ledger(user_id, seq desc);
+
+alter table public.rails_ledger enable row level security;
+
+create table if not exists public.payment_requests (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references public.profiles(id) on delete cascade,
+  -- The agent key that asked for it, when an agent did.
+  key_id          uuid references public.agent_keys(id) on delete set null,
+  recipient       text not null,
+  mint            text not null,
+  amount_base     text not null check (amount_base ~ '^[1-9][0-9]*$'),
+  decimals        integer not null check (decimals between 0 and 18),
+  label           text not null check (length(label) between 1 and 80),
+  memo            text check (memo is null or length(memo) <= 280),
+  -- The Solana Pay reference: a public key with no private key, added to the
+  -- payment so the chain can be asked for it.
+  reference       text not null unique,
+  status          text not null default 'open' check (status in ('open', 'paid', 'expired', 'cancelled')),
+  paid_signature  text unique,
+  paid_by         text,
+  paid_at         timestamptz,
+  expires_at      timestamptz not null,
+  created_at      timestamptz not null default now()
+);
+
+create index if not exists payment_requests_user_idx on public.payment_requests(user_id, created_at desc);
+create index if not exists payment_requests_open_idx
+  on public.payment_requests(expires_at) where status = 'open';
+
+alter table public.payment_requests enable row level security;
+
+
+-- ===================== 0025_ai_funds.sql ======================
+
+-- ---------------------------------------------------------------------------
+-- 0025 — Autonomous AI funds.
+--
+-- A fund is a book of the person's own capital that an AI agent manages
+-- (an agent key, 0022) inside a charter the person writes: the markets it
+-- may trade, how large a position and how much gross exposure it may run,
+-- how much leverage, and the drawdown and daily loss at which Elyra stops
+-- it. Elyra is the fund's administrator and risk officer: it holds every
+-- order to the charter before anything is sent, marks the book to market
+-- on the five-minute tick, keeps the units and the high-water mark, halts
+-- the fund and flattens it when the drawdown limit is reached, and seals
+-- every lifecycle event — and each day's closing NAV — into the person's
+-- ledger (rails_ledger, 0024).
+--
+-- Nothing is pooled and Elyra holds no key that can withdraw. A paper fund
+-- trades virtual capital at Hyperliquid's prices; a live fund trades a
+-- slice of the person's own Hyperliquid account through the API wallet
+-- they approved (0018), which can trade and cannot withdraw. Capital is an
+-- allocation of that account, never a transfer. Every fund starts on paper;
+-- live is reached only by graduating a paper fund with a record.
+--
+-- Positions are the automation's own (trading_positions), tagged with the
+-- fund, so the five-minute pass manages their exits like any other and the
+-- Automation page lists them. One open position per coin per fund is a
+-- database guarantee, not a check that two requests could both pass.
+--
+-- Same lockdown as the rest of the schema: RLS on with no policies, the
+-- service-role client the only writer, every query filtered by user_id.
+-- Additive; safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.ai_funds (
+  id                  uuid primary key default gen_random_uuid(),
+  user_id             uuid not null references public.profiles(id) on delete cascade,
+  -- The manager: the agent key whose tools run this fund. Null = no manager.
+  key_id              uuid references public.agent_keys(id) on delete set null,
+  name                text not null check (length(name) between 1 and 60),
+  -- The person's brief to the manager, in their own words.
+  objective           text not null check (length(objective) between 1 and 1200),
+  mode                text not null check (mode in ('paper', 'live')),
+  status              text not null default 'active'
+                        check (status in ('active', 'paused', 'halted', 'winding_down', 'closed')),
+  -- The charter. Bounds mirror lib/funds/policy.ts FUND_LIMITS.
+  markets             text[] not null check (cardinality(markets) between 1 and 40),
+  allow_shorts        boolean not null default true,
+  max_position_pct    numeric not null check (max_position_pct >= 1 and max_position_pct <= 100),
+  max_gross_exposure  numeric not null check (max_gross_exposure > 0 and max_gross_exposure <= 5),
+  max_leverage        integer not null check (max_leverage between 1 and 5),
+  max_positions       integer not null check (max_positions between 1 and 5),
+  max_drawdown_pct    numeric not null check (max_drawdown_pct >= 2 and max_drawdown_pct <= 50),
+  daily_loss_pct      numeric not null check (daily_loss_pct >= 0.5 and daily_loss_pct <= 20),
+  -- Accounting, per unit (a unit starts at 100). Units themselves are the
+  -- sum of ai_fund_flows; these are the marks the risk checks read.
+  hwm_npu             numeric not null default 100 check (hwm_npu > 0),
+  day_start_npu       numeric not null default 100 check (day_start_npu > 0),
+  day_start_on        date,
+  last_nav            numeric,
+  last_npu            numeric,
+  marked_at           timestamptz,
+  halt_reason         text,
+  -- A live fund names the paper fund it graduated from.
+  predecessor_id      uuid references public.ai_funds(id) on delete set null,
+  closed_reason       text check (closed_reason in ('wound_down', 'graduated')),
+  final_report        jsonb,
+  manager_seen_at     timestamptz,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  closed_at           timestamptz
+);
+
+-- A key manages at most one open fund, so a manager's tools never need to
+-- be told which fund they mean.
+create unique index if not exists ai_funds_manager_idx
+  on public.ai_funds(key_id) where key_id is not null and status <> 'closed';
+create index if not exists ai_funds_user_idx on public.ai_funds(user_id, created_at desc);
+create index if not exists ai_funds_open_idx on public.ai_funds(status) where status <> 'closed';
+
+alter table public.ai_funds enable row level security;
+
+-- Capital in and out, at the NAV per unit of the moment, so returns are
+-- time-weighted: adding money never reads as performance.
+create table if not exists public.ai_fund_flows (
+  id          uuid primary key default gen_random_uuid(),
+  fund_id     uuid not null references public.ai_funds(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  kind        text not null check (kind in ('subscribe', 'redeem')),
+  amount_usd  numeric not null check (amount_usd > 0),
+  npu         numeric not null check (npu > 0),
+  units       numeric not null check (units > 0),
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists ai_fund_flows_fund_idx on public.ai_fund_flows(fund_id, created_at);
+
+alter table public.ai_fund_flows enable row level security;
+
+-- The book marked to market, at most once an hour.
+create table if not exists public.ai_fund_marks (
+  fund_id    uuid not null references public.ai_funds(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  bucket     timestamptz not null,
+  nav        numeric not null,
+  npu        numeric not null check (npu > 0),
+  gross_usd  numeric not null default 0,
+  positions  integer not null default 0,
+  primary key (fund_id, bucket)
+);
+
+alter table public.ai_fund_marks enable row level security;
+
+-- The manager's journal: its view and its reasons, in its own words. Shown
+-- as the agent's text; never acted on, never put in a notice.
+create table if not exists public.ai_fund_notes (
+  id           uuid primary key default gen_random_uuid(),
+  fund_id      uuid not null references public.ai_funds(id) on delete cascade,
+  user_id      uuid not null references public.profiles(id) on delete cascade,
+  key_id       uuid references public.agent_keys(id) on delete set null,
+  position_id  uuid references public.trading_positions(id) on delete set null,
+  body         text not null check (length(body) between 1 and 2000),
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists ai_fund_notes_fund_idx on public.ai_fund_notes(fund_id, created_at desc);
+
+alter table public.ai_fund_notes enable row level security;
+
+-- Fund positions are automation positions, tagged.
+alter table public.trading_positions
+  add column if not exists fund_id uuid references public.ai_funds(id) on delete set null;
+
+alter table public.trading_positions drop constraint if exists trading_positions_origin_check;
+alter table public.trading_positions
+  add constraint trading_positions_origin_check check (origin in ('rule', 'order', 'fund'));
+
+create unique index if not exists trading_positions_fund_coin_idx
+  on public.trading_positions(fund_id, coin) where fund_id is not null and status in ('opening', 'open');
+create index if not exists trading_positions_fund_idx
+  on public.trading_positions(fund_id, opened_at desc) where fund_id is not null;
+
+-- A fund's history is the ledger's events about it.
+create index if not exists rails_ledger_subject_idx on public.rails_ledger(user_id, subject_id, seq desc);

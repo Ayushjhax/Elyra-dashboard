@@ -7,6 +7,7 @@ import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClient
 import { CopyButton, Tip } from "@/components/shell/RouteDrawer";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OptionMenu } from "@/components/ui/OptionMenu";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Popover } from "@/components/ui/Popover";
 import { QrCode } from "@/components/ui/QrCode";
 import { useCopy, type CopyState } from "@/lib/clipboard";
@@ -607,27 +608,26 @@ export function ReferralsView({
 
   return (
     <div className="min-h-0 overflow-y-auto overflow-x-hidden @container">
-      <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-6 px-1 pb-6 compact:px-4">
-        <header className="flex items-start justify-between gap-4 pt-1">
-          <div className="flex min-w-0 items-center gap-4">
-            <Gift size={34} strokeWidth={1.4} aria-hidden className="shrink-0 text-accent" />
-            <div className="min-w-0">
-              <h1 className="type-h1 text-text-primary">Referrals</h1>
-              <p className="type-body text-text-secondary">A little better, together.</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-              document.getElementById("how-it-works")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-            }}
-            className="type-body-sm mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-chip px-1 py-1 text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent"
-          >
-            How it works
-            <ArrowDown size={15} strokeWidth={1.5} aria-hidden />
-          </button>
-        </header>
+      <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-6 pb-6">
+        <PageHeader
+          icon={Gift}
+          title="Referrals"
+          subtitle="A little better, together."
+          className="flex-nowrap"
+          actions={
+            <button
+              type="button"
+              onClick={() => {
+                const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                document.getElementById("how-it-works")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+              }}
+              className="type-body-sm mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-chip px-1 py-1 text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent"
+            >
+              How it works
+              <ArrowDown size={15} strokeWidth={1.5} aria-hidden />
+            </button>
+          }
+        />
 
         {loading ? (
           <Skeleton />

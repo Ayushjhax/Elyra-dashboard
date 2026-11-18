@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
    question.
 --------------------------------------------------------------------------- */
 
-const state = vi.hoisted(() => ({ runAgent: vi.fn() }));
+const state = vi.hoisted(() => ({ runAgent: vi.fn(), runTeam: vi.fn() }));
 
 vi.mock("@/lib/auth/session", () => ({
   getSessionUser: async () => ({ userId: "u1", privyDid: "did", walletAddress: null, solanaAddress: null, profileStore: "ready" }),
@@ -19,6 +19,7 @@ vi.mock("@/lib/agent", () => ({
   UsageLimitError: class extends Error {},
   ensureConversation: async () => "c1",
   runAgent: state.runAgent,
+  runTeam: state.runTeam,
 }));
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).toString("base64");
@@ -27,6 +28,13 @@ const post = (body: unknown) => new Request("http://test/api/agent/chat", { meth
 beforeEach(() => {
   state.runAgent.mockReset();
   state.runAgent.mockResolvedValue({ reply: "ok", runId: "r1", sources: [] });
+  state.runTeam.mockReset();
+  state.runTeam.mockResolvedValue({
+    reply: "team ok",
+    runId: "r2",
+    sources: [],
+    team: { objective: "q", stages: [], constraints: [], outcomes: [], review: null },
+  });
 });
 
 describe("POST /api/agent/chat with attachments", () => {
@@ -52,5 +60,34 @@ describe("POST /api/agent/chat with attachments", () => {
   it("still refuses a message with neither text nor files", async () => {
     const { POST } = await import("@/app/api/agent/chat/route");
     expect((await POST(post({ message: "  " }))).status).toBe(400);
+  });
+});
+
+describe("POST /api/agent/chat with team", () => {
+  it("answers with the team only when the body asks for it, and hands it the preview read", async () => {
+    const { POST } = await import("@/app/api/agent/chat/route");
+    const response = await POST(post({ message: "Am I too exposed to SOL?", team: true }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.reply).toBe("team ok");
+    expect(body.team).toMatchObject({ objective: "q" });
+    expect(state.runAgent).not.toHaveBeenCalled();
+    const input = state.runTeam.mock.calls[0][0];
+    expect(input).toMatchObject({ userId: "u1", message: "Am I too exposed to SOL?", surface: "web" });
+    expect(input.planning).toBeInstanceOf(Promise);
+  });
+
+  it("keeps the single agent for a body without it, as the Android app sends", async () => {
+    const { POST } = await import("@/app/api/agent/chat/route");
+    const body = await (await POST(post({ message: "Am I too exposed to SOL?" }))).json();
+    expect(body.reply).toBe("ok");
+    expect(body.team).toBeUndefined();
+    expect(state.runTeam).not.toHaveBeenCalled();
+  });
+
+  it("reads anything but true as no team", async () => {
+    const { POST } = await import("@/app/api/agent/chat/route");
+    await POST(post({ message: "hi", team: "yes" }));
+    expect(state.runTeam).not.toHaveBeenCalled();
   });
 });

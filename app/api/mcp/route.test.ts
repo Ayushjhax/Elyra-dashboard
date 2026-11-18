@@ -190,6 +190,48 @@ describe("what an agent can reach", () => {
     expect((await names(account.key)).map((tool) => tool.name)).toEqual(["get_market_snapshot", "backtest_run", "portfolio_overview"]);
   });
 
+  it("offers the rails only to a key whose owner granted a mandate, and only the kinds it grants", async () => {
+    const { key, id } = await newKey("owner");
+    const listed = async () =>
+      ((await result(await rpc(key, { jsonrpc: "2.0", id: 1, method: "tools/list" }))).tools as Array<{ name: string; annotations: { readOnlyHint: boolean } }>);
+    expect((await listed()).some((tool) => tool.name.startsWith("rails_"))).toBe(false);
+
+    state.db.seed("agent_mandates", [
+      { id: "mandate-1", user_id: "owner", key_id: id, kinds: ["swap"], assets: null, per_intent_usd: 50, daily_usd: 100, payees: [], auto_perps: false, live_perps: false, expires_at: null, revoked_at: null },
+    ]);
+    const tools = await listed();
+    const rails = tools.filter((tool) => tool.name.startsWith("rails_"));
+    expect(rails.map((tool) => tool.name)).toEqual(["rails_mandate", "rails_propose_swap", "rails_intent_status", "rails_list_intents"]);
+    /* Proposing is not reading, and says so. */
+    expect(rails.find((tool) => tool.name === "rails_propose_swap")?.annotations.readOnlyHint).toBe(false);
+    expect(rails.find((tool) => tool.name === "rails_mandate")?.annotations.readOnlyHint).toBe(true);
+
+    /* A kind the mandate does not grant is refused as a readable error, and nothing is recorded. */
+    const denied = await result(await call(key, "rails_propose_payment", { to: "x", amount: "1" }));
+    expect(denied.isError).toBe(true);
+    expect(state.db.rows("agent_intents")).toEqual([]);
+  });
+
+  it("offers a fund's tools only to the key that manages an open fund", async () => {
+    const { key, id } = await newKey("owner");
+    const listed = async () =>
+      ((await result(await rpc(key, { jsonrpc: "2.0", id: 1, method: "tools/list" }))).tools as Array<{ name: string; description: string; annotations: { readOnlyHint: boolean } }>);
+    expect((await listed()).some((tool) => tool.name.startsWith("fund_"))).toBe(false);
+    const refused = await result(await call(key, "fund_open_position", { coin: "BTC" }));
+    expect(refused.isError).toBe(true);
+
+    state.db.seed("ai_funds", [{ id: "fund-1", user_id: "owner", key_id: id, name: "Trend book", objective: "x", mode: "paper", status: "active", markets: ["BTC"] }]);
+    const fund = (await listed()).filter((tool) => tool.name.startsWith("fund_"));
+    expect(fund.map((tool) => tool.name)).toEqual(["fund_overview", "fund_open_position", "fund_close_position", "fund_write_note"]);
+    expect(fund.find((tool) => tool.name === "fund_overview")?.annotations.readOnlyHint).toBe(true);
+    expect(fund.find((tool) => tool.name === "fund_open_position")?.annotations.readOnlyHint).toBe(false);
+    expect(fund.find((tool) => tool.name === "fund_open_position")?.description).toMatch(/held to its charter/);
+
+    /* A closed fund is no longer the key's to run. */
+    (state.db.rows("ai_funds")[0] as Record<string, unknown>).status = "closed";
+    expect((await listed()).some((tool) => tool.name.startsWith("fund_"))).toBe(false);
+  });
+
   it("never exposes a tool that writes, even to an account key", async () => {
     const { key } = await newKey("owner", true);
     for (const name of ["prediction_create_alert", "prediction_delete_alert"]) {

@@ -461,7 +461,7 @@ export function TransferDialog({
             </>
           ) : (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   {/* Under Max this says "Everything" rather than showing a
                       figure, and that is deliberate. The exact amount is not
@@ -485,6 +485,7 @@ export function TransferDialog({
                     }}
                     placeholder="0.00"
                     aria-label="Amount to send"
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
 

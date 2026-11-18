@@ -176,12 +176,57 @@ anniversary — each written from facts through `writeFromFacts`, once
 Outside AI agents reach Elyra through agent keys (`lib/agentApi/`,
 `docs/AGENT_API.md`): MCP at `/api/mcp` (Streamable HTTP, stateless, tools
 only) and a REST mirror at `/api/v1/tools`. Exposure is an allowlist in
-`lib/agentApi/tools.ts`, never the whole registry, and nothing on it writes.
+`lib/agentApi/tools.ts`, never the whole registry, and nothing on it writes
+— except the rails below, which only ASK, and an AI fund's tools, which act
+only inside the fund's charter.
 Market tools run with no account; account tools only for a key created with
 that scope, reading the owner's addresses from their profile. A key is
 stored as a SHA-256 only, shown once, revocable, and held to a per-minute
 and a daily cap (`claim_agent_key_call`). These routes accept an agent key
 and nothing else — never a session.
+
+Agent rails (`/agents`, `lib/rails/`, `docs/AGENT_RAILS.md`) are the
+permissioned path between agents and money. A key's owner grants it a
+mandate (`agent_mandates`, `validateMandate`); the `rails_` tools are listed
+only to a key with a live one, and only the kinds it grants. Every ask is an
+intent, normalised (symbols through `lib/trade.ts`; a payment request's
+payee and amount from the request, never the agent), priced, its payee
+screened (`screenAddress`, OFAC SDN read live, fail closed), decided by
+`decideIntent` and recorded. A swap or a payment is always signed by the
+person in their own wallet — a payment's transfer is built from the intent
+(`buildPayment`) — and becomes `executed` only on the chain's proof
+(`confirmIntent`); a perp order runs through `openMarketTrade`
+(`lib/autotrade/trade.ts`, shared with the Automation page) on approval, or
+at once when the mandate sets `auto_perps`. Elyra holds no wallet key, and
+an agent's memo is text, never acted on or put in a notice. Every event —
+mandates, intents, decisions, settlements — goes through `appendLedger` into
+`rails_ledger`, a per-person SHA-256 chain (`lib/rails/ledger.ts`) the
+database cannot fork; never write to it any other way. Payment requests are
+Solana Pay requests with a reference key, settled from the chain by
+`checkRequest` (on read and on the tick, `runRails`), with a public pay page
+at `/pay/[id]` (a standalone route).
+
+AI funds (`/funds`, `lib/funds/`, `docs/AI_FUNDS.md`) are autonomous funds
+over the person's own capital: the person writes a charter (`validateCharter`,
+`FUND_LIMITS` in `lib/funds/policy.ts` — not settings), an agent key is the
+manager, and Elyra is the administrator and risk officer. A key manages one
+open fund and sees the `fund_` tools only while it does. Every order is held
+to the charter by `checkOrder` on a fresh mark, then goes out through
+`openMarketTrade` tagged with `fund_id` (so it also passes `accountGate`);
+every close through `closeTrade` (`lib/autotrade/close.ts`, the one close
+path). A fund's book is exactly its tagged positions plus its flows; returns
+are per unit (`lib/funds/accounting.ts`), so capital moving in or out never
+reads as performance. Every fund is born on paper; live is reached only by
+graduating (`graduationCheck`, then `liveRefusal` and the Hyperliquid account
+value, failing closed), which closes the paper fund and opens a live one, so
+a live record never holds paper results. Capital is an allocation, never a
+transfer: nothing is pooled and Elyra holds no key that can withdraw.
+`runFunds` runs on the tick right after the automation pass: it marks each
+fund, ledgers closes made elsewhere, seals each day's closing NAV, halts and
+flattens a fund at its drawdown limit, and closes out a wind-down. Every
+status change is a compare-and-set on the status it expects. Every event goes
+through `appendLedger`; a manager's note is sealed by hash, shown as its
+text, and never acted on or put in a notice.
 
 Arena (`/arena`, `lib/arena/`, `docs/ARENA.md`) is points and paper only:
 nothing in it moves money, and points cannot be bought or cashed out
@@ -250,8 +295,10 @@ Price alerts (`/api/alerts`) stay alerts: a price rule tells the person; it
 never trades. Where a crossing goes — Telegram, muted, or nowhere — is said
 where the rule is set.
 
-AI safety. The model reads and writes words; it never moves money. No tool
-places an order or builds a transaction, and a prepared action is rebuilt by
+AI safety. Elyra's own model reads and writes words; it never moves money —
+outside agents act only through the rails and AI funds, each held to the
+person's mandate or charter, never through Elyra's model. No tool in its
+registry places an order or builds a transaction, and a prepared action is rebuilt by
 the server from live state (`lib/personalized/actions.ts`), never taken from
 model output. The only tools that change anything — creating and deleting a
 prediction alert — run only when the operator's own message this turn asks
@@ -273,6 +320,23 @@ component. The panel is mounted as a column from 1280px and as a drawer below,
 so nothing it needs may live in component state — staged attachments
 included (`composerAttachments`, never persisted). A reply's sources come from
 the tool results (`lib/agent/sources.ts`), never from the model's text.
+
+The website's chat is answered by a team (`runTeam`, `lib/agent/team/`):
+Research gathers figures with the tools, Strategy reviews Research's notes
+and may send one `FOLLOW_UP` back, Execution checks the server-built
+preview (`planPreparedAction`) for a request to move capital, and the
+orchestrator writes the one reply. Code allocates by `classifyIntent` — a
+lookup goes to Research alone — builds the shared board (saved rules from
+`listMemories`, outcomes from open actions and closed automation positions),
+and traces every figure in the reply to a tool result (`traceFigures`),
+reporting rather than removing what does not trace. A question claims one
+run however many members work it. Every role prompt is the standing prompt
+plus a role (pinned by `lib/agent/team/prompts.test.ts`); members' notes
+reach other members fenced as data; Strategy and Execution have no tools.
+Only a body with `team: true` gets the team — the web sends it; Telegram and
+the Android app stay on `runAgent`. Both share `toolLoop`
+(`lib/agent/loop.ts`) and the conversation's storage
+(`lib/agent/conversation.ts`).
 
 Attachments are checked by `validateAttachments` in `lib/attachments.ts`
 wherever a body carries them — type, leading bytes, count, size — and are

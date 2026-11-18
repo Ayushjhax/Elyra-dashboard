@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { FileSearch } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ReportsTab } from "./ReportsTab";
 import { BacktestsTab } from "./BacktestsTab";
 import { PredictionMarketsTab } from "./PredictionMarketsTab";
@@ -14,8 +16,8 @@ import "./research.css";
 const TABS = [
   ["reports", "Reports"],
   ["backtests", "Backtests"],
-  ["prediction", "Prediction Markets"],
-  ["recap", "Market Recap"],
+  ["prediction", "Prediction markets"],
+  ["recap", "Market recap"],
   ["signals", "Signals"],
   ["yield", "Yield"],
   ["unlocks", "Unlocks"],
@@ -47,10 +49,12 @@ export function ResearchWorkspace() {
   }, [tab]);
   return (
     <div className="research-workspace">
-      <header className="r-header">
-        <h1>Research</h1>
-        <p>Filings, markets, signals and event intelligence.</p>
-      </header>
+      <PageHeader
+        icon={FileSearch}
+        title="Research"
+        subtitle="Filings, markets, signals and event intelligence."
+        className="mb-6"
+      />
       <div ref={nav} className="r-tabs" role="tablist" aria-label="Research">
         {TABS.map(([id, label], index) => (
           <button

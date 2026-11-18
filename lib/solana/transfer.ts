@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  AccountRole,
   address,
   appendTransactionMessageInstructions,
   compileTransaction,
@@ -194,6 +195,13 @@ export async function buildTokenTransfer(input: {
   amount: string;
   decimals: number;
   tokenProgram?: string;
+  /**
+   * A Solana Pay reference: a public key added to the transfer as a
+   * read-only account, so the payment can be found on-chain by it
+   * (lib/rails/solanaPay.ts). It signs nothing and the token program ignores
+   * it; it only makes the transaction findable.
+   */
+  reference?: string;
 }): Promise<BuiltTransfer> {
   const owner = address(input.from);
   const recipient = address(input.to);
@@ -229,7 +237,7 @@ export async function buildTokenTransfer(input: {
     tokenProgram,
   });
 
-  const transfer = getTransferCheckedInstruction(
+  const checked = getTransferCheckedInstruction(
     {
       source,
       mint,
@@ -240,6 +248,10 @@ export async function buildTokenTransfer(input: {
     },
     { programAddress: tokenProgram },
   );
+  const transfer =
+    input.reference === undefined
+      ? checked
+      : { ...checked, accounts: [...checked.accounts, { address: address(input.reference), role: AccountRole.READONLY }] };
 
   const message = pipe(
     createTransactionMessage({ version: 0 }),

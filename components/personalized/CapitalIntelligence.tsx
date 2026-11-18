@@ -10,6 +10,7 @@ import { PreferenceEditor, type EditorIntent } from "@/components/personalized/P
 import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Tip } from "@/components/shell/RouteDrawer";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { ComposerAttachment } from "@/lib/attachments";
 import { usePersonalizedChat, usePersonalizedMemory, type ChatFeed, type MemoryFeed } from "@/lib/personalized/client";
 import { accountContextOn, sourceStatuses } from "@/lib/personalized/sources";
@@ -218,51 +219,49 @@ export function CapitalIntelligenceView({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 @container">
-      <header className="flex shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Sparkles size={30} strokeWidth={1.5} aria-hidden className="shrink-0 text-accent" />
-          <div className="min-w-0">
-            <h1 className="type-h1 text-text-primary">Capital Intelligence</h1>
-            <p className="type-body text-text-secondary">Your capital. A clearer perspective.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* On a phone the three buttons do not fit one row with their
-              labels, so this one, the least asked-for, keeps only its icon. */}
-          {signedIn && (
+      <PageHeader
+        icon={Sparkles}
+        title="Capital Intelligence"
+        subtitle="Your capital. A clearer perspective."
+        actions={
+          <div className="flex items-center gap-2">
+            {/* On a phone the three buttons do not fit one row with their
+                labels, so this one, the least asked-for, keeps only its icon. */}
+            {signedIn && (
+              <button
+                type="button"
+                onClick={() => setContextOpen(true)}
+                aria-label="Context"
+                className={cn(
+                  outlined,
+                  "border-border-strong text-text-primary @max-[36rem]:w-10 @max-[36rem]:px-0 @[64rem]:hidden",
+                )}
+              >
+                <PanelRightOpen size={17} strokeWidth={1.5} aria-hidden />
+                <span className="@max-[36rem]:hidden">Context</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setContextOpen(true)}
-              aria-label="Context"
-              className={cn(
-                outlined,
-                "border-border-strong text-text-primary @max-[36rem]:w-10 @max-[36rem]:px-0 @[64rem]:hidden",
-              )}
+              onClick={() => setHistoryOpen(true)}
+              disabled={!signedIn}
+              className={cn(outlined, "border-border-strong text-text-primary disabled:opacity-50")}
             >
-              <PanelRightOpen size={17} strokeWidth={1.5} aria-hidden />
-              <span className="@max-[36rem]:hidden">Context</span>
+              <Clock3 size={17} strokeWidth={1.5} aria-hidden />
+              History
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setHistoryOpen(true)}
-            disabled={!signedIn}
-            className={cn(outlined, "border-border-strong text-text-primary disabled:opacity-50")}
-          >
-            <Clock3 size={17} strokeWidth={1.5} aria-hidden />
-            History
-          </button>
-          <button
-            type="button"
-            onClick={newChat}
-            disabled={!signedIn}
-            className={cn(outlined, "border-accent text-text-primary hover:border-accent-hover disabled:opacity-50")}
-          >
-            <Plus size={17} strokeWidth={1.5} aria-hidden className="text-accent" />
-            New chat
-          </button>
-        </div>
-      </header>
+            <button
+              type="button"
+              onClick={newChat}
+              disabled={!signedIn}
+              className={cn(outlined, "border-accent text-text-primary hover:border-accent-hover disabled:opacity-50")}
+            >
+              <Plus size={17} strokeWidth={1.5} aria-hidden className="text-accent" />
+              New chat
+            </button>
+          </div>
+        }
+      />
 
       {!auth.ready ? (
         <div aria-busy="true" aria-label="Loading" className="min-h-0 flex-1 rounded-panel border border-border-subtle bg-surface-panel" />

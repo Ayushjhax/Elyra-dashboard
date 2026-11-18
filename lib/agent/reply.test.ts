@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { activityFor, createReplyFold, workingLine } from "@/lib/agent/reply";
+import type { TeamTrace } from "@/lib/agent/events";
+import { activityFor, createReplyFold, teamWorkingLine, workingLine } from "@/lib/agent/reply";
 
 describe("createReplyFold", () => {
   it("builds the draft from text and keeps the server's finished reply", () => {
@@ -61,5 +62,64 @@ describe("working line", () => {
     expect(activityFor(["Portfolio holdings"])).toBe("portfolio holdings");
     expect(workingLine("portfolio holdings")).toBe("Reading portfolio holdings…");
     expect(workingLine(undefined)).toBe("Elyra is working…");
+  });
+});
+
+describe("a team's board", () => {
+  const plan: Omit<TeamTrace, "review"> = {
+    objective: "Am I too exposed to SOL?",
+    stages: [
+      { id: "research", task: "Gather the figures.", status: "queued" },
+      { id: "strategy", task: "Weigh them.", status: "queued" },
+      { id: "execution", task: "Nothing to execute.", status: "skipped" },
+    ],
+    constraints: ["Max 25% in any one asset"],
+    outcomes: [],
+  };
+
+  it("builds the board from the plan, each stage and the review, whole each time", () => {
+    const fold = createReplyFold();
+    expect(fold.event({ type: "team_plan", plan })).toEqual({ kind: "team", team: { ...plan, review: null } });
+
+    const working = fold.event({ type: "team_stage", agent: "research", status: "working", activity: "market snapshot" });
+    expect(working?.kind === "team" && working.team.stages[0]).toMatchObject({ status: "working", activity: "market snapshot" });
+
+    const done = fold.event({ type: "team_stage", agent: "research", status: "done", brief: "SOL 181.40" });
+    /* Through, so what it was reading is cleared; its notes stay. */
+    expect(done?.kind === "team" && done.team.stages[0]).toEqual({
+      id: "research",
+      task: "Gather the figures.",
+      status: "done",
+      activity: undefined,
+      brief: "SOL 181.40",
+    });
+
+    const reviewed = fold.event({ type: "team_review", review: { checked: 1, untraced: [], notes: ["n"] } });
+    expect(reviewed?.kind === "team" && reviewed.team.review).toEqual({ checked: 1, untraced: [], notes: ["n"] });
+    /* The other stages are untouched. */
+    expect(reviewed?.kind === "team" && reviewed.team.stages.slice(1)).toEqual(plan.stages.slice(1));
+  });
+
+  it("ignores a stage or review for a board that never arrived", () => {
+    const fold = createReplyFold();
+    expect(fold.event({ type: "team_stage", agent: "research", status: "working" })).toBeNull();
+    expect(fold.event({ type: "team_review", review: { checked: 0, untraced: [], notes: [] } })).toBeNull();
+  });
+
+  it("names who is working, then the write-up", () => {
+    const team: TeamTrace = { ...plan, review: null };
+    expect(teamWorkingLine(team)).toBe("Elyra is allocating the question…");
+    const researching: TeamTrace = {
+      ...team,
+      stages: team.stages.map((stage) =>
+        stage.id === "research" ? { ...stage, status: "working", activity: "market snapshot" } : stage,
+      ),
+    };
+    expect(teamWorkingLine(researching)).toBe("Research is reading market snapshot…");
+    const writing: TeamTrace = {
+      ...team,
+      stages: team.stages.map((stage) => (stage.id === "execution" ? stage : { ...stage, status: "done" })),
+    };
+    expect(teamWorkingLine(writing)).toBe("Writing the answer from the team's notes…");
   });
 });

@@ -52,7 +52,7 @@ function MetricRow({ metrics }: { metrics: AnswerMetric[] }) {
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle @[30rem]:grid-cols-4">
       {metrics.map((metric) => (
         <div key={metric.label} className="flex flex-col gap-0.5 bg-surface-panel px-3 py-2">
-          <span className="type-label truncate uppercase tracking-[0.08em] text-text-muted">
+          <span className="type-eyebrow truncate text-text-muted">
             {metric.label}
           </span>
           <span className="type-data truncate tabular-nums text-text-primary">
@@ -134,7 +134,7 @@ export function ActionPreview({
       )}
     >
       <header className="flex items-center gap-2 border-b border-border-subtle bg-surface-raised px-3 py-2">
-        <span className="type-label uppercase tracking-[0.08em] text-text-muted">
+        <span className="type-eyebrow text-text-muted">
           Prepared action
         </span>
         <span className="type-data-sm ml-auto min-w-0 truncate text-text-primary">

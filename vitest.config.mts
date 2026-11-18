@@ -30,6 +30,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", ".next/**", "elyra-signals/**", "mobile/**", "marketing/**"],
+    /* `.claude/**`: git worktrees of other branches live there, each with its
+       own node_modules — their tests are that branch's, not this checkout's. */
+    exclude: ["**/node_modules/**", ".next/**", "elyra-signals/**", "mobile/**", "marketing/**", ".claude/**"],
   },
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,13 +12,15 @@ import {
   FileSearch,
   Gift,
   Globe2,
+  Landmark,
   Layers,
   LayoutDashboard,
-  Newspaper,
   Link2,
+  Newspaper,
   PieChart,
   RotateCcw,
   Settings,
+  ShieldCheck,
   Sparkles,
   Swords,
   Wallet,
@@ -48,6 +50,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/markets", label: "World markets", icon: Globe2 },
   { href: "/invest", label: "Invest", icon: Layers },
   { href: "/automation", label: "Automation", icon: Bot },
+  { href: "/agents", label: "Agents", icon: ShieldCheck },
+  { href: "/funds", label: "Funds", icon: Landmark },
   { href: "/arena", label: "Arena", icon: Swords },
   { href: "/personalized", label: "Personalized", icon: Sparkles },
   { href: "/assets", label: "Assets", icon: Coins },
@@ -58,7 +62,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 const ITEM = cn(
-  "relative flex h-11 w-full min-w-0 items-center gap-3 rounded-card px-[13px]",
+  "relative flex h-11 w-full min-w-0 items-center gap-3 rounded-card px-[13px] short:h-9",
   "transition-colors duration-[var(--dur-fast)] ease-brand",
 );
 
@@ -79,7 +83,7 @@ export function NavList({
   const pathname = usePathname();
 
   return (
-    <ul className="flex list-none flex-col gap-1">
+    <ul className="flex list-none flex-col gap-1 short:gap-0.5">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         /* A route's own sub-pages (a portfolio under /invest) keep its link lit. */
         const active = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
@@ -257,6 +261,21 @@ export function NavRail({
   icons: boolean;
   className?: string;
 }) {
+  const pathname = usePathname();
+  const routes = useRef<HTMLDivElement>(null);
+
+  /* On a screen too short for every route, the list scrolls; keep the lit
+     one in it. Only the rail's own list moves — never the shell. */
+  useEffect(() => {
+    const list = routes.current;
+    const link = list?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!list || !link) return;
+    const box = list.getBoundingClientRect();
+    const item = link.getBoundingClientRect();
+    if (item.top < box.top) list.scrollTop -= box.top - item.top + 8;
+    else if (item.bottom > box.bottom) list.scrollTop += item.bottom - box.bottom + 8;
+  }, [pathname]);
+
   return (
     <nav
       aria-label="Primary"
@@ -283,11 +302,11 @@ export function NavRail({
         </Link>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3">
+      <div ref={routes} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-3 short:py-2">
         <NavList icons={icons} />
       </div>
 
-      <div className="flex shrink-0 flex-col gap-1 border-t border-border-subtle px-2.5 py-3">
+      <div className="flex shrink-0 flex-col gap-1 border-t border-border-subtle px-2.5 py-3 short:gap-0.5 short:py-2">
         <ExpandToggle icons={icons} />
         <SettingsMenu />
         <RailAccount icons={icons} />

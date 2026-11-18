@@ -307,7 +307,7 @@ function Row({
   const share = Math.min(100, (level.notional / widest) * 100);
 
   return (
-    <div className="relative flex items-center justify-between overflow-hidden rounded px-2 py-1">
+    <div className="relative flex items-center justify-between overflow-hidden rounded-chip px-2 py-1">
       {/* Depth bar. Decorative — the figures beside it carry the meaning. */}
       <div
         aria-hidden
@@ -394,10 +394,10 @@ function SignalPanel({ response }: { response: SignalResponse }) {
           </p>
         </div>
         <div className="flex gap-2">
-          <span className="type-label rounded-full border border-border-subtle px-2 py-0.5 text-text-secondary">
+          <span className="type-label rounded-pill border border-border-subtle px-2 py-0.5 text-text-secondary">
             {signal.strength} strength
           </span>
-          <span className="type-label rounded-full border border-border-subtle px-2 py-0.5 text-text-secondary">
+          <span className="type-label rounded-pill border border-border-subtle px-2 py-0.5 text-text-secondary">
             {signal.liquidityQuality} liquidity
           </span>
         </div>
@@ -550,7 +550,7 @@ function BasketPanel({ basket }: { basket: Basket }) {
     <div className="space-y-3 rounded-card border border-border-subtle bg-surface-raised p-4">
       <div className="flex items-baseline justify-between">
         <p className="type-label text-text-muted">Elyra Probability Basket</p>
-        <span className="type-label rounded-full border border-border-subtle px-2 py-0.5 text-text-secondary">
+        <span className="type-label rounded-pill border border-border-subtle px-2 py-0.5 text-text-secondary">
           {basket.confidence} confidence
         </span>
       </div>

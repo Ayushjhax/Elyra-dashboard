@@ -156,7 +156,7 @@ export function BalancesTable({
     },
     {
       key: "change",
-      header: "24H",
+      header: "24h",
       align: "right",
       width: "11%",
       className: "hidden @[44rem]:table-cell",

@@ -312,7 +312,7 @@ export function EvmSendDialog({
             </>
           ) : (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   <input
                     inputMode="decimal"
@@ -329,6 +329,7 @@ export function EvmSendDialog({
                     }}
                     placeholder="0.00"
                     aria-label="Amount to send"
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
                   <button
@@ -661,7 +662,7 @@ export function EvmSwapDialog({
             </>
           ) : (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   <input
                     inputMode="decimal"
@@ -669,6 +670,7 @@ export function EvmSwapDialog({
                     onChange={(event) => setAmount(event.target.value)}
                     placeholder="0.00"
                     aria-label="Amount to sell"
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
                   <select value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Token to sell" className={SELECT}>

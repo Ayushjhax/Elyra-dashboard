@@ -3,7 +3,9 @@ import { cronAuthorised } from "@/lib/notifications/cron";
 import { runArena } from "@/lib/arena/engine";
 import { runAutotrade } from "@/lib/autotrade/engine";
 import { runEvents } from "@/lib/events/engine";
+import { runFunds } from "@/lib/funds/run";
 import { deliverNotifications } from "@/lib/notifications/deliver";
+import { runRails } from "@/lib/rails/run";
 
 /* ---------------------------------------------------------------------------
    The delivery pass, as a scheduled endpoint — every channel at once: the
@@ -48,6 +50,12 @@ export async function GET(request: Request): Promise<Response> {
   const automation = await runAutotrade().catch((error: unknown) => ({
     error: error instanceof Error ? error.message : "Automation pass failed.",
   }));
+  /* Then the AI funds (lib/funds/run.ts), right after the trades they hold
+     have had their exits recorded: each fund marked to market, its daily
+     NAV sealed, halted at its drawdown limit, wound down when asked. */
+  const funds = await runFunds().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Funds pass failed.",
+  }));
   /* Then Arena (lib/arena/engine.ts): reviews of trades that just closed,
      calls that came due, and their cards — capped per run. */
   const arena = await runArena().catch((error: unknown) => ({
@@ -58,8 +66,14 @@ export async function GET(request: Request): Promise<Response> {
   const events = await runEvents().catch((error: unknown) => ({
     error: error instanceof Error ? error.message : "Events pass failed.",
   }));
+  /* Then the agent rails (lib/rails/run.ts): lapse intents nobody answered,
+     and settle open payment requests from the chain. */
+  const rails = await runRails().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Rails pass failed.",
+  }));
+
   const report = await deliverNotifications();
-  return NextResponse.json({ ...report, automation, arena, events }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ...report, automation, funds, arena, events, rails }, { headers: { "cache-control": "no-store" } });
 }
 
 /** Same work, for schedulers that only issue POSTs. */

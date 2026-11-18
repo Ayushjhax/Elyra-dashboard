@@ -259,36 +259,39 @@ export function PortfolioView({ id }: { id: string }) {
       </DrawerCard>
 
       <DrawerCard icon={Layers} title="Holdings" right={<span className="type-label text-text-muted">Weights set {portfolio.reviewedOn}</span>}>
-        <DataTable
-          caption={`${portfolio.name}: each holding's target weight, price and, if you hold it, its share of your position.`}
-          columns={columns}
-          rows={report.rows}
-          getRowKey={(row) => row.symbol}
-          minWidth={420}
-          card={(row) => (
-            <div className="flex flex-col gap-1 py-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="type-data-sm text-text-primary">{row.ticker}</span>
-                <span className="type-data-sm text-text-primary">{weightLabel(row.targetBps)}</span>
-              </div>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="type-label truncate text-text-muted">{row.name} · {row.role}</span>
-                <span className="type-data-sm shrink-0 text-text-secondary">{formatPriceUsd(row.priceUsd)}</span>
-              </div>
-              {report.held && (
+        {/* Edge to edge across the card, so its first column sits under the heading. */}
+        <div className="-mx-4 @max-[340px]:-mx-3 @max-[340px]:[--table-inset:12px]">
+          <DataTable
+            caption={`${portfolio.name}: each holding's target weight, price and, if you hold it, its share of your position.`}
+            columns={columns}
+            rows={report.rows}
+            getRowKey={(row) => row.symbol}
+            minWidth={420}
+            card={(row) => (
+              <div className="flex flex-col gap-1 py-2">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="type-label text-text-muted">
-                    Yours · <Quantity value={row.units} />
-                  </span>
-                  <span className={cn("type-data-sm", row.outOfBand ? "text-caution" : "text-text-primary")}>
-                    {shareLabel(row.currentBps)}
-                    {row.outOfBand ? " · out of band" : ""}
-                  </span>
+                  <span className="type-data-sm text-text-primary">{row.ticker}</span>
+                  <span className="type-data-sm text-text-primary">{weightLabel(row.targetBps)}</span>
                 </div>
-              )}
-            </div>
-          )}
-        />
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="type-label truncate text-text-muted">{row.name} · {row.role}</span>
+                  <span className="type-data-sm shrink-0 text-text-secondary">{formatPriceUsd(row.priceUsd)}</span>
+                </div>
+                {report.held && (
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="type-label text-text-muted">
+                      Yours · <Quantity value={row.units} />
+                    </span>
+                    <span className={cn("type-data-sm", row.outOfBand ? "text-caution" : "text-text-primary")}>
+                      {shareLabel(row.currentBps)}
+                      {row.outOfBand ? " · out of band" : ""}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          />
+        </div>
       </DrawerCard>
 
       <DrawerCard icon={Info} title="Why these">

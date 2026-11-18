@@ -27,11 +27,13 @@ import { ElyraSignals } from "@/components/agent/ElyraSignals";
 import { PendingActions } from "@/components/agent/PendingActions";
 import { SmartMoneyPanel } from "@/components/panels/SmartMoneyPanel";
 import { SecResearch } from "@/components/agent/SecResearch";
+import { TeamArchitecture, TeamTrace } from "@/components/agent/TeamTrace";
 import { sendToAgent } from "@/lib/agentChat";
 import { ACCEPT, ATTACHMENT_LIMITS, type ComposerAttachment } from "@/lib/attachments";
 import { describeSize, readAttachments } from "@/lib/attachments-read";
 import { formatClock } from "@/lib/format";
 import { useAssets } from "@/lib/market/usePrices";
+import { teamWorkingLine } from "@/lib/agent/reply";
 import { suggestionChips } from "@/lib/agent/suggestions";
 import { useElyraStore } from "@/lib/store";
 import type { AgentTab, ChatMessage, ToolCall } from "@/lib/types";
@@ -161,6 +163,8 @@ function MessageBubble({
       >
         {isAgent && message.toolCall && <ToolCallBlock call={message.toolCall} />}
 
+        {isAgent && message.team && <TeamTrace team={message.team} working={thinking} />}
+
         {message.attachments && message.attachments.length > 0 && (
           <ul aria-label="Attached files" className="flex list-none flex-wrap justify-end gap-1.5">
             {message.attachments.map((file, index) =>
@@ -190,7 +194,11 @@ function MessageBubble({
           /* The line that reports the state, and what a screen reader gets. */
           <p aria-live="polite" className="type-body-sm flex items-center gap-2 text-text-secondary">
             <Sparkles size={14} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
-            {message.activity ? `Reading ${message.activity}…` : "Elyra is working…"}
+            {message.team
+              ? teamWorkingLine(message.team)
+              : message.activity
+                ? `Reading ${message.activity}…`
+                : "Elyra is working…"}
           </p>
         ) : message.text.length > 0 || isAgent ? (
           <p
@@ -294,6 +302,7 @@ function Conversation({
             >
               Brief me on {symbol || "the market"}
             </button>
+            <TeamArchitecture />
           </div>
         ) : (
           <ul aria-label="Conversation" className="flex list-none flex-col gap-3">

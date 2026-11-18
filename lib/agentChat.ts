@@ -24,6 +24,10 @@ import { nextMessageId, useElyraStore } from "@/lib/store";
    final `done` whose reply is the one kept, with the sources the tools
    actually returned. How each event changes the bubble is lib/agent/reply.ts,
    which the Android app follows too.
+
+   The website asks a team to answer (`team: true`): the reply then also
+   carries the team's board — who worked on it, what each found, and the
+   check on the figures — which the panel shows above the answer.
 --------------------------------------------------------------------------- */
 
 /** Privy's token getter, handed in by the caller: only a hook can reach it. */
@@ -134,6 +138,9 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
       case "action":
         patch(replyId, { preparedAction: update.action, preparedActionId: update.id });
         break;
+      case "team":
+        patch(replyId, { team: update.team });
+        break;
       case "settled":
         patch(replyId, {
           text: update.text,
@@ -161,6 +168,8 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
       body: JSON.stringify({
         message: text,
         stream: true,
+        /* The website's questions go to the team (lib/agent/team). */
+        team: true,
         ...(files.length > 0
           ? { attachments: files.map((file) => ({ name: file.name, mediaType: file.mediaType, data: file.data })) }
           : {}),

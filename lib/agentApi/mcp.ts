@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { AgentAuth } from "@/lib/agentApi/keys";
-import { agentTools, runAgentTool, type AgentTool } from "@/lib/agentApi/tools";
+import { agentToolsFor, runAgentTool, type AgentTool } from "@/lib/agentApi/tools";
+import { fundToolReads } from "@/lib/funds/tools";
 
 /* ---------------------------------------------------------------------------
    Elyra as an MCP server: the JSON-RPC half, separate from HTTP.
@@ -25,7 +26,13 @@ export const INSTRUCTIONS = [
   "Elyra's live market context: crypto, US and Asian equities, FX and metals prices from Pyth; perpetual funding and open interest;",
   "Polymarket prediction markets and order books; Solana DeFi pools; SEC-filing company research; and strategy backtests.",
   "With an account-scoped key, also the key owner's own portfolio, positions, orders and activity across their connected venues.",
-  "Every tool only reads. Nothing here places, changes or cancels an order or moves funds.",
+  "The market and account tools only read.",
+  "When the key's owner has granted it a mandate, the rails_ tools let it ASK for transactions: swaps and USDC payments the owner signs in their own wallet,",
+  "Hyperliquid perp orders, and USDC payment requests to be paid. Each ask is held to the mandate, recorded in the owner's ledger and answered with a receipt;",
+  "call rails_mandate first to see what is allowed. Elyra holds no wallet key and nothing moves without the owner's signature, except perp orders a mandate lets run.",
+  "When the key manages one of the owner's AI funds, the fund_ tools run it: fund_overview gives the owner's brief, the charter and the book marked to market;",
+  "fund_open_position and fund_close_position trade Hyperliquid perps for the fund, held to its charter, with every decision recorded in the owner's ledger;",
+  "fund_write_note keeps the fund's journal. Elyra halts the fund at its drawdown limit, and capital, the charter and paper or live are the owner's alone.",
   "When a tool returns an error, say the data could not be retrieved rather than estimating it.",
 ].join(" ");
 
@@ -63,12 +70,25 @@ function title(name: string): string {
 }
 
 export function mcpTool(tool: AgentTool) {
+  const rails = tool.scope === "rails";
+  const fund = tool.scope === "fund";
+  /* A rails or fund tool that only reads is still read-only. */
+  const reads = fund
+    ? fundToolReads(tool.name)
+    : !rails || /^rails_(mandate|intent_status|list_intents|payment_request_status)$/.test(tool.name);
   return {
     name: tool.name,
     title: title(tool.name),
-    description: tool.scope === "account" ? `${tool.description} (Reads the key owner's own account.)` : tool.description,
+    description:
+      tool.scope === "account"
+        ? `${tool.description} (Reads the key owner's own account.)`
+        : rails && !reads
+          ? `${tool.description} (Asks the key owner; held to their mandate and recorded in their ledger.)`
+          : fund && !reads
+            ? `${tool.description} (Acts for the fund this key manages; held to its charter and recorded in the owner's ledger.)`
+            : tool.description,
     inputSchema: tool.parameters,
-    annotations: { title: title(tool.name), readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    annotations: { title: title(tool.name), readOnlyHint: reads, destructiveHint: false, idempotentHint: reads, openWorldHint: true },
   };
 }
 
@@ -111,7 +131,7 @@ export async function handleMessage(
           name: "elyra",
           title: "Elyra",
           version: SERVER_VERSION,
-          description: "Live market and portfolio context for AI agents. Read-only.",
+          description: "Live market and portfolio context for AI agents, and permissioned rails for the transactions they ask for.",
           websiteUrl: "https://getelyra.xyz",
         },
         instructions: INSTRUCTIONS,
@@ -121,7 +141,7 @@ export async function handleMessage(
       return rpcResult(id, {});
     case "tools/list":
       /* Under 50 tools: one page, so no cursor. */
-      return rpcResult(id, { tools: agentTools(auth.scopes).map(mcpTool) });
+      return rpcResult(id, { tools: (await agentToolsFor(auth)).map(mcpTool) });
     case "tools/call": {
       if (typeof params.name !== "string") return rpcError(id, ERROR.invalidParams, "tools/call needs a tool `name`.");
       const args = params.arguments === undefined ? {} : params.arguments;
@@ -131,6 +151,7 @@ export async function handleMessage(
       if (refused !== null) return rpcResult(id, { content: [{ type: "text", text: refused }], isError: true });
       const outcome = await runAgentTool(params.name, args, auth);
       if (outcome.kind === "unknown") return rpcError(id, ERROR.invalidParams, `Unknown tool: ${params.name}`);
+      if (outcome.kind === "denied") return rpcResult(id, { content: [{ type: "text", text: outcome.reason }], isError: true });
       if (outcome.kind === "forbidden") {
         return rpcResult(id, {
           content: [{ type: "text", text: `${params.name} reads the key owner's account. This key was created without account access; create one with it in Elyra → Connections.` }],

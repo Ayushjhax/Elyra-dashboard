@@ -198,7 +198,7 @@ export function SwapDialog({
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           {signature === null ? (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   <input
                     inputMode="decimal"
@@ -209,6 +209,7 @@ export function SwapDialog({
                     }}
                     placeholder="0.00"
                     aria-label="Amount to swap"
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
                   <select

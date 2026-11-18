@@ -568,12 +568,17 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           The tools' labels need about 830px on one row with alerts armed, so
           they arrive at @4xl; from @3xl they pushed the reload and full-screen
           buttons onto a row of their own on a laptop. Below it the tools are
-          icons, each named by its aria-label. */}
+          icons, each named by its aria-label.
+
+          As icons, intervals and tools need about 610px on one row. The
+          intervals' own width decides the wrap, so a card a little under that
+          — a laptop with a route open beside the chart — sent the reload and
+          full-screen buttons to a row alone. The two rows hold until @2xl. */}
       <div className="@container flex flex-wrap items-center gap-2 border-y border-border-subtle px-3 py-2 compact:px-4">
         <div
           role="group"
           aria-label="Chart interval"
-          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @xl:basis-auto @xl:flex-1 @4xl:flex-none"
+          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @2xl:basis-auto @2xl:flex-1 @4xl:flex-none"
         >
           {INTERVALS.map((value) => {
             const active = value === interval;
@@ -597,7 +602,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           })}
         </div>
 
-        <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-border-subtle @xl:block" />
+        <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-border-subtle @2xl:block" />
 
         <div role="group" aria-label="Series style" className="flex shrink-0 items-center gap-1">
           {(

@@ -28,8 +28,10 @@ import { cn } from "@/lib/utils";
    (/api/v1/tools).
 
    A key reads market data. It reads the person's own portfolio only if they
-   tick the box when creating it. Nothing an agent can call trades, moves
-   funds or changes settings. The key is shown once, at creation; Elyra keeps
+   tick the box when creating it. On its own, nothing it can call trades,
+   moves funds or changes settings; a mandate granted in Agents (/agents,
+   lib/rails) lets it ASK for transactions the person approves, within the
+   mandate's limits. The key is shown once, at creation; Elyra keeps
    only its hash, so a lost key is revoked and replaced, never recovered.
 --------------------------------------------------------------------------- */
 
@@ -57,7 +59,7 @@ function CopyLine({ text, label, multiline = false }: { text: string; label: str
   );
 }
 
-function HowToConnect({ origin, keyText }: { origin: string; keyText: string }) {
+export function HowToConnect({ origin, keyText }: { origin: string; keyText: string }) {
   const endpoint = `${origin}/api/mcp`;
   const config = JSON.stringify({ mcpServers: { elyra: { type: "http", url: endpoint, headers: { Authorization: `Bearer ${keyText}` } } } }, null, 2);
   return (
@@ -173,7 +175,7 @@ export function AgentKeysCard() {
     <ConnectionCard
       mark={<MarkTile icon={BrainCircuit} />}
       title="AI agents"
-      subtitle="Give Claude, ChatGPT or your own agent Elyra's live market context over MCP. Read-only."
+      subtitle="Give Claude, ChatGPT or your own agent Elyra's live market context over MCP. Read-only until you grant it a mandate in Agents."
       status={status}
     >
       {fresh !== null && (

@@ -125,6 +125,56 @@ export async function positionSize(network: Network, account: string, coin: stri
 }
 
 /**
+ * Mids for many coins at once — one read per exchange (Hyperliquid's own,
+ * and each builder dex named), for marking a fund's whole book. A coin with
+ * no mid is left out; the caller marks it at its entry and says so.
+ */
+export async function midsFor(network: Network, coins: readonly string[]): Promise<Map<string, number>> {
+  const dexes = [...new Set(coins.map((coin) => dexOf(coin)))];
+  const out = new Map<string, number>();
+  await Promise.all(
+    dexes.map(async (dex) => {
+      const mids = await post<Record<string, string>>(network, "/info", dex === null ? { type: "allMids" } : { type: "allMids", dex }).catch(() => ({}) as Record<string, string>);
+      for (const coin of coins) {
+        if (dexOf(coin) !== dex) continue;
+        const mid = Number(mids[coin]);
+        if (Number.isFinite(mid) && mid > 0) out.set(coin, mid);
+      }
+    }),
+  );
+  return out;
+}
+
+/**
+ * The account's value in USD on Hyperliquid's own perps plus each builder
+ * dex named — each keeps its own margin. Null when any could not be read:
+ * a live fund's capital is checked against it, and an unknown balance must
+ * refuse rather than pass.
+ */
+export async function accountValue(network: Network, account: string, dexes: readonly string[] = []): Promise<number | null> {
+  try {
+    const states = await Promise.all(
+      [null, ...new Set(dexes)].map((dex) =>
+        post<{ marginSummary?: { accountValue?: string } }>(
+          network,
+          "/info",
+          dex === null ? { type: "clearinghouseState", user: account } : { type: "clearinghouseState", user: account, dex },
+        ),
+      ),
+    );
+    let total = 0;
+    for (const state of states) {
+      const value = Number(state.marginSummary?.accountValue);
+      if (!Number.isFinite(value)) return null;
+      total += value;
+    }
+    return total;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Bars from Hyperliquid itself, so a setup is read on the market it trades.
  * Always mainnet: testnet's prices are play prices, and a strategy tested on
  * them would be tested on nothing. Hyperliquid serves the latest 5,000 bars.

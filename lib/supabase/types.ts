@@ -156,8 +156,10 @@ export interface TradingPositionRow {
   closed_at: string | null;
   /** 0020: the leverage it was opened at; null for rows from before. */
   leverage: number | null;
-  /** 0020: a rule's entry or a limit order's fill. */
-  origin: "rule" | "order";
+  /** 0020: a rule's entry or a limit order's fill; 0025: a fund's order. */
+  origin: "rule" | "order" | "fund";
+  /** 0025: the AI fund this position belongs to; null for everything else. */
+  fund_id?: string | null;
 }
 
 /* Elyra Arena (0021). Numeric columns may come back as string or number. */
@@ -291,6 +293,144 @@ export interface AgentKeyRow {
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+}
+
+/** An agent key's permissions (0024). */
+export interface AgentMandateRow {
+  id: string;
+  user_id: string;
+  key_id: string;
+  kinds: ("swap" | "payment" | "perp_order" | "payment_request")[];
+  assets: string[] | null;
+  per_intent_usd: number | string;
+  daily_usd: number | string;
+  payees: string[];
+  auto_perps: boolean;
+  live_perps: boolean;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  revoked_at: string | null;
+}
+
+/** A transaction an agent asked for (0024). */
+export interface AgentIntentRow {
+  id: string;
+  user_id: string;
+  key_id: string;
+  kind: "swap" | "payment" | "perp_order";
+  params: Record<string, unknown>;
+  usd_value: number | string | null;
+  status: "rejected" | "pending" | "approved" | "executed" | "declined" | "expired" | "failed";
+  reasons: string[];
+  memo: string | null;
+  screening: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+  signature: string | null;
+  receipt: string | null;
+  created_at: string;
+  expires_at: string;
+  decided_at: string | null;
+  settled_at: string | null;
+}
+
+/** One event in an account's agent ledger (0024). */
+export interface RailsLedgerRow {
+  id: number;
+  user_id: string;
+  seq: number;
+  occurred_at: string;
+  actor: string;
+  event: string;
+  subject_id: string | null;
+  body: Record<string, unknown>;
+  prev_hash: string;
+  hash: string;
+  created_at: string;
+}
+
+/** A Solana Pay request to be paid in a stablecoin (0024). */
+export interface PaymentRequestRow {
+  id: string;
+  user_id: string;
+  key_id: string | null;
+  recipient: string;
+  mint: string;
+  amount_base: string;
+  decimals: number;
+  label: string;
+  memo: string | null;
+  reference: string;
+  status: "open" | "paid" | "expired" | "cancelled";
+  paid_signature: string | null;
+  paid_by: string | null;
+  paid_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+/* Autonomous AI funds (0025). Numeric columns may come back as string or number. */
+export interface AiFundRow {
+  id: string;
+  user_id: string;
+  key_id: string | null;
+  name: string;
+  objective: string;
+  mode: "paper" | "live";
+  status: "active" | "paused" | "halted" | "winding_down" | "closed";
+  markets: string[];
+  allow_shorts: boolean;
+  max_position_pct: string | number;
+  max_gross_exposure: string | number;
+  max_leverage: number;
+  max_positions: number;
+  max_drawdown_pct: string | number;
+  daily_loss_pct: string | number;
+  hwm_npu: string | number;
+  day_start_npu: string | number;
+  day_start_on: string | null;
+  last_nav: string | number | null;
+  last_npu: string | number | null;
+  marked_at: string | null;
+  halt_reason: string | null;
+  predecessor_id: string | null;
+  closed_reason: "wound_down" | "graduated" | null;
+  final_report: Record<string, unknown> | null;
+  manager_seen_at: string | null;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+}
+
+export interface AiFundFlowRow {
+  id: string;
+  fund_id: string;
+  user_id: string;
+  kind: "subscribe" | "redeem";
+  amount_usd: string | number;
+  npu: string | number;
+  units: string | number;
+  created_at: string;
+}
+
+export interface AiFundMarkRow {
+  fund_id: string;
+  user_id: string;
+  bucket: string;
+  nav: string | number;
+  npu: string | number;
+  gross_usd: string | number;
+  positions: number;
+}
+
+export interface AiFundNoteRow {
+  id: string;
+  fund_id: string;
+  user_id: string;
+  key_id: string | null;
+  position_id: string | null;
+  body: string;
+  created_at: string;
 }
 
 /** A limit order (0020). */
@@ -801,7 +941,7 @@ export interface Database {
         TradingRuleRow,
         "id" | "side" | "params" | "mode" | "enabled" | "last_signal_at" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
       >;
-      trading_positions: Table<TradingPositionRow, "id" | "side" | "opened_at" | "leverage" | "origin">;
+      trading_positions: Table<TradingPositionRow, "id" | "side" | "opened_at" | "leverage" | "origin" | "fund_id">;
       trade_reviews: Table<TradeReviewRow, "id" | "created_at">;
       arena_profiles: Table<ArenaProfileRow, "handle" | "public" | "created_at" | "updated_at">;
       arena_groups: Table<ArenaGroupRow, "id" | "created_at">;
@@ -975,6 +1115,34 @@ export interface Database {
       agent_key_usage: Table<{ key_id: string; day: string; calls: number }, "calls">;
       event_posts: Table<EventPostRow, "id" | "refers_to" | "facts" | "amount_usd" | "chains" | "source_url" | "created_at">;
       event_marks: Table<EventMarkRow, "created_at">;
+      agent_mandates: Table<AgentMandateRow, "id" | "payees" | "auto_perps" | "live_perps" | "created_at" | "updated_at" | "revoked_at">;
+      agent_intents: Table<AgentIntentRow, "id" | "reasons" | "created_at">;
+      rails_ledger: Table<RailsLedgerRow, "id" | "body" | "created_at">;
+      payment_requests: Table<PaymentRequestRow, "id" | "status" | "created_at">;
+      ai_funds: Table<
+        AiFundRow,
+        | "id"
+        | "key_id"
+        | "status"
+        | "allow_shorts"
+        | "hwm_npu"
+        | "day_start_npu"
+        | "day_start_on"
+        | "last_nav"
+        | "last_npu"
+        | "marked_at"
+        | "halt_reason"
+        | "predecessor_id"
+        | "closed_reason"
+        | "final_report"
+        | "manager_seen_at"
+        | "created_at"
+        | "updated_at"
+        | "closed_at"
+      >;
+      ai_fund_flows: Table<AiFundFlowRow, "id" | "created_at">;
+      ai_fund_marks: Table<AiFundMarkRow, "gross_usd" | "positions">;
+      ai_fund_notes: Table<AiFundNoteRow, "id" | "key_id" | "position_id" | "created_at">;
     };
     Views: Record<never, never>;
     Functions: {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { agentCaller, NO_STORE } from "@/lib/agentApi/http";
-import { agentTools } from "@/lib/agentApi/tools";
+import { agentToolsFor } from "@/lib/agentApi/tools";
 
 /* ---------------------------------------------------------------------------
    The agent API's REST mirror, for agents and scripts that do not speak MCP:
@@ -17,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
   return NextResponse.json(
     {
       scopes: caller.auth.scopes,
-      tools: agentTools(caller.auth.scopes).map((tool) => ({
+      tools: (await agentToolsFor(caller.auth)).map((tool) => ({
         name: tool.name,
         scope: tool.scope,
         description: tool.description,

@@ -94,7 +94,7 @@ function Row({
 
   const body = (
     <>
-      <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-[10px] border">
+      <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-card border">
         <Icon size={18} strokeWidth={1.5} className={cn(meta.tone, !unread && "opacity-80")} />
       </span>
       <span className="min-w-0 flex-1">
@@ -125,7 +125,7 @@ function Row({
     </>
   );
 
-  const rowClass = "glass-row flex w-full items-start gap-3 rounded-[12px] px-3 py-3 text-left";
+  const rowClass = "glass-row flex w-full items-start gap-3 rounded-panel px-3 py-3 text-left";
   const open = () => onOpen(item);
 
   if (item.target?.kind === "link") {
@@ -188,7 +188,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
       <ul aria-busy="true" aria-label="Loading notifications" className="flex list-none flex-col gap-1 p-2">
         {[0, 1, 2].map((index) => (
           <li key={index} aria-hidden className="flex items-start gap-3 px-3 py-3">
-            <span className="skeleton size-10 rounded-[10px]" />
+            <span className="skeleton size-10 rounded-card" />
             <span className="flex flex-1 flex-col gap-2">
               <span className="skeleton h-3.5 w-2/3" />
               <span className="skeleton h-3 w-full" />
@@ -207,7 +207,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
           type="button"
           onClick={() => void feed.refetch()}
           disabled={feed.refreshing}
-          className="glass-outline type-body-sm mt-1 inline-flex h-9 items-center gap-2 rounded-[10px] border px-3.5 text-text-primary disabled:opacity-60"
+          className="glass-outline type-body-sm mt-1 inline-flex h-9 items-center gap-2 rounded-card border px-3.5 text-text-primary disabled:opacity-60"
         >
           <RefreshCw size={14} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
           Try again
@@ -271,7 +271,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
       }
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-4 py-3.5">
-        <span aria-hidden className="glass-inset grid size-9 shrink-0 place-items-center rounded-[10px] border text-text-primary">
+        <span aria-hidden className="glass-inset grid size-9 shrink-0 place-items-center rounded-card border text-text-primary">
           <Bell size={18} strokeWidth={1.5} />
         </span>
         <h2 className="type-h2 font-sans text-text-primary">Notifications</h2>
@@ -283,7 +283,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
           onClick={() => setOpen(false)}
           aria-label="Notification settings"
           title="Notification settings"
-          className="glass-row glass-outline ml-auto grid size-9 shrink-0 place-items-center rounded-[10px] border text-text-secondary hover:text-text-primary"
+          className="glass-row glass-outline ml-auto grid size-9 shrink-0 place-items-center rounded-card border text-text-secondary hover:text-text-primary"
         >
           <Settings size={17} strokeWidth={1.5} aria-hidden />
         </Link>
@@ -298,7 +298,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
             <TabsTrigger value="unread" className="type-body-sm h-11 gap-2 px-1.5">
               Unread
               {unread > 0 && (
-                <span className="glass-inset type-label min-w-5 rounded-[6px] border px-1.5 text-center tabular-nums text-accent">{unread}</span>
+                <span className="glass-inset type-label min-w-5 rounded-chip border px-1.5 text-center tabular-nums text-accent">{unread}</span>
               )}
             </TabsTrigger>
           </TabsList>
@@ -308,7 +308,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
               onClick={() => {
                 if (items[0] !== undefined) markAllRead(items[0].at);
               }}
-              className="type-body-sm ml-auto rounded-[8px] px-2 py-1 font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
+              className="type-body-sm ml-auto rounded-control px-2 py-1 font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
             >
               Mark all read
             </button>
@@ -323,7 +323,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
         onClick={() => setOpen(false)}
         className="glass-row flex shrink-0 items-center gap-3 border-t border-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-4 py-3"
       >
-        <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-[10px] border text-text-secondary">
+        <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-card border text-text-secondary">
           <SlidersHorizontal size={18} strokeWidth={1.5} />
         </span>
         <span className="min-w-0 flex-1">

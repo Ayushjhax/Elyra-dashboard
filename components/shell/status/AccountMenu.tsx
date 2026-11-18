@@ -126,7 +126,7 @@ export function AccountMenuView({
   };
 
   const row =
-    "glass-row type-body-sm flex h-11 w-full items-center gap-3 rounded-[10px] px-3 text-left text-text-primary";
+    "glass-row type-body-sm flex h-11 w-full items-center gap-3 rounded-card px-3 text-left text-text-primary";
 
   return (
     <>
@@ -183,7 +183,7 @@ export function AccountMenuView({
                   setDisconnectError(null);
                 }}
                 disabled={busy}
-                className="glass-outline type-body-sm h-9 rounded-[10px] border px-3.5 text-text-primary disabled:opacity-60"
+                className="glass-outline type-body-sm h-9 rounded-card border px-3.5 text-text-primary disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -192,7 +192,7 @@ export function AccountMenuView({
                 data-autofocus
                 onClick={() => void disconnect()}
                 aria-disabled={busy || undefined}
-                className="type-body-sm h-9 rounded-[10px] border border-negative/40 bg-negative-bg px-3.5 font-medium text-negative hover:border-negative/70 aria-disabled:opacity-60"
+                className="type-body-sm h-9 rounded-card border border-negative/40 bg-negative-bg px-3.5 font-medium text-negative hover:border-negative/70 aria-disabled:opacity-60"
               >
                 {busy ? "Disconnecting…" : "Disconnect"}
               </button>
@@ -250,7 +250,7 @@ export function AccountMenuView({
                   </p>
                 )}
 
-                <div className="glass-inset mt-4 flex items-center gap-2 rounded-[10px] border py-2 pl-3.5 pr-1.5">
+                <div className="glass-inset mt-4 flex items-center gap-2 rounded-card border py-2 pl-3.5 pr-1.5">
                   <div className="min-w-0 flex-1">
                     <p className="type-mono-addr truncate text-text-primary" title={address}>
                       {truncateMiddle(address, 6, 6)}
@@ -269,7 +269,7 @@ export function AccountMenuView({
                       close(false);
                       setReceiving(true);
                     }}
-                    className="type-body-sm inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-accent font-medium text-text-on-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover"
+                    className="type-body-sm inline-flex h-10 items-center justify-center gap-2 rounded-card bg-accent font-medium text-text-on-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover"
                   >
                     <QrCode size={17} strokeWidth={1.5} aria-hidden />
                     Receive
@@ -279,7 +279,7 @@ export function AccountMenuView({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => close(false)}
-                    className="glass-outline type-body-sm inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border px-2 text-text-primary"
+                    className="glass-outline type-body-sm inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-card border px-2 text-text-primary"
                   >
                     <ExternalLink size={16} strokeWidth={1.5} aria-hidden />
                     View on explorer
@@ -292,7 +292,7 @@ export function AccountMenuView({
               <section aria-label="Other wallets" className={cn("mt-4 flex flex-col gap-1.5 border-t pt-3", DIVIDER)}>
                 <p className="type-body-sm text-text-secondary">Other networks</p>
                 {evmAddress !== null && (
-                  <div className="glass-inset flex items-center gap-2.5 rounded-[10px] border py-2 pl-3 pr-1.5">
+                  <div className="glass-inset flex items-center gap-2.5 rounded-card border py-2 pl-3 pr-1.5">
                     {/* A few marks, overlapped: one address, several networks. */}
                     <span aria-hidden className="flex shrink-0 -space-x-1">
                       <NetworkMark network="ethereum" size={20} />
@@ -312,7 +312,7 @@ export function AccountMenuView({
                   </div>
                 )}
                 {suiAddress !== null && (
-                  <div className="glass-inset flex items-center gap-2.5 rounded-[10px] border py-2 pl-3 pr-1.5">
+                  <div className="glass-inset flex items-center gap-2.5 rounded-card border py-2 pl-3 pr-1.5">
                     <NetworkMark network="sui" size={20} />
                     <div className="min-w-0 flex-1">
                       <p className="type-mono-addr truncate text-text-primary" title={suiAddress}>

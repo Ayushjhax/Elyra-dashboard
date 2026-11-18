@@ -29,6 +29,7 @@ import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClient
 import { IconButton, InfoTip, Tip } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { OptionMenu } from "@/components/ui/OptionMenu";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Popover } from "@/components/ui/Popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -102,45 +103,44 @@ function Header({
   ];
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-      <div className="flex min-w-0 items-center gap-3.5">
-        <Database size={34} strokeWidth={1.4} aria-hidden className="shrink-0 text-accent" />
-        <div className="min-w-0">
-          <h1 className="type-h1 text-text-primary">Capital Accounts</h1>
-          <p className="type-body text-text-secondary">Balances, venues, and capital movement in one place.</p>
+    <PageHeader
+      icon={Database}
+      title="Capital Accounts"
+      subtitle="Balances, venues, and capital movement in one place."
+      actions={
+        /* Under the title on a phone, so it starts at the page's left edge. */
+        <div className="flex flex-col items-end gap-1 @max-[40rem]:items-start">
+          <div className="flex items-center gap-2">
+            <OptionMenu label="Account" options={options} value={scope} onChange={onScope} align="end" className="min-w-36 justify-between" />
+            <IconButton
+              label={hidden ? "Show balances" : "Hide balances"}
+              aria-pressed={hidden}
+              onClick={() => setHidden(!hidden)}
+              className={cn("size-9 border border-border-subtle", hidden && "text-accent")}
+            >
+              {hidden ? <EyeOff size={16} strokeWidth={1.5} aria-hidden /> : <Eye size={16} strokeWidth={1.5} aria-hidden />}
+            </IconButton>
+            <IconButton
+              label={feed.refreshing ? "Refreshing balances" : "Refresh balances"}
+              onClick={feed.refetch}
+              disabled={feed.refreshing}
+              className="size-9 border border-border-subtle"
+            >
+              <RefreshCw size={16} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
+            </IconButton>
+          </div>
+          <p className="type-label min-h-4 text-text-secondary" aria-live="polite">
+            {feed.refreshing
+              ? "Refreshing…"
+              : feed.stale
+                ? `Refresh failed · showing the reading from ${feed.fetchedAt === null || now === null ? "earlier" : formatAge(feed.fetchedAt, now)}`
+                : feed.fetchedAt !== null && now !== null
+                  ? `Updated ${formatAge(feed.fetchedAt, now)}`
+                  : ""}
+          </p>
         </div>
-      </div>
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex items-center gap-2">
-          <OptionMenu label="Account" options={options} value={scope} onChange={onScope} align="end" className="min-w-36 justify-between" />
-          <IconButton
-            label={hidden ? "Show balances" : "Hide balances"}
-            aria-pressed={hidden}
-            onClick={() => setHidden(!hidden)}
-            className={cn("size-9 border border-border-subtle", hidden && "text-accent")}
-          >
-            {hidden ? <EyeOff size={16} strokeWidth={1.5} aria-hidden /> : <Eye size={16} strokeWidth={1.5} aria-hidden />}
-          </IconButton>
-          <IconButton
-            label={feed.refreshing ? "Refreshing balances" : "Refresh balances"}
-            onClick={feed.refetch}
-            disabled={feed.refreshing}
-            className="size-9 border border-border-subtle"
-          >
-            <RefreshCw size={16} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
-          </IconButton>
-        </div>
-        <p className="type-label min-h-4 text-text-secondary" aria-live="polite">
-          {feed.refreshing
-            ? "Refreshing…"
-            : feed.stale
-              ? `Refresh failed · showing the reading from ${feed.fetchedAt === null || now === null ? "earlier" : formatAge(feed.fetchedAt, now)}`
-              : feed.fetchedAt !== null && now !== null
-                ? `Updated ${formatAge(feed.fetchedAt, now)}`
-                : ""}
-        </p>
-      </div>
-    </header>
+      }
+    />
   );
 }
 
@@ -987,7 +987,12 @@ function DataPanel({
   ];
 
   return (
-    <section ref={panelRef} aria-label="Holdings, positions and activity" className={cn(card, "scroll-mt-4 overflow-hidden")}>
+    <section
+      ref={panelRef}
+      aria-label="Holdings, positions and activity"
+      /* The tables' first column lines up with the tab strip and the footer. */
+      className={cn(card, "scroll-mt-4 overflow-hidden [--table-inset:12px] compact:[--table-inset:20px]")}
+    >
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle px-3 compact:px-5">
           <TabsList aria-label="Account data" className="-mb-px min-w-0 gap-1 compact:gap-2">
@@ -1032,7 +1037,7 @@ function DataPanel({
         </div>
       </Tabs>
 
-      <footer className="type-label flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border-subtle px-5 py-3 text-text-secondary">
+      <footer className="type-label flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border-subtle px-3 py-3 text-text-secondary compact:px-5">
         <span className="flex min-w-0 items-center gap-2">
           <Database size={15} strokeWidth={1.5} aria-hidden className="shrink-0" />
           <span className="truncate">{scopeLabel === null ? "Showing all accounts" : `Showing ${scopeLabel}`}</span>

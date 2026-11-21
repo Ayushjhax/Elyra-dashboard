@@ -13,6 +13,7 @@ import { TRADING_TOOLS } from "@/lib/agent/tools/trading";
 import { companyResearch } from "@/lib/research/tool";
 import { BACKTEST_TOOLS } from "@/lib/backtest/tool";
 import type { Locale } from "@/lib/i18n/locales";
+import type { VoicePersonaId } from "@/lib/voice/personas";
 
 /* ---------------------------------------------------------------------------
    The tool registry.
@@ -64,6 +65,12 @@ export interface ToolContext {
    * in it. Never an instruction from text the operator did not write.
    */
   locale?: Locale;
+  /**
+   * The voice the reply will be spoken in, when the operator is in a voice
+   * conversation: an id from lib/voice/personas.ts, checked against that
+   * list. It shapes how the reply is written to be heard, nothing else.
+   */
+  voice?: VoicePersonaId;
 }
 
 export interface RegisteredTool {

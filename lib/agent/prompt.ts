@@ -4,6 +4,7 @@ import type { SystemPrompt } from "@/lib/agent/providers/types";
 import type { ToolContext } from "@/lib/agent/tools/registry";
 import { getPortfolio, summarise } from "@/lib/exchange/portfolio";
 import { formatPriceUsd } from "@/lib/format";
+import { personaById, spokenReplyInstruction } from "@/lib/voice/personas";
 import { readWatchlist } from "@/lib/watchlist";
 
 /* ---------------------------------------------------------------------------
@@ -187,6 +188,11 @@ export async function buildUserContext(
       "",
     );
   }
+
+  /* The operator is talking, not reading: the reply will be spoken by the
+     voice they chose. Elyra's own words, keyed by an id from its list. */
+  const persona = personaById(context.voice);
+  if (persona !== null) lines.push(spokenReplyInstruction(persona), "");
 
   const [watchlist, portfolio] = await Promise.allSettled([
     readWatchlist(context.userId),

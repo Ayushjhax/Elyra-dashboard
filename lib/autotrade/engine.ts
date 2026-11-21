@@ -17,6 +17,7 @@ import {
 import { liveEnabled, num, readSettings, tablesMissing, toPosition, toRule, tradingNetwork } from "@/lib/autotrade/store";
 import type { Candle } from "@/lib/backtest/intervals";
 import { getStrategy } from "@/lib/backtest/strategies";
+import { HOUSE_USER_ID } from "@/lib/copy/house";
 import { decryptSecret } from "@/lib/crypto/credentials";
 import { recipientFor, send, type DeliveryReport, type Recipient } from "@/lib/notifications/deliver";
 import { serviceClient } from "@/lib/supabase/server";
@@ -75,7 +76,8 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
     return report;
   }
 
-  const rules = (rulesRead.data ?? []).map((row) => ({ userId: row.user_id, ...toRule(row) }));
+  /* A rule in a set (0029) tags its entries with the set, so the set's record is exactly its tagged positions. */
+  const rules = (rulesRead.data ?? []).map((row) => ({ userId: row.user_id, setId: row.set_id ?? null, ...toRule(row) }));
   const open = openRead.data ?? [];
   /* Missing before migration 0020: limit orders then simply do not exist. */
   const orders: TradingOrderRow[] = ordersRead.error === null ? (ordersRead.data ?? []) : [];
@@ -102,6 +104,8 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
   const recipients = new Map<string, Promise<Recipient>>();
   const delivery: DeliveryReport = { scanned: 0, sent: 0, skipped: 0, errors: 0 };
   const notify = async (userId: string, title: string, lines: string[]) => {
+    /* Elyra's own rules (lib/copy/house.ts) have nobody to tell. */
+    if (userId === HOUSE_USER_ID) return;
     try {
       if (!recipients.has(userId)) recipients.set(userId, recipientFor(userId));
       const recipient = await (recipients.get(userId) as Promise<Recipient>);
@@ -435,6 +439,8 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
           opened_at: new Date(now).toISOString(),
           leverage: rule.leverage,
           origin: "rule",
+          /* Only when the rule is in a set, so an entry before migration 0029 never names it. */
+          ...(rule.setId === null ? {} : { set_id: rule.setId }),
         })
         .select("*")
         .single();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cronAuthorised } from "@/lib/notifications/cron";
 import { runArena } from "@/lib/arena/engine";
 import { runAutotrade } from "@/lib/autotrade/engine";
+import { runCopy } from "@/lib/copy/engine";
 import { runEvents } from "@/lib/events/engine";
 import { runFunds } from "@/lib/funds/run";
 import { deliverNotifications } from "@/lib/notifications/deliver";
@@ -50,6 +51,11 @@ export async function GET(request: Request): Promise<Response> {
   const automation = await runAutotrade().catch((error: unknown) => ({
     error: error instanceof Error ? error.message : "Automation pass failed.",
   }));
+  /* Then copy trading (lib/copy/engine.ts): a leader's entry or exit from
+     the pass just run is copied to its followers in this same tick. */
+  const copy = await runCopy().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Copy pass failed.",
+  }));
   /* Then the AI funds (lib/funds/run.ts), right after the trades they hold
      have had their exits recorded: each fund marked to market, its daily
      NAV sealed, halted at its drawdown limit, wound down when asked. */
@@ -73,7 +79,7 @@ export async function GET(request: Request): Promise<Response> {
   }));
 
   const report = await deliverNotifications();
-  return NextResponse.json({ ...report, automation, funds, arena, events, rails }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ...report, automation, copy, funds, arena, events, rails }, { headers: { "cache-control": "no-store" } });
 }
 
 /** Same work, for schedulers that only issue POSTs. */

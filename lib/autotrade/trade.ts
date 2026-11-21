@@ -15,7 +15,8 @@ import { serviceClient } from "@/lib/supabase/server";
    One path for every market order, whoever placed it: the person on the
    Automation page (/api/automation/trade), an agent whose intent the
    person approved or whose mandate lets perps run (lib/rails/intents.ts),
-   or an AI fund's manager inside its charter (lib/funds/manager.ts).
+   an AI fund's manager inside its charter (lib/funds/manager.ts), or a
+   leader the person copies (lib/copy/engine.ts).
    Held to the limits the order was validated against (`validateMarketOrder`)
    and to the account's own (`accountGate`); live only with the server
    switched to live and the person's approved key — one that can trade and
@@ -39,9 +40,10 @@ export async function openMarketTrade(
   /**
    * Who placed it, for the position's own record: "by hand", an agent's
    * name, or an AI fund — whose positions carry its id (`fund_id`), so the
-   * fund's book is exactly the rows tagged with it.
+   * fund's book is exactly the rows tagged with it. A copy carries its
+   * follow and the leader's position it copies (0029), unique as a pair.
    */
-  placedBy: { ruleName: string; reason: string; fundId?: string } = {
+  placedBy: { ruleName: string; reason: string; fundId?: string; copy?: { followId: string; leaderPositionId: string } } = {
     ruleName: `Market ${order.side}`,
     reason: `${order.side === "long" ? "Bought" : "Sold short"} by hand at the market.`,
   },
@@ -86,8 +88,10 @@ export async function openMarketTrade(
       status: order.mode === "live" ? "opening" : "open",
       opened_at: new Date(now).toISOString(),
       leverage: order.leverage,
-      origin: placedBy.fundId === undefined ? "order" : "fund",
+      origin: placedBy.copy !== undefined ? "copy" : placedBy.fundId === undefined ? "order" : "fund",
       fund_id: placedBy.fundId ?? null,
+      /* Only on a copy, so an order before migration 0029 never names these. */
+      ...(placedBy.copy === undefined ? {} : { copy_id: placedBy.copy.followId, leader_position_id: placedBy.copy.leaderPositionId }),
     })
     .select("*")
     .single();
@@ -95,6 +99,10 @@ export async function openMarketTrade(
     /* 0025: one open position per coin per fund, held by the database. */
     if (placedBy.fundId !== undefined && inserted.error?.code === "23505") {
       return { ok: false, error: `The fund already holds ${label}; close it before opening another. Nothing was sent.`, status: 409 };
+    }
+    /* 0029: this leader entry is already copied for this follow. */
+    if (placedBy.copy !== undefined && inserted.error?.code === "23505") {
+      return { ok: false, error: "Already copied. Nothing was sent.", status: 409 };
     }
     return { ok: false, error: "The trade could not be recorded, so nothing was sent.", status: 503 };
   }

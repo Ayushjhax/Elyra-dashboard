@@ -131,7 +131,7 @@ function NotTradable({ symbol, onClose }: { symbol: string; onClose: () => void 
   const [swappable, setSwappable] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/swap/tokens")
+    void fetch("/api/swap/tokens?include=sunrise")
       .then((response) => response.json() as Promise<{ groups?: Array<{ symbols?: string[] }> }>)
       .then((payload) => {
         const wanted = symbol.toUpperCase();

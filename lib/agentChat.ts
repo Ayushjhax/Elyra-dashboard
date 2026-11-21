@@ -28,6 +28,11 @@ import { nextMessageId, useElyraStore } from "@/lib/store";
    The website asks a team to answer (`team: true`): the reply then also
    carries the team's board — who worked on it, what each found, and the
    check on the figures — which the panel shows above the answer.
+
+   A voice conversation (lib/voice/useVoiceMode.ts) asks the single agent
+   instead, for a reply that comes back sooner, and names the persona that
+   will say it (`voice`), so the reply is written to be heard. It gets the
+   settled reply back, to speak.
 --------------------------------------------------------------------------- */
 
 /** Privy's token getter, handed in by the caller: only a hook can reach it. */
@@ -88,13 +93,19 @@ async function* events(body: ReadableStream<Uint8Array>): AsyncGenerator<ChatStr
  * No user identifier is sent: the route derives it from the token and ignores
  * anything the body claims.
  */
-export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<void> {
+export async function sendToAgent(
+  raw: string,
+  getToken: TokenGetter,
+  options: { voice?: string } = {},
+): Promise<{ text: string; failed: boolean } | null> {
   const text = raw.trim();
   const store = useElyraStore.getState();
   /* Whatever is staged in the composer goes with the question, however it
      was asked — the files are on screen beside it. */
   const files = store.composerAttachments;
-  if ((text.length === 0 && files.length === 0) || store.agentPending) return;
+  if ((text.length === 0 && files.length === 0) || store.agentPending) return null;
+  /* The settled reply, for a caller that will say it. */
+  let answer = null as { text: string; failed: boolean } | null;
 
   store.appendMessage({
     id: nextMessageId("user"),
@@ -142,6 +153,7 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
         patch(replyId, { team: update.team });
         break;
       case "settled":
+        answer = { text: update.text, failed: update.failed === true };
         patch(replyId, {
           text: update.text,
           sources: update.sources,
@@ -168,8 +180,10 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
       body: JSON.stringify({
         message: text,
         stream: true,
-        /* The website's questions go to the team (lib/agent/team). */
-        team: true,
+        /* The website's questions go to the team (lib/agent/team); a voice
+           conversation goes to the single agent, which answers sooner. */
+        team: options.voice === undefined,
+        ...(options.voice === undefined ? {} : { voice: options.voice }),
         ...(files.length > 0
           ? { attachments: files.map((file) => ({ name: file.name, mediaType: file.mediaType, data: file.data })) }
           : {}),
@@ -202,4 +216,5 @@ export async function sendToAgent(raw: string, getToken: TokenGetter): Promise<v
       settled.setAgentPending(false);
     }
   }
+  return controller.signal.aborted ? null : answer;
 }

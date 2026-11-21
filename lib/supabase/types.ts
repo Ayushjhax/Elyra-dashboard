@@ -127,6 +127,35 @@ export interface TradingRuleRow {
   last_note: string | null;
   created_at: string;
   updated_at: string;
+  /** 0029: the rule set it belongs to, if any. */
+  set_id?: string | null;
+}
+
+/* Copy trading (0029). */
+export interface TradingRuleSetRow {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  published: boolean;
+  house: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CopyFollowRow {
+  id: string;
+  user_id: string;
+  set_id: string;
+  size_usd: string | number;
+  max_leverage: number;
+  mode: "paper" | "live";
+  max_drift_pct: string | number;
+  enabled: boolean;
+  last_checked_at: string | null;
+  last_note: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TradingPositionRow {
@@ -156,8 +185,8 @@ export interface TradingPositionRow {
   closed_at: string | null;
   /** 0020: the leverage it was opened at; null for rows from before. */
   leverage: number | null;
-  /** 0020: a rule's entry or a limit order's fill; 0025: a fund's order. */
-  origin: "rule" | "order" | "fund";
+  /** 0020: a rule's entry or a limit order's fill; 0025: a fund's order; 0029: a copy of a leader's entry. */
+  origin: "rule" | "order" | "fund" | "copy";
   /** 0025: the AI fund this position belongs to; null for everything else. */
   fund_id?: string | null;
   /** 0028: the mid when the entry was sent; null for rows from before. */
@@ -168,6 +197,11 @@ export interface TradingPositionRow {
   partial_closes?: unknown;
   /** 0028: the partial closes' result after fees, so far. */
   realised_partial_usd?: string | number | null;
+  /** 0029: the rule set whose rule entered it, tagged at entry. */
+  set_id?: string | null;
+  /** 0029: the follow that copied it, and the leader's position it copies. */
+  copy_id?: string | null;
+  leader_position_id?: string | null;
 }
 
 /* Elyra Arena (0021). Numeric columns may come back as string or number. */
@@ -964,11 +998,16 @@ export interface Database {
       trading_agents: Table<TradingAgentRow, "created_at" | "approved_at">;
       trading_rules: Table<
         TradingRuleRow,
-        "id" | "side" | "params" | "mode" | "enabled" | "last_signal_at" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
+        "id" | "side" | "params" | "mode" | "enabled" | "last_signal_at" | "last_checked_at" | "last_note" | "created_at" | "updated_at" | "set_id"
       >;
       trading_positions: Table<
         TradingPositionRow,
-        "id" | "side" | "opened_at" | "leverage" | "origin" | "fund_id" | "expected_price" | "original_size" | "partial_closes" | "realised_partial_usd"
+        "id" | "side" | "opened_at" | "leverage" | "origin" | "fund_id" | "expected_price" | "original_size" | "partial_closes" | "realised_partial_usd" | "set_id" | "copy_id" | "leader_position_id"
+      >;
+      trading_rule_sets: Table<TradingRuleSetRow, "id" | "description" | "published" | "house" | "created_at" | "updated_at">;
+      copy_follows: Table<
+        CopyFollowRow,
+        "id" | "mode" | "max_drift_pct" | "enabled" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
       >;
       trade_reviews: Table<TradeReviewRow, "id" | "created_at">;
       arena_profiles: Table<ArenaProfileRow, "handle" | "public" | "created_at" | "updated_at">;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bot } from "lucide-react";
 import { AutomationView } from "@/components/automation/AutomationView";
+import { AutomationTabs } from "@/components/copy/AutomationTabs";
 import { RouteDrawer } from "@/components/shell/RouteDrawer";
 import { pageMetadata } from "@/lib/i18n/server";
 import { msg } from "@/lib/i18n/translate";
@@ -21,6 +22,7 @@ export default async function AutomationPage({ searchParams }: { searchParams: P
   const handoff = readHandoff(await searchParams);
   return (
     <RouteDrawer label={msg("Automation")} icon={<Bot size={28} strokeWidth={1.5} />} title={msg("Automation")} subtitle={msg("Rules Elyra trades for you")}>
+      <AutomationTabs />
       <AutomationView handoff={handoff} />
     </RouteDrawer>
   );

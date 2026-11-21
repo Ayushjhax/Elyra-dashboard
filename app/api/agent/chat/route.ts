@@ -9,6 +9,7 @@ import { classifyIntent } from "@/lib/personalized/intent";
 import { planPreparedAction } from "@/lib/personalized/plan";
 import type { PreparedAction } from "@/lib/personalized/types";
 import { localeFromHeaders } from "@/lib/i18n/locales";
+import { personaById } from "@/lib/voice/personas";
 
 /* ---------------------------------------------------------------------------
    The web surface.
@@ -115,6 +116,10 @@ export async function POST(request: Request) {
     typeof body === "object" && body !== null && (body as { stream?: unknown }).stream === true;
   const team =
     typeof body === "object" && body !== null && (body as { team?: unknown }).team === true;
+  /* A voice conversation names the persona that will say the reply. Only an
+     id on Elyra's list is taken; anything else is ignored, never quoted. */
+  const voice =
+    typeof body === "object" && body !== null ? (personaById((body as { voice?: unknown }).voice)?.id ?? undefined) : undefined;
 
   const checked = validateAttachments(
     typeof body === "object" && body !== null ? (body as { attachments?: unknown }).attachments : undefined,
@@ -162,6 +167,7 @@ export async function POST(request: Request) {
             /* The language the person reads the website in, from the same
                cookie the pages use; it sets the reply's language only. */
             locale: localeFromHeaders(request.headers.get("cookie"), request.headers.get("accept-language")),
+            voice,
             onEvent: send,
           };
           const { reply, runId, sources } = team
@@ -213,6 +219,7 @@ export async function POST(request: Request) {
       solanaAddress: user.solanaAddress,
       attachments,
       locale: localeFromHeaders(request.headers.get("cookie"), request.headers.get("accept-language")),
+      voice,
     };
     let teamTrace: TeamTrace | null = null;
     let answered: { reply: string; runId: string; sources: string[] };

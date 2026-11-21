@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { jupiterSwapExecute } from "@/lib/providers/jupiter";
+import { sunriseExecute } from "@/lib/providers/sunrise";
 import { resolve } from "@/lib/personalized/session";
+import { decodeRef, isOrderRoute, isSunriseRef } from "@/lib/sunrise/api";
+import { eligibility, requestCountry } from "@/lib/sunrise/eligibility";
 
 /* ---------------------------------------------------------------------------
    Step two of a swap: submit what the operator signed.
@@ -19,7 +22,20 @@ import { resolve } from "@/lib/personalized/session";
    `requestId` pairs the signature with the order that produced it. Jupiter
    rejects a mismatch, which is what stops bytes signed for one quote from
    being submitted against another.
+
+   A quote Sunrise built (a `sunrise:` quoteRef, lib/sunrise/api.ts) goes to
+   Sunrise's /v1/execute instead, with the quote's id and route, which it
+   holds the signed bytes to. The request's country is checked again first
+   (lib/sunrise/eligibility.ts). An outcome Sunrise cannot report is never
+   turned into "sign again": the same bytes are resent once by the client
+   in lib/providers/sunrise.ts, and past that the person is told to check
+   their wallet, since the trade may have gone through.
 --------------------------------------------------------------------------- */
+
+/** Sunrise accepts a signed transaction of at most this many base64 characters. */
+const SUNRISE_MAX_CHARS = 5_464;
+
+const STATUS_FOR = { refuse: 403, requote: 409, wait: 429, resend: 502, fail: 502 } as const;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +76,37 @@ export async function POST(request: Request) {
       { error: "No quote reference was supplied, so this cannot be submitted." },
       { status: 400 },
     );
+  }
+
+  if (isSunriseRef(quoteRef)) {
+    const ref = decodeRef(quoteRef);
+    if (ref === null) return NextResponse.json({ error: "That quote reference could not be read; quote again." }, { status: 400 });
+    if (signedTransaction.length > SUNRISE_MAX_CHARS) {
+      return NextResponse.json({ error: "That transaction is too large for Sunrise to accept." }, { status: 400 });
+    }
+    const allowed = eligibility(requestCountry(request.headers), body.confirmEligible === true);
+    if (!allowed.ok) return NextResponse.json({ executed: false, error: allowed.reason, eligibility: allowed.code }, { status: 403 });
+
+    const result = await sunriseExecute({ signedTransaction, ...ref });
+    if (!result.ok) {
+      const { failure } = result;
+      const error =
+        failure.action === "resend"
+          ? "Sunrise could not confirm whether this trade went through. Check your wallet before trying again — do not sign it again."
+          : failure.message;
+      return NextResponse.json(
+        { executed: false, error, code: failure.code, ...(failure.txHash === null ? {} : { txHash: failure.txHash }) },
+        { status: STATUS_FOR[failure.action], ...(failure.retryAfterSec === null ? {} : { headers: { "retry-after": String(failure.retryAfterSec) } }) },
+      );
+    }
+    const order = result.data.orders[0] ?? null;
+    return NextResponse.json({
+      executed: true,
+      signature: result.data.txHash,
+      confirmed: result.data.status === "CONFIRMED",
+      /* An RFQ route places an order a market maker fills later; the dialog follows it through /api/swap/orders. */
+      order: isOrderRoute(ref.routeName) ? { status: order?.status ?? "PENDING" } : null,
+    });
   }
 
   const executed = await jupiterSwapExecute({ signedTransaction, quoteRef });

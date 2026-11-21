@@ -4,6 +4,7 @@ import type { ToolContext } from "@/lib/agent/tools/registry";
 import { describeAttachments, type Attachment } from "@/lib/attachments";
 import { predictionAccount } from "@/lib/prediction/account";
 import type { Locale } from "@/lib/i18n/locales";
+import type { VoicePersonaId } from "@/lib/voice/personas";
 
 /* ---------------------------------------------------------------------------
    What every run of a question shares, whoever answers it — `runAgent` on
@@ -21,6 +22,7 @@ export async function toolContextFor(input: {
   sessionWallet?: string | null;
   solanaAddress?: string | null;
   locale?: Locale;
+  voice?: VoicePersonaId;
 }): Promise<ToolContext> {
   return {
     userId: input.userId,
@@ -33,6 +35,7 @@ export async function toolContextFor(input: {
        are held to. Never the model's text, and never a tool result's. */
     operatorMessage: input.message,
     locale: input.locale,
+    voice: input.voice,
   };
 }
 

@@ -15,9 +15,10 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 import { isSolanaAddress, txExplorerUrl } from "@/lib/solana/address";
 import { truncateMiddle } from "@/lib/format";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import { buildSwap, runSwap, type BuiltSwap } from "@/lib/wallet/runSwap";
+import { buildSwap, runSwap, type BuiltSwap, type PlacedOrder } from "@/lib/wallet/runSwap";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The swap, end to end.
@@ -46,7 +47,21 @@ const MINT_FIELD =
 interface TokenGroup {
   label: string;
   symbols: string[];
+  /** A group whose tokens need the person's eligibility confirmed first. */
+  eligibility?: "sunrise";
 }
+
+/** An RFQ order's state, from Sunrise, in words. */
+const ORDER_WORDS: Record<string, string> = {
+  PENDING: msg("Placed. Waiting for a market maker to fill it."),
+  OPEN: msg("Placed. Waiting for a market maker to fill it."),
+  FILLED: msg("Filled. The tokens are in your wallet."),
+  PARTIALLY_FILLED: msg("Filled in part. What was not filled went back to your wallet."),
+  CANCELLED: msg("Cancelled. The funds went back to your wallet."),
+  REFUNDED: msg("Refunded to your wallet."),
+  FAILED: msg("The order failed."),
+};
+const ORDER_DONE = new Set(["FILLED", "PARTIALLY_FILLED", "CANCELLED", "REFUNDED", "FAILED"]);
 
 type BuildResponse = BuiltSwap;
 
@@ -93,6 +108,10 @@ export function SwapDialog({
   const [fromMint, setFromMint] = useState(isSolanaAddress(initialFrom) ? initialFrom : "");
   const [toMint, setToMint] = useState(isSolanaAddress(initialTo) ? initialTo : "");
   const [acknowledged, setAcknowledged] = useState(false);
+  /* Tokenized stocks (Sunrise) ask, per trade, whether the person may hold them. */
+  const [eligible, setEligible] = useState(false);
+  const [askedEligibility, setAskedEligibility] = useState(false);
+  const [order, setOrder] = useState<PlacedOrder | null>(null);
   const [passport, setPassport] = useState<string | null>(null);
   const [amount, setAmount] = useState(initialAmount);
 
@@ -104,7 +123,7 @@ export function SwapDialog({
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/swap/tokens")
+    void fetch("/api/swap/tokens?include=sunrise")
       .then((response) => response.json() as Promise<{ groups?: TokenGroup[] }>)
       .then((payload) => {
         if (!cancelled) setGroups(payload.groups ?? []);
@@ -119,6 +138,9 @@ export function SwapDialog({
 
   const sellsOther = fromSymbol === OTHER;
   const buysOther = toSymbol === OTHER;
+  const restricted = useMemo(() => new Set(groups.filter((group) => group.eligibility === "sunrise").flatMap((group) => group.symbols)), [groups]);
+  /* Asked when a stock is picked, or when the server found one by its mint. */
+  const needsEligibility = restricted.has(fromSymbol) || restricted.has(toSymbol) || askedEligibility;
   const request = useMemo(
     () => ({
       fromSymbol: sellsOther ? "" : fromSymbol,
@@ -127,8 +149,9 @@ export function SwapDialog({
       ...(sellsOther ? { fromMint: fromMint.trim() } : {}),
       ...(buysOther ? { toMint: toMint.trim() } : {}),
       acknowledgeUnverified: (sellsOther || buysOther) && acknowledged,
+      confirmEligible: needsEligibility && eligible,
     }),
-    [sellsOther, buysOther, fromSymbol, toSymbol, fromMint, toMint, amount, acknowledged],
+    [sellsOther, buysOther, fromSymbol, toSymbol, fromMint, toMint, amount, acknowledged, needsEligibility, eligible],
   );
 
   const onQuote = useCallback(() => {
@@ -137,11 +160,36 @@ export function SwapDialog({
     setQuoting(true);
     void buildSwap(authedFetch, request)
       .then((payload) => {
-        if (payload.error !== undefined) setError(payload.error);
-        else setQuote(payload);
+        if (payload.error !== undefined) {
+          setError(payload.error);
+          if (payload.eligibility === "unconfirmed") setAskedEligibility(true);
+        } else setQuote(payload);
       })
       .finally(() => setQuoting(false));
   }, [authedFetch, request]);
+
+  /* An RFQ order is filled after its transaction lands; follow it until it ends. */
+  useEffect(() => {
+    if (signature === null || order === null || ORDER_DONE.has(order.status)) return;
+    let checks = 0;
+    const timer = setInterval(() => {
+      checks += 1;
+      if (checks > 20) {
+        clearInterval(timer);
+        return;
+      }
+      void authedFetch(`/api/swap/orders?tx=${encodeURIComponent(signature)}`)
+        .then(async (response) => (response.ok ? ((await response.json()) as { orders?: PlacedOrder[] }) : null))
+        .then((payload) => {
+          const latest = payload?.orders?.[0];
+          if (latest !== undefined) setOrder({ status: latest.status });
+        })
+        .catch(() => {
+          /* The next check tries again; the explorer link stands meanwhile. */
+        });
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [signature, order, authedFetch]);
 
   const onConfirm = useCallback(() => {
     setError(null);
@@ -165,6 +213,7 @@ export function SwapDialog({
       .then((result) => {
         if (result.ok) {
           setSignature(result.signature);
+          setOrder(result.order);
           onExecuted?.(result.signature);
         } else {
           setError(result.error);
@@ -173,7 +222,6 @@ export function SwapDialog({
       .finally(() => setWorking(false));
   }, [authedFetch, request, wallets, address, signTransaction, onExecuted, t]);
 
-  const symbols = groups.flatMap((group) => group.symbols);
   const mintsValid = (!sellsOther || isSolanaAddress(fromMint.trim())) && (!buysOther || isSolanaAddress(toMint.trim()));
   const sameToken = sellsOther && buysOther ? fromMint.trim() === toMint.trim() : fromSymbol === toSymbol;
   const canQuote =
@@ -181,6 +229,7 @@ export function SwapDialog({
     !sameToken &&
     mintsValid &&
     (!(sellsOther || buysOther) || acknowledged) &&
+    (!needsEligibility || eligible) &&
     address !== null &&
     !working;
   const ready = quote?.action?.readiness === "ready";
@@ -223,11 +272,7 @@ export function SwapDialog({
                     aria-label={t("Token to sell")}
                     className={PICKER}
                   >
-                    {symbols.map((symbol) => (
-                      <option key={symbol} value={symbol}>
-                        {symbol}
-                      </option>
-                    ))}
+                    <SymbolOptions groups={groups} />
                     <option value={OTHER}>{t("Other token…")}</option>
                   </select>
                 </div>
@@ -257,11 +302,7 @@ export function SwapDialog({
                     aria-label={t("Token to receive")}
                     className={PICKER}
                   >
-                    {symbols.map((symbol) => (
-                      <option key={symbol} value={symbol}>
-                        {symbol}
-                      </option>
-                    ))}
+                    <SymbolOptions groups={groups} />
                     <option value={OTHER}>{t("Other token…")}</option>
                   </select>
                 </div>
@@ -290,6 +331,21 @@ export function SwapDialog({
                     className="mt-0.5"
                   />
                   {t("I have checked this mint and its Asset Passport. Anyone can create a token under any name; Elyra has not verified this one and will not value or count it.")}
+                </label>
+              )}
+
+              {needsEligibility && (
+                <label className="type-label flex items-start gap-2 text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={eligible}
+                    onChange={(event) => {
+                      setEligible(event.target.checked);
+                      setQuote(null);
+                    }}
+                    className="mt-0.5"
+                  />
+                  {t("I am not a US person or a resident of mainland China, Hong Kong or Macau, and I am not otherwise restricted from holding these tokens. Tokenized stocks listed by Sunrise are not the shares themselves.")}
                 </label>
               )}
 
@@ -336,8 +392,13 @@ export function SwapDialog({
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2 rounded-card border border-positive/40 bg-positive-bg px-3 py-2.5">
                 <Check size={14} className="text-positive" aria-hidden />
-                <p className="type-label text-positive">{t("Swap landed.")}</p>
+                <p className="type-label text-positive">{order === null ? t("Swap landed.") : t("Order placed.")}</p>
               </div>
+              {order !== null && (
+                <p className="type-label text-text-secondary" aria-live="polite">
+                  {t(ORDER_WORDS[order.status] ?? msg("Placed. Waiting for a market maker to fill it."))}
+                </p>
+              )}
               <a
                 href={txExplorerUrl(signature)}
                 target="_blank"
@@ -381,6 +442,26 @@ export function SwapDialog({
         <AssetPassportDialog mint={passport} symbol={truncateMiddle(passport, 4, 4)} onClose={() => setPassport(null)} />
       )}
     </Dialog>
+  );
+}
+
+/** The picker's tokens, grouped as the server lists them. */
+function SymbolOptions({ groups }: { groups: TokenGroup[] }) {
+  const t = useT();
+  return (
+    <>
+      {groups
+        .filter((group) => group.symbols.length > 0)
+        .map((group) => (
+          <optgroup key={group.label} label={t(group.label)}>
+            {group.symbols.map((symbol) => (
+              <option key={symbol} value={symbol}>
+                {symbol}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+    </>
   );
 }
 

@@ -13,6 +13,7 @@ import { claimAgentRun, UsageLimitError } from "@/lib/agent/quota";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Surface } from "@/lib/supabase/types";
 import type { Locale } from "@/lib/i18n/locales";
+import type { VoicePersonaId } from "@/lib/voice/personas";
 
 /* ---------------------------------------------------------------------------
    runAgent — the whole system.
@@ -50,6 +51,8 @@ export interface RunAgentInput {
   attachments?: Attachment[];
   /** The website reader's language; the reply is written in it. English when absent. */
   locale?: Locale;
+  /** In a voice conversation, the persona that will say the reply (lib/voice/personas.ts). */
+  voice?: VoicePersonaId;
   /**
    * Progress, for a surface that can show it as it happens. The web streams
    * these; Telegram passes nothing and gets the finished reply as before.

@@ -328,7 +328,7 @@ without it. In summary:
 | `NEXT_PUBLIC_SOLANA_RPC_URL` | Signing fails in Privy's confirm modal. A **separate**, browser-safe key restricted to your domains. Treat it as required |
 | `JUPITER_API_KEY` | Pricing falls back to Jupiter's keyless tier and drops prices under load |
 | `BIRDEYE_API_KEY` | No price fallback for mints Jupiter cannot price, and no history |
-| `GEMINI_API_KEY` (`GEMINI_MODEL`, `GEMINI_TRANSCRIBE_MODEL`) | No model fallback, and no dictation in Firefox and Brave |
+| `GEMINI_API_KEY` (`GEMINI_MODEL`, `GEMINI_TRANSCRIBE_MODEL`, `GEMINI_TTS_MODEL`) | No model fallback, no dictation in Firefox and Brave, and Elyra's voices fall back to the browser's own |
 | `SEC_USER_AGENT` (`SEC_MAX_RPS`) | No filings-backed research. Format: `Company Name contact@domain` |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` | Telegram routes answer 503; nothing else changes |
 | `CRON_SECRET` | The delivery route accepts only `TELEGRAM_WEBHOOK_SECRET` |

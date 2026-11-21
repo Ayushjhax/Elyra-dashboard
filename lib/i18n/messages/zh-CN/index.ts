@@ -7,6 +7,7 @@ import { briefing } from "./briefing";
 import { catalog } from "./catalog";
 import { common } from "./common";
 import { connections } from "./connections";
+import { copy } from "./copy";
 import { dynamic } from "./dynamic";
 import { events } from "./events";
 import { funds } from "./funds";
@@ -46,6 +47,7 @@ export const zhCN: Messages = {
   ...catalog,
   ...common,
   ...connections,
+  ...copy,
   ...dynamic,
   ...events,
   ...funds,

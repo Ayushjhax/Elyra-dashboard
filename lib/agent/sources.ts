@@ -29,7 +29,7 @@ const LABELS: Record<string, string> = {
 const SOURCE_KEY = /^(source|priceSource|statsSource|venue|exchange|provider)$/;
 
 /** Tools that read the person's own accounts rather than a public market. */
-const ACCOUNT_TOOL = /^(get_positions|get_watchlist|get_portfolio_summary|portfolio_|open_orders|recent_activity|defi_positions|prediction_get_(positions|portfolio_summary|exposure|expiring_positions|activity|open_orders|position)$)/;
+const ACCOUNT_TOOL = /^(get_positions|get_watchlist|get_portfolio_summary|portfolio_|trading_|open_orders|recent_activity|defi_positions|prediction_get_(positions|portfolio_summary|exposure|expiring_positions|activity|open_orders|position)$)/;
 
 function label(value: string): string | null {
   const key = value.trim().toLowerCase();

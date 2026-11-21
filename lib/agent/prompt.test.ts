@@ -29,6 +29,11 @@ describe("the agent's system prompt", () => {
     expect(STABLE_SYSTEM_PROMPT).toMatch(/only when the operator asks for that change in their own message/);
   });
 
+  it("answers the operator's own trading record from the tools, and a what-if as hindsight", () => {
+    expect(STABLE_SYSTEM_PROMPT).toMatch(/`trading_record` and `trading_what_if`, never estimated/);
+    expect(STABLE_SYSTEM_PROMPT).toMatch(/not a forecast,\s+and not a reason to trade without a stop/);
+  });
+
   it("gives no financial advice", () => {
     expect(STABLE_SYSTEM_PROMPT).toMatch(/Give no financial advice/);
   });

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSignTypedData } from "@privy-io/react-auth";
-import { BarChart3, Bot, Crosshair, History, KeyRound, ListChecks, Pause, Play, Plus, Trash2, Zap } from "lucide-react";
+import { BarChart3, Bot, Crosshair, History, KeyRound, ListChecks, Pause, Play, Plus, Sparkles, Trash2, Zap } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { DrawerCard, StatusDot } from "@/components/shell/RouteDrawer";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +16,7 @@ import type { RuleHandoff } from "@/lib/autotrade/handoff";
 import { AUTOTRADE_INTERVALS, LIMITS, marketFor } from "@/lib/autotrade/rules";
 import type { AutomationResponse, OrderView, RuleView, StrategyOption, TradeView } from "@/lib/autotrade/types";
 import { useAutomation, type AutomationFeed } from "@/lib/autotrade/useAutomation";
+import { useElyraStore } from "@/lib/store";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
@@ -214,6 +215,9 @@ function ruleSummary(rule: RuleView, strategies: StrategyOption[], t: Translator
 
 function RuleRow({ rule, data, feed, now }: { rule: RuleView; data: AutomationResponse; feed: AutomationFeed; now: number | null }) {
   const t = useT();
+  const askElyra = useElyraStore((state) => state.askElyra);
+  /* Questions about a rule's own record are worth asking once it has one. */
+  const traded = data.trades.some((trade) => trade.ruleId === rule.id && trade.status === "closed");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const run = async (method: "PATCH" | "DELETE", body?: Record<string, unknown>) => {
@@ -258,6 +262,19 @@ function RuleRow({ rule, data, feed, now }: { rule: RuleView; data: AutomationRe
         </Button>
         {!rule.enabled && <span className="type-label text-text-muted">{t("Off")}</span>}
       </div>
+      {traded && (
+        /* Fills the composer, in the reader's language; nothing is sent until they press send. */
+        <div className="-ml-1.5 flex flex-wrap items-center gap-0.5">
+          <Button size="xs" variant="ghost" onClick={() => askElyra(t("How much capital has my {name} rule needed, and what has it returned?", { name: rule.name }))}>
+            <Sparkles size={12} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+            {t("Ask about its capital and return")}
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => askElyra(t("What would have happened to my {name} trades without the stop-loss?", { name: rule.name }))}>
+            <Sparkles size={12} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+            {t("Ask what happens without its stop")}
+          </Button>
+        </div>
+      )}
       <Problem text={error} />
     </li>
   );

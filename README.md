@@ -121,6 +121,12 @@ holds a colour value.
   EMA, pivots, your exposure, your nearest alert — and answers questions with
   streamed replies, the tools it used, and sources taken from what those
   tools returned. It accepts images, PDFs and text files, and dictation.
+  It also answers questions about your own automation record. Ask "how much
+  capital has my X rule needed, and what has it returned?" or "what would
+  have happened to my X trades without the stop-loss?" and it reads your
+  trades. For a what-if, it replays them on Hyperliquid's candles with the
+  exits you name, liquidation included, and says what the replay assumes.
+  Each rule on `/automation` offers both questions.
 - **Capital Intelligence** (`/personalized`). Questions about your own money,
   answered from a context assembled deterministically before any model is
   called: holdings, venues, DeFi, preferences you have saved ("keep any one

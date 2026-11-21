@@ -200,6 +200,27 @@ export async function hyperliquidCandles(coin: string, interval: string, startTi
   }));
 }
 
+/**
+ * Hyperliquid's hourly funding rates for a coin, oldest first, as fractions
+ * per hour. The API answers 500 at a time, so it is paged — up to `maxPages`
+ * reads — and `complete` says whether the window was reached.
+ */
+export async function fundingHistory(coin: string, startTime: number, endTime: number, maxPages = 10): Promise<{ rates: { time: number; rate: number }[]; complete: boolean }> {
+  const rates: { time: number; rate: number }[] = [];
+  let from = startTime;
+  for (let page = 0; page < maxPages; page += 1) {
+    const rows = await post<{ time: number; fundingRate: string }[]>("mainnet", "/info", { type: "fundingHistory", coin, startTime: from, endTime });
+    for (const row of rows) {
+      const rate = Number(row.fundingRate);
+      if (Number.isFinite(rate) && row.time >= from && row.time <= endTime) rates.push({ time: row.time, rate });
+    }
+    const last = rows.at(-1)?.time;
+    if (rows.length < 500 || last === undefined || last >= endTime) return { rates, complete: true };
+    from = last + 1;
+  }
+  return { rates, complete: false };
+}
+
 export interface Fill {
   coin: string;
   px: string;

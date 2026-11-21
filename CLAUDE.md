@@ -190,6 +190,25 @@ The pass runs on the five-minute tick, before delivery, and writes each
 position row before its order is sent (`unique (rule_id, signal_at)`), so a
 bar never trades twice.
 
+Elyra's agent reads a person's own trading record back through two tools,
+`trading_record` and `trading_what_if` (`lib/agent/tools/trading.ts`), both
+read-only. A record is a book (`lib/autotrade/books.ts`): a rule, every rule
+running a strategy, an AI fund, the hand-placed market or limit orders, or
+all of them. It is found by the name the person used, and a name that fits
+several books returns them as choices, never a guess. A rule holds no
+capital, so its capital is derived from its trades (`capitalRecord`): the
+margin open, less what closed trades had earned. The first day's peak is the
+initial capital, and each later new peak is an addition. An AI fund's capital
+is its real deposits (`fundCapital`). A what-if replays each closed trade on
+Hyperliquid's own candles (`replay`) with the exits asked for, and isolated
+liquidation is the backstop a missing stop leaves. When one candle spans two
+exits, the worse is taken. Live testnet trades are left out, and the replay
+reports how many recorded stops and take-profits it reproduces. Its
+assumptions travel with the result (`notes`) and the prompt has the reply
+state them: no capital limit, every later entry as it happened, fees
+counted, and funding over the extra time held estimated separately.
+`lib/autotrade/review.ts` holds the arithmetic and is pure.
+
 Research's Arbitrage and Sentiment tabs are observations, read live and
 never acted on. Arbitrage (`lib/research/arbitrage.ts`, `arbitrageMath.ts`)
 compares Hyperliquid's liquid perps with Binance's spot and perps net of

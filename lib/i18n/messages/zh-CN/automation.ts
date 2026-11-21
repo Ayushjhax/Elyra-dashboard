@@ -39,6 +39,10 @@ export const automation: Messages = {
     "批准交易密钥",
   "Approved":
     "已批准",
+  "Ask about its capital and return":
+    "询问它的资金与收益",
+  "Ask what happens without its stop":
+    "询问不设止损会怎样",
   "Automated trading can lose money quickly. Paper results estimate fees and slippage; live fills can be worse, and a price that gaps past a stop fills beyond it. Past results say nothing certain about future ones.":
     "自动交易可能迅速亏损。模拟结果估算了手续费和滑点；实盘成交可能更差，跳空越过止损的价格会以更差的价格成交。过往结果不能确定地说明未来。",
   "Automation is unavailable":
@@ -101,6 +105,8 @@ export const automation: Messages = {
     "来自你的回测：{strategy}，{market}，{interval} K 线，沿用你测试过的参数（{params}）。",
   "Go live":
     "转为实盘",
+  "How much capital has my {name} rule needed, and what has it returned?":
+    "我的 {name} 规则需要了多少资金？收益是多少？",
   "Hyperliquid accepts this only from an account that has deposited.":
     "Hyperliquid 只接受已入金账户的批准。",
   "In {entryPrice} · TP {takeProfit} · SL {stopLoss}":
@@ -251,6 +257,8 @@ export const automation: Messages = {
     "等待中",
   "Waiting for your wallet":
     "等待你的钱包",
+  "What would have happened to my {name} trades without the stop-loss?":
+    "如果不设止损，我的 {name} 交易会怎样？",
   "Win rate":
     "胜率",
   "Worst trade":

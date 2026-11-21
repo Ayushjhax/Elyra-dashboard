@@ -1,7 +1,11 @@
+"use client";
+
 import { Briefcase, Building2, Landmark, Rocket, University, type LucideIcon } from "lucide-react";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { Monogram } from "@/components/ui/Monogram";
 import { cn } from "@/lib/utils";
+import { msg } from "@/lib/i18n/translate";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * SEC-listed company artwork, using the same source as the market catalog.
@@ -37,13 +41,13 @@ export function CompanyMark({ ticker, logo, size = 28, name }: {
 /** What an unlisted filer is, from its registered name. */
 export function filerKind(name: string): { icon: LucideIcon; label: string } {
   const value = name.toUpperCase();
-  if (/\b(FUND|TRUST|ETF|PORTFOLIOS?|SERIES|INCOME)\b/.test(value)) return { icon: Landmark, label: "Fund or trust" };
-  if (/\bACQUISITION\b/.test(value)) return { icon: Rocket, label: "Blank-cheque company" };
-  if (/\b(BANK|BANCORP|BANCSHARES|SAVINGS)\b/.test(value)) return { icon: University, label: "Bank" };
+  if (/\b(FUND|TRUST|ETF|PORTFOLIOS?|SERIES|INCOME)\b/.test(value)) return { icon: Landmark, label: msg("Fund or trust") };
+  if (/\bACQUISITION\b/.test(value)) return { icon: Rocket, label: msg("Blank-cheque company") };
+  if (/\b(BANK|BANCORP|BANCSHARES|SAVINGS)\b/.test(value)) return { icon: University, label: msg("Bank") };
   if (/\b(L\.?P\.?|LLC|PARTNERS|CAPITAL|MANAGEMENT|ADVISORS?|INVESTMENTS?|VENTURES)\b/.test(value)) {
-    return { icon: Briefcase, label: "Investment firm" };
+    return { icon: Briefcase, label: msg("Investment firm") };
   }
-  return { icon: Building2, label: "Company" };
+  return { icon: Building2, label: msg("Company") };
 }
 
 /**
@@ -64,11 +68,13 @@ export function FilerMark({
   /** Listed, but with no logo to show. */
   listed?: boolean;
 }) {
-  const { icon: Icon, label } = filerKind(name);
+  const t = useT();
+  const { icon: Icon, label: kind } = filerKind(name);
+  const label = t(kind);
   const badge = Icon !== Building2 && size >= 22;
   return (
     <span
-      title={listed ? `${name} · ${label}` : `${name} · ${label}, not listed on a US exchange`}
+      title={listed ? `${name} · ${label}` : t("{name} · {label}, not listed on a US exchange", { name, label })}
       style={{ width: size, height: size }}
       className={cn("relative inline-flex shrink-0", className)}
     >

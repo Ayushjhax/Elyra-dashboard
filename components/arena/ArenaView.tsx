@@ -20,6 +20,8 @@ import { useCopy } from "@/lib/clipboard";
 import { formatPriceUsd, formatRelativeTime, formatUsd } from "@/lib/format";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Elyra Arena: judgment, not trading volume.
@@ -66,11 +68,12 @@ function Card({ title, right, children }: { title: string; right?: React.ReactNo
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
+  const t = useT();
   const { state, copy } = useCopy();
   return (
     <Button size="xs" variant="quiet" onClick={() => void copy(text)} aria-label={label}>
       <Copy size={12} aria-hidden />
-      {state === "copied" ? "Copied" : "Copy"}
+      {state === "copied" ? t("Copied") : t("Copy")}
     </Button>
   );
 }
@@ -80,25 +83,26 @@ const rating = (value: number) => Math.round(value).toLocaleString("en-US");
 /* ---- puzzle ---- */
 
 function PuzzleTab({ puzzle, error, feed }: { puzzle: PuzzleView | null; error: string | null; feed: ArenaFeed }) {
+  const t = useT();
   const [direction, setDirection] = useState<"up" | "down" | null>(null);
   const [confidence, setConfidence] = useState(60);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
   if (puzzle === null) {
-    return <EmptyState icon={Swords} title="No puzzle right now" body={error ?? "Today's chart is being prepared. Try again shortly."} />;
+    return <EmptyState icon={Swords} title={t("No puzzle right now")} body={error ?? t("Today's chart is being prepared. Try again shortly.")} />;
   }
   const answer = puzzle.answer;
   const reveal = puzzle.reveal;
   const vsBot = puzzle.rating - puzzle.bots.momentum;
 
   return (
-    <Card title={`Puzzle #${puzzle.number}`} right={<span className="type-label text-text-muted">{puzzle.date} UTC</span>}>
+    <Card title={t("Puzzle #{number}", { number: puzzle.number })} right={<span className="type-label text-text-muted">{t("{date} UTC", { date: puzzle.date })}</span>}>
       <p className="type-body-sm text-text-secondary">
-        A real chart, market and date hidden, prices rebased to 100. Will it be higher or lower {HIDDEN_BARS} hours after the last bar?
+        {t("A real chart, market and date hidden, prices rebased to 100. Will it be higher or lower {HIDDEN_BARS} hours after the last bar?", { HIDDEN_BARS })}
       </p>
       <PuzzleChart visible={puzzle.visible} reveal={reveal?.bars ?? null} />
-      {reveal === null && <p className="type-label text-text-muted">The shaded region is the next {HIDDEN_BARS} hours, hidden until you answer.</p>}
+      {reveal === null && <p className="type-label text-text-muted">{t("The shaded region is the next {HIDDEN_BARS} hours, hidden until you answer.", { HIDDEN_BARS })}</p>}
 
       {answer === null ? (
         <form
@@ -106,7 +110,7 @@ function PuzzleTab({ puzzle, error, feed }: { puzzle: PuzzleView | null; error: 
           onSubmit={(event) => {
             event.preventDefault();
             if (direction === null) {
-              setProblem("Choose up or down.");
+              setProblem(t("Choose up or down."));
               return;
             }
             setBusy(true);
@@ -116,15 +120,15 @@ function PuzzleTab({ puzzle, error, feed }: { puzzle: PuzzleView | null; error: 
               .finally(() => setBusy(false));
           }}
         >
-          <div className="flex gap-2" role="group" aria-label="Direction">
+          <div className="flex gap-2" role="group" aria-label={t("Direction")}>
             {(["up", "down"] as const).map((option) => (
               <Button key={option} type="button" size="sm" variant={direction === option ? "accent" : "quiet"} aria-pressed={direction === option} onClick={() => setDirection(option)}>
-                {option === "up" ? "Higher" : "Lower"}
+                {option === "up" ? t("Higher") : t("Lower")}
               </Button>
             ))}
           </div>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="puzzle-confidence">Confidence: {confidence}%</Label>
+            <Label htmlFor="puzzle-confidence">{t("Confidence: {confidence}%", { confidence })}</Label>
             <input
               id="puzzle-confidence"
               type="range"
@@ -135,12 +139,12 @@ function PuzzleTab({ puzzle, error, feed }: { puzzle: PuzzleView | null; error: 
               className="w-full accent-[var(--accent)]"
             />
             <p className="type-label text-text-muted">
-              50% never moves your rating. High confidence gains a little when right and costs a lot when wrong.
+              {t("50% never moves your rating. High confidence gains a little when right and costs a lot when wrong.")}
             </p>
           </div>
           <div>
             <Button type="submit" size="sm" variant="accent" disabled={busy}>
-              Lock in
+              {t("Lock in")}
             </Button>
           </div>
           <Problem text={problem} />
@@ -148,28 +152,28 @@ function PuzzleTab({ puzzle, error, feed }: { puzzle: PuzzleView | null; error: 
       ) : (
         <div className="flex flex-col gap-3">
           <p className={cn("type-h2", answer.correct ? "text-positive" : "text-negative")}>
-            {answer.correct ? "Correct" : "Wrong"} — {reveal?.outcome === "up" ? "it rose" : "it fell"} {Math.abs(reveal?.changePct ?? 0).toFixed(2)}%
+            {answer.correct ? t("Correct") : t("Wrong")} — {reveal?.outcome === "up" ? t("it rose") : t("it fell")} {Math.abs(reveal?.changePct ?? 0).toFixed(2)}%
           </p>
           {reveal !== null && (
             <p className="type-body-sm text-text-secondary">
-              It was {marketFor(reveal.market)?.label ?? reveal.market}, to {new Date(reveal.endsAt).toISOString().slice(0, 16).replace("T", " ")} UTC.
+              {t("It was {value}, to {value2} UTC.", { value: marketFor(reveal.market)?.label ?? reveal.market, value2: new Date(reveal.endsAt).toISOString().slice(0, 16).replace("T", " ") })}
             </p>
           )}
           <p className="type-data text-text-primary">
-            Rating {rating(answer.ratingBefore)} → {rating(answer.ratingAfter)}
+            {t("Rating {ratingBefore} → {ratingAfter}", { ratingBefore: rating(answer.ratingBefore), ratingAfter: rating(answer.ratingAfter) })}
           </p>
           <div className="flex flex-wrap items-center gap-2 rounded-card border border-border-subtle bg-surface-base px-3 py-2">
             <span className="type-data-sm min-w-0 flex-1 text-text-primary">{answer.share}</span>
-            <CopyButton text={answer.share} label="Copy your result" />
+            <CopyButton text={answer.share} label={t("Copy your result")} />
           </div>
         </div>
       )}
 
       <dl className="grid grid-cols-3 gap-2">
         {[
-          ["Rating", rating(puzzle.rating)],
-          ["Streak", `${puzzle.streak} ${puzzle.streak === 1 ? "day" : "days"}`],
-          ["Played", String(puzzle.played)],
+          [t("Rating"), rating(puzzle.rating)],
+          [t("Streak"), puzzle.streak === 1 ? t("1 day") : t("{count} days", { count: puzzle.streak })],
+          [t("Played"), String(puzzle.played)],
         ].map(([label, value]) => (
           <div key={label} className="flex flex-col gap-0.5 rounded-control border border-border-subtle bg-surface-base px-2.5 py-2">
             <dt className="type-label text-text-muted">{label}</dt>
@@ -179,19 +183,21 @@ function PuzzleTab({ puzzle, error, feed }: { puzzle: PuzzleView | null; error: 
       </dl>
 
       <div className="flex flex-col gap-1.5 border-t border-border-subtle pt-3">
-        <h3 className="type-eyebrow text-text-muted">Beat the bot</h3>
+        <h3 className="type-eyebrow text-text-muted">{t("Beat the bot")}</h3>
         <p className="type-body-sm text-text-secondary">
-          Coin-flip bot {rating(puzzle.bots.coinFlip)} · Momentum bot {rating(puzzle.bots.momentum)}
+          {t("Coin-flip bot {coinFlip} · Momentum bot {momentum}", { coinFlip: rating(puzzle.bots.coinFlip), momentum: rating(puzzle.bots.momentum) })}
           {puzzle.bots.momentumToday !== null && (
-            <> (today it said {puzzle.bots.momentumToday.direction === "up" ? "higher" : "lower"} at {puzzle.bots.momentumToday.confidence}%)</>
+            <>{" "}{(puzzle.bots.momentumToday.direction === "up"
+                ? t("(today it said higher at {confidence}%)", { confidence: puzzle.bots.momentumToday.confidence })
+                : t("(today it said lower at {confidence}%)", { confidence: puzzle.bots.momentumToday.confidence }))}</>
           )}
         </p>
         <p className="type-label text-text-muted">
           {puzzle.played === 0
-            ? "Play to get a rating to compare."
+            ? t("Play to get a rating to compare.")
             : vsBot >= 0
-              ? `You are ${rating(vsBot)} ahead of the momentum bot.`
-              : `The momentum bot is ${rating(-vsBot)} ahead of you.`}
+              ? t("You are {vsBot} ahead of the momentum bot.", { vsBot: rating(vsBot) })
+              : t("The momentum bot is {value} ahead of you.", { value: rating(-vsBot) })}
         </p>
       </div>
     </Card>
@@ -201,17 +207,18 @@ function PuzzleTab({ puzzle, error, feed }: { puzzle: PuzzleView | null; error: 
 /* ---- calls ---- */
 
 const HORIZONS = [
-  { label: "In 1 hour", ms: 60 * 60_000 + 60_000 },
-  { label: "In 4 hours", ms: 4 * 3_600_000 },
-  { label: "In 1 day", ms: 86_400_000 },
-  { label: "In 3 days", ms: 3 * 86_400_000 },
-  { label: "In 1 week", ms: 7 * 86_400_000 },
-  { label: "In 30 days", ms: 30 * 86_400_000 - 60_000 },
+  { label: msg("In 1 hour"), ms: 60 * 60_000 + 60_000 },
+  { label: msg("In 4 hours"), ms: 4 * 3_600_000 },
+  { label: msg("In 1 day"), ms: 86_400_000 },
+  { label: msg("In 3 days"), ms: 3 * 86_400_000 },
+  { label: msg("In 1 week"), ms: 7 * 86_400_000 },
+  { label: msg("In 30 days"), ms: 30 * 86_400_000 - 60_000 },
 ];
 
 const STATUS_TEXT = { open: "Open", hit: "Hit", miss: "Missed", void: "Void" } as const;
 
 function CallRow({ call, feed, now }: { call: ArenaCallView; feed: ArenaFeed; now: number | null }) {
+  const t = useT();
   const [points, setPoints] = useState("10");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -232,33 +239,35 @@ function CallRow({ call, feed, now }: { call: ArenaCallView; feed: ArenaFeed; no
         </span>
       </div>
       <span className="type-label text-text-muted">
-        {call.mine ? "You" : (call.author ?? "A group member")} · {call.visibility === "private" ? "private" : call.visibility === "groups" ? "your groups" : "public"}
-        {now !== null && <> · posted {formatRelativeTime(call.createdAt, now)}</>} · {call.tails} tail, {call.fades} fade
+        {call.mine ? t("You") : (call.author ?? t("A group member"))} · {call.visibility === "private" ? t("private") : call.visibility === "groups" ? t("your groups") : t("public")}
+        {now !== null && <>{" "}{t("· posted {createdAt}", { createdAt: formatRelativeTime(call.createdAt, now, t.locale) })}</>}{" "}{t("· {tails} tail, {fades} fade", { tails: call.tails, fades: call.fades })}
       </span>
       {call.settledPrice !== null && (
         <span className="type-label text-text-muted">
-          Settled at {formatPriceUsd(call.settledPrice)} ({call.settledSource}) · Brier {call.brier?.toFixed(2)}
+          {t("Settled at {settledPrice} (", { settledPrice: formatPriceUsd(call.settledPrice) })}{call.settledSource}{t(") · Brier")}{" "}{call.brier?.toFixed(2)}
         </span>
       )}
       {call.card !== null && <p className="type-body-sm text-text-secondary">{call.card}</p>}
       <span className="type-label flex items-center gap-1.5 text-text-muted" title={call.receipt}>
-        Receipt <span className="type-mono-addr">{call.receipt.slice(0, 16)}…</span>
-        <InfoTip text="SHA-256 of the call's exact words and the time the server received it. It cannot be changed after posting; anyone can recompute it." />
+        {t("Receipt")}{" "}<span className="type-mono-addr">{call.receipt.slice(0, 16)}…</span>
+        <InfoTip text={t("SHA-256 of the call's exact words and the time the server received it. It cannot be changed after posting; anyone can recompute it.")} />
       </span>
       {call.myBacking !== null && (
         <span className="type-label text-text-secondary">
-          You {call.myBacking.stance === "tail" ? "tailed" : "faded"} with {call.myBacking.points} points
+          {(call.myBacking.stance === "tail"
+            ? t("You tailed with {points} points", { points: call.myBacking.points })
+            : t("You faded with {points} points", { points: call.myBacking.points }))}
           {call.myBacking.settledPoints !== null && <> · {call.myBacking.settledPoints >= 0 ? "+" : ""}{call.myBacking.settledPoints}</>}
         </span>
       )}
       {canBack && (
         <div className="flex flex-wrap items-center gap-2">
-          <input aria-label="Points to back with" inputMode="numeric" className={cn(field, "w-20")} value={points} onChange={(event) => setPoints(event.target.value)} />
+          <input aria-label={t("Points to back with")} inputMode="numeric" className={cn(field, "w-20")} value={points} onChange={(event) => setPoints(event.target.value)} />
           <Button size="xs" variant="quiet" disabled={busy} onClick={() => back("tail")}>
-            Tail
+            {t("Tail")}
           </Button>
           <Button size="xs" variant="quiet" disabled={busy} onClick={() => back("fade")}>
-            Fade
+            {t("Fade")}
           </Button>
         </div>
       )}
@@ -268,6 +277,7 @@ function CallRow({ call, feed, now }: { call: ArenaCallView; feed: ArenaFeed; no
 }
 
 function NewCall({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
+  const t = useT();
   const [form, setForm] = useState({ market: "BTC", direction: "above", price: "", horizon: "2", confidence: "70", visibility: "private" });
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -298,53 +308,53 @@ function NewCall({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
     >
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="call-market">Market</Label>
+          <Label htmlFor="call-market">{t("Market")}</Label>
           <select id="call-market" className={field} value={form.market} onChange={set("market")}>
             <MarketOptions />
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="call-direction">Closes</Label>
+          <Label htmlFor="call-direction">{t("Closes")}</Label>
           <select id="call-direction" className={field} value={form.direction} onChange={set("direction")}>
-            <option value="above">Above</option>
-            <option value="below">Below</option>
+            <option value="above">{t("Above")}</option>
+            <option value="below">{t("Below")}</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="call-price">Price ($)</Label>
+          <Label htmlFor="call-price">{t("Price ($)")}</Label>
           <input id="call-price" inputMode="decimal" className={field} value={form.price} onChange={set("price")} />
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="call-horizon">Resolves</Label>
+          <Label htmlFor="call-horizon">{t("Resolves")}</Label>
           <select id="call-horizon" className={field} value={form.horizon} onChange={set("horizon")}>
             {HORIZONS.map((option, index) => (
               <option key={option.label} value={String(index)}>
-                {option.label}
+                {t(option.label)}
               </option>
             ))}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="call-confidence">Confidence (50–99%)</Label>
+          <Label htmlFor="call-confidence">{t("Confidence (50–99%)")}</Label>
           <input id="call-confidence" inputMode="numeric" className={field} value={form.confidence} onChange={set("confidence")} />
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="call-visibility">Who sees it</Label>
+          <Label htmlFor="call-visibility">{t("Who sees it")}</Label>
           <select id="call-visibility" className={field} value={form.visibility} onChange={set("visibility")}>
-            <option value="private">Only me</option>
-            <option value="groups">My groups</option>
+            <option value="private">{t("Only me")}</option>
+            <option value="groups">{t("My groups")}</option>
             <option value="public" disabled={!data.profile.public}>
-              {data.profile.public ? "Public" : "Public — set a handle first"}
+              {data.profile.public ? t("Public") : t("Public — set a handle first")}
             </option>
           </select>
         </div>
       </div>
       <p className="type-label text-text-muted">
-        Once posted, a call cannot be edited or deleted. It settles at Hyperliquid&apos;s one-minute close for that minute.
+        {t("Once posted, a call cannot be edited or deleted. It settles at Hyperliquid's one-minute close for that minute.")}
       </p>
       <div>
         <Button type="submit" size="sm" variant="accent" disabled={busy}>
-          Post call
+          {t("Post call")}
         </Button>
       </div>
       <Problem text={problem} />
@@ -353,43 +363,43 @@ function NewCall({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
 }
 
 function CallsTab({ data, feed, now }: { data: ArenaResponse; feed: ArenaFeed; now: number | null }) {
+  const t = useT();
   const { calibration, points } = data;
   return (
     <div className="flex flex-col gap-3">
       <Card
-        title="Your calibration"
-        right={<InfoTip text="The Brier score is the average of (confidence − outcome)². 0 is perfect; always saying 50% scores 0.25. Lower is better." />}
+        title={t("Your calibration")}
+        right={<InfoTip text={t("The Brier score is the average of (confidence − outcome)². 0 is perfect; always saying 50% scores 0.25. Lower is better.")} />}
       >
         <p className="type-data text-text-primary">
-          {calibration.brier === null ? "No settled calls yet" : `Brier ${calibration.brier.toFixed(3)} over ${calibration.settled} calls`}
+          {calibration.brier === null ? t("No settled calls yet") : t("Brier {brier} over {settled} calls", { brier: calibration.brier.toFixed(3), settled: calibration.settled })}
         </p>
         <p className="type-label text-text-muted">
           {calibration.rated
-            ? `${calibration.hits} of ${calibration.settled} hit.`
-            : `Ranks after ${MIN_RATED} settled calls — ${calibration.settled} so far.`}
+            ? t("{hits} of {settled} hit.", { hits: calibration.hits, settled: calibration.settled })
+            : t("Ranks after {MIN_RATED} settled calls — {settled} so far.", { MIN_RATED, settled: calibration.settled })}
         </p>
         <ul className="flex flex-col divide-y divide-border-subtle rounded-card border border-border-subtle">
           {calibration.buckets.map((bucket) => (
             <li key={bucket.label} className="grid grid-cols-[1fr_auto_auto] items-baseline gap-3 px-2.5 py-1.5">
-              <span className="type-data-sm text-text-primary">Said {bucket.label}</span>
+              <span className="type-data-sm text-text-primary">{t("Said {label}", { label: bucket.label })}</span>
               <span className="type-label text-text-muted">
-                {bucket.calls} {bucket.calls === 1 ? "call" : "calls"}
+                {bucket.calls} {bucket.calls === 1 ? t("call") : t("calls")}
               </span>
-              <span className="type-data-sm text-text-secondary">{bucket.hitPct === null ? "—" : `hit ${bucket.hitPct.toFixed(0)}%`}</span>
+              <span className="type-data-sm text-text-secondary">{bucket.hitPct === null ? "—" : t("hit {hitPct}%", { hitPct: bucket.hitPct.toFixed(0) })}</span>
             </li>
           ))}
         </ul>
         <p className="type-label text-text-muted">
-          Points this week: {points.spent} of {points.budget} used · net from settled backings {points.seasonNet >= 0 ? "+" : ""}
-          {points.seasonNet}. Points are a scoreboard; they cannot be bought or cashed out.
+          {t("Points this week: {spent} of {budget} used · net from settled backings {value}{seasonNet}. Points are a scoreboard; they cannot be bought or cashed out.", { spent: points.spent, budget: points.budget, value: points.seasonNet >= 0 ? "+" : "", seasonNet: points.seasonNet })}
         </p>
       </Card>
-      <Card title="New call">
+      <Card title={t("New call")}>
         <NewCall data={data} feed={feed} />
       </Card>
-      <Card title="Your calls">
+      <Card title={t("Your calls")}>
         {data.myCalls.length === 0 ? (
-          <p className="type-body-sm text-text-secondary">No calls yet. Post one above — the receipt keeps you honest.</p>
+          <p className="type-body-sm text-text-secondary">{t("No calls yet. Post one above — the receipt keeps you honest.")}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-border-subtle">
             {data.myCalls.map((call) => (
@@ -398,9 +408,9 @@ function CallsTab({ data, feed, now }: { data: ArenaResponse; feed: ArenaFeed; n
           </ul>
         )}
       </Card>
-      <Card title="From your groups and public">
+      <Card title={t("From your groups and public")}>
         {data.feed.length === 0 ? (
-          <p className="type-body-sm text-text-secondary">Nothing shared with you yet. Join a group in Groups to see friends&apos; calls.</p>
+          <p className="type-body-sm text-text-secondary">{t("Nothing shared with you yet. Join a group in Groups to see friends' calls.")}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-border-subtle">
             {data.feed.map((call) => (
@@ -425,6 +435,7 @@ const LABEL_TONE: Record<ReviewLabel, string> = {
 };
 
 function ReviewRow({ review, highlighted }: { review: ReviewView; highlighted: boolean }) {
+  const t = useT();
   const { facts } = review;
   return (
     <li id={`review-${review.positionId}`} className={cn("flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0", highlighted && "rounded-card bg-surface-hover px-2")}>
@@ -436,15 +447,16 @@ function ReviewRow({ review, highlighted }: { review: ReviewView; highlighted: b
       </div>
       <p className="type-body-sm text-text-secondary">{review.coaching}</p>
       <span className="type-label text-text-muted">
-        In {formatPriceUsd(facts.entryPrice)} · out {formatPriceUsd(facts.exitPrice)} · {formatUsd(facts.pnlUsd, { sign: true })}
+        {t("In {entryPrice} · out {exitPrice} · {pnlUsd}", { entryPrice: formatPriceUsd(facts.entryPrice), exitPrice: formatPriceUsd(facts.exitPrice), pnlUsd: formatUsd(facts.pnlUsd, { sign: true }) })}
         {facts.rMultiple !== null && <> ({facts.rMultiple.toFixed(1)}R)</>}
-        {facts.capture !== null && facts.pnlUsd > 0 && <> · kept {Math.round(facts.capture * 100)}% of the best move</>}
+        {facts.capture !== null && facts.pnlUsd > 0 && <>{" "}{t("· kept {value}% of the best move", { value: Math.round(facts.capture * 100) })}</>}
       </span>
     </li>
   );
 }
 
 function ReviewsTab({ data, trade }: { data: ArenaResponse; trade: string | null }) {
+  const t = useT();
   const total = REVIEW_LABELS.reduce((sum, label) => sum + data.labelCounts[label], 0);
   const wanted = trade === null ? null : (data.reviews.find((review) => review.positionId === trade) ?? null);
   useEffect(() => {
@@ -452,9 +464,9 @@ function ReviewsTab({ data, trade }: { data: ArenaResponse; trade: string | null
   }, [wanted]);
   return (
     <div className="flex flex-col gap-3">
-      <Card title="How your trades are played" right={<InfoTip text="Each closed trade is judged against its own plan: a loss taken at the planned stop is Good; a winner given back is not. The label is computed, never written by the AI." />}>
+      <Card title={t("How your trades are played")} right={<InfoTip text={t("Each closed trade is judged against its own plan: a loss taken at the planned stop is Good; a winner given back is not. The label is computed, never written by the AI.")} />}>
         {total === 0 ? (
-          <p className="type-body-sm text-text-secondary">No reviews yet. Every closed trade, paper or live, is reviewed within a few minutes.</p>
+          <p className="type-body-sm text-text-secondary">{t("No reviews yet. Every closed trade, paper or live, is reviewed within a few minutes.")}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {REVIEW_LABELS.map((label) => (
@@ -470,10 +482,10 @@ function ReviewsTab({ data, trade }: { data: ArenaResponse; trade: string | null
         )}
       </Card>
       {trade !== null && wanted === null && (
-        <p className="type-label text-text-muted">That trade&apos;s review is not written yet — it appears within a few minutes of the trade closing.</p>
+        <p className="type-label text-text-muted">{t("That trade's review is not written yet — it appears within a few minutes of the trade closing.")}</p>
       )}
       {data.reviews.length > 0 && (
-        <Card title="Reviews">
+        <Card title={t("Reviews")}>
           <ul className="flex flex-col divide-y divide-border-subtle">
             {data.reviews.map((review) => (
               <ReviewRow key={review.id} review={review} highlighted={review.positionId === trade} />
@@ -488,6 +500,7 @@ function ReviewsTab({ data, trade }: { data: ArenaResponse; trade: string | null
 /* ---- groups ---- */
 
 function GroupsTab({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
+  const t = useT();
   const [handle, setHandle] = useState(data.profile.handle ?? "");
   const [isPublic, setPublic] = useState(data.profile.public);
   const [name, setName] = useState("");
@@ -500,23 +513,23 @@ function GroupsTab({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
     });
   return (
     <div className="flex flex-col gap-3">
-      <Card title="Your Arena profile">
+      <Card title={t("Your Arena profile")}>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="arena-handle">Handle</Label>
-          <input id="arena-handle" className={field} value={handle} onChange={(event) => setHandle(event.target.value)} placeholder="3–20 letters, numbers or _" />
+          <Label htmlFor="arena-handle">{t("Handle")}</Label>
+          <input id="arena-handle" className={field} value={handle} onChange={(event) => setHandle(event.target.value)} placeholder={t("3–20 letters, numbers or _")} />
         </div>
         <label className="type-body-sm flex items-center gap-2 text-text-secondary">
           <input type="checkbox" className="size-4 shrink-0 accent-[var(--accent)]" checked={isPublic} onChange={(event) => setPublic(event.target.checked)} />
-          Public — show my public calls to everyone under this handle
+          {t("Public — show my public calls to everyone under this handle")}
         </label>
-        <p className="type-label text-text-muted">Others only ever see your handle, never your wallet. Calls stay private unless you share each one.</p>
+        <p className="type-label text-text-muted">{t("Others only ever see your handle, never your wallet. Calls stay private unless you share each one.")}</p>
         <div>
           <Button size="sm" variant="quiet" onClick={() => run("/api/arena/profile", { handle, public: isPublic })}>
-            Save profile
+            {t("Save profile")}
           </Button>
         </div>
       </Card>
-      <Card title="Groups">
+      <Card title={t("Groups")}>
         <form
           className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
@@ -525,11 +538,11 @@ function GroupsTab({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
           }}
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Label htmlFor="group-name">New group</Label>
-            <input id="group-name" className={field} value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" />
+            <Label htmlFor="group-name">{t("New group")}</Label>
+            <input id="group-name" className={field} value={name} onChange={(event) => setName(event.target.value)} placeholder={t("Name")} />
           </div>
           <Button type="submit" size="sm" variant="quiet">
-            Create
+            {t("Create")}
           </Button>
         </form>
         <form
@@ -540,25 +553,25 @@ function GroupsTab({ data, feed }: { data: ArenaResponse; feed: ArenaFeed }) {
           }}
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Label htmlFor="group-code">Join with a code</Label>
-            <input id="group-code" className={field} value={code} onChange={(event) => setCode(event.target.value)} placeholder="8 letters" />
+            <Label htmlFor="group-code">{t("Join with a code")}</Label>
+            <input id="group-code" className={field} value={code} onChange={(event) => setCode(event.target.value)} placeholder={t("8 letters")} />
           </div>
           <Button type="submit" size="sm" variant="quiet">
-            Join
+            {t("Join")}
           </Button>
         </form>
         {data.groups.length === 0 ? (
-          <p className="type-body-sm text-text-secondary">No groups yet. Create one and send its code to friends.</p>
+          <p className="type-body-sm text-text-secondary">{t("No groups yet. Create one and send its code to friends.")}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-border-subtle">
             {data.groups.map((group) => (
               <li key={group.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span className="type-data-sm text-text-primary">
-                  {group.name} <span className="type-label text-text-muted">· {group.members} {group.members === 1 ? "member" : "members"}</span>
+                  {group.name} <span className="type-label text-text-muted">· {group.members} {group.members === 1 ? t("member") : t("members")}</span>
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="type-mono-addr text-text-secondary">{group.inviteCode}</span>
-                  <CopyButton text={group.inviteCode} label={`Copy the invite code for ${group.name}`} />
+                  <CopyButton text={group.inviteCode} label={t("Copy the invite code for {name}", { name: group.name })} />
                 </span>
               </li>
             ))}
@@ -574,6 +587,7 @@ const TABS = ["puzzle", "calls", "reviews", "groups"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ArenaView({ initialTab, trade }: { initialTab: string | null; trade: string | null }) {
+  const t = useT();
   const auth = useElyraAuth();
   const feed = useArena();
   const now = useMinute();
@@ -584,25 +598,25 @@ export function ArenaView({ initialTab, trade }: { initialTab: string | null; tr
     return (
       <EmptyState
         icon={Swords}
-        title="Sign in to play"
-        body="A daily chart puzzle, calls with receipts and a review of every trade — scored on judgment, not on how much you trade."
+        title={t("Sign in to play")}
+        body={t("A daily chart puzzle, calls with receipts and a review of every trade — scored on judgment, not on how much you trade.")}
         action={
           <Button size="sm" variant="accent" onClick={auth.login}>
-            Sign in
+            {t("Sign in")}
           </Button>
         }
       />
     );
   }
   const data = feed.data;
-  if (data === null) return <EmptyState icon={Swords} title="Arena is unavailable" body={feed.error ?? "It will try again shortly."} />;
+  if (data === null) return <EmptyState icon={Swords} title={t("Arena is unavailable")} body={feed.error ?? t("It will try again shortly.")} />;
 
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-3">
-      <TabsList aria-label="Arena">
+      <TabsList aria-label={t("Arena")}>
         {TABS.map((value) => (
           <TabsTrigger key={value} value={value}>
-            {value === "puzzle" ? "Puzzle" : value === "calls" ? "Calls" : value === "reviews" ? "Reviews" : "Groups"}
+            {value === "puzzle" ? t("Puzzle") : value === "calls" ? t("Calls") : value === "reviews" ? t("Reviews") : t("Groups")}
           </TabsTrigger>
         ))}
       </TabsList>

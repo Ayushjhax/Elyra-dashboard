@@ -334,7 +334,11 @@ export async function openPosition(input: {
   };
 }
 
-/** Trades a position back to flat — a sale for a long, a buy for a short — then cancels its exits. */
+/**
+ * Trades a position back to flat — a sale for a long, a buy for a short —
+ * then cancels its exits. With `keepExits`, it trades `size` and leaves the
+ * exits alone: a partial close, whose caller resizes the exits after.
+ */
 export async function closePosition(input: {
   network: Network;
   key: `0x${string}`;
@@ -342,7 +346,8 @@ export async function closePosition(input: {
   coin: string;
   size: number;
   cloids: { tp: string | null; sl: string | null };
-}): Promise<{ ok: true; exitPrice: number } | { ok: false; error: string }> {
+  keepExits?: boolean;
+}): Promise<{ ok: true; exitPrice: number; size: number } | { ok: false; error: string }> {
   const meta = await perpMeta(input.network, input.coin);
   const mid = await midPrice(input.network, input.coin);
   if (meta === null || mid === null) return { ok: false, error: `No market for ${input.coin} right now.` };
@@ -371,12 +376,70 @@ export async function closePosition(input: {
     return { ok: false, error: typeof status === "object" && status.error ? status.error : "The closing order did not fill." };
   }
 
-  const cancels = [input.cloids.tp, input.cloids.sl].filter((cloid): cloid is string => cloid !== null);
+  const cancels = input.keepExits === true ? [] : [input.cloids.tp, input.cloids.sl].filter((cloid): cloid is string => cloid !== null);
   if (cancels.length > 0) {
     /* Best effort: reduce-only exits cannot open anything once flat. */
     await send(input.network, input.key, cancelByCloidAction(cancels.map((cloid) => ({ asset: meta.asset, cloid })))).catch(() => null);
   }
-  return { ok: true, exitPrice: Number(status.filled.avgPx) };
+  return { ok: true, exitPrice: Number(status.filled.avgPx), size: Number(status.filled.totalSz) };
+}
+
+/**
+ * A position's take-profit and stop-loss, placed on their own: reduce-only
+ * market triggers sized to what is open, with new client order ids. Used to
+ * move the exits by hand and to resize them after a partial close. The new
+ * pair is placed BEFORE the old one is cancelled (`cancelOrders`), so the
+ * position is never without them; if this fails the old pair still stands.
+ */
+export async function placeExits(input: {
+  network: Network;
+  key: `0x${string}`;
+  side: Side;
+  coin: string;
+  size: number;
+  takeProfit: number;
+  stopLoss: number;
+  seed: string;
+}): Promise<{ ok: true; cloids: { tp: string; sl: string }; takeProfit: number; stopLoss: number } | { ok: false; error: string }> {
+  const meta = await perpMeta(input.network, input.coin);
+  if (meta === null) return { ok: false, error: `${input.coin} is not a listed perp on Hyperliquid ${input.network}.` };
+  const size = floorSize(input.size, meta.szDecimals);
+  if (size === null) return { ok: false, error: "Nothing is open to protect." };
+  const long = input.side === "long";
+  const exitSlip = (long ? -1 : 1) * (LIMITS.triggerSlippagePct / 100);
+  const cloids = { tp: cloidFrom(`${input.seed}:tp`), sl: cloidFrom(`${input.seed}:sl`) };
+  const takeProfit = roundPerpPrice(input.takeProfit, meta.szDecimals);
+  const stopLoss = roundPerpPrice(input.stopLoss, meta.szDecimals);
+  const response = await send(
+    input.network,
+    input.key,
+    orderAction([
+      triggerOrder({
+        asset: meta.asset,
+        isBuy: !long,
+        triggerPrice: takeProfit,
+        limitPrice: roundPerpPrice(input.takeProfit * (1 + exitSlip), meta.szDecimals),
+        size,
+        tpsl: "tp",
+        cloid: cloids.tp,
+      }),
+      triggerOrder({
+        asset: meta.asset,
+        isBuy: !long,
+        triggerPrice: stopLoss,
+        limitPrice: roundPerpPrice(input.stopLoss * (1 + exitSlip), meta.szDecimals),
+        size,
+        tpsl: "sl",
+        cloid: cloids.sl,
+      }),
+    ]),
+  );
+  const refused = failure(response);
+  if (refused !== null) return { ok: false, error: refused };
+  const statuses = typeof response.response === "object" ? (response.response.data?.statuses ?? []) : [];
+  const rejected = statuses.find((status) => typeof status === "object" && status.error !== undefined);
+  if (rejected !== undefined && typeof rejected === "object") return { ok: false, error: rejected.error as string };
+  return { ok: true, cloids, takeProfit: Number(takeProfit), stopLoss: Number(stopLoss) };
 }
 
 export type LimitResult =

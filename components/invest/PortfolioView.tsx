@@ -27,6 +27,8 @@ import {
 import { useInvest } from "@/lib/invest/useInvest";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    One Intelligent Portfolio: what it holds and why, what you hold of it, how
@@ -37,13 +39,17 @@ import { cn } from "@/lib/utils";
    which runs each as a swap the person signs.
 --------------------------------------------------------------------------- */
 
-const RULE = `A holding is out of band when it is more than ${DRIFT_ABSOLUTE_BPS / 100} percentage points from its target, or more than ${DRIFT_RELATIVE * 100}% of its target away — whichever is tighter. A 40% holding may sit between 35% and 45%; a 4% one between 3% and 5%.`;
+const RULE = msg(
+  "A holding is out of band when it is more than {points} percentage points from its target, or more than {relative}% of its target away — whichever is tighter. A 40% holding may sit between 35% and 45%; a 4% one between 3% and 5%.",
+);
+const RULE_VALUES = { points: DRIFT_ABSOLUTE_BPS / 100, relative: DRIFT_RELATIVE * 100 };
 
 function shareLabel(bps: number | null): string {
   return bps === null ? "—" : `${(bps / 100).toFixed(1)}%`;
 }
 
 export function PortfolioView({ id }: { id: string }) {
+  const t = useT();
   const auth = useElyraAuth();
   const invest = useInvest();
   const wallet = usePortfolio();
@@ -67,7 +73,7 @@ export function PortfolioView({ id }: { id: string }) {
 
   if (invest.loading && portfolio === null) {
     return (
-      <DrawerCard icon={Layers} title="Holdings">
+      <DrawerCard icon={Layers} title={t("Holdings")}>
         <SkeletonRows rows={6} />
       </DrawerCard>
     );
@@ -77,8 +83,8 @@ export function PortfolioView({ id }: { id: string }) {
     return (
       <EmptyState
         icon={Layers}
-        title="This portfolio could not be read"
-        body={invest.error ?? "Its prices are unavailable right now. It will try again shortly."}
+        title={t("This portfolio could not be read")}
+        body={invest.error ?? t("Its prices are unavailable right now. It will try again shortly.")}
       />
     );
   }
@@ -93,40 +99,40 @@ export function PortfolioView({ id }: { id: string }) {
   const columns: Column<DriftRow>[] = [
     {
       key: "holding",
-      header: "Holding",
+      header: msg("Holding"),
       width: "34%",
       render: (row) => (
         <div className="flex min-w-0 flex-col">
           <span className="type-data-sm truncate text-text-primary">{row.ticker}</span>
-          <span className="type-label truncate text-text-muted" title={row.role}>
+          <span className="type-label truncate text-text-muted" title={t(row.role)}>
             {row.name}
           </span>
         </div>
       ),
     },
-    { key: "target", header: "Target", align: "right", width: "14%", render: (row) => <span className="type-data-sm">{weightLabel(row.targetBps)}</span> },
+    { key: "target", header: msg("Target"), align: "right", width: "14%", render: (row) => <span className="type-data-sm">{weightLabel(row.targetBps)}</span> },
     {
       key: "price",
-      header: "Price",
+      header: msg("Price"),
       align: "right",
       width: "18%",
       render: (row) => (
-        <span className="type-data-sm" title={row.priceUsd === null ? "No price right now" : undefined}>
+        <span className="type-data-sm" title={row.priceUsd === null ? t("No price right now") : undefined}>
           {formatPriceUsd(row.priceUsd)}
         </span>
       ),
     },
     {
       key: "change",
-      header: "24h",
+      header: msg("24h"),
       align: "right",
       width: "14%",
       className: "hidden @[30rem]:table-cell",
-      render: (row) => <Delta pct={row.change24hPct} reason="No 24-hour change reported." className="type-data-sm" />,
+      render: (row) => <Delta pct={row.change24hPct} reason={t("No 24-hour change reported.")} className="type-data-sm" />,
     },
     {
       key: "yours",
-      header: "Yours",
+      header: msg("Yours"),
       align: "right",
       width: "20%",
       render: (row) =>
@@ -135,7 +141,7 @@ export function PortfolioView({ id }: { id: string }) {
         ) : (
           <span className={cn("type-data-sm", row.outOfBand ? "text-caution" : "text-text-primary")}>
             {shareLabel(row.currentBps)}
-            {row.outOfBand && <span className="sr-only"> — out of band</span>}
+            {row.outOfBand && <span className="sr-only">{" "}{t("— out of band")}</span>}
           </span>
         ),
     },
@@ -145,23 +151,23 @@ export function PortfolioView({ id }: { id: string }) {
     <>
       <Link href="/invest" className="type-label inline-flex items-center gap-1.5 self-start text-text-secondary hover:text-text-primary">
         <ArrowLeft size={14} aria-hidden />
-        All portfolios
+        {t("All portfolios")}
       </Link>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="type-eyebrow text-text-muted">{CATEGORY_LABEL[portfolio.category]}</span>
+        <span className="type-eyebrow text-text-muted">{t(CATEGORY_LABEL[portfolio.category])}</span>
         <RiskTag risk={portfolio.risk} />
       </div>
 
       <DrawerCard
         icon={Wallet}
-        title="Your position"
+        title={t("Your position")}
         right={
           report.held ? (
             report.totalUsd === null ? null : report.outOfBand ? (
-              <StatusDot tone="caution">Drifted</StatusDot>
+              <StatusDot tone="caution">{t("Drifted")}</StatusDot>
             ) : (
-              <StatusDot tone="positive">On target</StatusDot>
+              <StatusDot tone="positive">{t("On target")}</StatusDot>
             )
           ) : null
         }
@@ -170,25 +176,27 @@ export function PortfolioView({ id }: { id: string }) {
           <SkeletonRows rows={2} />
         ) : !auth.authenticated ? (
           <div className="flex flex-col items-start gap-3">
-            <p className="type-body-sm text-text-secondary">Sign in to buy this portfolio into your own wallet.</p>
+            <p className="type-body-sm text-text-secondary">{t("Sign in to buy this portfolio into your own wallet.")}</p>
             <Button size="sm" variant="accent" onClick={auth.login}>
-              Sign in
+              {t("Sign in")}
             </Button>
           </div>
         ) : auth.solanaAddress === null ? (
-          <p className="type-body-sm text-text-secondary">Connect a Solana wallet to buy this portfolio.</p>
+          <p className="type-body-sm text-text-secondary">{t("Connect a Solana wallet to buy this portfolio.")}</p>
         ) : (
           <div className="flex flex-col gap-4">
             {report.held && (
               <div className="flex flex-col gap-1">
                 <span className="type-price text-text-primary">
-                  <Money value={report.totalUsd} reason={`No price right now for ${report.unpriced.join(", ")}.`} />
+                  <Money value={report.totalUsd} reason={t("No price right now for {value}.", { value: report.unpriced.join(", ") })} />
                 </span>
                 <p className="type-label text-text-muted">
                   {report.outOfBand
-                    ? `${report.rows.filter((row) => row.outOfBand).map((row) => row.ticker).join(", ")} ${report.rows.filter((row) => row.outOfBand).length === 1 ? "is" : "are"} outside ${report.rows.filter((row) => row.outOfBand).length === 1 ? "its band" : "their bands"}.`
-                    : "Every holding is within its band."}{" "}
-                  <InfoTip text={RULE} />
+                    ? (report.rows.filter((row) => row.outOfBand).length === 1
+                  ? t("{tickers} is outside its band.", { tickers: report.rows.filter((row) => row.outOfBand).map((row) => row.ticker).join(", ") })
+                  : t("{tickers} are outside their bands.", { tickers: report.rows.filter((row) => row.outOfBand).map((row) => row.ticker).join(", ") }))
+                    : t("Every holding is within its band.")}{" "}
+                  <InfoTip text={t(RULE, RULE_VALUES)} />
                 </p>
               </div>
             )}
@@ -203,7 +211,7 @@ export function PortfolioView({ id }: { id: string }) {
               }}
             >
               <label htmlFor="invest-amount" className="type-label text-text-secondary">
-                {report.held ? "Add USDC" : "Amount in USDC"}
+                {report.held ? t("Add USDC") : t("Amount in USDC")}
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -219,15 +227,15 @@ export function PortfolioView({ id }: { id: string }) {
                   )}
                 />
                 <Button type="submit" variant="accent" disabled={plan === null || "error" in plan || short}>
-                  Review
+                  {t("Review")}
                 </Button>
               </div>
               <p className="type-label text-text-muted" role={plan !== null && "error" in plan ? "alert" : undefined}>
                 {plan !== null && "error" in plan
                   ? plan.error
                   : short
-                    ? `This wallet holds ${formatUsd(usdc ?? 0)} USDC. Swap or deposit more first.`
-                    : `From $${minimumInvestmentUsd(portfolio)}. Split by target weight, one swap per holding.${usdc !== null ? ` Wallet: ${formatUsd(usdc)} USDC.` : ""}`}
+                    ? t("This wallet holds {value} USDC. Swap or deposit more first.", { value: formatUsd(usdc ?? 0) })
+                    : `${t("From ${portfolio}. Split by target weight, one swap per holding.", { portfolio: minimumInvestmentUsd(portfolio) })}${usdc !== null ? ` ${t("Wallet: {usdc} USDC.", { usdc: formatUsd(usdc) })}` : ""}`}
               </p>
             </form>
 
@@ -238,18 +246,18 @@ export function PortfolioView({ id }: { id: string }) {
                 ) : rebalanceLegs.length > 0 ? (
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="type-label text-text-secondary">
-                      {rebalanceLegs.length} {rebalanceLegs.length === 1 ? "trade brings" : "trades bring"} it back to target.
+                      {rebalanceLegs.length} {rebalanceLegs.length === 1 ? t("trade brings") : t("trades bring")}{" "}{t("it back to target.")}
                     </p>
                     <Button size="sm" variant={report.outOfBand ? "accent" : "quiet"} onClick={() => setTrade({ kind: "rebalance", legs: rebalanceLegs })}>
                       <Scale size={14} aria-hidden />
-                      Review rebalance
+                      {t("Review rebalance")}
                     </Button>
                   </div>
                 ) : !view.walletRead ? (
-                  <p className="type-label text-text-muted">Rebalancing waits for your wallet balances to load.</p>
+                  <p className="type-label text-text-muted">{t("Rebalancing waits for your wallet balances to load.")}</p>
                 ) : (
                   <p className="type-label text-text-muted">
-                    {"Nothing to rebalance — every difference is under a swap's minimum."}
+                    {t("Nothing to rebalance — every difference is under a swap's minimum.")}
                   </p>
                 )}
               </div>
@@ -258,11 +266,11 @@ export function PortfolioView({ id }: { id: string }) {
         )}
       </DrawerCard>
 
-      <DrawerCard icon={Layers} title="Holdings" right={<span className="type-label text-text-muted">Weights set {portfolio.reviewedOn}</span>}>
+      <DrawerCard icon={Layers} title={t("Holdings")} right={<span className="type-label text-text-muted">{t("Weights set {reviewedOn}", { reviewedOn: portfolio.reviewedOn })}</span>}>
         {/* Edge to edge across the card, so its first column sits under the heading. */}
         <div className="-mx-4 @max-[340px]:-mx-3 @max-[340px]:[--table-inset:12px]">
           <DataTable
-            caption={`${portfolio.name}: each holding's target weight, price and, if you hold it, its share of your position.`}
+            caption={t("{name}: each holding's target weight, price and, if you hold it, its share of your position.", { name: t(portfolio.name) })}
             columns={columns}
             rows={report.rows}
             getRowKey={(row) => row.symbol}
@@ -274,17 +282,17 @@ export function PortfolioView({ id }: { id: string }) {
                   <span className="type-data-sm text-text-primary">{weightLabel(row.targetBps)}</span>
                 </div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="type-label truncate text-text-muted">{row.name} · {row.role}</span>
+                  <span className="type-label truncate text-text-muted">{row.name} · {t(row.role)}</span>
                   <span className="type-data-sm shrink-0 text-text-secondary">{formatPriceUsd(row.priceUsd)}</span>
                 </div>
                 {report.held && (
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="type-label text-text-muted">
-                      Yours · <Quantity value={row.units} />
+                      {t("Yours ·")}{" "}<Quantity value={row.units} />
                     </span>
                     <span className={cn("type-data-sm", row.outOfBand ? "text-caution" : "text-text-primary")}>
                       {shareLabel(row.currentBps)}
-                      {row.outOfBand ? " · out of band" : ""}
+                      {row.outOfBand ? t(" · out of band") : ""}
                     </span>
                   </div>
                 )}
@@ -294,19 +302,19 @@ export function PortfolioView({ id }: { id: string }) {
         </div>
       </DrawerCard>
 
-      <DrawerCard icon={Info} title="Why these">
+      <DrawerCard icon={Info} title={t("Why these")}>
         <ul className="flex flex-col gap-2">
           {portfolio.thesis.map((line) => (
             <li key={line} className="type-body-sm text-text-secondary">
-              {line}
+              {t(line)}
             </li>
           ))}
         </ul>
         <div className="mt-3 flex flex-col gap-2 border-t border-border-subtle pt-3">
-          <p className="type-label text-text-muted">{RULE}</p>
-          {portfolio.category === "income" && <p className="type-label text-text-muted">{INCOME_NOTE}</p>}
-          <p className="type-label text-text-muted">{ELIGIBILITY_NOTE}</p>
-          <p className="type-label text-text-muted">{NOT_ADVICE_NOTE}</p>
+          <p className="type-label text-text-muted">{t(RULE, RULE_VALUES)}</p>
+          {portfolio.category === "income" && <p className="type-label text-text-muted">{t(INCOME_NOTE)}</p>}
+          <p className="type-label text-text-muted">{t(ELIGIBILITY_NOTE)}</p>
+          <p className="type-label text-text-muted">{t(NOT_ADVICE_NOTE)}</p>
         </div>
       </DrawerCard>
 

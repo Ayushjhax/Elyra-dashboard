@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import { PrivyClientProvider } from "@/components/providers/PrivyClientProvider";
 import { AppShell } from "@/components/shell/AppShell";
 import { THEME_COLOR_INK } from "@/lib/brand";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getLocale, getTranslator, messagesFor } from "@/lib/i18n/server";
 import "./globals.css";
 
 /* Primary — Fustat. Display, headings, nav labels, large numerics. */
@@ -49,11 +51,15 @@ const figures = localFont({
   ],
 });
 
-export const metadata: Metadata = {
-  title: "Elyra — Agentic trading terminal",
-  description:
-    "An operator's terminal with an agent in it. Markets, positions, signals and automation in one screen.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return {
+    title: t("Elyra — Agentic trading terminal"),
+    description: t(
+      "An operator's terminal with an agent in it. Markets, positions, signals and automation in one screen.",
+    ),
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: THEME_COLOR_INK,
@@ -65,14 +71,19 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  /* The reader's language, from their choice or their browser's. Reading it
+     renders every page per request, so the HTML arrives in that language
+     rather than flashing English first — see lib/i18n/server.ts. */
+  const locale = await getLocale();
+
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`dark ${fustat.variable} ${generalSans.variable} ${figures.variable}`}
       suppressHydrationWarning
     >
@@ -81,9 +92,11 @@ export default function RootLayout({
             keeps the chart, the widgets and the agent alive across a
             navigation — every route renders into it, beside the chart or in
             the workspace's place, never by tearing the chart down. */}
-        <PrivyClientProvider>
-          <AppShell>{children}</AppShell>
-        </PrivyClientProvider>
+        <I18nProvider locale={locale} messages={messagesFor(locale)}>
+          <PrivyClientProvider>
+            <AppShell>{children}</AppShell>
+          </PrivyClientProvider>
+        </I18nProvider>
       </body>
     </html>
   );

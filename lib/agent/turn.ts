@@ -3,6 +3,7 @@ import "server-only";
 import type { ToolContext } from "@/lib/agent/tools/registry";
 import { describeAttachments, type Attachment } from "@/lib/attachments";
 import { predictionAccount } from "@/lib/prediction/account";
+import type { Locale } from "@/lib/i18n/locales";
 
 /* ---------------------------------------------------------------------------
    What every run of a question shares, whoever answers it — `runAgent` on
@@ -19,6 +20,7 @@ export async function toolContextFor(input: {
   message: string;
   sessionWallet?: string | null;
   solanaAddress?: string | null;
+  locale?: Locale;
 }): Promise<ToolContext> {
   return {
     userId: input.userId,
@@ -30,6 +32,7 @@ export async function toolContextFor(input: {
     /* The operator's words this turn, which the tools that change anything
        are held to. Never the model's text, and never a tool result's. */
     operatorMessage: input.message,
+    locale: input.locale,
   };
 }
 

@@ -1,4 +1,5 @@
 import type { ContextSource } from "@/lib/personalized/types";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    What each source of account context is doing, in one word.
@@ -20,7 +21,16 @@ export type SourceState = "connected" | "available" | "empty" | "unavailable" | 
 
 export interface SourceStatus {
   state: SourceState;
+  /** English, as the Android app shows it — and the website's key for `t()`. */
   label: string;
+  /** When the label carries a count: the template the website translates, and its values. */
+  template?: string;
+  values?: Readonly<Record<string, number>>;
+}
+
+/** A label with a count in it: the English filled in, and the template to translate. */
+function counted(template: string, count: number): Pick<SourceStatus, "label" | "template" | "values"> {
+  return { label: template.replace("{count}", String(count)), template, values: { count } };
 }
 
 export type SourceKey = "wallet" | "positions" | "activity" | "memory";
@@ -51,44 +61,46 @@ export function sourceStatuses(input: SourceInputs): Record<SourceKey, SourceSta
   const { wallet, portfolio, activity, memory } = input;
 
   const walletStatus: SourceStatus = wallet.loading
-    ? { state: "loading", label: "Checking…" }
+    ? { state: "loading", label: msg("Checking…") }
     : !wallet.hasAddress
-      ? { state: "unavailable", label: "No wallet" }
+      ? { state: "unavailable", label: msg("No wallet") }
       : wallet.unconfigured
-        ? { state: "unavailable", label: "Not configured" }
+        ? { state: "unavailable", label: msg("Not configured") }
         : wallet.read
           ? wallet.stale
-            ? { state: "failed", label: "Last read failed" }
-            : { state: "connected", label: "Connected" }
-          : { state: "failed", label: "Unreachable" };
+            ? { state: "failed", label: msg("Last read failed") }
+            : { state: "connected", label: msg("Connected") }
+          : { state: "failed", label: msg("Unreachable") };
 
   const positionsStatus: SourceStatus = portfolio.loading
-    ? { state: "loading", label: "Checking…" }
+    ? { state: "loading", label: msg("Checking…") }
     : !portfolio.read
-      ? { state: "failed", label: "Couldn't read" }
+      ? { state: "failed", label: msg("Couldn't read") }
       : portfolio.positionsFailed || portfolio.error !== null
-        ? { state: "failed", label: portfolio.positions > 0 ? `${portfolio.positions} open · partly unread` : "Partly unread" }
+        ? { state: "failed", ...(portfolio.positions > 0
+            ? counted(msg("{count} open · partly unread"), portfolio.positions)
+            : { label: msg("Partly unread") }) }
         : portfolio.positions > 0
-          ? { state: "connected", label: `${portfolio.positions} open` }
-          : { state: "empty", label: "None yet" };
+          ? { state: "connected", ...counted(msg("{count} open"), portfolio.positions) }
+          : { state: "empty", label: msg("None yet") };
 
   const activityStatus: SourceStatus = activity.loading
-    ? { state: "loading", label: "Checking…" }
+    ? { state: "loading", label: msg("Checking…") }
     : activity.unconfigured
-      ? { state: "unavailable", label: "Not configured" }
+      ? { state: "unavailable", label: msg("Not configured") }
       : activity.error !== null
         ? { state: "failed", label: activity.count > 0 ? "Last read failed" : "Couldn't read" }
         : activity.count > 0
-          ? { state: "available", label: "Available" }
-          : { state: "empty", label: "None yet" };
+          ? { state: "available", label: msg("Available") }
+          : { state: "empty", label: msg("None yet") };
 
   const memoryStatus: SourceStatus = memory.loading
-    ? { state: "loading", label: "Checking…" }
+    ? { state: "loading", label: msg("Checking…") }
     : memory.error !== null
-      ? { state: "failed", label: "Couldn't read" }
+      ? { state: "failed", label: msg("Couldn't read") }
       : memory.count > 0
-        ? { state: "connected", label: `${memory.count} saved` }
-        : { state: "empty", label: "Not set" };
+        ? { state: "connected", ...counted(msg("{count} saved"), memory.count) }
+        : { state: "empty", label: msg("Not set") };
 
   return { wallet: walletStatus, positions: positionsStatus, activity: activityStatus, memory: memoryStatus };
 }

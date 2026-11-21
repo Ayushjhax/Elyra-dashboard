@@ -12,6 +12,7 @@ import type { Attachment } from "@/lib/attachments";
 import { claimAgentRun, UsageLimitError } from "@/lib/agent/quota";
 import { serviceClient } from "@/lib/supabase/server";
 import type { Surface } from "@/lib/supabase/types";
+import type { Locale } from "@/lib/i18n/locales";
 
 /* ---------------------------------------------------------------------------
    runAgent — the whole system.
@@ -47,6 +48,8 @@ export interface RunAgentInput {
   solanaAddress?: string | null;
   /** Files sent with this message, already validated by the surface. */
   attachments?: Attachment[];
+  /** The website reader's language; the reply is written in it. English when absent. */
+  locale?: Locale;
   /**
    * Progress, for a surface that can show it as it happens. The web streams
    * these; Telegram passes nothing and gets the finished reply as before.

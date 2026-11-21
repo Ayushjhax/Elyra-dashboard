@@ -5,6 +5,7 @@ import { field } from "@/components/funds/parts";
 import { FUND_LIMITS } from "@/lib/funds/policy";
 import type { FundCharter } from "@/lib/funds/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    A charter, as the person writes it: the brief, the markets and the risk
@@ -73,6 +74,7 @@ function NumberField({ label, hint, value, onChange, suffix }: { label: string; 
 }
 
 export function CharterFields({ draft, onChange, withName = true }: { draft: CharterDraft; onChange: (draft: CharterDraft) => void; withName?: boolean }) {
+  const t = useT();
   const set = <K extends keyof CharterDraft>(key: K, value: CharterDraft[K]) => onChange({ ...draft, [key]: value });
   const toggle = (coin: string) => set("markets", draft.markets.includes(coin) ? draft.markets.filter((entry) => entry !== coin) : [...draft.markets, coin]);
 
@@ -80,26 +82,26 @@ export function CharterFields({ draft, onChange, withName = true }: { draft: Cha
     <div className="flex flex-col gap-4">
       {withName && (
         <label className="flex flex-col gap-1">
-          <span className="type-label text-text-secondary">Name</span>
-          <input className={field} maxLength={FUND_LIMITS.maxNameChars} value={draft.name} onChange={(event) => set("name", event.target.value)} placeholder="Trend book" />
+          <span className="type-label text-text-secondary">{t("Name")}</span>
+          <input className={field} maxLength={FUND_LIMITS.maxNameChars} value={draft.name} onChange={(event) => set("name", event.target.value)} placeholder={t("Trend book")} />
         </label>
       )}
       <label className="flex flex-col gap-1">
-        <span className="type-label text-text-secondary">The manager&apos;s brief</span>
+        <span className="type-label text-text-secondary">{t("The manager's brief")}</span>
         <textarea
           className={cn(field, "h-auto min-h-24 py-2 leading-relaxed")}
           maxLength={FUND_LIMITS.maxObjectiveChars}
           value={draft.objective}
           onChange={(event) => set("objective", event.target.value)}
-          placeholder="What the fund is for and how it should trade. For example: follow multi-day trends in BTC and ETH, long or short; never more than two positions; cut a loser at its stop rather than averaging down."
+          placeholder={t("What the fund is for and how it should trade. For example: follow multi-day trends in BTC and ETH, long or short; never more than two positions; cut a loser at its stop rather than averaging down.")}
         />
         <span className="type-label text-text-muted">
-          The AI manager reads this first, every time. {draft.objective.length}/{FUND_LIMITS.maxObjectiveChars.toLocaleString("en-US")}
+          {t("The AI manager reads this first, every time. {count}/{maxObjectiveChars}", { count: draft.objective.length, maxObjectiveChars: FUND_LIMITS.maxObjectiveChars.toLocaleString("en-US") })}
         </span>
       </label>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="type-label mb-1 text-text-secondary">Markets it may trade · {draft.markets.length} chosen</legend>
+        <legend className="type-label mb-1 text-text-secondary">{t("Markets it may trade · {count} chosen", { count: draft.markets.length })}</legend>
         {GROUPS.map((group) => (
           <div key={group} className="flex flex-col gap-1.5">
             <span className="type-eyebrow text-text-muted">{MARKET_GROUP_LABEL[group]}</span>
@@ -128,25 +130,25 @@ export function CharterFields({ draft, onChange, withName = true }: { draft: Cha
 
       <label className="flex items-center gap-2.5">
         <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={draft.allowShorts} onChange={(event) => set("allowShorts", event.target.checked)} />
-        <span className="type-body-sm text-text-primary">May sell short</span>
-        <span className="type-label text-text-muted">— a hedge fund&apos;s other half</span>
+        <span className="type-body-sm text-text-primary">{t("May sell short")}</span>
+        <span className="type-label text-text-muted">{t("— a hedge fund's other half")}</span>
       </label>
 
       <div className="grid grid-cols-2 gap-3 @max-[380px]:grid-cols-1">
-        <NumberField label="Largest position" hint={`of NAV · ${FUND_LIMITS.minPositionPct}–${FUND_LIMITS.maxPositionPct}%`} value={draft.maxPositionPct} onChange={(value) => set("maxPositionPct", value)} suffix="%" />
-        <NumberField label="Gross exposure" hint={`all positions, × NAV · up to ${FUND_LIMITS.maxGrossExposure}×`} value={draft.maxGrossExposure} onChange={(value) => set("maxGrossExposure", value)} suffix="×" />
-        <NumberField label="Leverage" hint={`per position · 1–${FUND_LIMITS.maxLeverage}x`} value={draft.maxLeverage} onChange={(value) => set("maxLeverage", value)} suffix="x" />
-        <NumberField label="Open positions" hint={`at once · 1–${FUND_LIMITS.maxPositions}`} value={draft.maxPositions} onChange={(value) => set("maxPositions", value)} suffix="#" />
+        <NumberField label={t("Largest position")} hint={t("of NAV · {minPositionPct}–{maxPositionPct}%", { minPositionPct: FUND_LIMITS.minPositionPct, maxPositionPct: FUND_LIMITS.maxPositionPct })} value={draft.maxPositionPct} onChange={(value) => set("maxPositionPct", value)} suffix="%" />
+        <NumberField label={t("Gross exposure")} hint={t("all positions, × NAV · up to {maxGrossExposure}×", { maxGrossExposure: FUND_LIMITS.maxGrossExposure })} value={draft.maxGrossExposure} onChange={(value) => set("maxGrossExposure", value)} suffix="×" />
+        <NumberField label={t("Leverage")} hint={t("per position · 1–{maxLeverage}x", { maxLeverage: FUND_LIMITS.maxLeverage })} value={draft.maxLeverage} onChange={(value) => set("maxLeverage", value)} suffix="x" />
+        <NumberField label={t("Open positions")} hint={t("at once · 1–{maxPositions}", { maxPositions: FUND_LIMITS.maxPositions })} value={draft.maxPositions} onChange={(value) => set("maxPositions", value)} suffix="#" />
         <NumberField
-          label="Halt at drawdown"
-          hint={`from its high · ${FUND_LIMITS.minDrawdownPct}–${FUND_LIMITS.maxDrawdownPct}%. Elyra closes everything.`}
+          label={t("Halt at drawdown")}
+          hint={t("from its high · {minDrawdownPct}–{maxDrawdownPct}%. Elyra closes everything.", { minDrawdownPct: FUND_LIMITS.minDrawdownPct, maxDrawdownPct: FUND_LIMITS.maxDrawdownPct })}
           value={draft.maxDrawdownPct}
           onChange={(value) => set("maxDrawdownPct", value)}
           suffix="%"
         />
         <NumberField
-          label="Daily loss limit"
-          hint={`nothing new until 00:00 UTC · ${FUND_LIMITS.minDailyLossPct}–${FUND_LIMITS.maxDailyLossPct}%`}
+          label={t("Daily loss limit")}
+          hint={t("nothing new until 00:00 UTC · {minDailyLossPct}–{maxDailyLossPct}%", { minDailyLossPct: FUND_LIMITS.minDailyLossPct, maxDailyLossPct: FUND_LIMITS.maxDailyLossPct })}
           value={draft.dailyLossPct}
           onChange={(value) => set("dailyLossPct", value)}
           suffix="%"

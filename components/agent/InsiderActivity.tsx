@@ -6,6 +6,7 @@ import type { CompanyInsiders } from "@/lib/research/sec/alpha";
 import { formatCompactUsd, formatPriceUsd } from "@/lib/format";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { translateNow, useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    What a company's insiders have done with their own shares.
@@ -31,6 +32,7 @@ function dateLabel(iso: string | null, now: number | null): string {
 }
 
 export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (prompt: string) => void }) {
+  const t = useT();
   const [state, setState] = useState<{ query: string; data: CompanyInsiders | null; error: string | null }>({
     query: "",
     data: null,
@@ -53,7 +55,7 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
           if (body.insiders && body.insiders.pending > 0 && tries < MAX_TRIES) timer = window.setTimeout(tick, RETRY_MS);
         })
         .catch(() => {
-          if (!cancelled) setState({ query, data: null, error: "Insider filings could not be read." });
+          if (!cancelled) setState({ query, data: null, error: translateNow("Insider filings could not be read.") });
         });
     };
     tick();
@@ -67,29 +69,29 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
   const data = current?.data ?? null;
 
   return (
-    <section aria-label="Insider activity" className="mx-4 mt-4 rounded-card border border-border-subtle bg-surface-raised">
+    <section aria-label={t("Insider activity")} className="mx-4 mt-4 rounded-card border border-border-subtle bg-surface-raised">
       <p className="type-eyebrow flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2 text-text-muted">
-        <span>Insider activity</span>
+        <span>{t("Insider activity")}</span>
         {data && (
           <span className="normal-case tracking-normal text-text-secondary">
-            {data.pending > 0 ? `Reading ${data.pending} more…` : `${data.filings} Form 4s · since ${dateLabel(data.since, now)}`}
+            {data.pending > 0 ? t("Reading {pending} more…", { pending: data.pending }) : t("{filings} Form 4s · since {since}", { filings: data.filings, since: dateLabel(data.since, now) })}
           </span>
         )}
       </p>
 
       {current === null ? (
-        <div aria-busy="true" aria-label="Reading insider filings" className="space-y-2 p-3">
+        <div aria-busy="true" aria-label={t("Reading insider filings")} className="space-y-2 p-3">
           <div className="skeleton h-4 w-3/4" />
           <div className="skeleton h-2 w-full rounded-pill" />
           <div className="skeleton h-10 w-full rounded-control" />
         </div>
       ) : data === null ? (
-        <p className="type-body-sm px-3 py-3 text-text-secondary">{current.error ?? "No insider filings found."}</p>
+        <p className="type-body-sm px-3 py-3 text-text-secondary">{current.error ?? t("No insider filings found.")}</p>
       ) : data.moves.length === 0 ? (
         <p className="type-body-sm px-3 py-3 text-text-secondary">
           {data.pending > 0
-            ? "Reading its recent Form 4s…"
-            : `No open-market buying or selling in its last ${data.filings} insider filings — only grants, exercises and tax withholding, if anything.`}
+            ? t("Reading its recent Form 4s…")
+            : t("No open-market buying or selling in its last {filings} insider filings — only grants, exercises and tax withholding, if anything.", { filings: data.filings })}
         </p>
       ) : (
         <div className="p-3">
@@ -109,19 +111,21 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
                     </p>
                     <p className="type-label flex flex-wrap gap-x-1 text-text-muted">
                       <span className="whitespace-nowrap">
-                        {buy ? "Bought" : "Sold"} {move.shares.toLocaleString("en-US")} sh
+                        {(buy
+                          ? t("Bought {shares} sh", { shares: move.shares.toLocaleString("en-US") })
+                          : t("Sold {shares} sh", { shares: move.shares.toLocaleString("en-US") }))}
                       </span>
-                      {move.avgPrice !== null && <span className="whitespace-nowrap">at ~{formatPriceUsd(move.avgPrice)}</span>}
+                      {move.avgPrice !== null && <span className="whitespace-nowrap">{t("at ~{avgPrice}", { avgPrice: formatPriceUsd(move.avgPrice) })}</span>}
                       {move.tradeDate && <span className="whitespace-nowrap">· {dateLabel(move.tradeDate, now)}</span>}
-                      {!buy && move.planned && <span className="whitespace-nowrap">· scheduled 10b5-1</span>}
-                      {!buy && move.soldAll && <span className="whitespace-nowrap">· sold everything</span>}
+                      {!buy && move.planned && <span className="whitespace-nowrap">{t("· scheduled 10b5-1")}</span>}
+                      {!buy && move.soldAll && <span className="whitespace-nowrap">{t("· sold everything")}</span>}
                     </p>
                   </div>
                   <a
                     href={move.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="Open the Form 4"
+                    aria-label={t("Open the Form 4")}
                     className={cn(
                       "type-data inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-control px-1 hover:bg-surface-hover",
                       buy ? "text-positive" : "text-text-primary",
@@ -138,13 +142,21 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
             type="button"
             onClick={() =>
               onAsk(
-                `Over its last ${data.filings} Form 4s, insiders at ${data.company ?? query} (${data.ticker ?? query}) bought ${formatCompactUsd(data.summary.buyValue)} in ${data.summary.buys} trades and sold ${formatCompactUsd(data.summary.sellValue)} in ${data.summary.sells} trades. What does this pattern suggest, and what would change that reading?`,
+                t("Over its last {filings} Form 4s, insiders at {company} ({ticker}) bought {buyValue} in {buys} trades and sold {sellValue} in {sells} trades. What does this pattern suggest, and what would change that reading?", {
+                  filings: data.filings,
+                  company: data.company ?? query,
+                  ticker: data.ticker ?? query,
+                  buyValue: formatCompactUsd(data.summary.buyValue),
+                  buys: data.summary.buys,
+                  sellValue: formatCompactUsd(data.summary.sellValue),
+                  sells: data.summary.sells,
+                }),
               )
             }
             className="type-label mt-2 inline-flex h-7 items-center gap-1 rounded-control px-1.5 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
           >
             <Sparkles size={12} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
-            Ask Elyra what this pattern says
+            {t("Ask Elyra what this pattern says")}
           </button>
         </div>
       )}
@@ -154,6 +166,7 @@ export function InsiderActivity({ query, onAsk }: { query: string; onAsk: (promp
 
 /** Money in against money out, with the people behind each. */
 function InsiderBalance({ data }: { data: CompanyInsiders }) {
+  const t = useT();
   const { buyValue, sellValue, buys, sells, buyers, sellers } = data.summary;
   const total = buyValue + sellValue;
   const buyShare = total > 0 ? (buyValue / total) * 100 : 0;
@@ -161,27 +174,25 @@ function InsiderBalance({ data }: { data: CompanyInsiders }) {
     <div>
       <p className="type-label text-text-secondary">
         {buys === 0 ? (
-          "Nothing bought on the open market"
+          t("Nothing bought on the open market")
         ) : (
           <>
-            <span className="type-data text-positive">{formatCompactUsd(buyValue)}</span> bought · {buys} {buys === 1 ? "trade" : "trades"} by{" "}
-            {buyers} {buyers === 1 ? "insider" : "insiders"}
+            <span className="type-data text-positive">{formatCompactUsd(buyValue)}</span>{" "}{t("bought · {trades} by {insiders}", { trades: buys === 1 ? t("1 trade") : t("{count} trades", { count: buys }), insiders: buyers === 1 ? t("1 insider") : t("{count} insiders", { count: buyers }) })}
           </>
         )}
       </p>
       <p className="type-label text-text-secondary">
         {sells === 0 ? (
-          "Nothing sold on the open market"
+          t("Nothing sold on the open market")
         ) : (
           <>
-            <span className="type-data text-text-primary">{formatCompactUsd(sellValue)}</span> sold · {sells} {sells === 1 ? "trade" : "trades"} by{" "}
-            {sellers} {sellers === 1 ? "insider" : "insiders"}
+            <span className="type-data text-text-primary">{formatCompactUsd(sellValue)}</span>{" "}{t("sold · {trades} by {insiders}", { trades: sells === 1 ? t("1 trade") : t("{count} trades", { count: sells }), insiders: sellers === 1 ? t("1 insider") : t("{count} insiders", { count: sellers }) })}
           </>
         )}
       </p>
       <div
         role="img"
-        aria-label={`${buyShare.toFixed(0)}% of insider money moved was buying`}
+        aria-label={t("{buyShare}% of insider money moved was buying", { buyShare: buyShare.toFixed(0) })}
         className="mt-2 flex h-2 overflow-hidden rounded-pill bg-surface-hover"
       >
         {buyValue > 0 && <span className="h-full bg-sage" style={{ width: `${Math.max(buyShare, 2)}%` }} />}

@@ -1,3 +1,5 @@
+import { msg } from "@/lib/i18n/translate";
+
 /* ---------------------------------------------------------------------------
    An account's sign-in method, in the words a person would use.
 
@@ -34,24 +36,24 @@ export interface LinkedAccountSummary {
 
 /** Privy's account types, by their own names. */
 const METHOD_LABEL: Record<string, string> = {
-  wallet: "Wallet",
-  email: "Email",
-  phone: "Phone",
-  google_oauth: "Google",
+  wallet: msg("Wallet"),
+  email: msg("Email"),
+  phone: msg("Phone"),
+  google_oauth: msg("Google"),
   twitter_oauth: "X",
-  discord_oauth: "Discord",
-  github_oauth: "GitHub",
-  apple_oauth: "Apple",
+  discord_oauth: msg("Discord"),
+  github_oauth: msg("GitHub"),
+  apple_oauth: msg("Apple"),
   linkedin_oauth: "LinkedIn",
   tiktok_oauth: "TikTok",
   spotify_oauth: "Spotify",
   instagram_oauth: "Instagram",
   twitch_oauth: "Twitch",
   line_oauth: "LINE",
-  farcaster: "Farcaster",
-  telegram: "Telegram",
-  passkey: "Passkey",
-  smart_wallet: "Smart wallet",
+  farcaster: msg("Farcaster"),
+  telegram: msg("Telegram"),
+  passkey: msg("Passkey"),
+  smart_wallet: msg("Smart wallet"),
   guest: "Guest",
 };
 

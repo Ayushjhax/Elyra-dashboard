@@ -11,6 +11,8 @@ import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { useElyraStore } from "@/lib/store";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The decision brief: three rows about the market on the chart.
@@ -30,12 +32,13 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 const ROWS = [
-  { key: "structure", label: "Price structure", icon: LineChart },
-  { key: "exposure", label: "Your exposure", icon: Layers },
-  { key: "watch", label: "Watch next", icon: Eye },
+  { key: "structure", label: msg("Price structure"), icon: LineChart },
+  { key: "exposure", label: msg("Your exposure"), icon: Layers },
+  { key: "watch", label: msg("Watch next"), icon: Eye },
 ] as const;
 
 export function DecisionBrief() {
+  const t = useT();
   const open = useElyraStore((state) => state.decisionBriefOpen);
   const setOpen = useElyraStore((state) => state.setDecisionBriefOpen);
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
@@ -52,15 +55,15 @@ export function DecisionBrief() {
   const bodyId = useId();
 
   const lines: Record<(typeof ROWS)[number]["key"], BriefLine> = {
-    structure: symbol ? structureLine(symbol, row, levels, now) : { kind: "loading" },
+    structure: symbol ? structureLine(symbol, row, levels, now, t) : { kind: "loading" },
     exposure: symbol
-      ? exposureLine(symbol, { ...feed, available: auth.available, ready: auth.ready, authenticated: auth.authenticated }, now)
+      ? exposureLine(symbol, { ...feed, available: auth.available, ready: auth.ready, authenticated: auth.authenticated }, now, t)
       : { kind: "loading" },
-    watch: symbol ? watchNextLine(symbol, row, alerts, levels, "web") : { kind: "loading" },
+    watch: symbol ? watchNextLine(symbol, row, alerts, levels, "web", t) : { kind: "loading" },
   };
 
   return (
-    <section aria-label="Decision brief" className="rounded-card border border-border-subtle bg-surface-raised">
+    <section aria-label={t("Decision brief")} className="rounded-card border border-border-subtle bg-surface-raised">
       <button
         type="button"
         aria-expanded={open}
@@ -68,7 +71,7 @@ export function DecisionBrief() {
         onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
       >
-        <span className="type-eyebrow text-text-muted">Decision brief</span>
+        <span className="type-eyebrow text-text-muted">{t("Decision brief")}</span>
         {symbol && <span className="type-data-sm text-text-secondary">{symbol}</span>}
         <ChevronDown
           size={14}
@@ -88,10 +91,10 @@ export function DecisionBrief() {
             <div key={key} className="flex gap-2.5 px-3 py-2.5">
               <Icon size={14} strokeWidth={1.5} aria-hidden className="mt-0.5 shrink-0 text-text-muted" />
               <div className="min-w-0 flex-1">
-                <dt className="type-label text-text-secondary">{label}</dt>
+                <dt className="type-label text-text-secondary">{t(label)}</dt>
                 <dd className="mt-0.5">
                   {line.kind === "loading" ? (
-                    <span aria-label="Loading" className="skeleton block h-4 w-4/5" />
+                    <span aria-label={t("Loading")} className="skeleton block h-4 w-4/5" />
                   ) : line.kind === "unavailable" ? (
                     <p className="type-body-sm text-text-muted">{line.text}</p>
                   ) : (

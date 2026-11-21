@@ -160,6 +160,14 @@ export interface TradingPositionRow {
   origin: "rule" | "order" | "fund";
   /** 0025: the AI fund this position belongs to; null for everything else. */
   fund_id?: string | null;
+  /** 0028: the mid when the entry was sent; null for rows from before. */
+  expected_price?: string | number | null;
+  /** 0028: the size it opened at; `size` is what is still open. */
+  original_size?: string | number | null;
+  /** 0028: [{ at, size, price, pnlUsd, reason }], in order. */
+  partial_closes?: unknown;
+  /** 0028: the partial closes' result after fees, so far. */
+  realised_partial_usd?: string | number | null;
 }
 
 /* Elyra Arena (0021). Numeric columns may come back as string or number. */
@@ -279,6 +287,23 @@ export interface EventMarkRow {
   item_key: string;
   user_id: string;
   mark: "like" | "save";
+  created_at: string;
+}
+
+/**
+ * One day's Daily Briefing (0027). `day` is unique, so the tick writes each
+ * day once; a run claims the row as `writing` and publishes it.
+ */
+export interface DailyBriefingRow {
+  day: string;
+  status: "writing" | "published";
+  attempts: number;
+  claimed_at: string;
+  published_at: string | null;
+  items: unknown;
+  extras: unknown;
+  model: string | null;
+  notes: string[];
   created_at: string;
 }
 
@@ -941,7 +966,10 @@ export interface Database {
         TradingRuleRow,
         "id" | "side" | "params" | "mode" | "enabled" | "last_signal_at" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
       >;
-      trading_positions: Table<TradingPositionRow, "id" | "side" | "opened_at" | "leverage" | "origin" | "fund_id">;
+      trading_positions: Table<
+        TradingPositionRow,
+        "id" | "side" | "opened_at" | "leverage" | "origin" | "fund_id" | "expected_price" | "original_size" | "partial_closes" | "realised_partial_usd"
+      >;
       trade_reviews: Table<TradeReviewRow, "id" | "created_at">;
       arena_profiles: Table<ArenaProfileRow, "handle" | "public" | "created_at" | "updated_at">;
       arena_groups: Table<ArenaGroupRow, "id" | "created_at">;
@@ -1115,6 +1143,10 @@ export interface Database {
       agent_key_usage: Table<{ key_id: string; day: string; calls: number }, "calls">;
       event_posts: Table<EventPostRow, "id" | "refers_to" | "facts" | "amount_usd" | "chains" | "source_url" | "created_at">;
       event_marks: Table<EventMarkRow, "created_at">;
+      daily_briefings: Table<
+        DailyBriefingRow,
+        "status" | "attempts" | "claimed_at" | "items" | "extras" | "notes" | "created_at"
+      >;
       agent_mandates: Table<AgentMandateRow, "id" | "payees" | "auto_perps" | "live_perps" | "created_at" | "updated_at" | "revoked_at">;
       agent_intents: Table<AgentIntentRow, "id" | "reasons" | "created_at">;
       rails_ledger: Table<RailsLedgerRow, "id" | "body" | "created_at">;

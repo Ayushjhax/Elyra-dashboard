@@ -14,8 +14,10 @@ import {
   Timestamp,
   useResearchResource,
 } from "./shared";
+import { useT } from "@/lib/i18n/client";
 
 export function RecapTab({ active }: { active: boolean }) {
+  const t = useT();
   const auth = useElyraAuth();
   const [scope, setScope] = useState<"crypto" | "equities">("crypto");
   const feed = useResearchResource<MarketRecap>(
@@ -35,11 +37,11 @@ export function RecapTab({ active }: { active: boolean }) {
     <div>
       <div className="r-toolbar">
         <Choices
-          label="Recap scope"
+          label={t("Recap scope")}
           value={scope}
           options={[
-            { value: "crypto", label: "Crypto" },
-            { value: "equities", label: "Equities" },
+            { value: "crypto", label: t("Crypto") },
+            { value: "equities", label: t("Equities") },
           ]}
           onChange={setScope}
         />
@@ -49,14 +51,14 @@ export function RecapTab({ active }: { active: boolean }) {
           onClick={feed.reload}
           disabled={feed.loading || !auth.authenticated}
         >
-          Refresh
+          {t("Refresh")}
         </button>
       </div>
       {!auth.authenticated ? (
         <SignIn />
       ) : (
         <>
-          {feed.loading && !feed.data && <Loading>Reading markets…</Loading>}
+          {feed.loading && !feed.data && <Loading>{t("Reading markets…")}</Loading>}
           {feed.error && <Problem retry={feed.reload}>{feed.error}</Problem>}
           {overview &&
             (overview.unavailable ? (
@@ -90,12 +92,12 @@ export function RecapTab({ active }: { active: boolean }) {
                             )}
                           </div>
                           {move?.stale && (
-                            <small>Cached reading · may be stale</small>
+                            <small>{t("Cached reading · may be stale")}</small>
                           )}
                           {move ? (
                             <Timestamp at={move.asOf} />
                           ) : (
-                            <small>Price unavailable</small>
+                            <small>{t("Price unavailable")}</small>
                           )}
                         </div>
                       </article>
@@ -114,10 +116,10 @@ export function RecapTab({ active }: { active: boolean }) {
           {scope === "crypto" && feed.data && (
             <div className="r-split r-recap-sections">
               <section>
-                <h2>Perpetual funding</h2>
+                <h2>{t("Perpetual funding")}</h2>
                 {funding?.stale && (
                   <p className="r-note">
-                    Cached funding reading · may be stale.
+                    {t("Cached funding reading · may be stale.")}
                   </p>
                 )}
                 {funding?.unavailable ? (
@@ -128,11 +130,11 @@ export function RecapTab({ active }: { active: boolean }) {
                       <table>
                         <thead>
                           <tr>
-                            <th scope="col">Asset</th>
+                            <th scope="col">{t("Asset")}</th>
                             <th scope="col" className="r-number">
-                              Annualised
+                              {t("Annualised")}
                             </th>
-                            <th scope="col">Direction</th>
+                            <th scope="col">{t("Direction")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -144,28 +146,28 @@ export function RecapTab({ active }: { active: boolean }) {
                               </td>
                               <td>
                                 {row.annualisedPct > 0
-                                  ? "Longs pay shorts"
+                                  ? t("Longs pay shorts")
                                   : row.annualisedPct < 0
-                                    ? "Shorts pay longs"
-                                    : "No payment"}
+                                    ? t("Shorts pay longs")
+                                    : t("No payment")}
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                    <Timestamp at={funding.asOf} label="Hyperliquid ·" />
+                    <Timestamp at={funding.asOf} label={t("Hyperliquid ·")} />
                   </>
                 ) : (
                   <Problem retry={feed.reload}>
-                    Funding details are unavailable.
+                    {t("Funding details are unavailable.")}
                   </Problem>
                 )}
               </section>
               <section>
-                <h2>Prediction markets</h2>
+                <h2>{t("Prediction markets")}</h2>
                 {prediction?.stale && (
-                  <p className="r-note">Cached market prices · may be stale.</p>
+                  <p className="r-note">{t("Cached market prices · may be stale.")}</p>
                 )}
                 {prediction?.unavailable ? (
                   <Problem retry={feed.reload}>
@@ -191,7 +193,7 @@ export function RecapTab({ active }: { active: boolean }) {
                               )}
                             </p>
                             <span className="r-probability">
-                              {market.outcome ?? "Unlabelled outcome"} ·{" "}
+                              {market.outcome ?? t("Unlabelled outcome")} ·{" "}
                               {market.price === null
                                 ? "—"
                                 : percentage(market.price * 100, 0)}
@@ -199,17 +201,17 @@ export function RecapTab({ active }: { active: boolean }) {
                           </div>
                           <small>
                             {market.status === "open"
-                              ? "Active · implied market probability"
-                              : `${market.status} · last market price`}
+                              ? t("Active · implied market probability")
+                              : t("{status} · last market price", { status: market.status })}
                           </small>
                         </article>
                       ))}
                     </div>
-                    <Timestamp at={prediction.asOf} label="Polymarket ·" />
+                    <Timestamp at={prediction.asOf} label={t("Polymarket ·")} />
                   </>
                 ) : (
                   <Problem retry={feed.reload}>
-                    Prediction-market details are unavailable.
+                    {t("Prediction-market details are unavailable.")}
                   </Problem>
                 )}
               </section>
@@ -217,8 +219,7 @@ export function RecapTab({ active }: { active: boolean }) {
           )}
           {feed.data && (
             <p className="r-footnote">
-              <Timestamp at={feed.data.generatedAt} label="Recap assembled" /> ·
-              Market prices, not predictions.
+              <Timestamp at={feed.data.generatedAt} label={t("Recap assembled")} />{" "}{t("· Market prices, not predictions.")}
             </p>
           )}
         </>

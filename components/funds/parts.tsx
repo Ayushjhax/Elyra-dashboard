@@ -4,6 +4,7 @@ import { StatusDot } from "@/components/shell/RouteDrawer";
 import { STATUS_WORD } from "@/lib/funds/policy";
 import type { FundMode, FundStatus } from "@/lib/funds/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* Small pieces the Funds pages share. Every colour is a brand token. */
 
@@ -35,10 +36,12 @@ const TONE: Record<FundStatus, "positive" | "accent" | "caution" | "negative" | 
 };
 
 export function FundStatusTag({ status, closedReason }: { status: FundStatus; closedReason?: "wound_down" | "graduated" | null }) {
-  return <StatusDot tone={TONE[status]}>{status === "closed" && closedReason === "graduated" ? "Graduated" : STATUS_WORD[status]}</StatusDot>;
+  const t = useT();
+  return <StatusDot tone={TONE[status]}>{status === "closed" && closedReason === "graduated" ? t("Graduated") : STATUS_WORD[status]}</StatusDot>;
 }
 
 export function ModeTag({ mode }: { mode: FundMode }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -46,7 +49,7 @@ export function ModeTag({ mode }: { mode: FundMode }) {
         mode === "live" ? "border-border-accent text-accent" : "border-border-subtle text-text-muted",
       )}
     >
-      {mode === "live" ? "Live" : "Paper"}
+      {mode === "live" ? t("Live") : t("Paper")}
     </span>
   );
 }

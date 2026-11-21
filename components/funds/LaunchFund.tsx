@@ -12,6 +12,7 @@ import { CHARTER_DEFAULTS, FUND_LIMITS } from "@/lib/funds/policy";
 import type { FundManagerOption, FundSummary } from "@/lib/funds/types";
 import type { FundsFeed } from "@/lib/funds/useFunds";
 import type { FundsResponse } from "@/lib/funds/types";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Launching a fund: its charter, its starting capital (always paper first),
@@ -22,6 +23,7 @@ import type { FundsResponse } from "@/lib/funds/types";
 type ManagerChoice = { kind: "new"; name: string } | { kind: "existing"; keyId: string } | { kind: "none" };
 
 export function LaunchFund({ feed, managers, onClose }: { feed: FundsFeed<FundsResponse>; managers: FundManagerOption[]; onClose: () => void }) {
+  const t = useT();
   const free = managers.filter((manager) => manager.managing === null);
   const [draft, setDraft] = useState<CharterDraft>(() => draftOf(CHARTER_DEFAULTS));
   const [capital, setCapital] = useState("10000");
@@ -44,23 +46,23 @@ export function LaunchFund({ feed, managers, onClose }: { feed: FundsFeed<FundsR
 
   if (launched !== null) {
     return (
-      <DrawerCard icon={Rocket} title={`${launched.fund.name} is trading on paper`}>
+      <DrawerCard icon={Rocket} title={t("{name} is trading on paper", { name: launched.fund.name })}>
         <div className="flex flex-col gap-4">
           {launched.key !== null ? (
             <FreshKey keyText={launched.key} fundName={launched.fund.name} />
           ) : (
             <p className="type-body-sm text-text-secondary">
               {manager.kind === "existing"
-                ? "Its manager's key already exists; the fund's page has the instructions to give the agent."
-                : "It has no manager yet. Assign one from the fund's page — until then, nothing trades."}
+                ? t("Its manager's key already exists; the fund's page has the instructions to give the agent.")
+                : t("It has no manager yet. Assign one from the fund's page — until then, nothing trades.")}
             </p>
           )}
           <div className="flex flex-wrap gap-2">
             <Link href={`/funds/${launched.fund.id}`} className={buttonVariants({ variant: "accent", size: "sm" })}>
-              Open the fund
+              {t("Open the fund")}
             </Link>
             <Button size="sm" variant="ghost" onClick={onClose}>
-              Done
+              {t("Done")}
             </Button>
           </div>
         </div>
@@ -69,37 +71,35 @@ export function LaunchFund({ feed, managers, onClose }: { feed: FundsFeed<FundsR
   }
 
   return (
-    <DrawerCard icon={Rocket} title="Launch a fund">
+    <DrawerCard icon={Rocket} title={t("Launch a fund")}>
       <div className="flex flex-col gap-5">
         <p className="type-body-sm text-text-secondary">
-          You write the charter; an AI agent manages the fund inside it; Elyra holds every order to it, marks the book every five minutes and halts the fund at its
-          drawdown limit. Every fund starts on paper at Hyperliquid&apos;s prices, after fees. After {FUND_LIMITS.minIncubationDays} days and{" "}
-          {FUND_LIMITS.minIncubationTrades} closed trades it can graduate to your own Hyperliquid account.
+          {t("You write the charter; an AI agent manages the fund inside it; Elyra holds every order to it, marks the book every five minutes and halts the fund at its drawdown limit. Every fund starts on paper at Hyperliquid's prices, after fees. After {minIncubationDays} days and {minIncubationTrades} closed trades it can graduate to your own Hyperliquid account.", { minIncubationDays: FUND_LIMITS.minIncubationDays, minIncubationTrades: FUND_LIMITS.minIncubationTrades })}
         </p>
         <CharterFields draft={draft} onChange={setDraft} />
 
         <label className="flex flex-col gap-1">
-          <span className="type-label text-text-secondary">Starting capital, on paper (USD)</span>
+          <span className="type-label text-text-secondary">{t("Starting capital, on paper (USD)")}</span>
           <input inputMode="decimal" className={field} value={capital} onChange={(event) => setCapital(event.target.value)} />
           <span className="type-label text-text-muted">
-            ${FUND_LIMITS.minCapitalUsd} to ${FUND_LIMITS.maxPaperCapitalUsd.toLocaleString("en-US")}. Units start at 100, so returns are the manager&apos;s, whatever you add later.
+            {t("${minCapitalUsd} to ${maxPaperCapitalUsd}. Units start at 100, so returns are the manager's, whatever you add later.", { minCapitalUsd: FUND_LIMITS.minCapitalUsd, maxPaperCapitalUsd: FUND_LIMITS.maxPaperCapitalUsd.toLocaleString("en-US") })}
           </span>
         </label>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="type-label mb-1 text-text-secondary">Manager</legend>
+          <legend className="type-label mb-1 text-text-secondary">{t("Manager")}</legend>
           <label className="flex items-start gap-2.5">
             <input type="radio" name="manager" className="mt-1 size-4 accent-[var(--accent)]" checked={manager.kind === "new"} onChange={() => setManager({ kind: "new", name: "" })} />
             <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="type-body-sm text-text-primary">Make a key for a new AI manager</span>
+              <span className="type-body-sm text-text-primary">{t("Make a key for a new AI manager")}</span>
               {manager.kind === "new" && (
                 <input
                   className={field}
                   maxLength={60}
                   value={manager.name}
                   onChange={(event) => setManager({ kind: "new", name: event.target.value })}
-                  placeholder={`${draft.name.trim() || "Fund"} manager`}
-                  aria-label="Name of the manager's key"
+                  placeholder={(draft.name.trim() === "" ? t("Fund manager") : t("{name} manager", { name: draft.name.trim() }))}
+                  aria-label={t("Name of the manager's key")}
                 />
               )}
             </span>
@@ -114,9 +114,9 @@ export function LaunchFund({ feed, managers, onClose }: { feed: FundsFeed<FundsR
                 onChange={() => setManager({ kind: "existing", keyId: free[0].keyId })}
               />
               <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="type-body-sm text-text-primary">Use one of my agent keys</span>
+                <span className="type-body-sm text-text-primary">{t("Use one of my agent keys")}</span>
                 {manager.kind === "existing" && (
-                  <select className={field} value={manager.keyId} onChange={(event) => setManager({ kind: "existing", keyId: event.target.value })} aria-label="Agent key">
+                  <select className={field} value={manager.keyId} onChange={(event) => setManager({ kind: "existing", keyId: event.target.value })} aria-label={t("Agent key")}>
                     {free.map((option) => (
                       <option key={option.keyId} value={option.keyId}>
                         {option.name} · {option.prefix}…
@@ -129,16 +129,16 @@ export function LaunchFund({ feed, managers, onClose }: { feed: FundsFeed<FundsR
           )}
           <label className="flex items-start gap-2.5">
             <input type="radio" name="manager" className="mt-1 size-4 accent-[var(--accent)]" checked={manager.kind === "none"} onChange={() => setManager({ kind: "none" })} />
-            <span className="type-body-sm text-text-primary">Assign one later</span>
+            <span className="type-body-sm text-text-primary">{t("Assign one later")}</span>
           </label>
         </fieldset>
 
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="accent" disabled={busy || draft.name.trim().length === 0 || draft.objective.trim().length === 0 || draft.markets.length === 0} onClick={() => void launch()}>
-            {busy ? "Launching" : "Launch on paper"}
+            {busy ? t("Launching") : t("Launch on paper")}
           </Button>
           <Button size="sm" variant="ghost" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </Button>
         </div>
         <Problem text={error} />

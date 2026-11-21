@@ -55,6 +55,8 @@ import { useSecond } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 import { useWalletActivity, type ActivityFeed } from "@/lib/wallet/useWalletActivity";
 import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Capital Accounts — balances, venues and capital movement in one place.
@@ -94,26 +96,27 @@ function Header({
   scope: string;
   onScope: (scope: string) => void;
 }) {
+  const t = useT();
   const hidden = useBalancesHidden();
   const setHidden = useElyraStore((state) => state.setBalancesHidden);
   const now = useSecond();
   const options = [
-    { id: ALL_ACCOUNTS, label: "All accounts" },
+    { id: ALL_ACCOUNTS, label: msg("All accounts") },
     ...accounts.filter((entry) => entry.connection === "connected").map((entry) => ({ id: entry.id, label: entry.label })),
   ];
 
   return (
     <PageHeader
       icon={Database}
-      title="Capital Accounts"
-      subtitle="Balances, venues, and capital movement in one place."
+      title={t("Capital Accounts")}
+      subtitle={t("Balances, venues, and capital movement in one place.")}
       actions={
         /* Under the title on a phone, so it starts at the page's left edge. */
         <div className="flex flex-col items-end gap-1 @max-[40rem]:items-start">
           <div className="flex items-center gap-2">
-            <OptionMenu label="Account" options={options} value={scope} onChange={onScope} align="end" className="min-w-36 justify-between" />
+            <OptionMenu label={t("Account")} options={options} value={scope} onChange={onScope} align="end" className="min-w-36 justify-between" />
             <IconButton
-              label={hidden ? "Show balances" : "Hide balances"}
+              label={hidden ? t("Show balances") : t("Hide balances")}
               aria-pressed={hidden}
               onClick={() => setHidden(!hidden)}
               className={cn("size-9 border border-border-subtle", hidden && "text-accent")}
@@ -121,7 +124,7 @@ function Header({
               {hidden ? <EyeOff size={16} strokeWidth={1.5} aria-hidden /> : <Eye size={16} strokeWidth={1.5} aria-hidden />}
             </IconButton>
             <IconButton
-              label={feed.refreshing ? "Refreshing balances" : "Refresh balances"}
+              label={feed.refreshing ? t("Refreshing balances") : t("Refresh balances")}
               onClick={feed.refetch}
               disabled={feed.refreshing}
               className="size-9 border border-border-subtle"
@@ -131,11 +134,11 @@ function Header({
           </div>
           <p className="type-label min-h-4 text-text-secondary" aria-live="polite">
             {feed.refreshing
-              ? "Refreshing…"
+              ? t("Refreshing…")
               : feed.stale
-                ? `Refresh failed · showing the reading from ${feed.fetchedAt === null || now === null ? "earlier" : formatAge(feed.fetchedAt, now)}`
+                ? t("Refresh failed · showing the reading from {age}", { age: feed.fetchedAt === null || now === null ? t("earlier") : formatAge(feed.fetchedAt, now, t.locale) })
                 : feed.fetchedAt !== null && now !== null
-                  ? `Updated ${formatAge(feed.fetchedAt, now)}`
+                  ? t("Updated {fetchedAt}", { fetchedAt: formatAge(feed.fetchedAt, now, t.locale) })
                   : ""}
           </p>
         </div>
@@ -161,6 +164,7 @@ function EquityCard({
   address: string | null;
   onExecuted: () => void;
 }) {
+  const t = useT();
   const sync = syncSummary(accounts);
   const scoped = accounts.find((entry) => entry.id === scope) ?? null;
   const view = scopeSnapshot(snapshot, scope);
@@ -177,56 +181,56 @@ function EquityCard({
   const walletFunded = walletHoldings(snapshot).some((holding) => holding.verified && (holding.valueUsd ?? 0) > 0);
 
   return (
-    <section aria-label="Total equity" className={cn(card, "flex flex-col p-5")}>
+    <section aria-label={t("Total equity")} className={cn(card, "flex flex-col p-5")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="type-body text-text-primary">{scoped === null ? "Total equity" : `${scoped.label} equity`}</p>
+          <p className="type-body text-text-primary">{scoped === null ? t("Total equity") : t("{label} equity", { label: t(scoped.label) })}</p>
           <Money
             value={total}
-            reason={scoped?.errorReason ?? "No source returned a value that could be totalled."}
+            reason={scoped?.errorReason ?? t("No source returned a value that could be totalled.")}
             className="type-display mt-1 block font-sans text-text-primary"
           />
           <p className="type-body-sm mt-1 text-text-secondary">
             {nothingHeld ? (
-              "No performance history yet."
+              t("No performance history yet.")
             ) : change === null && scoped !== null && view.spot.length === 0 ? (
-              <span className="text-text-muted">24h change is measured for wallet balances.</span>
+              <span className="text-text-muted">{t("24h change is measured for wallet balances.")}</span>
             ) : change === null ? (
-              <span className="text-text-muted">No 24h price for what&rsquo;s held, so change can&rsquo;t be measured.</span>
+              <span className="text-text-muted">{t("No 24h price for what’s held, so change can’t be measured.")}</span>
             ) : (
               <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
                 <Delta pct={change.pnlPct} usd={change.pnlUsd} />
-                <span>past 24h</span>
-                {change.coveragePct < 95 && <span className="text-text-muted">· over {change.coveragePct.toFixed(0)}% of value</span>}
+                <span>{t("past 24h")}</span>
+                {change.coveragePct < 95 && <span className="text-text-muted">{t("· over {coveragePct}% of value", { coveragePct: change.coveragePct.toFixed(0) })}</span>}
               </span>
             )}
             {snapshot.partial && scoped === null && (
               <Tip openOnTap label={snapshot.notes.filter((note) => note.kind === "failed").map((note) => note.reason).join(" ")}>
-                <span tabIndex={0} className="type-label ml-2 inline-flex rounded-chip text-caution">· Partial total</span>
+                <span tabIndex={0} className="type-label ml-2 inline-flex rounded-chip text-caution">{t("· Partial total")}</span>
               </Tip>
             )}
           </p>
         </div>
         <span className="type-label inline-flex items-center gap-2 rounded-pill border border-border-subtle px-3 py-1.5 text-text-secondary">
           <span aria-hidden className={cn("size-2 rounded-pill", sync.connected > 0 ? "bg-sage" : "bg-text-muted")} />
-          {sync.connected} of {sync.total} venues connected
+          {t("{connected} of {total} venues connected", { connected: sync.connected, total: sync.total })}
         </span>
       </div>
 
       <div className="mt-3 grid grid-cols-2 border-t border-border-subtle pt-3">
         <div className="min-w-0 border-r border-border-subtle pr-4">
           <p className="type-body-sm flex items-center gap-1.5 text-text-secondary">
-            Available to deploy
-            <InfoTip text="Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything." />
+            {t("Available to deploy")}
+            <InfoTip text={t("Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything.")} />
           </p>
           <Money
             value={available ?? (total === 0 ? 0 : null)}
-            reason="No stablecoin balance or venue collateral was readable."
+            reason={t("No stablecoin balance or venue collateral was readable.")}
             className="type-h2 mt-1 block font-sans text-text-primary"
           />
         </div>
         <div className="min-w-0 pl-6">
-          <p className="type-body-sm text-text-secondary">Open positions</p>
+          <p className="type-body-sm text-text-secondary">{t("Open positions")}</p>
           <p className="type-h2 mt-1 font-sans tabular-nums text-text-primary">
             {positions === null ? <span className="text-text-muted">—</span> : positions}
           </p>
@@ -248,13 +252,14 @@ function EquityCard({
 const SLICE_COLOURS = ["var(--accent)", "var(--sage)", "var(--accent-quiet)", "var(--positive)", "var(--text-secondary)", "var(--border-strong)"];
 
 function Ring({ allocation, size = 112 }: { allocation: CapitalAllocation | null; size?: number }) {
+  const t = useT();
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
   const label =
     allocation === null
-      ? "No allocation yet"
-      : `Allocation: ${allocation.slices.map((slice) => `${slice.label} ${slice.pct.toFixed(1)}%`).join(", ")}`;
+      ? t("No allocation yet")
+      : t("Allocation: {slices}", { slices: allocation.slices.map((slice) => `${t(slice.label)} ${slice.pct.toFixed(1)}%`).join(", ") });
   return (
     <svg viewBox="0 0 100 100" width={size} height={size} role="img" aria-label={label} className="shrink-0 -rotate-90">
       <circle cx="50" cy="50" r={radius} fill="none" strokeWidth="9" style={{ stroke: "var(--border-subtle)" }} />
@@ -291,25 +296,26 @@ function AllocationCard({
   accounts: AssetAccount[];
   scopeLabel: string | null;
 }) {
+  const t = useT();
   const connected = accounts.filter((entry) => entry.connection === "connected");
   return (
-    <section aria-label="Allocation" className={cn(card, "flex flex-col p-5")}>
-      <h2 className="type-h1 text-text-primary">Allocation</h2>
+    <section aria-label={t("Allocation")} className={cn(card, "flex flex-col p-5")}>
+      <h2 className="type-h1 text-text-primary">{t("Allocation")}</h2>
       <p className="type-body-sm text-text-secondary">
-        {scopeLabel === null ? "Where your capital is held." : `What ${scopeLabel} holds.`}
+        {scopeLabel === null ? t("Where your capital is held.") : t("What {scopeLabel} holds.", { scopeLabel })}
       </p>
 
       <div className="flex flex-1 items-center gap-6 py-3">
         <Ring allocation={allocation} size={100} />
         {allocation === null ? (
-          <p className="type-body-sm text-text-secondary">Allocation appears once funded.</p>
+          <p className="type-body-sm text-text-secondary">{t("Allocation appears once funded.")}</p>
         ) : (
           <ul className="flex min-w-0 flex-1 list-none flex-col gap-1.5">
             {allocation.slices.map((slice, index) => (
               <li key={slice.key} className="type-body-sm flex items-center gap-2">
                 <span aria-hidden className="size-2.5 shrink-0 rounded-pill" style={{ background: SLICE_COLOURS[index % SLICE_COLOURS.length] }} />
-                <span className="min-w-0 flex-1 truncate text-text-primary" title={slice.label}>
-                  {slice.label}
+                <span className="min-w-0 flex-1 truncate text-text-primary" title={t(slice.label)}>
+                  {t(slice.label)}
                 </span>
                 <Money value={slice.valueUsd} className="hidden text-text-secondary @[40rem]:inline" />
                 <span className="w-12 shrink-0 text-right tabular-nums text-text-secondary">
@@ -318,7 +324,7 @@ function AllocationCard({
               </li>
             ))}
             <li className="type-label mt-1 text-text-muted">
-              {allocation.by === "account" ? "Share of total equity, by account." : "Share of this account, by holding."}
+              {allocation.by === "account" ? t("Share of total equity, by account.") : t("Share of this account, by holding.")}
             </li>
           </ul>
         )}
@@ -329,17 +335,17 @@ function AllocationCard({
           <span aria-hidden className={cn("size-2.5 shrink-0 rounded-pill", connected.length > 0 ? "bg-sage" : "bg-text-muted")} />
           <span className="min-w-0 truncate">
             {connected.length === 0
-              ? "No venues connected"
+              ? t("No venues connected")
               : connected.length === 1
-                ? `${connected[0].label} connected`
-                : `${connected.map((entry) => entry.label).join(", ")} connected`}
+                ? t("{label} connected", { label: connected[0].label })
+                : t("{value} connected", { value: connected.map((entry) => entry.label).join(", ") })}
           </span>
         </span>
         <Link
           href="/agent"
           className="type-body-sm relative inline-flex items-center gap-1 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand after:absolute after:-inset-x-1 after:-inset-y-2 hover:text-accent-hover"
         >
-          Manage connections
+          {t("Manage connections")}
           <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden />
         </Link>
       </div>
@@ -352,10 +358,10 @@ function AllocationCard({
 --------------------------------------------------------------------------- */
 
 const VENUE_COPY: Record<AssetAccountType, string> = {
-  spot: "Wallet balances on Solana, Ethereum and Robinhood Chain",
-  "solana-perps": "Perpetual positions on Solana",
-  hyperliquid: "Perpetuals and balances on Hyperliquid",
-  prediction: "Prediction market balances",
+  spot: msg("Wallet balances on Solana, Ethereum and Robinhood Chain"),
+  "solana-perps": msg("Perpetual positions on Solana"),
+  hyperliquid: msg("Perpetuals and balances on Hyperliquid"),
+  prediction: msg("Prediction market balances"),
 };
 
 function VenueIcon({ type }: { type: AssetAccountType }) {
@@ -387,21 +393,22 @@ function VenueIcon({ type }: { type: AssetAccountType }) {
 }
 
 function VenueBadge({ account, feed }: { account: AssetAccount; feed: PortfolioFeed }) {
+  const t = useT();
   const pill = "type-label inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border px-2.5 py-1";
   if (account.status === "error") {
-    return <span className={cn(pill, "border-negative/40 text-negative")}>Sync failed</span>;
+    return <span className={cn(pill, "border-negative/40 text-negative")}>{t("Sync failed")}</span>;
   }
   if (account.connection === "unsupported") {
-    return <span className={cn(pill, "border-border-subtle text-text-muted")}>Not available</span>;
+    return <span className={cn(pill, "border-border-subtle text-text-muted")}>{t("Not available")}</span>;
   }
   if (account.connection === "disconnected") {
-    return <span className={cn(pill, "border-border-subtle text-text-secondary")}>Not connected</span>;
+    return <span className={cn(pill, "border-border-subtle text-text-secondary")}>{t("Not connected")}</span>;
   }
   if (feed.refreshing) {
     return (
       <span className={cn(pill, "border-border-subtle text-text-secondary")}>
         <RefreshCw size={11} strokeWidth={1.75} aria-hidden className="motion-safe:animate-spin" />
-        Syncing
+        {t("Syncing")}
       </span>
     );
   }
@@ -409,14 +416,14 @@ function VenueBadge({ account, feed }: { account: AssetAccount; feed: PortfolioF
     return (
       <span className={cn(pill, "border-caution/40 text-caution")}>
         <span aria-hidden className="size-1.5 rounded-pill bg-caution" />
-        Stale
+        {t("Stale")}
       </span>
     );
   }
   return (
     <span className={cn(pill, "border-sage/40 bg-positive-bg text-positive")}>
       <span aria-hidden className="size-1.5 rounded-pill bg-sage" />
-      Synced
+      {t("Synced")}
     </span>
   );
 }
@@ -436,35 +443,36 @@ function VenueCard({
   onView: () => void;
   onConnectWallet: () => void;
 }) {
+  const t = useT();
   const connected = account.connection === "connected" && account.status !== "error";
   const action =
     account.status === "error" ? (
       <button type="button" onClick={feed.refetch} disabled={feed.refreshing} className={cn(outlined, "h-9 w-full disabled:opacity-60")}>
         <RefreshCw size={15} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
-        Retry sync
+        {t("Retry sync")}
       </button>
     ) : connected ? (
       <button type="button" onClick={onView} aria-pressed={selected} className={cn(outlined, "h-9 w-full", selected && "border-accent-quiet bg-surface-hover")}>
-        {selected ? "Viewing this account" : "View account"}
+        {selected ? t("Viewing this account") : t("View account")}
         <ArrowRight size={15} strokeWidth={1.5} aria-hidden />
       </button>
     ) : account.connection === "unsupported" ? (
-      <Tip openOnTap label={account.detail ?? "Not available in Elyra yet."}>
+      <Tip openOnTap label={account.detail ?? t("Not available in Elyra yet.")}>
         <button type="button" aria-disabled className={cn(outlined, "h-9 w-full cursor-not-allowed border-border-subtle text-text-muted hover:border-border-subtle hover:bg-transparent")}>
           <BriefcaseBusiness size={15} strokeWidth={1.5} aria-hidden />
-          Not available yet
+          {t("Not available yet")}
         </button>
       </Tip>
     ) : account.type === "spot" ? (
       <button type="button" onClick={onConnectWallet} className={cn(outlined, "h-9 w-full")}>
         <WalletCards size={15} strokeWidth={1.5} aria-hidden />
-        Connect wallet
+        {t("Connect wallet")}
         <ArrowRight size={15} strokeWidth={1.5} aria-hidden />
       </button>
     ) : (
       <Link href="/agent" className={cn(outlined, "h-9 w-full")}>
         <ChartSpline size={15} strokeWidth={1.5} aria-hidden />
-        Connect venue
+        {t("Connect venue")}
         <ArrowRight size={15} strokeWidth={1.5} aria-hidden />
       </Link>
     );
@@ -472,7 +480,7 @@ function VenueCard({
 
   return (
     <article
-      aria-label={account.label}
+      aria-label={t(account.label)}
       className={cn(
         card,
         "flex flex-col gap-2.5 p-4 transition-[opacity,border-color,background-color] duration-[var(--dur-fast)] ease-brand compact:px-5",
@@ -483,36 +491,42 @@ function VenueCard({
     >
       <header className="flex items-center gap-3">
         <VenueIcon type={account.type} />
-        <h3 className="type-h2 min-w-0 flex-1 truncate font-sans text-text-primary">{account.label}</h3>
+        <h3 className="type-h2 min-w-0 flex-1 truncate font-sans text-text-primary">{t(account.label)}</h3>
         <VenueBadge account={account} feed={feed} />
       </header>
 
       <div className="min-h-11 flex-1">
         {account.status === "error" ? (
           <p role="alert" className="type-body-sm line-clamp-2 text-negative" title={account.errorReason ?? undefined}>
-            {account.errorReason ?? "The last read failed."}
+            {account.errorReason ?? t("The last read failed.")}
           </p>
         ) : connected ? (
           <>
             <Money value={account.valueUsd} className="type-h1 block font-sans text-text-primary" />
             <p className="type-body-sm text-text-secondary">
               {account.positions === null ? (
-                (account.detail ?? VENUE_COPY[account.type])
+                t(account.detail ?? VENUE_COPY[account.type])
               ) : (
                 <>
                   {account.availableUsd !== null && (
                     <>
-                      Available <Money value={account.availableUsd} /> ·{" "}
+                      {t("Available")}{" "}<Money value={account.availableUsd} /> ·{" "}
                     </>
                   )}
-                  {account.positions} {account.type === "prediction" ? "active" : ""} position{account.positions === 1 ? "" : "s"}
+                  {(account.type === "prediction"
+                ? account.positions === 1
+                  ? t("1 active position")
+                  : t("{count} active positions", { count: account.positions })
+                : account.positions === 1
+                  ? t("1 position")
+                  : t("{count} positions", { count: account.positions }))}
                 </>
               )}
             </p>
           </>
         ) : (
           <>
-            <p className="type-body-sm text-text-secondary">{VENUE_COPY[account.type]}</p>
+            <p className="type-body-sm text-text-secondary">{t(VENUE_COPY[account.type])}</p>
             {account.detail !== null && account.connection === "disconnected" && (
               <p className="type-label mt-0.5 text-text-muted">{account.detail}</p>
             )}
@@ -546,6 +560,7 @@ const DEFAULT_FILTERS: Filters = { grouping: "asset", hideUnverified: false, hid
 const SMALL_USD = 1;
 
 function FilterMenu({ tab, filters, onChange }: { tab: Tab; filters: Filters; onChange: (next: Filters) => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const id = useId();
   const active =
@@ -567,12 +582,12 @@ function FilterMenu({ tab, filters, onChange }: { tab: Tab; filters: Filters; on
       id={id}
       open={open}
       onOpenChange={setOpen}
-      label="Filters"
+      label={t("Filters")}
       align="end"
       className="w-64"
       trigger={
         <IconButton
-          label={active ? "Filters (some applied)" : "Filters"}
+          label={active ? t("Filters (some applied)") : t("Filters")}
           aria-expanded={open}
           aria-controls={id}
           onClick={() => setOpen((value) => !value)}
@@ -586,29 +601,29 @@ function FilterMenu({ tab, filters, onChange }: { tab: Tab; filters: Filters; on
       <div className="flex flex-col gap-1 p-2">
         {tab === "holdings" && (
           <>
-            <p className="type-label px-2 pt-1 text-text-muted">Group by</p>
+            <p className="type-label px-2 pt-1 text-text-muted">{t("Group by")}</p>
             {radio("grouping", "asset", filters.grouping, "Asset", (grouping) => onChange({ ...filters, grouping }))}
             {radio("grouping", "account", filters.grouping, "Account", (grouping) => onChange({ ...filters, grouping }))}
-            <p className="type-label mt-1 px-2 text-text-muted">Show</p>
+            <p className="type-label mt-1 px-2 text-text-muted">{t("Show")}</p>
             <label className="type-body-sm flex cursor-pointer items-center gap-2.5 rounded-control px-2 py-1.5 text-text-primary hover:bg-surface-hover">
               <input type="checkbox" checked={filters.hideSmall} onChange={() => onChange({ ...filters, hideSmall: !filters.hideSmall })} className="size-4 accent-[var(--accent)]" />
-              Hide balances under $1
+              {t("Hide balances under $1")}
             </label>
             <label className="type-body-sm flex cursor-pointer items-center gap-2.5 rounded-control px-2 py-1.5 text-text-primary hover:bg-surface-hover">
               <input type="checkbox" checked={filters.hideUnverified} onChange={() => onChange({ ...filters, hideUnverified: !filters.hideUnverified })} className="size-4 accent-[var(--accent)]" />
-              Hide unverified tokens
+              {t("Hide unverified tokens")}
             </label>
           </>
         )}
         {tab === "positions" &&
           (["all", "perps", "defi", "prediction"] as const).map((kind) =>
-            radio("positions", kind, filters.positions, { all: "All positions", perps: "Perpetuals", defi: "DeFi", prediction: "Prediction markets" }[kind], (positions) =>
+            radio("positions", kind, filters.positions, { all: t("All positions"), perps: t("Perpetuals"), defi: "DeFi", prediction: t("Prediction markets") }[kind], (positions) =>
               onChange({ ...filters, positions }),
             ),
           )}
         {tab === "activity" &&
           (["all", "transfers", "swaps"] as const).map((kind) =>
-            radio("activity", kind, filters.activity, { all: "All activity", transfers: "Sends and receives", swaps: "Swaps" }[kind], (activity) =>
+            radio("activity", kind, filters.activity, { all: t("All activity"), transfers: t("Sends and receives"), swaps: t("Swaps") }[kind], (activity) =>
               onChange({ ...filters, activity }),
             ),
           )}
@@ -618,7 +633,7 @@ function FilterMenu({ tab, filters, onChange }: { tab: Tab; filters: Filters; on
             onClick={() => onChange(DEFAULT_FILTERS)}
             className="type-label mt-1 self-start rounded-chip px-2 py-1 text-text-secondary hover:text-text-primary"
           >
-            Reset filters
+            {t("Reset filters")}
           </button>
         )}
       </div>
@@ -666,11 +681,12 @@ function PanelMessage({
 const quietLink = "type-body-sm inline-flex items-center gap-1.5 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover";
 
 function GetStarted({ connected, total, onDeposit }: { connected: number; total: number; onDeposit: () => void }) {
+  const t = useT();
   return (
-    <aside aria-label="Get started" className="flex flex-col gap-4 border-t border-border-subtle p-5 @[60rem]:border-l @[60rem]:border-t-0">
+    <aside aria-label={t("Get started")} className="flex flex-col gap-4 border-t border-border-subtle p-5 @[60rem]:border-l @[60rem]:border-t-0">
       <h3 className="type-h2 flex items-center gap-2.5 font-sans text-text-primary">
         <Rocket size={18} strokeWidth={1.5} aria-hidden className="text-text-secondary" />
-        Get started
+        {t("Get started")}
       </h3>
       <ol className="flex list-none flex-col gap-3">
         <li>
@@ -679,9 +695,9 @@ function GetStarted({ connected, total, onDeposit }: { connected: number; total:
               1
             </span>
             <span className="min-w-0">
-              <span className="type-body-sm block font-medium text-text-primary group-hover:text-accent">Connect your accounts</span>
+              <span className="type-body-sm block font-medium text-text-primary group-hover:text-accent">{t("Connect your accounts")}</span>
               <span className="type-label block text-text-secondary">
-                {connected} of {total} connected
+                {t("{connected} of {total} connected", { connected, total })}
               </span>
             </span>
           </Link>
@@ -692,15 +708,15 @@ function GetStarted({ connected, total, onDeposit }: { connected: number; total:
               2
             </span>
             <span className="min-w-0">
-              <span className="type-body-sm block font-medium text-text-primary group-hover:text-accent">Add funds</span>
-              <span className="type-label block text-text-secondary">Choose a venue to deposit.</span>
+              <span className="type-body-sm block font-medium text-text-primary group-hover:text-accent">{t("Add funds")}</span>
+              <span className="type-label block text-text-secondary">{t("Choose a venue to deposit.")}</span>
             </span>
           </button>
         </li>
       </ol>
       <p className="type-label flex items-start gap-2 border-t border-border-subtle pt-3 text-text-secondary">
         <Info size={14} strokeWidth={1.5} aria-hidden className="mt-px shrink-0" />
-        Balances refresh every 30 seconds while Elyra is open.
+        {t("Balances refresh every 30 seconds while Elyra is open.")}
       </p>
     </aside>
   );
@@ -731,6 +747,7 @@ function DataPanel({
   onRetry: () => void;
   panelRef: React.RefObject<HTMLElement | null>;
 }) {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("holdings");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -778,10 +795,10 @@ function DataPanel({
     return item.signature.toLowerCase().includes(term) || (item.summary?.title ?? "").toLowerCase().includes(term);
   });
 
-  const placeholder = tab === "holdings" ? "Search assets" : tab === "positions" ? "Search markets" : "Search activity";
+  const placeholder = tab === "holdings" ? t("Search assets") : tab === "positions" ? t("Search markets") : t("Search activity");
   const clearSearch = (
     <button type="button" onClick={() => setQuery("")} className={cn(outlined, "h-9 px-3.5")}>
-      Clear search
+      {t("Clear search")}
     </button>
   );
 
@@ -792,11 +809,11 @@ function DataPanel({
     holdingsBody = (
       <PanelMessage
         icon={Wallet}
-        title="No accounts connected"
-        body="Link a wallet or connect a venue, and its balances appear here."
+        title={t("No accounts connected")}
+        body={t("Link a wallet or connect a venue, and its balances appear here.")}
         action={
           <Link href="/agent" className={cn(outlined, "h-9 px-3.5")}>
-            Manage connections
+            {t("Manage connections")}
           </Link>
         }
       />
@@ -807,11 +824,11 @@ function DataPanel({
       <PanelMessage
         icon={RefreshCw}
         alert
-        title="Balances couldn't be read"
-        body={note?.reason ?? "The last read failed."}
+        title={t("Balances couldn't be read")}
+        body={note?.reason ?? t("The last read failed.")}
         action={
           <button type="button" onClick={onRetry} className={cn(outlined, "h-9 px-3.5")}>
-            Try again
+            {t("Try again")}
           </button>
         }
       />
@@ -820,20 +837,20 @@ function DataPanel({
     holdingsBody = (
       <PanelMessage
         illustration={<WalletIllustration />}
-        title="Your assets will appear here"
+        title={t("Your assets will appear here")}
         body={
           scopeLabel === null
-            ? "Deposit funds to a connected account to see your balances and allocation."
+            ? t("Deposit funds to a connected account to see your balances and allocation.")
             : scope === "spot"
-              ? "The wallet holds no tokens yet."
-              : `${scopeLabel} holds no spot tokens here — its positions are under Positions.`
+              ? t("The wallet holds no tokens yet.")
+              : t("{scopeLabel} holds no spot tokens here — its positions are under Positions.", { scopeLabel })
         }
         action={
           /* The deposit address is the Solana wallet's — offered where a
              deposit lands, never under a venue it would not reach. */
           scope === ALL_ACCOUNTS || scope === "spot" ? (
             <button type="button" onClick={onReceive} className={quietLink}>
-              View deposit address
+              {t("View deposit address")}
               <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden />
             </button>
           ) : undefined
@@ -844,11 +861,11 @@ function DataPanel({
     holdingsBody = (
       <PanelMessage
         icon={Search}
-        title={term.length > 0 ? `No assets match “${query.trim()}”` : "Everything here is filtered out"}
-        body={term.length > 0 ? "Try a symbol, a name or an account." : "Change the filters to see these holdings."}
+        title={term.length > 0 ? t("No assets match “{query}”", { query: query.trim() }) : t("Everything here is filtered out")}
+        body={term.length > 0 ? t("Try a symbol, a name or an account.") : t("Change the filters to see these holdings.")}
         action={term.length > 0 ? clearSearch : (
           <button type="button" onClick={() => setFilters(DEFAULT_FILTERS)} className={cn(outlined, "h-9 px-3.5")}>
-            Reset filters
+            {t("Reset filters")}
           </button>
         )}
       />
@@ -864,27 +881,27 @@ function DataPanel({
       <PanelMessage
         icon={RefreshCw}
         alert
-        title="Some positions couldn't be read"
+        title={t("Some positions couldn't be read")}
         body={note.reason}
         action={
           <button type="button" onClick={onRetry} className={cn(outlined, "h-9 px-3.5")}>
-            Try again
+            {t("Try again")}
           </button>
         }
       />
     ) : (
       <PanelMessage
         icon={BriefcaseBusiness}
-        title="No open positions"
-        body="Perpetuals at connected venues, DeFi deposits and prediction-market shares appear here with their value and open PnL."
+        title={t("No open positions")}
+        body={t("Perpetuals at connected venues, DeFi deposits and prediction-market shares appear here with their value and open PnL.")}
       />
     );
   } else if (perps.length === 0 && defi.length === 0 && !predictionShown) {
     positionsBody = (
       <PanelMessage
         icon={Search}
-        title={term.length > 0 ? `No positions match “${query.trim()}”` : "Nothing of this kind is open"}
-        body={term.length > 0 ? "Try a market or a venue." : "Choose another kind in the filters."}
+        title={term.length > 0 ? t("No positions match “{query}”", { query: query.trim() }) : t("Nothing of this kind is open")}
+        body={term.length > 0 ? t("Try a market or a venue.") : t("Choose another kind in the filters.")}
         action={term.length > 0 ? clearSearch : undefined}
       />
     );
@@ -893,30 +910,30 @@ function DataPanel({
       <div className="flex flex-col">
         {perps.length > 0 && <PositionsTable positions={perps} />}
         {(defi.length > 0 || predictionShown) && (
-          <ul aria-label="DeFi and prediction positions" className="flex list-none flex-col border-t border-border-subtle">
+          <ul aria-label={t("DeFi and prediction positions")} className="flex list-none flex-col border-t border-border-subtle">
             {defi.map((position) => (
               <li key={position.id} className="flex items-center gap-3 border-b border-border-subtle px-5 py-3 last:border-b-0">
                 <div className="min-w-0 flex-1">
                   <p className="type-body-sm truncate text-text-primary">{position.label}</p>
                   <p className="type-label text-text-secondary">
-                    {position.protocol} · DeFi
-                    {position.apyPct !== null && <span className="tabular-nums"> · {formatPct(position.apyPct, { sign: false })} APY, variable</span>}
+                    {t("{protocol} · DeFi", { protocol: position.protocol })}
+                    {position.apyPct !== null && <span className="tabular-nums">{" "}{t("· {apyPct} APY, variable", { apyPct: formatPct(position.apyPct, { sign: false }) })}</span>}
                   </p>
                 </div>
-                <Money value={position.valueUsd} reason="The protocol reported no value." className="type-body-sm text-text-primary" />
+                <Money value={position.valueUsd} reason={t("The protocol reported no value.")} className="type-body-sm text-text-primary" />
               </li>
             ))}
             {predictionShown && prediction !== null && (
               <li className="flex items-center gap-3 px-5 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="type-body-sm text-text-primary">Prediction markets</p>
+                  <p className="type-body-sm text-text-primary">{t("Prediction markets")}</p>
                   <p className="type-label text-text-secondary">
-                    {prediction.activeMarkets} active {prediction.activeMarkets === 1 ? "market" : "markets"}
+                    {prediction.activeMarkets}{" "}{(prediction.activeMarkets === 1 ? t("active market") : t("active markets"))}
                   </p>
                 </div>
                 <div className="flex flex-col items-end">
-                  <Money value={prediction.valueUsd} reason="Not valued." className="type-body-sm text-text-primary" />
-                  <Delta pct={null} usd={prediction.unrealisedPnlUsd} reason="No PnL reported." className="type-label" />
+                  <Money value={prediction.valueUsd} reason={t("Not valued.")} className="type-body-sm text-text-primary" />
+                  <Delta pct={null} usd={prediction.unrealisedPnlUsd} reason={t("No PnL reported.")} className="type-label" />
                 </div>
               </li>
             )}
@@ -931,47 +948,47 @@ function DataPanel({
     activityBody = (
       <PanelMessage
         icon={History}
-        title={`${scopeLabel ?? "This venue"} keeps its own history`}
-        body="Activity here is the Solana wallet's transactions. Choose All accounts or Spot to see them."
+        title={(scopeLabel === null || scopeLabel === undefined ? t("This venue keeps its own history") : t("{venue} keeps its own history", { venue: t(scopeLabel) }))}
+        body={t("Activity here is the Solana wallet's transactions. Choose All accounts or Spot to see them.")}
         action={
           <button type="button" onClick={onClearScope} className={cn(outlined, "h-9 px-3.5")}>
-            Show all accounts
+            {t("Show all accounts")}
           </button>
         }
       />
     );
   } else if (activity.unconfigured) {
-    activityBody = <PanelMessage icon={History} title="History isn't configured" body="Transaction history needs SOLANA_RPC_URL on the server." />;
+    activityBody = <PanelMessage icon={History} title={t("History isn't configured")} body={t("Transaction history needs SOLANA_RPC_URL on the server.")} />;
   } else if (activity.error !== null && activity.items.length === 0) {
     activityBody = (
       <PanelMessage
         icon={RefreshCw}
         alert
-        title="Activity couldn't be read"
+        title={t("Activity couldn't be read")}
         body={activity.error}
         action={
           <button type="button" onClick={() => void activity.refetch()} className={cn(outlined, "h-9 px-3.5")}>
-            Try again
+            {t("Try again")}
           </button>
         }
       />
     );
   } else if (activity.isLoading) {
     activityBody = (
-      <div aria-busy="true" aria-label="Reading activity" className="flex flex-col gap-2 p-5">
+      <div aria-busy="true" aria-label={t("Reading activity")} className="flex flex-col gap-2 p-5">
         {[0, 1, 2, 3].map((index) => (
           <span key={index} aria-hidden className="skeleton h-9 w-full rounded-control" />
         ))}
       </div>
     );
   } else if (activity.items.length === 0) {
-    activityBody = <PanelMessage icon={History} title="No activity yet" body="Transactions this wallet signs or receives appear here, newest first." />;
+    activityBody = <PanelMessage icon={History} title={t("No activity yet")} body={t("Transactions this wallet signs or receives appear here, newest first.")} />;
   } else if (activityItems.length === 0) {
     activityBody = (
       <PanelMessage
         icon={Search}
-        title={term.length > 0 ? `Nothing matches “${query.trim()}”` : "Nothing of this kind yet"}
-        body={term.length > 0 ? "Try a signature or what it did — “swap”, “received”." : "Choose another kind in the filters."}
+        title={term.length > 0 ? t("Nothing matches “{query}”", { query: query.trim() }) : t("Nothing of this kind yet")}
+        body={term.length > 0 ? t("Try a signature or what it did — “swap”, “received”.") : t("Choose another kind in the filters.")}
         action={term.length > 0 ? clearSearch : undefined}
       />
     );
@@ -981,21 +998,21 @@ function DataPanel({
 
   const counts: Record<Tab, number | null> = { holdings: allHoldings.length, positions: positionCount, activity: null };
   const TAB_META: Array<{ value: Tab; label: string; icon: LucideIcon }> = [
-    { value: "holdings", label: "Holdings", icon: Database },
-    { value: "positions", label: "Positions", icon: BriefcaseBusiness },
-    { value: "activity", label: "Activity", icon: History },
+    { value: "holdings", label: t("Holdings"), icon: Database },
+    { value: "positions", label: t("Positions"), icon: BriefcaseBusiness },
+    { value: "activity", label: t("Activity"), icon: History },
   ];
 
   return (
     <section
       ref={panelRef}
-      aria-label="Holdings, positions and activity"
+      aria-label={t("Holdings, positions and activity")}
       /* The tables' first column lines up with the tab strip and the footer. */
       className={cn(card, "scroll-mt-4 overflow-hidden [--table-inset:12px] compact:[--table-inset:20px]")}
     >
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle px-3 compact:px-5">
-          <TabsList aria-label="Account data" className="-mb-px min-w-0 gap-1 compact:gap-2">
+          <TabsList aria-label={t("Account data")} className="-mb-px min-w-0 gap-1 compact:gap-2">
             {TAB_META.map(({ value, label, icon: Icon }) => (
               <TabsTrigger key={value} value={value} className="type-body-sm h-12 gap-2 px-2 compact:px-3">
                 <Icon size={16} strokeWidth={1.5} aria-hidden className="hidden compact:block" />
@@ -1040,18 +1057,17 @@ function DataPanel({
       <footer className="type-label flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border-subtle px-3 py-3 text-text-secondary compact:px-5">
         <span className="flex min-w-0 items-center gap-2">
           <Database size={15} strokeWidth={1.5} aria-hidden className="shrink-0" />
-          <span className="truncate">{scopeLabel === null ? "Showing all accounts" : `Showing ${scopeLabel}`}</span>
+          <span className="truncate">{scopeLabel === null ? t("Showing all accounts") : t("Showing {scopeLabel}", { scopeLabel })}</span>
           {scopeLabel !== null && (
-            <button type="button" onClick={onClearScope} aria-label="Show all accounts" className="grid size-6 place-items-center rounded-chip hover:bg-surface-hover hover:text-text-primary">
+            <button type="button" onClick={onClearScope} aria-label={t("Show all accounts")} className="grid size-6 place-items-center rounded-chip hover:bg-surface-hover hover:text-text-primary">
               <X size={13} strokeWidth={1.75} aria-hidden />
             </button>
           )}
         </span>
         <span className="tabular-nums">
-          {sync.ready} {sync.ready === 1 ? "venue" : "venues"} synced
-          {sync.failed.length > 0 && <span className="text-negative"> · {sync.failed.length} failed</span>}
-          {" · "}
-          {sync.notConnected} awaiting connection
+          {(sync.ready === 1 ? t("1 venue synced") : t("{count} venues synced", { count: sync.ready }))}
+          {sync.failed.length > 0 && <span className="text-negative">{" "}{t("· {count} failed", { count: sync.failed.length })}</span>}
+          {t("{value}{notConnected} awaiting connection", { value: " · ", notConnected: sync.notConnected })}
         </span>
       </footer>
     </section>
@@ -1063,8 +1079,9 @@ function DataPanel({
 --------------------------------------------------------------------------- */
 
 function PageSkeleton() {
+  const t = useT();
   return (
-    <div aria-busy="true" aria-label="Reading your accounts" className="flex flex-col gap-4">
+    <div aria-busy="true" aria-label={t("Reading your accounts")} className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 @[60rem]:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
         <div className={cn(card, "flex flex-col gap-3 p-6")}>
           <span className="skeleton h-4 w-28" />
@@ -1113,6 +1130,7 @@ export function CapitalAccountsView({
   wallet: WalletDashboard;
   activity: ActivityFeed;
 }) {
+  const t = useT();
   const [scope, setScope] = useState<string>(ALL_ACCOUNTS);
   const [receiving, setReceiving] = useState(false);
   const panelRef = useRef<HTMLElement | null>(null);
@@ -1158,27 +1176,27 @@ export function CapitalAccountsView({
         ) : !signedIn ? (
           <section className={cn(card, "flex flex-col items-center gap-3 px-6 py-16 text-center")}>
             <WalletIllustration />
-            <h2 className="type-h1 text-text-primary">Connect to see your capital</h2>
+            <h2 className="type-h1 text-text-primary">{t("Connect to see your capital")}</h2>
             <p className="type-body max-w-md text-text-secondary">
               {auth.available
-                ? "Sign in, and your wallet, venues and positions are gathered here — balances, allocation and what you can move."
-                : "Sign-in isn't configured on this deployment, so there is no account to read."}
+                ? t("Sign in, and your wallet, venues and positions are gathered here — balances, allocation and what you can move.")
+                : t("Sign-in isn't configured on this deployment, so there is no account to read.")}
             </p>
             {auth.available && (
               <button type="button" onClick={auth.login} className="type-body-sm inline-flex h-10 items-center gap-2 rounded-control bg-accent px-4 font-medium text-text-on-accent hover:bg-accent-hover">
                 <Wallet size={16} strokeWidth={1.5} aria-hidden />
-                Connect wallet
+                {t("Connect wallet")}
               </button>
             )}
           </section>
         ) : snapshot === null || view === null ? (
           <section role="alert" className={cn(card, "flex flex-col items-center gap-3 px-6 py-14 text-center")}>
-            <h2 className="type-h1 text-text-primary">{feed.unconfigured ? "Accounts aren't configured" : "Your accounts couldn't be read"}</h2>
-            <p className="type-body max-w-md text-text-secondary">{feed.error ?? "The portfolio could not be assembled."}</p>
+            <h2 className="type-h1 text-text-primary">{feed.unconfigured ? t("Accounts aren't configured") : t("Your accounts couldn't be read")}</h2>
+            <p className="type-body max-w-md text-text-secondary">{feed.error ?? t("The portfolio could not be assembled.")}</p>
             {!feed.unconfigured && (
               <button type="button" onClick={feed.refetch} disabled={feed.refreshing} className={cn(outlined, "h-10 px-4 disabled:opacity-60")}>
                 <RefreshCw size={15} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
-                Try again
+                {t("Try again")}
               </button>
             )}
           </section>
@@ -1192,10 +1210,10 @@ export function CapitalAccountsView({
             <section aria-labelledby="venues-heading" className="flex flex-col gap-3">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h2 id="venues-heading" className="type-h1 text-text-primary">
-                  Your venues
+                  {t("Your venues")}
                 </h2>
                 <span className="type-body-sm text-text-secondary">
-                  {syncSummary(accounts).connected} connected · {syncSummary(accounts).notConnected} not connected
+                  {t("{connected} connected · {notConnected} not connected", { connected: syncSummary(accounts).connected, notConnected: syncSummary(accounts).notConnected })}
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-4 @[44rem]:grid-cols-2 @[76rem]:grid-cols-4">

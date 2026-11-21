@@ -3,6 +3,7 @@
 import { PieChart } from "lucide-react";
 import { PortfolioCards } from "@/components/portfolio/PortfolioDrawer";
 import { RouteDrawer } from "@/components/shell/RouteDrawer";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Portfolio: your capital, in one place.
@@ -13,12 +14,13 @@ import { RouteDrawer } from "@/components/shell/RouteDrawer";
 --------------------------------------------------------------------------- */
 
 export default function PortfolioPage() {
+  const t = useT();
   return (
     <RouteDrawer
-      label="Portfolio"
+      label={t("Portfolio")}
       icon={<PieChart size={28} strokeWidth={1.5} />}
-      title="Portfolio"
-      subtitle="Your capital, in one place"
+      title={t("Portfolio")}
+      subtitle={t("Your capital, in one place")}
     >
       <PortfolioCards />
     </RouteDrawer>

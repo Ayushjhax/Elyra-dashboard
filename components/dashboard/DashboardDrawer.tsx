@@ -42,6 +42,9 @@ import { cn } from "@/lib/utils";
 import type { ActivityStatus, WalletActivity } from "@/lib/wallet/types";
 import { useWalletActivity, type ActivityFeed } from "@/lib/wallet/useWalletActivity";
 import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The Dashboard drawer: the account at a glance.
@@ -87,12 +90,13 @@ const outlined = cn(
 );
 
 function InlineRetry({ message, onRetry, busy }: { message: string; onRetry: () => void; busy?: boolean }) {
+  const t = useT();
   return (
     <div role="alert" className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       <p className="type-body-sm min-w-0 flex-1 break-words text-negative">{message}</p>
       <button type="button" onClick={onRetry} disabled={busy} className={cn(outlined, "h-7 px-2.5 disabled:opacity-60")}>
         <RefreshCw size={12} strokeWidth={1.5} aria-hidden className={cn(busy && "motion-safe:animate-spin")} />
-        Retry
+        {t("Retry")}
       </button>
     </div>
   );
@@ -103,6 +107,7 @@ function InlineRetry({ message, onRetry, busy }: { message: string; onRetry: () 
 --------------------------------------------------------------------------- */
 
 function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
+  const t = useT();
   const openSheet = useElyraStore((state) => state.setWalletSheetOpen);
   const now = useSecond();
   const snapshot = wallet.snapshot;
@@ -111,25 +116,25 @@ function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
   return (
     <DrawerCard
       icon={WalletCards}
-      title="Holdings"
+      title={t("Holdings")}
       right={
         snapshot === null ? (
           wallet.isLoading ? <span aria-hidden className="skeleton h-6 w-16 rounded-pill" /> : null
         ) : (
           <span className="type-label rounded-pill border border-border-subtle px-2.5 py-1 tabular-nums text-text-secondary">
-            {snapshot.tokenCount} {snapshot.tokenCount === 1 ? "token" : "tokens"}
+            {snapshot.tokenCount} {snapshot.tokenCount === 1 ? t("token") : t("tokens")}
           </span>
         )
       }
     >
-      <p className="type-label text-text-secondary">Total balance</p>
+      <p className="type-label text-text-secondary">{t("Total balance")}</p>
       <div className="mt-1 min-h-9">
         {snapshot === null ? (
           wallet.isLoading ? (
-            <span aria-busy="true" aria-label="Reading balance" className="skeleton block h-9 w-36 rounded-control" />
+            <span aria-busy="true" aria-label={t("Reading balance")} className="skeleton block h-9 w-36 rounded-control" />
           ) : (
             <InlineRetry
-              message={wallet.error ?? "The balance could not be read."}
+              message={wallet.error ?? t("The balance could not be read.")}
               onRetry={wallet.refetch}
               busy={wallet.refreshing}
             />
@@ -138,7 +143,7 @@ function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
           <p>
             <span className="type-display text-text-muted">—</span>
             <span className="type-label mt-1 block text-text-muted">
-              No SOL price right now, so the total can&rsquo;t be valued. Balances below are exact.
+              {t("No SOL price right now, so the total can’t be valued. Balances below are exact.")}
             </span>
           </p>
         ) : (
@@ -149,14 +154,16 @@ function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
         <p className="type-label mt-1 text-text-muted">
           {wallet.stale ? (
             <span className="text-caution">
-              Last known balance{wallet.fetchedAt !== null && now !== null ? ` · read ${formatAge(wallet.fetchedAt, now)}` : ""}
+              {(wallet.fetchedAt !== null && now !== null
+              ? t("Last known balance · read {age}", { age: formatAge(wallet.fetchedAt, now, t.locale) })
+              : t("Last known balance"))}
             </span>
           ) : snapshot.usdValue === 0 && snapshot.tokenCount === 0 ? (
-            "Nothing held yet — fund the wallet to see it here."
+            t("Nothing held yet — fund the wallet to see it here.")
           ) : null}
           {uncounted > 0 && (
             <span className="block">
-              {uncounted} {uncounted === 1 ? "token isn't" : "tokens aren't"} counted — unpriced or unverified.
+              {uncounted} {uncounted === 1 ? t("token isn't") : t("tokens aren't")}{" "}{t("counted — unpriced or unverified.")}
             </span>
           )}
         </p>
@@ -165,7 +172,7 @@ function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
       <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border-subtle pt-3">
         <ChainMark symbol="SOL" size={36} />
         <div className="min-w-0 flex-1">
-          <p className="type-label text-text-secondary">SOL balance</p>
+          <p className="type-label text-text-secondary">{t("SOL balance")}</p>
           {snapshot === null ? (
             wallet.isLoading ? (
               <span aria-hidden className="skeleton mt-1 block h-5 w-24" />
@@ -177,7 +184,7 @@ function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
           )}
         </div>
         <button type="button" onClick={() => openSheet(true)} className={outlined}>
-          View holdings
+          {t("View holdings")}
           <ArrowRight size={14} strokeWidth={1.5} aria-hidden />
         </button>
       </div>
@@ -191,16 +198,17 @@ function HoldingsCard({ wallet }: { wallet: WalletDashboard }) {
 
 /** What the connection is, in words the data supports — never "Connected" on a failed read. */
 function connection(wallet: WalletDashboard): { tone: "positive" | "caution" | "negative" | "muted"; label: string } {
-  if (wallet.unconfigured) return { tone: "muted", label: "Not configured" };
-  if (wallet.wrongChain) return { tone: "negative", label: "Wrong cluster" };
+  if (wallet.unconfigured) return { tone: "muted", label: msg("Not configured") };
+  if (wallet.wrongChain) return { tone: "negative", label: msg("Wrong cluster") };
   if (wallet.snapshot === null) {
-    return wallet.isLoading ? { tone: "muted", label: "Checking…" } : { tone: "negative", label: "Unreachable" };
+    return wallet.isLoading ? { tone: "muted", label: msg("Checking…") } : { tone: "negative", label: msg("Unreachable") };
   }
-  if (wallet.stale) return { tone: "caution", label: "Last read failed" };
-  return { tone: "positive", label: "Connected" };
+  if (wallet.stale) return { tone: "caution", label: msg("Last read failed") };
+  return { tone: "positive", label: msg("Connected") };
 }
 
 function NetworkCard({ wallet }: { wallet: WalletDashboard }) {
+  const t = useT();
   const now = useSecond();
   const status = connection(wallet);
   const snapshot = wallet.snapshot;
@@ -208,9 +216,9 @@ function NetworkCard({ wallet }: { wallet: WalletDashboard }) {
   const pending = <span aria-hidden className="skeleton mt-0.5 block h-5 w-20" />;
 
   return (
-    <DrawerCard icon={Network} title="Network" right={<StatusDot tone={status.tone}>{status.label}</StatusDot>}>
+    <DrawerCard icon={Network} title={t("Network")} right={<StatusDot tone={status.tone}>{t(status.label)}</StatusDot>}>
       <div className="grid grid-cols-2 border-t border-border-subtle">
-        <Metric label="Cluster" className="border-r border-border-subtle py-3 pr-3">
+        <Metric label={t("Cluster")} className="border-r border-border-subtle py-3 pr-3">
           {loading ? (
             pending
           ) : (
@@ -220,11 +228,11 @@ function NetworkCard({ wallet }: { wallet: WalletDashboard }) {
             </span>
           )}
         </Metric>
-        <Metric label="SOL price" className="py-3 pl-4">
+        <Metric label={t("SOL price")} className="py-3 pl-4">
           {loading ? (
             pending
           ) : snapshot?.solUsd == null ? (
-            <span className="text-text-muted" title="The price feed did not answer">—</span>
+            <span className="text-text-muted" title={t("The price feed did not answer")}>—</span>
           ) : (
             formatPriceUsd(snapshot.solUsd)
           )}
@@ -234,17 +242,17 @@ function NetworkCard({ wallet }: { wallet: WalletDashboard }) {
       <div className="mt-1 flex items-center gap-2 border-t border-border-subtle pt-2">
         <p className="type-label min-w-0 flex-1 truncate text-text-muted" aria-live="polite">
           {wallet.refreshing
-            ? "Refreshing…"
+            ? t("Refreshing…")
             : wallet.fetchedAt === null || now === null
               ? wallet.unconfigured
-                ? "SOLANA_RPC_URL is not set"
-                : wallet.error ?? "Not read yet"
+                ? t("SOLANA_RPC_URL is not set")
+                : wallet.error ?? t("Not read yet")
               : wallet.stale
-                ? `Last good read ${formatAge(wallet.fetchedAt, now)}`
-                : `Updated ${formatAge(wallet.fetchedAt, now)}`}
+                ? t("Last good read {fetchedAt}", { fetchedAt: formatAge(wallet.fetchedAt, now, t.locale) })
+                : t("Updated {fetchedAt}", { fetchedAt: formatAge(wallet.fetchedAt, now, t.locale) })}
         </p>
         <IconButton
-          label={wallet.refreshing ? "Refreshing network data" : "Refresh network data"}
+          label={wallet.refreshing ? t("Refreshing network data") : t("Refresh network data")}
           onClick={wallet.refetch}
           disabled={wallet.refreshing || wallet.unconfigured}
           className="-mr-1.5"
@@ -277,7 +285,7 @@ function formatWhen(iso: string): string {
 const OAUTH_ICON: Record<string, LucideIcon> = { email: Mail, phone: Phone, passkey: KeyRound, wallet: Wallet };
 
 /** How a linked account is named, drawn and copied. */
-function describe(entry: LinkedAccountSummary): {
+function describe(entry: LinkedAccountSummary, t: Translator): {
   label: string;
   mark: React.ReactNode;
   value: string | null;
@@ -288,7 +296,7 @@ function describe(entry: LinkedAccountSummary): {
   if (entry.type === "wallet" || entry.type === "smart_wallet") {
     const chain =
       entry.chainType === "ethereum" ? "Ethereum" : entry.chainType === "solana" ? "Solana" : entry.chainType === "sui" ? "Sui" : null;
-    const base = entry.type === "smart_wallet" ? "Smart wallet" : chain === null ? "Wallet" : `${chain} wallet`;
+    const base = entry.type === "smart_wallet" ? t("Smart wallet") : chain === null ? t("Wallet") : t("{chain} wallet", { chain });
     return {
       label: base,
       mark:
@@ -304,10 +312,10 @@ function describe(entry: LinkedAccountSummary): {
       value: entry.detail,
       display: entry.detail === null ? null : truncateMiddle(entry.detail, 6, 6),
       mono: true,
-      copyLabel: `${base.toLowerCase()} address`,
+      copyLabel: t("{wallet} address", { wallet: base.toLowerCase() }),
     };
   }
-  const label = methodLabel(entry.type);
+  const label = t(methodLabel(entry.type));
   return {
     label,
     mark: <IconTile icon={OAUTH_ICON[entry.type] ?? AtSign} />,
@@ -333,7 +341,8 @@ function AccountRow({ label, children }: { label: string; children: React.ReactN
 }
 
 function LinkedRow({ entry }: { entry: LinkedAccountSummary }) {
-  const shown = describe(entry);
+  const t = useT();
+  const shown = describe(entry, t);
   const verified = verifiedAt(entry);
   return (
     <li
@@ -358,8 +367,8 @@ function LinkedRow({ entry }: { entry: LinkedAccountSummary }) {
         </span>
       </div>
       {verified !== null ? (
-        <Tip openOnTap label={`Verified by sign-in provider · ${formatWhen(verified)}`}>
-          <span tabIndex={0} aria-label="Verified" className={cn("grid size-8 shrink-0 place-items-center rounded-control text-positive")}>
+        <Tip openOnTap label={t("Verified by sign-in provider · {verified}", { verified: formatWhen(verified) })}>
+          <span tabIndex={0} aria-label={t("Verified")} className={cn("grid size-8 shrink-0 place-items-center rounded-control text-positive")}>
             <BadgeCheck size={17} strokeWidth={1.75} aria-hidden />
           </span>
         </Tip>
@@ -373,11 +382,12 @@ function LinkedRow({ entry }: { entry: LinkedAccountSummary }) {
 }
 
 function AccountCard({ auth }: { auth: ElyraAuth }) {
+  const t = useT();
   const account = auth.account;
   if (!auth.ready || account === null) {
     return (
-      <DrawerCard id="account" icon={CircleUserRound} title="Account" className="scroll-mt-3">
-        <div aria-busy="true" aria-label="Reading account" className="flex flex-col gap-2">
+      <DrawerCard id="account" icon={CircleUserRound} title={t("Account")} className="scroll-mt-3">
+        <div aria-busy="true" aria-label={t("Reading account")} className="flex flex-col gap-2">
           {[0, 1, 2, 3].map((index) => (
             <span key={index} aria-hidden className="skeleton h-8 w-full rounded-control" />
           ))}
@@ -393,22 +403,22 @@ function AccountCard({ auth }: { auth: ElyraAuth }) {
   const MethodIcon = method === null ? null : (OAUTH_ICON[method.type] ?? AtSign);
 
   return (
-    <DrawerCard id="account" icon={CircleUserRound} title="Account" className="scroll-mt-3">
+    <DrawerCard id="account" icon={CircleUserRound} title={t("Account")} className="scroll-mt-3">
       <div className="border-t border-border-subtle">
-        <AccountRow label="User ID">
+        <AccountRow label={t("User ID")}>
           <span className="type-mono-addr min-w-0 truncate text-text-primary" title={account.id}>
             {truncateMiddle(account.id, 14, 6)}
             <span className="sr-only"> ({account.id})</span>
           </span>
-          <CopyButton value={account.id} label="user ID" className="-mr-1.5" />
+          <CopyButton value={account.id} label={t("user ID")} className="-mr-1.5" />
         </AccountRow>
         {account.createdAt !== null && (
-          <AccountRow label="Created">
+          <AccountRow label={t("Created")}>
             <span className="type-body-sm tabular-nums text-text-primary">{formatJoined(account.createdAt)}</span>
           </AccountRow>
         )}
         {method !== null && MethodIcon !== null && (
-          <AccountRow label="Sign-in method">
+          <AccountRow label={t("Sign-in method")}>
             <MethodIcon size={15} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
             <span className="type-body-sm text-text-primary">{methodLabel(method.type)}</span>
           </AccountRow>
@@ -416,11 +426,11 @@ function AccountCard({ auth }: { auth: ElyraAuth }) {
       </div>
 
       <div className="mb-1.5 mt-3 flex items-baseline justify-between gap-2">
-        <h3 className="type-body-sm font-medium text-text-primary">Linked accounts</h3>
-        <span className="type-label tabular-nums text-text-secondary">{ordered.length} linked</span>
+        <h3 className="type-body-sm font-medium text-text-primary">{t("Linked accounts")}</h3>
+        <span className="type-label tabular-nums text-text-secondary">{t("{count} linked", { count: ordered.length })}</span>
       </div>
       {ordered.length === 0 ? (
-        <p className="type-body-sm text-text-muted">No accounts are linked.</p>
+        <p className="type-body-sm text-text-muted">{t("No accounts are linked.")}</p>
       ) : (
         <ul className="flex list-none flex-col gap-0.5">
           {ordered.map((entry, index) => (
@@ -437,12 +447,13 @@ function AccountCard({ auth }: { auth: ElyraAuth }) {
 --------------------------------------------------------------------------- */
 
 const STATUS: Record<ActivityStatus, { label: string; icon: LucideIcon; tone: string }> = {
-  confirmed: { label: "Confirmed", icon: CircleCheck, tone: "text-positive" },
-  pending: { label: "Pending", icon: Clock3, tone: "text-neutral-flat" },
-  failed: { label: "Failed", icon: CircleX, tone: "text-negative" },
+  confirmed: { label: msg("Confirmed"), icon: CircleCheck, tone: "text-positive" },
+  pending: { label: msg("Pending"), icon: Clock3, tone: "text-neutral-flat" },
+  failed: { label: msg("Failed"), icon: CircleX, tone: "text-negative" },
 };
 
 function ActivityRow({ item, now, cluster }: { item: WalletActivity; now: number | null; cluster: WalletDashboard["cluster"] }) {
+  const t = useT();
   const status = STATUS[item.status];
   const StatusIcon = status.icon;
   const when = item.at === null ? null : formatWhen(item.at);
@@ -453,28 +464,30 @@ function ActivityRow({ item, now, cluster }: { item: WalletActivity; now: number
         <p className="type-mono-addr truncate text-text-primary" title={item.signature}>
           {truncateMiddle(item.signature, 6, 6)}
         </p>
-        <p className={cn("type-label", status.tone)}>{status.label}</p>
+        <p className={cn("type-label", status.tone)}>{t(status.label)}</p>
       </div>
       {when === null ? (
-        <span className="type-label shrink-0 text-text-muted">In flight</span>
+        <span className="type-label shrink-0 text-text-muted">{t("In flight")}</span>
       ) : (
         <Tip openOnTap label={when}>
           <time
             dateTime={item.at ?? undefined}
             tabIndex={0}
-            aria-label={`${status.label} ${when}`}
+            aria-label={`${t(status.label)} ${when}`}
             className={cn("type-label shrink-0 rounded-chip tabular-nums text-text-secondary")}
           >
-            {now === null || item.at === null ? "—" : formatRelativeTime(item.at, now)}
+            {now === null || item.at === null ? "—" : formatRelativeTime(item.at, now, t.locale)}
           </time>
         </Tip>
       )}
-      <Tip label={item.href ? "Open in the explorer" : "Open in Solscan"}>
+      <Tip label={item.href ? t("Open in the explorer") : t("Open in Solscan")}>
         <a
           href={item.href ?? txExplorerUrl(item.signature, cluster)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Open transaction ${truncateMiddle(item.signature, 6, 6)} in ${item.href ? "the explorer" : "Solscan"}`}
+          aria-label={(item.href
+              ? t("Open transaction {signature} in the explorer", { signature: truncateMiddle(item.signature, 6, 6) })
+              : t("Open transaction {signature} in Solscan", { signature: truncateMiddle(item.signature, 6, 6) }))}
           className={cn(
             "-mr-1.5 grid size-8 shrink-0 place-items-center rounded-control text-text-muted",
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary",
@@ -488,21 +501,22 @@ function ActivityRow({ item, now, cluster }: { item: WalletActivity; now: number
 }
 
 function RecentActivityCard({ feed, cluster }: { feed: ActivityFeed; cluster: WalletDashboard["cluster"] }) {
+  const t = useT();
   const now = useMinute();
 
   return (
-    <DrawerCard icon={History} title="Recent activity" right={<span className="type-label text-text-secondary">Newest first</span>}>
+    <DrawerCard icon={History} title={t("Recent activity")} right={<span className="type-label text-text-secondary">{t("Newest first")}</span>}>
       <div className="border-t border-border-subtle">
         {feed.unconfigured ? (
           <p className="type-body-sm py-4 text-text-muted">
-            Transaction history needs <code>SOLANA_RPC_URL</code>, which is not set.
+            {t("Transaction history needs")}{" "}<code>SOLANA_RPC_URL</code>{t(", which is not set.")}
           </p>
         ) : feed.error !== null && feed.items.length === 0 ? (
           <div className="py-3">
             <InlineRetry message={feed.error} onRetry={() => void feed.refetch()} busy={feed.refreshing} />
           </div>
         ) : feed.isLoading ? (
-          <ul aria-busy="true" aria-label="Reading transactions" className="flex list-none flex-col">
+          <ul aria-busy="true" aria-label={t("Reading transactions")} className="flex list-none flex-col">
             {[0, 1, 2, 3, 4].map((index) => (
               <li key={index} aria-hidden className="flex h-14 items-center gap-3 border-b border-border-subtle last:border-b-0">
                 <span className="skeleton size-5 rounded-pill" />
@@ -517,9 +531,9 @@ function RecentActivityCard({ feed, cluster }: { feed: ActivityFeed; cluster: Wa
         ) : feed.items.length === 0 ? (
           <div className="flex flex-col items-center gap-1 py-6 text-center">
             <IconTile icon={History} size={36} />
-            <p className="type-body-sm mt-1.5 font-medium text-text-primary">No transactions yet</p>
+            <p className="type-body-sm mt-1.5 font-medium text-text-primary">{t("No transactions yet")}</p>
             <p className="type-label max-w-64 text-text-muted">
-              Transactions this wallet signs or receives appear here, newest first.
+              {t("Transactions this wallet signs or receives appear here, newest first.")}
             </p>
           </div>
         ) : (
@@ -531,7 +545,7 @@ function RecentActivityCard({ feed, cluster }: { feed: ActivityFeed; cluster: Wa
         )}
       </div>
       <Link href="/assets" className={cn(outlined, "mt-3 h-10 w-full")}>
-        View all activity
+        {t("View all activity")}
         <ArrowRight size={14} strokeWidth={1.5} aria-hidden />
       </Link>
     </DrawerCard>
@@ -548,11 +562,12 @@ export function DashboardCards() {
 
 /** The cards with their data passed in, so they render the same from fixtures. */
 export function DashboardView({ auth, wallet, activity }: { auth: ElyraAuth; wallet: WalletDashboard; activity: ActivityFeed }) {
+  const t = useT();
   if (!auth.available) {
     return (
-      <DrawerCard icon={CircleUserRound} title="Account">
+      <DrawerCard icon={CircleUserRound} title={t("Account")}>
         <p className="type-body-sm text-text-secondary">
-          Sign-in is not configured on this deployment, so there is no account to show.
+          {t("Sign-in is not configured on this deployment, so there is no account to show.")}
         </p>
       </DrawerCard>
     );
@@ -560,9 +575,9 @@ export function DashboardView({ auth, wallet, activity }: { auth: ElyraAuth; wal
 
   if (auth.ready && !auth.authenticated) {
     return (
-      <DrawerCard icon={WalletCards} title="Connect your wallet">
+      <DrawerCard icon={WalletCards} title={t("Connect your wallet")}>
         <p className="type-body-sm text-text-secondary">
-          Sign in to see your balance, the network it&rsquo;s read from, your linked accounts and recent transactions.
+          {t("Sign in to see your balance, the network it’s read from, your linked accounts and recent transactions.")}
         </p>
         <button
           type="button"
@@ -572,7 +587,7 @@ export function DashboardView({ auth, wallet, activity }: { auth: ElyraAuth; wal
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover",
           )}
         >
-          Connect wallet
+          {t("Connect wallet")}
           <ArrowRight size={14} strokeWidth={1.5} aria-hidden />
         </button>
       </DrawerCard>

@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useElyraStore } from "@/lib/store";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Below 1280px the agent is a drawer rather than a column. The panel inside is
@@ -19,6 +20,7 @@ import { useElyraStore } from "@/lib/store";
  * whichever way it is reached.
  */
 export function AgentDrawer() {
+  const t = useT();
   const open = useElyraStore((state) => state.agentDrawerOpen);
   const setOpen = useElyraStore((state) => state.setAgentDrawerOpen);
 
@@ -32,10 +34,9 @@ export function AgentDrawer() {
         className="w-[min(420px,calc(100vw-24px))]"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>Elyra intelligence</DialogTitle>
+          <DialogTitle>{t("Elyra intelligence")}</DialogTitle>
           <DialogDescription id="agent-drawer-help">
-            Ask Elyra about the selected market and your account, and review
-            what the agent has done.
+            {t("Ask Elyra about the selected market and your account, and review what the agent has done.")}
           </DialogDescription>
         </DialogHeader>
         <AgentPanel onClose={() => setOpen(false)} className="min-h-0 flex-1" />
@@ -46,6 +47,7 @@ export function AgentDrawer() {
 
 /** Below 640px there is no rail; this is every route, as a sheet. */
 export function NavSheet() {
+  const t = useT();
   const open = useElyraStore((state) => state.navSheetOpen);
   const setOpen = useElyraStore((state) => state.setNavSheetOpen);
 
@@ -53,8 +55,8 @@ export function NavSheet() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent side="left" aria-describedby="nav-sheet-help">
         <DialogHeader>
-          <DialogTitle>Go to</DialogTitle>
-          <DialogDescription id="nav-sheet-help">Every section of the terminal.</DialogDescription>
+          <DialogTitle>{t("Go to")}</DialogTitle>
+          <DialogDescription id="nav-sheet-help">{t("Every section of the terminal.")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           <NavList showLabels onNavigate={() => setOpen(false)} />

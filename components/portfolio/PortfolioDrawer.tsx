@@ -40,6 +40,7 @@ import { useElyraStore } from "@/lib/store";
 import { useSecond } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The Portfolio drawer: your capital, in one place.
@@ -81,14 +82,15 @@ function ScopeMenu({
   scope: string;
   onChange: (scope: string) => void;
 }) {
+  const t = useT();
   return (
     <OptionMenu
-      label="Account"
+      label={t("Account")}
       icon={WalletCards}
       value={scope}
       onChange={onChange}
       options={[
-        { id: ALL_ACCOUNTS, label: "All accounts" },
+        { id: ALL_ACCOUNTS, label: t("All accounts") },
         ...snapshot.scopes.map((entry) => ({
           id: entry.id,
           label: entry.label,
@@ -113,6 +115,7 @@ function evmNetworks(snapshot: PortfolioSnapshot): EvmChainKey[] {
  * A Solana node on the wrong cluster still turns it red.
  */
 function NetworkBadge({ cluster, evm }: { cluster: Cluster | null; evm: EvmChainKey[] }) {
+  const t = useT();
   const wrong = cluster !== null && cluster !== EXPECTED_CLUSTER;
   const solana = cluster === null || cluster === EXPECTED_CLUSTER ? "Solana" : CLUSTER_LABEL[cluster];
   const names = [CLUSTER_LABEL[cluster ?? EXPECTED_CLUSTER], ...evm.map((key) => EVM_CHAINS[key].name)];
@@ -122,7 +125,7 @@ function NetworkBadge({ cluster, evm }: { cluster: Cluster | null; evm: EvmChain
         "type-body-sm inline-flex h-9 min-w-0 shrink-0 items-center gap-2 rounded-control border px-3",
         wrong ? "border-negative/50 text-negative" : "border-border-subtle text-text-primary",
       )}
-      title={`Wallet balances are read from ${names.join(", ")}`}
+      title={t("Wallet balances are read from {value}", { value: names.join(", ") })}
     >
       <span aria-hidden className="flex shrink-0 -space-x-1.5">
         <NetworkMark network="solana" size={18} />
@@ -130,7 +133,7 @@ function NetworkBadge({ cluster, evm }: { cluster: Cluster | null; evm: EvmChain
           <NetworkMark key={key} network={key} size={18} />
         ))}
       </span>
-      <span className="truncate">{evm.length === 0 ? solana : wrong ? `${solana} + ${evm.length}` : `${evm.length + 1} networks`}</span>
+      <span className="truncate">{evm.length === 0 ? solana : wrong ? `${solana} + ${evm.length}` : t("{value} networks", { value: evm.length + 1 })}</span>
       <span className="sr-only">: {names.join(", ")}</span>
     </span>
   );
@@ -141,16 +144,17 @@ function NetworkBadge({ cluster, evm }: { cluster: Cluster | null; evm: EvmChain
 --------------------------------------------------------------------------- */
 
 function SyncLine({ feed, now }: { feed: PortfolioFeed; now: number | null }) {
-  const age = feed.fetchedAt === null || now === null ? null : formatAge(feed.fetchedAt, now);
+  const t = useT();
+  const age = feed.fetchedAt === null || now === null ? null : formatAge(feed.fetchedAt, now, t.locale);
   const failed = feed.snapshot?.notes.filter((note) => note.kind === "failed") ?? [];
 
-  if (feed.refreshing) return <StatusDot tone="muted">Syncing…</StatusDot>;
+  if (feed.refreshing) return <StatusDot tone="muted">{t("Syncing…")}</StatusDot>;
   if (feed.stale) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <StatusDot tone="caution" className="whitespace-normal">Refresh failed · showing the reading from {age ?? "earlier"}</StatusDot>
+        <StatusDot tone="caution" className="whitespace-normal">{t("Refresh failed · showing the reading from {age}", { age: age ?? t("earlier") })}</StatusDot>
         <button type="button" onClick={feed.refetch} className={cn("type-label rounded-chip text-text-primary underline underline-offset-2")}>
-          Retry
+          {t("Retry")}
         </button>
       </span>
     );
@@ -160,52 +164,54 @@ function SyncLine({ feed, now }: { feed: PortfolioFeed; now: number | null }) {
       <Tip openOnTap label={failed.map((note) => note.reason).join(" ")}>
         <span tabIndex={0} className={cn("rounded-chip")}>
           <StatusDot tone="caution">
-            Partial · {failed.length} {failed.length === 1 ? "source" : "sources"} unavailable
+            {(failed.length === 1 ? t("Partial · 1 source unavailable") : t("Partial · {count} sources unavailable", { count: failed.length }))}
           </StatusDot>
         </span>
       </Tip>
     );
   }
-  return <StatusDot tone="positive">Synced {age ?? "just now"}</StatusDot>;
+  return <StatusDot tone="positive">{t("Synced")}{" "}{age ?? t("just now")}</StatusDot>;
 }
 
 function Performance({ view }: { view: DrawerView }) {
-  if (view.unfunded) return <p className="type-body-sm text-text-secondary">Performance appears once funded</p>;
+  const t = useT();
+  if (view.unfunded) return <p className="type-body-sm text-text-secondary">{t("Performance appears once funded")}</p>;
   if (view.change === null) {
-    return <p className="type-body-sm text-text-muted">No 24h price for what&rsquo;s held, so change can&rsquo;t be measured</p>;
+    return <p className="type-body-sm text-text-muted">{t("No 24h price for what’s held, so change can’t be measured")}</p>;
   }
   return (
     <p className="type-body-sm flex flex-wrap items-baseline gap-x-1.5">
       <Delta pct={view.change.pnlPct} usd={view.change.pnlUsd} />
-      <span className="text-text-secondary">past 24h</span>
+      <span className="text-text-secondary">{t("past 24h")}</span>
       {view.change.coveragePct < 95 && (
-        <span className="text-text-muted">· over {view.change.coveragePct.toFixed(0)}% of value</span>
+        <span className="text-text-muted">{t("· over {coveragePct}% of value", { coveragePct: view.change.coveragePct.toFixed(0) })}</span>
       )}
     </p>
   );
 }
 
 function BalanceCard({ view, feed }: { view: DrawerView; feed: PortfolioFeed }) {
+  const t = useT();
   const hidden = useBalancesHidden();
   const setHidden = useElyraStore((state) => state.setBalancesHidden);
   const now = useSecond();
 
   return (
-    <section aria-label="Total portfolio value" className={cn(card, "p-4 @max-[340px]:p-3")}>
+    <section aria-label={t("Total portfolio value")} className={cn(card, "p-4 @max-[340px]:p-3")}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="type-body-sm text-text-secondary">
-            {view.scopeEntry === null ? "Total portfolio value" : `${view.scopeEntry.label} value`}
+            {view.scopeEntry === null ? t("Total portfolio value") : t("{label} value", { label: view.scopeEntry.label })}
           </p>
           <Money
             value={view.totalUsd}
-            reason="No source returned a value that could be totalled."
+            reason={t("No source returned a value that could be totalled.")}
             className="type-display mt-1 block truncate font-sans text-text-primary"
           />
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <IconButton
-            label={hidden ? "Show balances" : "Hide balances"}
+            label={hidden ? t("Show balances") : t("Hide balances")}
             aria-pressed={hidden}
             onClick={() => setHidden(!hidden)}
             className={cn("size-9 border border-border-subtle", hidden && "text-accent")}
@@ -213,7 +219,7 @@ function BalanceCard({ view, feed }: { view: DrawerView; feed: PortfolioFeed }) 
             {hidden ? <EyeOff size={16} strokeWidth={1.5} aria-hidden /> : <Eye size={16} strokeWidth={1.5} aria-hidden />}
           </IconButton>
           <IconButton
-            label={feed.refreshing ? "Refreshing portfolio" : "Refresh portfolio"}
+            label={feed.refreshing ? t("Refreshing portfolio") : t("Refresh portfolio")}
             onClick={feed.refetch}
             disabled={feed.refreshing}
             className="size-9 border border-border-subtle"
@@ -229,23 +235,23 @@ function BalanceCard({ view, feed }: { view: DrawerView; feed: PortfolioFeed }) 
       <div className="mt-4 grid grid-cols-2 border-t border-border-subtle pt-3">
         <div className="min-w-0 border-r border-border-subtle pr-3">
           <p className="type-body-sm flex items-center gap-1 text-text-secondary">
-            Available
-            <InfoTip text="Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything." />
+            {t("Available")}
+            <InfoTip text={t("Stablecoins held plus free collateral at connected venues — what could be deployed without selling anything.")} />
           </p>
           <Money
             value={view.availableUsd}
-            reason="No stablecoin balance or venue collateral was readable."
+            reason={t("No stablecoin balance or venue collateral was readable.")}
             className="type-h1 mt-0.5 block truncate font-sans text-text-primary"
           />
         </div>
         <div className="min-w-0 pl-4">
           <p className="type-body-sm flex items-center gap-1 text-text-secondary">
-            In positions
-            <InfoTip text="Perp margin with its open PnL, DeFi deposits and prediction-market shares. Wallet balances are never counted here." />
+            {t("In positions")}
+            <InfoTip text={t("Perp margin with its open PnL, DeFi deposits and prediction-market shares. Wallet balances are never counted here.")} />
           </p>
           <Money
             value={view.inPositionsUsd}
-            reason="Positions at this account could not be valued."
+            reason={t("Positions at this account could not be valued.")}
             className="type-h1 mt-0.5 block truncate font-sans text-text-primary"
           />
         </div>
@@ -270,6 +276,7 @@ const primary = cn(
 
 /** Privy's own funding flow. A component of its own because the hook throws with no provider mounted. */
 function AddFundsWithPrivy({ address }: { address: string }) {
+  const t = useT();
   const { fundWallet } = useFundWallet();
   const [busy, setBusy] = useState(false);
   return (
@@ -286,12 +293,13 @@ function AddFundsWithPrivy({ address }: { address: string }) {
       className={primary}
     >
       <Plus size={18} strokeWidth={1.75} aria-hidden />
-      {busy ? "Opening…" : "Add funds"}
+      {busy ? t("Opening…") : t("Add funds")}
     </button>
   );
 }
 
 function FundingActions({ address, onReceive }: { address: string | null; onReceive: () => void }) {
+  const t = useT();
   const auth = useElyraAuth();
   return (
     <div className="grid grid-cols-2 gap-3 @max-[300px]:grid-cols-1">
@@ -302,12 +310,12 @@ function FundingActions({ address, onReceive }: { address: string | null; onRece
            the address, which says why when there is none. */
         <button type="button" onClick={onReceive} className={primary}>
           <Plus size={18} strokeWidth={1.75} aria-hidden />
-          Add funds
+          {t("Add funds")}
         </button>
       )}
       <button type="button" onClick={onReceive} className={cn(outlined, "h-11")}>
         <QrCode size={18} strokeWidth={1.5} aria-hidden />
-        Receive
+        {t("Receive")}
       </button>
     </div>
   );
@@ -328,13 +336,14 @@ function EmptyPanel({ title, body, action }: { title: string; body: string; acti
 }
 
 function FailedPanel({ note, onRetry }: { note: SourceNote; onRetry: () => void }) {
+  const t = useT();
   return (
     <div role="alert" className={cn(card, "flex flex-col gap-2 border-negative/40 px-4 py-3")}>
-      <p className="type-body-sm text-negative">This part of the portfolio couldn&rsquo;t be read</p>
+      <p className="type-body-sm text-negative">{t("This part of the portfolio couldn’t be read")}</p>
       <p className="type-label text-text-secondary">{note.reason}</p>
       <button type="button" onClick={onRetry} className={cn(outlined, "h-8 self-start px-3")}>
         <RefreshCw size={13} strokeWidth={1.5} aria-hidden />
-        Retry
+        {t("Retry")}
       </button>
     </div>
   );
@@ -362,12 +371,13 @@ function WalletIllustration() {
 }
 
 function EmptyPortfolio({ onReceive }: { onReceive: () => void }) {
+  const t = useT();
   return (
     <div className={cn(card, "flex flex-col items-center px-4 pb-5 pt-4 text-center")}>
       <WalletIllustration />
-      <h3 className="type-h2 mt-2 text-text-primary">Your portfolio starts here</h3>
+      <h3 className="type-h2 mt-2 text-text-primary">{t("Your portfolio starts here")}</h3>
       <p className="type-body-sm mt-1 max-w-72 text-text-secondary">
-        Add funds to see your assets, positions and portfolio allocation.
+        {t("Add funds to see your assets, positions and portfolio allocation.")}
       </p>
       <button
         type="button"
@@ -377,7 +387,7 @@ function EmptyPortfolio({ onReceive }: { onReceive: () => void }) {
           "transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover",
         )}
       >
-        View wallet address
+        {t("View wallet address")}
         <ArrowRight size={14} strokeWidth={1.75} aria-hidden />
       </button>
     </div>
@@ -396,6 +406,7 @@ function HoldingRow({
   /** Some row in the list has an action, so every row keeps its column. */
   actionColumn: boolean;
 }) {
+  const t = useT();
   return (
     <li className="group flex items-center gap-3 border-b border-border-subtle px-3 py-2.5 transition-colors duration-[var(--dur-fast)] ease-brand last:border-b-0 hover:bg-surface-hover">
       {/* An unverified token never borrows the real one's artwork: a fake
@@ -424,12 +435,12 @@ function HoldingRow({
               openOnTap
               label={
                 evmChainOf(holding) === null
-                  ? "Not recognised by Jupiter, so it is shown but never counted."
-                  : "Not on Elyra's verified token list for this network, so it is shown but never counted."
+                  ? t("Not recognised by Jupiter, so it is shown but never counted.")
+                  : t("Not on Elyra's verified token list for this network, so it is shown but never counted.")
               }
             >
               <span tabIndex={0} className={cn("shrink-0 rounded-chip border border-border-subtle px-1 text-text-muted")}>
-                Unverified
+                {t("Unverified")}
               </span>
             </Tip>
           ) : (
@@ -442,7 +453,7 @@ function HoldingRow({
       <div className="flex min-w-0 shrink-0 flex-col items-end">
         <Money
           value={holding.verified ? holding.valueUsd : null}
-          reason={holding.verified ? "No price for this token." : "Unverified tokens are not valued."}
+          reason={holding.verified ? t("No price for this token.") : t("Unverified tokens are not valued.")}
           className="type-body-sm font-medium text-text-primary"
         />
         <span className="type-label max-w-36 truncate text-text-secondary">
@@ -450,7 +461,7 @@ function HoldingRow({
         </span>
       </div>
       {onSwap !== null ? (
-        <IconButton label={`Swap ${holding.symbol}`} onClick={() => onSwap(holding)} className="-mr-1.5">
+        <IconButton label={t("Swap {symbol}", { symbol: holding.symbol })} onClick={() => onSwap(holding)} className="-mr-1.5">
           <ArrowLeftRight size={15} strokeWidth={1.5} aria-hidden />
         </IconButton>
       ) : (
@@ -476,6 +487,7 @@ function HoldingsPanel({
   /** Whether a holding can be swapped from here — on its own chain, by a wallet that can sign there. */
   canSwap: (holding: SpotHolding) => boolean;
 }) {
+  const t = useT();
   const symbols = useMemo(() => view.holdings.map((holding) => holding.symbol), [view.holdings]);
   const logos = useTickerLogos(symbols);
 
@@ -485,7 +497,7 @@ function HoldingsPanel({
     return failed ? (
       <FailedPanel note={failed} onRetry={onRetry} />
     ) : (
-      <EmptyPanel title="No holdings in this account" body="Tokens held here will appear with their value and share of the portfolio." />
+      <EmptyPanel title={t("No holdings in this account")} body={t("Tokens held here will appear with their value and share of the portfolio.")} />
     );
   }
   const swappable = (holding: SpotHolding) => holding.verified && canSwap(holding);
@@ -506,6 +518,7 @@ function HoldingsPanel({
 }
 
 function PerpRow({ position }: { position: PerpPosition }) {
+  const t = useT();
   const venueUrl = position.venue === "hyperliquid" ? "https://app.hyperliquid.xyz/trade" : null;
   return (
     <li className="flex items-center gap-3 border-b border-border-subtle px-3 py-2.5 last:border-b-0">
@@ -518,7 +531,7 @@ function PerpRow({ position }: { position: PerpPosition }) {
               position.side === "long" ? "bg-positive-bg text-positive" : "bg-negative-bg text-negative",
             )}
           >
-            {position.side === "long" ? "Long" : "Short"}
+            {position.side === "long" ? t("Long") : t("Short")}
             {position.leverage !== null && ` ${position.leverage}×`}
           </span>
         </p>
@@ -529,8 +542,7 @@ function PerpRow({ position }: { position: PerpPosition }) {
             <a href={venueUrl} target="_blank" rel="noopener noreferrer" className={cn("rounded-chip hover:text-text-primary")}>
               {position.venue} ↗
             </a>
-          )}{" "}
-          · Perp
+          )}{t(" · Perp")}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end">
@@ -538,7 +550,7 @@ function PerpRow({ position }: { position: PerpPosition }) {
         <Delta
           pct={position.roePct}
           usd={position.unrealizedPnlUsd}
-          reason="The venue reported no PnL for this position."
+          reason={t("The venue reported no PnL for this position.")}
           className="type-label"
         />
       </div>
@@ -547,6 +559,7 @@ function PerpRow({ position }: { position: PerpPosition }) {
 }
 
 function PositionsPanel({ view, snapshot, onRetry }: { view: DrawerView; snapshot: PortfolioSnapshot; onRetry: () => void }) {
+  const t = useT();
   const prediction = view.prediction;
   const hasPrediction = prediction !== null && (prediction.activeMarkets ?? 0) > 0;
   if (view.perps.length === 0 && !hasPrediction) {
@@ -555,8 +568,8 @@ function PositionsPanel({ view, snapshot, onRetry }: { view: DrawerView; snapsho
       <FailedPanel note={failed} onRetry={onRetry} />
     ) : (
       <EmptyPanel
-        title="No open positions"
-        body="Perpetuals at connected venues and prediction-market shares appear here with their value and open PnL."
+        title={t("No open positions")}
+        body={t("Perpetuals at connected venues and prediction-market shares appear here with their value and open PnL.")}
       />
     );
   }
@@ -568,14 +581,14 @@ function PositionsPanel({ view, snapshot, onRetry }: { view: DrawerView; snapsho
       {hasPrediction && prediction !== null && (
         <li className="flex items-center gap-3 px-3 py-2.5">
           <div className="min-w-0 flex-1">
-            <p className="type-body-sm font-medium text-text-primary">Prediction markets</p>
+            <p className="type-body-sm font-medium text-text-primary">{t("Prediction markets")}</p>
             <p className="type-label text-text-secondary">
-              {prediction.activeMarkets} active {prediction.activeMarkets === 1 ? "market" : "markets"}
+              {prediction.activeMarkets}{" "}{(prediction.activeMarkets === 1 ? t("active market") : t("active markets"))}
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end">
-            <Money value={prediction.valueUsd} reason="Positions could not be valued." className="type-body-sm font-medium text-text-primary" />
-            <Delta pct={null} usd={prediction.unrealisedPnlUsd} reason="No PnL reported." className="type-label" />
+            <Money value={prediction.valueUsd} reason={t("Positions could not be valued.")} className="type-body-sm font-medium text-text-primary" />
+            <Delta pct={null} usd={prediction.unrealisedPnlUsd} reason={t("No PnL reported.")} className="type-label" />
           </div>
         </li>
       )}
@@ -593,11 +606,12 @@ const CATEGORY: Record<DefiPosition["category"], string> = {
 };
 
 function YieldPanel({ view, snapshot, onRetry }: { view: DrawerView; snapshot: PortfolioSnapshot; onRetry: () => void }) {
+  const t = useT();
   if (view.scopeEntry !== null) {
     return (
       <EmptyPanel
-        title="Yield is counted under All accounts"
-        body="DeFi deposits are netted against their receipt tokens across the whole portfolio, so they show with every account selected."
+        title={t("Yield is counted under All accounts")}
+        body={t("DeFi deposits are netted against their receipt tokens across the whole portfolio, so they show with every account selected.")}
       />
     );
   }
@@ -606,7 +620,7 @@ function YieldPanel({ view, snapshot, onRetry }: { view: DrawerView; snapshot: P
     return failed ? (
       <FailedPanel note={failed} onRetry={onRetry} />
     ) : (
-      <EmptyPanel title="No yield positions" body="Kamino lending and vault deposits from this wallet appear here with their rate and value." />
+      <EmptyPanel title={t("No yield positions")} body={t("Kamino lending and vault deposits from this wallet appear here with their rate and value.")} />
     );
   }
   return (
@@ -620,32 +634,32 @@ function YieldPanel({ view, snapshot, onRetry }: { view: DrawerView; snapshot: P
               </p>
               <p className="type-label truncate text-text-secondary">
                 {position.protocol} · {CATEGORY[position.category]}
-                {position.apyPct !== null && <span className="tabular-nums"> · {formatPct(position.apyPct, { sign: false })} APY</span>}
+                {position.apyPct !== null && <span className="tabular-nums">{" "}{t("· {apyPct} APY", { apyPct: formatPct(position.apyPct, { sign: false }) })}</span>}
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end">
               <Money
                 value={position.suppliedUsd ?? position.valueUsd}
-                reason="The protocol reported no value."
+                reason={t("The protocol reported no value.")}
                 className="type-body-sm font-medium text-text-primary"
               />
               {position.earnedUsd !== null ? (
                 <span className="type-label text-positive">
-                  <Money value={position.earnedUsd} sign /> earned
+                  <Money value={position.earnedUsd} sign />{" "}{t("earned")}
                 </span>
               ) : position.borrowedUsd !== null && position.borrowedUsd > 0 ? (
                 <span className="type-label text-text-secondary">
-                  <Money value={-position.borrowedUsd} /> borrowed
+                  <Money value={-position.borrowedUsd} />{" "}{t("borrowed")}
                 </span>
               ) : (
-                <span className="type-label text-text-muted">Deposited</span>
+                <span className="type-label text-text-muted">{t("Deposited")}</span>
               )}
             </div>
           </li>
         ))}
       </ul>
       <p className="type-label px-1 text-text-muted">
-        Rates are the protocol&rsquo;s current variable APY — they move, and are not a promised return.
+        {t("Rates are the protocol’s current variable APY — they move, and are not a promised return.")}
       </p>
     </div>
   );
@@ -656,13 +670,14 @@ function YieldPanel({ view, snapshot, onRetry }: { view: DrawerView; snapshot: P
 --------------------------------------------------------------------------- */
 
 function TrackList() {
+  const t = useT();
   const rows = [
-    { icon: Coins, title: "Assets across your wallets", body: "Balances and allocation in one view" },
-    { icon: TrendingUp, title: "Positions & yield", body: "Track deployed capital and earnings" },
+    { icon: Coins, title: t("Assets across your wallets"), body: t("Balances and allocation in one view") },
+    { icon: TrendingUp, title: t("Positions & yield"), body: t("Track deployed capital and earnings") },
   ];
   return (
-    <section aria-label="What you can track" className={cn(card, "px-4 py-3")}>
-      <h3 className="type-body-sm font-medium text-text-primary">What you can track</h3>
+    <section aria-label={t("What you can track")} className={cn(card, "px-4 py-3")}>
+      <h3 className="type-body-sm font-medium text-text-primary">{t("What you can track")}</h3>
       <ul className="mt-1 flex list-none flex-col divide-y divide-border-subtle">
         {rows.map(({ icon: Icon, title, body }) => (
           <li key={title} className="flex items-center gap-3 py-2.5">
@@ -681,6 +696,7 @@ function TrackList() {
 }
 
 function FooterStrip({ cluster, evm, feed }: { cluster: Cluster | null; evm: EvmChainKey[]; feed: PortfolioFeed }) {
+  const t = useT();
   const tone = feed.stale ? "caution" : feed.snapshot === null ? "negative" : "positive";
   const names = [CLUSTER_LABEL[cluster ?? EXPECTED_CLUSTER], ...evm.map((key) => EVM_CHAINS[key].name)];
   return (
@@ -696,9 +712,9 @@ function FooterStrip({ cluster, evm, feed }: { cluster: Cluster | null; evm: Evm
           {names.join(" · ")}
         </p>
         {/* True: the snapshot polls every thirty seconds and on returning to the tab. */}
-        <p className="type-label text-text-secondary">Balances update automatically</p>
+        <p className="type-label text-text-secondary">{t("Balances update automatically")}</p>
       </div>
-      <StatusDot tone={tone}>{feed.stale ? "Last read failed" : feed.snapshot === null ? "Unreachable" : "Connected"}</StatusDot>
+      <StatusDot tone={tone}>{feed.stale ? t("Last read failed") : feed.snapshot === null ? t("Unreachable") : t("Connected")}</StatusDot>
     </footer>
   );
 }
@@ -708,8 +724,9 @@ function FooterStrip({ cluster, evm, feed }: { cluster: Cluster | null; evm: Evm
 --------------------------------------------------------------------------- */
 
 function DrawerSkeleton() {
+  const t = useT();
   return (
-    <div aria-busy="true" aria-label="Reading your portfolio" className="flex flex-col gap-3">
+    <div aria-busy="true" aria-label={t("Reading your portfolio")} className="flex flex-col gap-3">
       <div className="flex justify-between gap-3">
         <span className="skeleton h-9 w-40 rounded-control" />
         <span className="skeleton h-9 w-28 rounded-control" />
@@ -757,6 +774,7 @@ export function PortfolioCards() {
 
 /** The drawer with its data passed in, so it renders the same from fixtures. */
 export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: PortfolioFeed; cluster: Cluster | null }) {
+  const t = useT();
   const [scope, setScope] = useState(ALL_ACCOUNTS);
   const [tab, setTab] = useState<Tab>("holdings");
   const [receiving, setReceiving] = useState(false);
@@ -796,18 +814,18 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
 
   if (!auth.available) {
     return (
-      <EmptyPanel title="Sign-in isn't configured" body="This deployment has no sign-in, so there is no portfolio to read." />
+      <EmptyPanel title={t("Sign-in isn't configured")} body={t("This deployment has no sign-in, so there is no portfolio to read.")} />
     );
   }
   if (!auth.ready || (feed.signedIn && feed.snapshot === null && feed.loading)) return <DrawerSkeleton />;
   if (!feed.signedIn) {
     return (
       <EmptyPanel
-        title="Connect your wallet"
-        body="Sign in to see your capital across wallets, venues and positions."
+        title={t("Connect your wallet")}
+        body={t("Sign in to see your capital across wallets, venues and positions.")}
         action={
           <button type="button" onClick={auth.login} className={cn(primary, "mt-3 h-9 px-4")}>
-            Connect wallet
+            {t("Connect wallet")}
           </button>
         }
       />
@@ -818,13 +836,13 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
     return (
       <div role="alert" className={cn(card, "flex flex-col gap-2 border-negative/40 p-4")}>
         <p className="type-body-sm font-medium text-negative">
-          {feed.unconfigured ? "The portfolio isn't configured" : "Your portfolio couldn't be read"}
+          {feed.unconfigured ? t("The portfolio isn't configured") : t("Your portfolio couldn't be read")}
         </p>
-        <p className="type-label text-text-secondary">{feed.error ?? "The portfolio could not be assembled."}</p>
+        <p className="type-label text-text-secondary">{feed.error ?? t("The portfolio could not be assembled.")}</p>
         {!feed.unconfigured && (
           <button type="button" onClick={feed.refetch} disabled={feed.refreshing} className={cn(outlined, "h-8 self-start px-3")}>
             <RefreshCw size={13} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
-            Retry
+            {t("Retry")}
           </button>
         )}
       </div>
@@ -849,12 +867,12 @@ export function PortfolioView({ auth, feed, cluster }: { auth: ElyraAuth; feed: 
       <FundingActions address={address} onReceive={openReceive} />
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-3">
-        <TabsList aria-label="Portfolio" className="grid grid-cols-3 gap-0 border-b border-border-subtle">
+        <TabsList aria-label={t("Portfolio")} className="grid grid-cols-3 gap-0 border-b border-border-subtle">
           {(
             [
-              ["holdings", "Holdings", view.holdings.length],
-              ["positions", "Positions", null],
-              ["yield", "Yield", null],
+              ["holdings", t("Holdings"), view.holdings.length],
+              ["positions", t("Positions"), null],
+              ["yield", t("Yield"), null],
             ] as const
           ).map(([value, label, count]) => (
             <TabsTrigger

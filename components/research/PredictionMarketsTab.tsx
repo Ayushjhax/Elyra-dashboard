@@ -5,6 +5,8 @@ import { FileSearch, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PredictionMarket } from "@/lib/providers/types";
 import { Problem, Timestamp, useResearchResource } from "./shared";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Prediction Markets.
@@ -190,11 +192,11 @@ const signed = (value: number | null | undefined, digits = 2): string =>
     : "—";
 
 const DIRECTION_LABEL: Record<string, string> = {
-  long_yes: "LONG YES",
-  long_no: "LONG NO",
-  long_outcome: "LONG OUTCOME",
-  watch: "WATCH",
-  neutral: "NEUTRAL",
+  long_yes: msg("LONG YES"),
+  long_no: msg("LONG NO"),
+  long_outcome: msg("LONG OUTCOME"),
+  watch: msg("WATCH"),
+  neutral: msg("NEUTRAL"),
 };
 
 function Unavailable({ reason }: { reason: string }) {
@@ -228,6 +230,7 @@ function Field({ label, value }: { label: string; value: string }) {
 --------------------------------------------------------------------------- */
 
 function Ladder({ book }: { book: BookResponse }) {
+  const t = useT();
   const analytics = book.analytics;
   const rows = 8;
 
@@ -271,11 +274,11 @@ function Ladder({ book }: { book: BookResponse }) {
       </div>
 
       <div className="flex items-center justify-between rounded-card border border-border-subtle bg-surface-base px-3 py-2">
-        <span className="type-label text-text-muted">Mid</span>
+        <span className="type-label text-text-muted">{t("Mid")}</span>
         <span className="type-body-sm tabular-nums text-text-primary">
           {cents(analytics?.midpoint)}
         </span>
-        <span className="type-label text-text-muted">Microprice</span>
+        <span className="type-label text-text-muted">{t("Microprice")}</span>
         <span className="type-body-sm tabular-nums text-text-primary">
           {cents(analytics?.microprice)}
         </span>
@@ -340,6 +343,7 @@ function Row({
 --------------------------------------------------------------------------- */
 
 function SignalPanel({ response }: { response: SignalResponse }) {
+  const t = useT();
   const signal = response.signal;
 
   if (signal === null) {
@@ -348,12 +352,12 @@ function SignalPanel({ response }: { response: SignalResponse }) {
         <Unavailable
           reason={
             response.reason ??
-            "No signal could be produced from this order book."
+            t("No signal could be produced from this order book.")
           }
         />
         {response.skipped.length > 0 && (
           <div className="rounded-card border border-border-subtle bg-surface-base p-4">
-            <p className="type-label text-text-muted">Not evaluated</p>
+            <p className="type-label text-text-muted">{t("Not evaluated")}</p>
             <ul className="mt-2 space-y-1">
               {response.skipped.slice(0, 6).map((entry) => (
                 <li
@@ -387,37 +391,37 @@ function SignalPanel({ response }: { response: SignalResponse }) {
     <div className="space-y-4 rounded-card border border-border-subtle bg-surface-raised p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <p className="type-label text-text-muted">Technical signal</p>
+          <p className="type-label text-text-muted">{t("Technical signal")}</p>
           <p className="type-body text-text-primary">
-            {DIRECTION_LABEL[signal.direction] ?? signal.direction}
+            {t(DIRECTION_LABEL[signal.direction] ?? signal.direction)}
             <span className="text-text-muted"> · {signal.outcomeLabel}</span>
           </p>
         </div>
         <div className="flex gap-2">
           <span className="type-label rounded-pill border border-border-subtle px-2 py-0.5 text-text-secondary">
-            {signal.strength} strength
+            {t("{strength} strength", { strength: t(signal.strength) })}
           </span>
           <span className="type-label rounded-pill border border-border-subtle px-2 py-0.5 text-text-secondary">
-            {signal.liquidityQuality} liquidity
+            {t("{liquidityQuality} liquidity", { liquidityQuality: t(signal.liquidityQuality) })}
           </span>
         </div>
       </div>
 
       {actionable && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Field label="Entry" value={entry} />
+          <Field label={t("Entry")} value={entry} />
           <Field
-            label="Target"
+            label={t("Target")}
             value={cents(signal.target.price ?? signal.target.maxPrice)}
           />
           {/* "Invalidation" wherever a fill cannot be promised — a thin book
               gaps through a level rather than filling at it. */}
           <Field
-            label={signal.stop.executable ? "Stop" : "Invalidation"}
+            label={signal.stop.executable ? t("Stop") : t("Invalidation")}
             value={cents(signal.stop.price)}
           />
           <Field
-            label="Risk / Reward"
+            label={t("Risk / Reward")}
             value={
               signal.riskReward === null ? "—" : signal.riskReward.toFixed(2)
             }
@@ -432,25 +436,25 @@ function SignalPanel({ response }: { response: SignalResponse }) {
       )}
 
       <div>
-        <p className="type-label text-text-muted">Historical win rate</p>
+        <p className="type-label text-text-muted">{t("Historical win rate")}</p>
         {rate === null ? (
           /* The engine's own sentence — for an order-book strategy it carries
              the forward-collection progress, which is "not yet" rather than
              "never". A hard-coded replacement here would freeze that. */
           <p className="type-body-sm text-text-secondary">
             {signal.winRateUnavailableReason ??
-              "Not available — no comparable historical sample exists for this strategy."}
+              t("Not available — no comparable historical sample exists for this strategy.")}
           </p>
         ) : rate.insufficientSample ? (
           <p className="type-body-sm text-text-secondary">
-            Insufficient sample · {rate.sampleSize} comparable signals
+            {t("Insufficient sample · {sampleSize} comparable signals", { sampleSize: rate.sampleSize })}
           </p>
         ) : (
           <>
             <p className="type-body tabular-nums text-text-primary">
               {rate.valuePct.toFixed(1)}%{" "}
               <span className="type-body-sm text-text-muted">
-                · {rate.sampleSize} comparable signals
+                {t("· {sampleSize} comparable signals", { sampleSize: rate.sampleSize })}
               </span>
             </p>
             <p className="type-label text-text-muted">
@@ -465,7 +469,7 @@ function SignalPanel({ response }: { response: SignalResponse }) {
 
       {signal.evidence.length > 0 && (
         <div>
-          <p className="type-label text-text-muted">Evidence</p>
+          <p className="type-label text-text-muted">{t("Evidence")}</p>
           <ul className="mt-1 space-y-1">
             {signal.evidence.map((item) => (
               <li key={item.label} className="type-body-sm text-text-secondary">
@@ -496,30 +500,30 @@ function SignalPanel({ response }: { response: SignalResponse }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Field
-          label="Strategy"
+          label={t("Strategy")}
           value={`${signal.strategyId} v${signal.strategyVersion}`}
         />
-        <Field label="Resolution" value={signal.resolutionProximity} />
+        <Field label={t("Resolution")} value={signal.resolutionProximity} />
         <Field
-          label="Data"
+          label={t("Data")}
           value={
-            signal.transport === "realtime" ? "Live feed" : "REST snapshot"
+            signal.transport === "realtime" ? t("Live feed") : t("REST snapshot")
           }
         />
         <Field
-          label="Age"
+          label={t("Age")}
           value={`${Math.round(signal.dataFreshnessMs / 1000)}s`}
         />
       </div>
 
       {signal.target.basis.length > 0 && (
         <p className="type-label text-text-muted">
-          Target basis: {signal.target.basis}
+          {t("Target basis: {basis}", { basis: signal.target.basis })}
         </p>
       )}
       {signal.stop.basis.length > 0 && (
         <p className="type-label text-text-muted">
-          Invalidation basis: {signal.stop.basis}
+          {t("Invalidation basis: {basis}", { basis: signal.stop.basis })}
         </p>
       )}
 
@@ -534,8 +538,7 @@ function SignalPanel({ response }: { response: SignalResponse }) {
       )}
 
       <p className="type-label text-text-muted">
-        Computed by Elyra&apos;s deterministic engine from the venue&apos;s live
-        order book. Analysis, not advice — a signal does not place an order.
+        {t("Computed by Elyra's deterministic engine from the venue's live order book. Analysis, not advice — a signal does not place an order.")}
       </p>
     </div>
   );
@@ -546,12 +549,13 @@ function SignalPanel({ response }: { response: SignalResponse }) {
 --------------------------------------------------------------------------- */
 
 function BasketPanel({ basket }: { basket: Basket }) {
+  const t = useT();
   return (
     <div className="space-y-3 rounded-card border border-border-subtle bg-surface-raised p-4">
       <div className="flex items-baseline justify-between">
-        <p className="type-label text-text-muted">Elyra Probability Basket</p>
+        <p className="type-label text-text-muted">{t("Elyra Probability Basket")}</p>
         <span className="type-label rounded-pill border border-border-subtle px-2 py-0.5 text-text-secondary">
-          {basket.confidence} confidence
+          {t("{confidence} confidence", { confidence: t(basket.confidence) })}
         </span>
       </div>
 
@@ -560,15 +564,15 @@ function BasketPanel({ basket }: { basket: Basket }) {
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Field label="Observed mid" value={pct(basket.observedMidpoint)} />
-        <Field label="Microprice" value={pct(basket.microprice)} />
-        <Field label="Recent VWAP" value={pct(basket.recentVwap)} />
-        <Field label="Last trade" value={pct(basket.observedLastTrade)} />
+        <Field label={t("Observed mid")} value={pct(basket.observedMidpoint)} />
+        <Field label={t("Microprice")} value={pct(basket.microprice)} />
+        <Field label={t("Recent VWAP")} value={pct(basket.recentVwap)} />
+        <Field label={t("Last trade")} value={pct(basket.observedLastTrade)} />
       </div>
 
       {basket.components.length > 0 && (
         <div>
-          <p className="type-label text-text-muted">Components</p>
+          <p className="type-label text-text-muted">{t("Components")}</p>
           <ul className="mt-1 space-y-0.5">
             {basket.components.map((part) => (
               <li key={part.label} className="type-body-sm text-text-secondary">
@@ -588,28 +592,25 @@ function BasketPanel({ basket }: { basket: Basket }) {
 
       {basket.complementCheck !== null && (
         <div>
-          <p className="type-label text-text-muted">YES/NO integrity check</p>
+          <p className="type-label text-text-muted">{t("YES/NO integrity check")}</p>
           <p className="type-body-sm text-text-secondary">
             <span className="tabular-nums text-text-primary">
               {pct(basket.complementCheck)}
             </span>
-            {" · deviation "}
+            {t(" · deviation ")}
             <span className="tabular-nums">
-              {signed(basket.complementDeviationPoints, 2)} pts
+              {t("{complementDeviationPoints} pts", { complementDeviationPoints: signed(basket.complementDeviationPoints, 2) })}
             </span>
           </p>
           <p className="type-label text-text-muted">
-            Weighted zero. On Polymarket a NO share is the complement of a YES
-            share in the same order book, so this equals the midpoint by
-            construction — a non-zero deviation means one side is stale, the
-            book is crossed, or an arbitrage is open.
+            {t("Weighted zero. On Polymarket a NO share is the complement of a YES share in the same order book, so this equals the midpoint by construction — a non-zero deviation means one side is stale, the book is crossed, or an arbitrage is open.")}
           </p>
         </div>
       )}
 
       {basket.deviationFromAskPoints !== null && (
         <Field
-          label="Difference vs executable ask"
+          label={t("Difference vs executable ask")}
           value={`${signed(basket.deviationFromAskPoints, 1)} pts`}
         />
       )}
@@ -625,8 +626,7 @@ function BasketPanel({ basket }: { basket: Basket }) {
       )}
 
       <p className="type-label text-text-muted">
-        An analytical reference built from observable prices. Not a guaranteed
-        probability, and not a forecast Elyra is making.
+        {t("An analytical reference built from observable prices. Not a guaranteed probability, and not a forecast Elyra is making.")}
       </p>
     </div>
   );
@@ -636,9 +636,10 @@ function BasketPanel({ basket }: { basket: Basket }) {
    The tab
 --------------------------------------------------------------------------- */
 
-const EXAMPLES = ["Bitcoin", "Elections", "Interest rates", "Sports"];
+const EXAMPLES = [msg("Bitcoin"), msg("Elections"), msg("Interest rates"), msg("Sports")];
 
 export function PredictionMarketsTab() {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -718,12 +719,12 @@ export function PredictionMarketsTab() {
         }}
       >
         <label>
-          <span className="sr-only">Market category</span>
+          <span className="sr-only">{t("Market category")}</span>
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
           >
-            <option value="all">All categories</option>
+            <option value="all">{t("All categories")}</option>
             {categories.map((item) => (
               <option key={item}>{item}</option>
             ))}
@@ -731,12 +732,12 @@ export function PredictionMarketsTab() {
         </label>
         <label className="r-search">
           <Search size={18} aria-hidden />
-          <span className="sr-only">Search prediction markets</span>
+          <span className="sr-only">{t("Search prediction markets")}</span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             maxLength={200}
-            placeholder="Search prediction markets…"
+            placeholder={t("Search prediction markets…")}
           />
         </label>
         <button
@@ -744,7 +745,7 @@ export function PredictionMarketsTab() {
           type="submit"
           disabled={search.loading || !query.trim()}
         >
-          {search.loading ? "Searching…" : "Search"}
+          {search.loading ? t("Searching…") : t("Search")}
         </button>
       </form>
       <div className="r-suggestions">
@@ -755,19 +756,20 @@ export function PredictionMarketsTab() {
             className="r-chip"
             onClick={() => submit(example)}
           >
-            {example}
+            {/* Searched in English — Polymarket's own language — shown in the reader's. */}
+            {t(example)}
           </button>
         ))}
       </div>
       <div className="r-split r-market-columns">
         <section>
-          <h2>{submitted ? "Markets" : "Explore a market"}</h2>
+          <h2>{submitted ? t("Markets") : t("Explore a market")}</h2>
           {submitted === null && (
             <p className="r-note">
-              Search a topic to compare market probabilities.
+              {t("Search a topic to compare market probabilities.")}
             </p>
           )}
-          {search.loading && <Spinner label="Searching Polymarket…" />}
+          {search.loading && <Spinner label={t("Searching Polymarket…")} />}
           {search.error && (
             <Problem retry={search.reload}>{search.error}</Problem>
           )}
@@ -776,13 +778,13 @@ export function PredictionMarketsTab() {
             !search.loading &&
             markets.length === 0 && (
               <div className="r-empty">
-                <h3>No markets found</h3>
-                <p>Try another topic or choose all categories.</p>
+                <h3>{t("No markets found")}</h3>
+                <p>{t("Try another topic or choose all categories.")}</p>
               </div>
             )}
           {search.data?.stale && (
             <p className="r-note">
-              Cached search results · current market details may differ.
+              {t("Cached search results · current market details may differ.")}
             </p>
           )}
           {markets.map((market) => (
@@ -802,29 +804,27 @@ export function PredictionMarketsTab() {
                 ))}
               </span>
               <span className="r-note">
-                {market.status ?? (market.closed ? "closed" : "open")} ·
-                Liquidity {usd(market.liquidityUsd)} · 24h volume{" "}
-                {usd(market.volume24hUsd)}
+                {t("{status} · Liquidity {liquidityUsd} · 24h volume {volume24hUsd}", { status: t(market.status ?? (market.closed ? "closed" : "open")), liquidityUsd: usd(market.liquidityUsd), volume24hUsd: usd(market.volume24hUsd) })}
               </span>
             </button>
           ))}
           {submitted && search.data && (
-            <Timestamp at={search.data.asOf} label="Search snapshot" />
+            <Timestamp at={search.data.asOf} label={t("Search snapshot")} />
           )}
         </section>
         <section className="r-market-details">
-          <h2>Market details</h2>
+          <h2>{t("Market details")}</h2>
           {selectedId === null ? (
             <div className="r-empty">
               <FileSearch size={32} strokeWidth={1.25} aria-hidden />
-              <p>Select a market to view probability, liquidity and depth.</p>
+              <p>{t("Select a market to view probability, liquidity and depth.")}</p>
               <button className="r-button" type="button" disabled>
-                View order book
+                {t("View order book")}
               </button>
             </div>
           ) : (
             <>
-              {liveFeed.loading && <Spinner label="Reading market details…" />}
+              {liveFeed.loading && <Spinner label={t("Reading market details…")} />}
               {liveFeed.error && (
                 <Problem retry={liveFeed.reload}>{liveFeed.error}</Problem>
               )}
@@ -832,50 +832,48 @@ export function PredictionMarketsTab() {
                 <>
                   <h3>{selected.question}</h3>
                   <p className="r-note">
-                    {selected.status ?? (selected.closed ? "closed" : "open")}
-                    {live ? ` · ${live.phase}` : " · Search snapshot"}
+                    {selected.status ?? (selected.closed ? t("closed") : t("open"))}
+                    {live ? ` · ${live.phase}` : t(" · Search snapshot")}
                   </p>
                   <div className="r-metrics">
                     <Field
-                      label="24h volume"
+                      label={t("24h volume")}
                       value={usd(selected.volume24hUsd)}
                     />
                     <Field
-                      label="Liquidity"
+                      label={t("Liquidity")}
                       value={usd(selected.liquidityUsd)}
                     />
                     <Field
-                      label="Ends"
+                      label={t("Ends")}
                       value={
                         selected.endsAt
                           ? new Date(selected.endsAt).toLocaleDateString(
                               "en-GB",
                               { timeZone: "UTC" },
                             )
-                          : "Not specified"
+                          : t("Not specified")
                       }
                     />
                   </div>
                   <div className="r-outcome-details">
                     {(live?.outcomes ?? []).map((item) => (
                       <div key={item.tokenId}>
-                        <span>{item.label ?? "Unlabelled outcome"}</span>
+                        <span>{item.label ?? t("Unlabelled outcome")}</span>
                         <strong>{pct(item.midpoint)}</strong>
                         <small>
-                          Bid {cents(item.bestBid)} / Ask {cents(item.bestAsk)}{" "}
-                          · {item.transport}
+                          {t("Bid {bestBid} / Ask {bestAsk} · {transport}", { bestBid: cents(item.bestBid), bestAsk: cents(item.bestAsk), transport: item.transport })}
                         </small>
                       </div>
                     ))}
                   </div>
                   <p className="r-note">
-                    Implied probabilities are market prices, not confirmed
-                    outcomes.
+                    {t("Implied probabilities are market prices, not confirmed outcomes.")}
                   </p>
                   {live?.lastUpdateAt && (
                     <Timestamp
                       at={new Date(live.lastUpdateAt).toISOString()}
-                      label="Market updated"
+                      label={t("Market updated")}
                     />
                   )}
                   {live?.warnings.map((warning) => (
@@ -890,7 +888,7 @@ export function PredictionMarketsTab() {
                       disabled={!bookAvailable || liveFeed.loading}
                       onClick={() => setShowBook((value) => !value)}
                     >
-                      {showBook ? "Hide order book" : "View order book"}
+                      {showBook ? t("Hide order book") : t("View order book")}
                     </button>
                     {selected.url && (
                       <a
@@ -899,7 +897,7 @@ export function PredictionMarketsTab() {
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        View market ↗
+                        {t("View market ↗")}
                       </a>
                     )}
                   </div>
@@ -912,14 +910,14 @@ export function PredictionMarketsTab() {
       {showBook && (
         <div className="r-section r-orderbook">
           <div className="r-section-heading">
-            <h2>Order book</h2>
+            <h2>{t("Order book")}</h2>
             <label>
-              <span className="sr-only">Order book outcome</span>
+              <span className="sr-only">{t("Order book outcome")}</span>
               <select
                 value={outcome}
                 onChange={(event) => setOutcome(event.target.value)}
               >
-                <option value="">First outcome</option>
+                <option value="">{t("First outcome")}</option>
                 {live?.outcomes
                   .filter((item) => item.label)
                   .map((item) => (
@@ -930,7 +928,7 @@ export function PredictionMarketsTab() {
               </select>
             </label>
           </div>
-          {bookFeed.loading && <Spinner label="Reading order book…" />}
+          {bookFeed.loading && <Spinner label={t("Reading order book…")} />}
           {bookFeed.error && (
             <Problem retry={bookFeed.reload}>{bookFeed.error}</Problem>
           )}
@@ -938,12 +936,12 @@ export function PredictionMarketsTab() {
             <>
               <p className="r-note">
                 {book.outcome} ·{" "}
-                {book.transport === "realtime" ? "Live feed" : "REST snapshot"}
+                {book.transport === "realtime" ? t("Live feed") : t("REST snapshot")}
               </p>
               {analytics && (
                 <div className="r-metrics">
                   <Field
-                    label="Spread"
+                    label={t("Spread")}
                     value={
                       analytics.spreadPoints === null
                         ? "—"
@@ -951,27 +949,27 @@ export function PredictionMarketsTab() {
                     }
                   />
                   <Field
-                    label="Imbalance (top 5)"
+                    label={t("Imbalance (top 5)")}
                     value={signed(analytics.depth.top5.imbalance)}
                   />
                   <Field
-                    label="Bid depth (top 5)"
+                    label={t("Bid depth (top 5)")}
                     value={usd(analytics.depth.top5.bidUsd)}
                   />
                   <Field
-                    label="Ask depth (top 5)"
+                    label={t("Ask depth (top 5)")}
                     value={usd(analytics.depth.top5.askUsd)}
                   />
                 </div>
               )}
               <div className="r-ladder">
                 <div className="r-section-heading r-note">
-                  <span>Price</span>
-                  <span>Size</span>
-                  <span>Cumulative USD</span>
+                  <span>{t("Price")}</span>
+                  <span>{t("Size")}</span>
+                  <span>{t("Cumulative USD")}</span>
                 </div>
                 {book.asks.length === 0 && book.bids.length === 0 ? (
-                  <Problem>No depth is available for this outcome.</Problem>
+                  <Problem>{t("No depth is available for this outcome.")}</Problem>
                 ) : (
                   <Ladder book={book} />
                 )}
@@ -979,17 +977,17 @@ export function PredictionMarketsTab() {
               {book.timestamp && (
                 <Timestamp
                   at={new Date(book.timestamp).toISOString()}
-                  label="Book updated"
+                  label={t("Book updated")}
                 />
               )}
             </>
           )}
           {signalFeed.loading && (
-            <Spinner label="Reading analytical observations…" />
+            <Spinner label={t("Reading analytical observations…")} />
           )}
           {signalFeed.error && (
             <Problem retry={signalFeed.reload}>
-              Market observations could not be loaded.
+              {t("Market observations could not be loaded.")}
             </Problem>
           )}
           {signalFeed.data && <SignalPanel response={signalFeed.data} />}
@@ -999,8 +997,7 @@ export function PredictionMarketsTab() {
         </div>
       )}
       <p className="r-footnote">
-        Browsing needs no connected account. Search covers the provider’s active
-        markets; directly linked markets retain their reported status.
+        {t("Browsing needs no connected account. Search covers the provider’s active markets; directly linked markets retain their reported status.")}
       </p>
     </div>
   );

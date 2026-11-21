@@ -168,6 +168,17 @@ export async function buildUserContext(
 ): Promise<string> {
   const lines: string[] = ["## Current operator context", ""];
 
+  /* The operator's own setting, from the website's language menu — not text
+     anyone else wrote. It sets the language of the reply, nothing else. */
+  if (context.locale === "zh-CN") {
+    lines.push(
+      "Reply language: Simplified Chinese (简体中文). Write the whole reply in " +
+        "Simplified Chinese. Keep tickers, token symbols, addresses, venue and " +
+        "product names and every figure exactly as they are.",
+      "",
+    );
+  }
+
   const [watchlist, portfolio] = await Promise.allSettled([
     readWatchlist(context.userId),
     getPortfolio(context.userId, context.sessionWallet),

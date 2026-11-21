@@ -1,9 +1,11 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export interface Column<T> {
   key: string;
+  /** English — translated here, so a column list can live outside a component (`msg()`). */
   header: string;
   align?: "left" | "right";
   /** Applied to the header cell, so widths never shift as values tick. */
@@ -94,12 +96,13 @@ export function DataTable<T>({
   card?: (row: T) => React.ReactNode;
   className?: string;
 }) {
+  const t = useT();
   const table = (
     <table
       className={cn("w-full border-collapse text-left", className)}
       style={{ tableLayout: "fixed", minWidth: minWidth === undefined ? undefined : `calc(${minWidth}px + 2 * ${INSET_EXTRA})` }}
     >
-      <caption className="sr-only">{caption}</caption>
+      <caption className="sr-only">{t(caption)}</caption>
       {/* Widths live on the header cells, not a <colgroup>: fixed layout
           reads the first row either way, and a column dropped by its
           container query then takes its width with it. A <col> stays
@@ -120,7 +123,7 @@ export function DataTable<T>({
               )}
             >
               <span className={cn(column.headerSrOnly && "sr-only")}>
-                {column.header}
+                {t(column.header)}
               </span>
             </th>
           ))}
@@ -161,7 +164,7 @@ export function DataTable<T>({
   return (
     <div className="@container">
       <div className={breakpoint.table}>{table}</div>
-      <ul aria-label={caption} className={cn("list-none", breakpoint.cards)}>
+      <ul aria-label={t(caption)} className={cn("list-none", breakpoint.cards)}>
         {rows.map((row) => (
           <li
             key={getRowKey(row)}

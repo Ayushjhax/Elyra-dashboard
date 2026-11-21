@@ -30,10 +30,25 @@ pistachio edge and the one `--shadow-pop`. Both are solid under
 not spread further — any other floating layer is a flat panel with
 `--shadow-pop`.
 
-Three deliberate deviations are documented in `README.md` and commented at the
+Four deliberate deviations are documented in `README.md` and commented at the
 point where they happen: the figures font in `app/layout.tsx`, the chart
-embed in `components/panels/ChartPanel.tsx`, and the glass (the search
-palette and the header menus).
+embed in `components/panels/ChartPanel.tsx`, the glass (the search
+palette and the header menus), and Chinese text falling to the system's CJK
+face (`--font-cjk` in `app/globals.css`).
+
+The website speaks English and Simplified Chinese (`lib/i18n/`, "Languages"
+in `README.md`). Every word a person reads goes through the translator:
+`const t = useT(); t("English text", { values })` in a component, `msg("…")`
+for text defined outside one and translated where it renders, and
+`translateNow` only outside render. The key is the English. Plurals are
+spelled out, and a value never carries an English word. Every new key gets
+its entry in `lib/i18n/messages/zh-CN/` in the same change:
+`lib/i18n/coverage.test.ts` fails on a literal key without one, and
+`lib/i18n/catalog.test.ts` on catalog text. Never compare against a
+translated string; compare the English or the id. The locale is a cookie,
+never a path segment. Dates and ages take `t.locale`. A module the Android
+app shares takes the translator as an optional last argument that defaults
+to English, so the app's text does not change.
 
 The shell's geometry has one authority: `lib/layout.ts`. Every column bound,
 the centre's floor and share, and the order columns give up width in are there
@@ -142,10 +157,30 @@ tick when paper; a fill becomes a position (`origin: "order"`). A person
 also trades by hand: a market order (`/api/automation/trade`,
 `validateMarketOrder`) goes through the same `openPosition` with its TP/SL,
 its row written as `opening` before it is sent, and any open position closes
-by hand (`DELETE /api/automation/positions/[id]`, `closePosition`,
-`exit_reason: "closed_by_hand"`, closed only while still `open`). Both hand
-paths and limit orders pass `accountGate` (`lib/autotrade/accountGate.ts`) —
-paused, the day's loss limit, the open count, one live position per coin.
+by hand (`DELETE /api/automation/positions/[id]`, `closeTrade`,
+`exit_reason: "closed_by_hand"`, closed only while still `open`). A hand
+close may take a part (`?fraction=` 0.25, 0.5 or 0.75, `validateFraction`):
+the rest stays open, the part is appended to `partial_closes` and its result
+to `realised_partial_usd`, and a remainder below `LIMITS.minSizeUsd` is
+taken whole before the order is sent. Live, the remainder's new reduce-only
+exits (`placeExits`) are placed before the old ones are cancelled, so a
+position is never without its TP/SL; if they cannot be placed, the old ones
+stand. Exits move by hand through `moveExits` (`PATCH` on the same route,
+`validateExits`): on the right side of a fresh mark, no further from the
+entry than `LIMITS` allows an entry, new before old the same way. A fund's
+position closes whole and its exits are its manager's. Each entry records
+the mid it was sent at (`expected_price`) so its fill is shown against it.
+Both hand paths and limit orders pass `accountGate`
+(`lib/autotrade/accountGate.ts`) — paused, the day's loss limit, the open
+count, one live position per coin.
+The chart's Trade button (`components/trade/TradePanel.tsx`) is these same
+routes, not another path: a market order, a limit order or the position
+controls, for the market on screen when `PERP_MARKETS` has it, and the swap
+otherwise. TradingView's embed cannot hand a price out of the chart, so a
+limit's price is offered from Hyperliquid's book (`/api/market/book`,
+`lib/market/book.ts`), the chart's pivots and the day's range. A backtest
+hands a strategy to a new paper rule only as a filled form
+(`lib/autotrade/handoff.ts`); nothing is created until the person adds it.
 Trade notices go through
 `send` in `lib/notifications/deliver.ts` to the inbox, push and Telegram,
 and are not subject to alert preferences. The limits in `lib/autotrade/rules.ts` (`LIMITS`, `decide`) bound
@@ -154,6 +189,23 @@ every rule and are not settings. Rules start on paper; live orders need
 The pass runs on the five-minute tick, before delivery, and writes each
 position row before its order is sent (`unique (rule_id, signal_at)`), so a
 bar never trades twice.
+
+Research's Arbitrage and Sentiment tabs are observations, read live and
+never acted on. Arbitrage (`lib/research/arbitrage.ts`, `arbitrageMath.ts`)
+compares Hyperliquid's liquid perps with Binance's spot and perps net of
+base-tier taker fees; nothing in Elyra trades a gap or places an order on
+Binance. A shared ticker is not proof of a shared asset: a Binance price is
+compared only when its spot pair traded in the last day and it sits within
+`SAME_ASSET_MAX_GAP_PCT` of Hyperliquid's (`sameAsset`), so a different
+token under the same ticker or a delisted pair's last price is left out
+rather than shown as a gap. Sentiment (`lib/research/sentiment.ts`, `sentimentMath.ts`) shows the
+Fear & Greed Index, funding positioning and breadth side by side, with no
+blended score.
+
+Workspace layouts (`lib/workspaceLayouts.ts`) hold only what the operator
+could set by hand, and every width in one passes `clampColumn` when it is
+saved and again when it is applied — `lib/layout.ts` stays the one
+authority, and no layout sizes the chart.
 
 World markets (`/markets`, `lib/markets/`) prices every exchange from Pyth
 in its own currency, through its own symbol read (`worldCatalogue`), since
@@ -172,6 +224,28 @@ read live, never copied; other history is the reviewed list in
 only when there is something — a new hack, an 8% move in BTC/ETH/SOL, an
 anniversary — each written from facts through `writeFromFacts`, once
 (`post_key` is unique).
+
+The Daily Briefing (`/briefing`, `lib/briefing/`) is ten developments a day,
+in English and Simplified Chinese. A development is only ever something a
+source published: a story from the newsrooms in `OUTLETS`, read live from
+their RSS; a vote in a DAO in `SNAPSHOT_SPACES`; or a hack in DefiLlama's
+record. The model chooses among those candidates and words them. It never
+adds a development, and every line is held to its own candidate's facts by
+the same guard as `writeFromFacts`. A line that fails is replaced by the
+source's own headline and standfirst. The Chinese is held to the same facts,
+with exact 万/亿 and month conversions derived by code
+(`lib/briefing/guard.ts`); a line that fails shows in English. A `$TICKER`
+leads an item only when the facts name the coin and Pyth lists it, and a
+source link is attached by code, never by the model. "And more" (movers,
+Kamino stablecoin yields, signals) is computed by code. The keycap emoji are
+in the copied text only; the page draws its numbers in the brand's figures.
+It is written once a day by `/api/briefing/run`, which `pg_cron` calls after
+00:00 UTC (`0027_daily_briefing.sql`). It is a job of its own, never a step of
+the five-minute tick, and `day` is unique, so a day is written once.
+
+The model thinks before it answers, and the thinking counts against
+`maxTokens`. A budget of a few hundred tokens can be spent before any text,
+which returns nothing and falls back. Give a model call room for both.
 
 Outside AI agents reach Elyra through agent keys (`lib/agentApi/`,
 `docs/AGENT_API.md`): MCP at `/api/mcp` (Streamable HTTP, stateless, tools

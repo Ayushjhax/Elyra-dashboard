@@ -3,6 +3,7 @@
    and sign conventions stay identical across panels.
 --------------------------------------------------------------------------- */
 
+import { intlLocale, type Locale } from "@/lib/i18n/locales";
 import { priceDecimals } from "@/lib/market/precision";
 
 export function formatUsd(
@@ -69,23 +70,26 @@ export function formatPrice(value: number, decimals = 2): string {
 }
 
 /**
- * "just now", "4m ago", "2h ago", "3d ago".
+ * "just now", "4m ago", "2h ago", "3d ago" — or "刚刚", "4分钟前" for a Chinese
+ * reader. Every date and age formatter here takes the reader's locale last,
+ * English when omitted (the Android app passes none).
  *
  * `now` is required. There is no instant the server and the client agree on,
  * so a caller passes the shared clock from lib/useClock.ts — null until
  * hydration — and renders nothing relative until it has one.
  */
-export function formatRelativeTime(iso: string, now: number): string {
+export function formatRelativeTime(iso: string, now: number, locale: Locale = "en"): string {
+  const zh = locale === "zh-CN";
   const seconds = Math.max(0, Math.round((now - Date.parse(iso)) / 1000));
-  if (seconds < 45) return "just now";
+  if (seconds < 45) return zh ? "刚刚" : "just now";
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return zh ? `${minutes}分钟前` : `${minutes}m ago`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return zh ? `${hours}小时前` : `${hours}h ago`;
   const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
+  if (days < 7) return zh ? `${days}天前` : `${days}d ago`;
   const weeks = Math.round(days / 7);
-  return `${weeks}w ago`;
+  return zh ? `${weeks}周前` : `${weeks}w ago`;
 }
 
 /**
@@ -94,18 +98,19 @@ export function formatRelativeTime(iso: string, now: number): string {
  * seconds, where `formatRelativeTime`'s 45-second "just now" would hide a
  * whole missed poll. `now` is the shared second clock, as above.
  */
-export function formatAge(at: number, now: number): string {
+export function formatAge(at: number, now: number, locale: Locale = "en"): string {
+  const zh = locale === "zh-CN";
   const seconds = Math.max(0, Math.round((now - at) / 1000));
-  if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 5) return zh ? "刚刚" : "just now";
+  if (seconds < 60) return zh ? `${seconds}秒前` : `${seconds}s ago`;
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  return formatRelativeTime(new Date(at).toISOString(), now);
+  if (minutes < 60) return zh ? `${minutes}分钟前` : `${minutes}m ago`;
+  return formatRelativeTime(new Date(at).toISOString(), now, locale);
 }
 
 /** Clock time, to the minute: 14:06. */
-export function formatClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", {
+export function formatClock(iso: string, locale: Locale = "en"): string {
+  return new Date(iso).toLocaleTimeString(intlLocale(locale), {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "UTC",
@@ -113,18 +118,18 @@ export function formatClock(iso: string): string {
 }
 
 /** Date + clock for rows that can be older than today. */
-export function formatTimestamp(iso: string): string {
+export function formatTimestamp(iso: string, locale: Locale = "en"): string {
   const date = new Date(iso);
-  const day = date.toLocaleDateString("en-GB", {
+  const day = date.toLocaleDateString(intlLocale(locale), {
     day: "2-digit",
     month: "short",
     timeZone: "UTC",
   });
-  return `${day} ${formatClock(iso)}`;
+  return `${day} ${formatClock(iso, locale)}`;
 }
 
 /** Today / Yesterday / 28 Aug — the Activity feed's group headers. */
-export function formatDayGroup(iso: string, now: number): string {
+export function formatDayGroup(iso: string, now: number, locale: Locale = "en"): string {
   const startOfDay = (ms: number) => {
     const d = new Date(ms);
     return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -132,9 +137,9 @@ export function formatDayGroup(iso: string, now: number): string {
   const days = Math.round(
     (startOfDay(now) - startOfDay(Date.parse(iso))) / 86_400_000,
   );
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return new Date(iso).toLocaleDateString("en-GB", {
+  if (days <= 0) return locale === "zh-CN" ? "今天" : "Today";
+  if (days === 1) return locale === "zh-CN" ? "昨天" : "Yesterday";
+  return new Date(iso).toLocaleDateString(intlLocale(locale), {
     day: "2-digit",
     month: "short",
     timeZone: "UTC",

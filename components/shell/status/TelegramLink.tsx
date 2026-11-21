@@ -8,6 +8,7 @@ import { Tip } from "@/components/shell/RouteDrawer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The way to Telegram, which is the app's second surface onto the same agent.
@@ -37,6 +38,7 @@ const control = cn(
 );
 
 export function TelegramLink() {
+  const t = useT();
   const auth = useElyraAuth();
   const authedFetch = useAuthedFetch();
   const [state, setState] = useState<LinkState>(INITIAL);
@@ -78,11 +80,11 @@ export function TelegramLink() {
     /* A button rather than a bare icon, so the reason can be reached by
        keyboard and, through `openOnTap`, on a touch screen. */
     return (
-      <Tip label="Telegram is not configured for this deployment" openOnTap>
+      <Tip label={t("Telegram is not configured for this deployment")} openOnTap>
         <button
           type="button"
           aria-disabled="true"
-          aria-label="Telegram is not configured"
+          aria-label={t("Telegram is not configured")}
           className={cn(control, "cursor-not-allowed text-text-muted opacity-50")}
         >
           {icon}
@@ -93,7 +95,7 @@ export function TelegramLink() {
 
   const linked = state.linked && state.botUsername !== null;
   const href = linked ? `https://t.me/${state.botUsername}` : "/agent";
-  const label = linked ? "Open Elyra in Telegram" : "Connect Telegram";
+  const label = linked ? t("Open Elyra in Telegram") : t("Connect Telegram");
 
   return (
     <Tooltip>

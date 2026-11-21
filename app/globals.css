@@ -100,6 +100,17 @@
   --dur-base: 180ms;
   --dur-slow: 280ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* 5. Chinese. Neither brand face draws a CJK glyph, so Chinese text falls
+     to the reader's own system face — PingFang on Apple, YaHei on Windows,
+     Noto or Source Han on Android and Linux — named so every platform picks
+     its best rather than whatever system-ui resolves to. The stacks below put
+     it after the brand faces, so Latin letters and figures in a Chinese
+     sentence are still Fustat and General Sans. The fourth deviation in
+     README.md. Declared here, not in @theme, so it exists whether or not a
+     utility names it. */
+  --font-cjk: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC";
 }
 
 /* Radii + the one permitted shadow. Declared in @theme so Tailwind emits the
@@ -164,11 +175,12 @@
   --color-agent-accent: var(--agent-accent);
   --color-agent-rail: var(--agent-rail);
 
-  --font-display: var(--font-fustat), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fustat), var(--font-cjk), ui-sans-serif, system-ui,
+    sans-serif;
   /* Figures first: it only claims digits and numeric punctuation, so General
      Sans still draws every letter. See app/layout.tsx for why. */
-  --font-sans: var(--font-figures), var(--font-general-sans), ui-sans-serif,
-    system-ui, sans-serif;
+  --font-sans: var(--font-figures), var(--font-general-sans), var(--font-cjk),
+    ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Menlo", monospace;
 
   --ease-brand: var(--ease);

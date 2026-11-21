@@ -16,6 +16,9 @@ import { txExplorerUrl } from "@/lib/solana/address";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { runSwap } from "@/lib/wallet/runSwap";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Buying or rebalancing a portfolio: a reviewed list of swaps, run one after
@@ -45,8 +48,10 @@ interface Row {
   signature: string | null;
 }
 
-function describe(leg: Leg): string {
-  return leg.side === "buy" ? `Buy ${leg.ticker} with ${leg.amount} USDC` : `Sell ${leg.amount} ${leg.ticker} for USDC`;
+function describe(leg: Leg, t: Translator): string {
+  return leg.side === "buy"
+    ? t("Buy {ticker} with {amount} USDC", { ticker: leg.ticker, amount: leg.amount })
+    : t("Sell {amount} {ticker} for USDC", { ticker: leg.ticker, amount: leg.amount });
 }
 
 function StatusIcon({ status }: { status: Status }) {
@@ -58,13 +63,13 @@ function StatusIcon({ status }: { status: Status }) {
 }
 
 const STATUS_WORDS: Record<Status, string> = {
-  waiting: "Waiting",
-  quoting: "Quoting",
-  signing: "Waiting for your signature",
-  landed: "Landed",
-  recorded: "Landed and recorded",
-  failed: "Did not go through",
-  skipped: "Not started",
+  waiting: msg("Waiting"),
+  quoting: msg("Quoting"),
+  signing: msg("Waiting for your signature"),
+  landed: msg("Landed"),
+  recorded: msg("Landed and recorded"),
+  failed: msg("Did not go through"),
+  skipped: msg("Not started"),
 };
 
 export function TradeDialog({
@@ -82,6 +87,7 @@ export function TradeDialog({
   newHoldings: number;
   onClose: () => void;
 }) {
+  const t = useT();
   const auth = useElyraAuth();
   const { wallets } = useWallets();
   const { signTransaction } = useSignTransaction();
@@ -104,7 +110,7 @@ export function TradeDialog({
       setError(null);
       const wallet = wallets.find((entry) => entry.address === auth.solanaAddress) ?? wallets[0];
       if (wallet === undefined) {
-        setError("No Solana wallet is connected in this browser.");
+        setError(t("No Solana wallet is connected in this browser."));
         return;
       }
 
@@ -117,7 +123,7 @@ export function TradeDialog({
       for (let position = 0; position < indices.length; position += 1) {
         const index = indices[position];
         if (stopping.current) {
-          for (const rest of indices.slice(position)) update(rest, { status: "skipped", detail: "Stopped before this swap." });
+          for (const rest of indices.slice(position)) update(rest, { status: "skipped", detail: t("Stopped before this swap.") });
           break;
         }
 
@@ -136,14 +142,14 @@ export function TradeDialog({
           update(index, { status: "failed", detail: result.error });
           if (result.cancelled) {
             for (const rest of indices.slice(position + 1)) {
-              update(rest, { status: "skipped", detail: "Not started — the signature before it was cancelled." });
+              update(rest, { status: "skipped", detail: t("Not started — the signature before it was cancelled.") });
             }
             break;
           }
           continue;
         }
 
-        update(index, { status: "landed", detail: "Recording…", signature: result.signature });
+        update(index, { status: "landed", detail: t("Recording…"), signature: result.signature });
         /* Recorded alongside the next leg rather than before it: an RFQ quote
            is good for seconds, and waiting on the ledger would spend them. */
         recordings.push(
@@ -155,8 +161,8 @@ export function TradeDialog({
                 status: "landed",
                 detail:
                   fill.outcome === "pending"
-                    ? "Landed, but the network has not shown it yet, so it is not counted in this portfolio. Record it again in a minute."
-                    : `Landed, but not counted in this portfolio: ${fill.reason ?? "the ledger refused it."}`,
+                    ? t("Landed, but the network has not shown it yet, so it is not counted in this portfolio. Record it again in a minute.")
+                    : t("Landed, but not counted in this portfolio: {reason}", { reason: fill.reason ?? t("the ledger refused it.") }),
               });
             }
           }),
@@ -166,23 +172,23 @@ export function TradeDialog({
       await Promise.all(recordings);
       setPhase("done");
     },
-    [wallets, auth.solanaAddress, signTransaction, authedFetch, legs, portfolio.id, record, update],
+    [wallets, auth.solanaAddress, signTransaction, authedFetch, legs, portfolio.id, record, update, t],
   );
 
   const recordAgain = useCallback(
     async (index: number) => {
       const signature = rows[index]?.signature;
       if (signature === null || signature === undefined) return;
-      update(index, { detail: "Recording…" });
+      update(index, { detail: t("Recording…") });
       const fill = await record(portfolio.id, signature);
       update(
         index,
         fill.outcome === "recorded" || fill.outcome === "already-recorded"
           ? { status: "recorded", detail: null }
-          : { detail: fill.reason ?? "Still not recorded." },
+          : { detail: fill.reason ?? t("Still not recorded.") },
       );
     },
-    [rows, record, portfolio.id, update],
+    [rows, record, portfolio.id, update, t],
   );
 
   const failed = rows.flatMap((row, index) => (row.status === "failed" || row.status === "skipped" ? [index] : []));
@@ -192,20 +198,24 @@ export function TradeDialog({
   const spend = buys.reduce((sum, leg) => sum + leg.usd, 0);
   const raise = sells.reduce((sum, leg) => sum + leg.usd, 0);
 
-  const title = kind === "buy" ? `Buy ${portfolio.name}` : `Rebalance ${portfolio.name}`;
+  const title = kind === "buy" ? t("Buy {name}", { name: t(portfolio.name) }) : t("Rebalance {name}", { name: t(portfolio.name) });
 
   const notes = [
-    `${legs.length} ${legs.length === 1 ? "swap" : "swaps"}, each signed in your wallet, run one after another. If one is refused — an Ondo token outside its trading hours — the rest still run, and you can retry it.`,
+    legs.length === 1
+      ? t("1 swap, signed in your wallet. If it is refused — an Ondo token outside its trading hours — you can retry it.")
+      : t("{count} swaps, each signed in your wallet, run one after another. If one is refused — an Ondo token outside its trading hours — the rest still run, and you can retry it.", { count: legs.length }),
   ];
   if (sells.length > 0) {
-    notes.push("Sales run first, so the buys are paid with the USDC they raise. Buys spend 99% of the expected proceeds, so a little USDC may be left.");
+    notes.push(t("Sales run first, so the buys are paid with the USDC they raise. Buys spend 99% of the expected proceeds, so a little USDC may be left."));
   }
   if (newHoldings > 0) {
     notes.push(
-      `${newHoldings} ${newHoldings === 1 ? "holding is" : "holdings are"} new to this wallet. Each opens a token account that holds about 0.002 SOL, returned if the account is closed — keep some SOL for that and for network fees.`,
+      newHoldings === 1
+        ? t("1 holding is new to this wallet. It opens a token account that holds about 0.002 SOL, returned if the account is closed — keep some SOL for that and for network fees.")
+        : t("{count} holdings are new to this wallet. Each opens a token account that holds about 0.002 SOL, returned if the account is closed — keep some SOL for that and for network fees.", { count: newHoldings }),
     );
   }
-  notes.push(ELIGIBILITY_NOTE);
+  notes.push(t(ELIGIBILITY_NOTE));
 
   return (
     <Dialog
@@ -219,10 +229,10 @@ export function TradeDialog({
       <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
-            <Eyebrow>{kind === "buy" ? "Buy portfolio" : "Rebalance"}</Eyebrow>
+            <Eyebrow>{kind === "buy" ? t("Buy portfolio") : t("Rebalance")}</Eyebrow>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            {title}: a list of swaps, each routed by Jupiter and signed in your wallet.
+            {t("{title}: a list of swaps, each routed by Jupiter and signed in your wallet.", { title })}
           </DialogDescription>
         </header>
 
@@ -230,8 +240,8 @@ export function TradeDialog({
           <div className="flex flex-col gap-0.5">
             <p className="type-h2 text-text-primary">{title}</p>
             <p className="type-body-sm text-text-secondary">
-              {sells.length > 0 && <>Sells about {formatUsd(raise)} · </>}
-              {buys.length > 0 ? <>Spends {formatUsd(spend)} USDC</> : <>No buys</>}
+              {sells.length > 0 && <>{t("Sells about {raise} ·", { raise: formatUsd(raise) })}{" "}</>}
+              {buys.length > 0 ? <>{t("Spends {spend} USDC", { spend: formatUsd(spend) })}</> : <>{t("No buys")}</>}
             </p>
           </div>
 
@@ -242,7 +252,7 @@ export function TradeDialog({
                   <span className="grid size-4 shrink-0 place-items-center">
                     <StatusIcon status={row.status} />
                   </span>
-                  <span className="type-data-sm min-w-0 flex-1 truncate text-text-primary">{describe(row.leg)}</span>
+                  <span className="type-data-sm min-w-0 flex-1 truncate text-text-primary">{describe(row.leg, t)}</span>
                   <span className="type-data-sm shrink-0 text-text-secondary">≈ {formatUsd(row.leg.usd)}</span>
                 </div>
                 {row.status !== "waiting" && (
@@ -253,7 +263,7 @@ export function TradeDialog({
                         row.status === "failed" ? "text-negative" : row.status === "recorded" ? "text-positive" : "text-text-muted",
                       )}
                     >
-                      {STATUS_WORDS[row.status]}
+                      {t(STATUS_WORDS[row.status])}
                     </span>
                     {row.signature !== null && (
                       <a
@@ -263,7 +273,7 @@ export function TradeDialog({
                         className="type-label inline-flex items-center gap-1 text-text-secondary hover:text-text-primary"
                       >
                         <ExternalLink size={11} aria-hidden />
-                        Explorer
+                        {t("Explorer")}
                       </a>
                     )}
                     {phase === "done" && row.status === "landed" && row.signature !== null && (
@@ -272,7 +282,7 @@ export function TradeDialog({
                         onClick={() => void recordAgain(index)}
                         className="type-label text-text-primary underline underline-offset-2"
                       >
-                        Record again
+                        {t("Record again")}
                       </button>
                     )}
                   </div>
@@ -295,8 +305,8 @@ export function TradeDialog({
 
           {phase === "done" && (
             <p role="status" className="type-body-sm text-text-primary">
-              {landed} of {legs.length} {legs.length === 1 ? "swap" : "swaps"} landed.
-              {failed.length > 0 && " The rest can be retried — prices are quoted fresh each time."}
+              {(legs.length === 1 ? t("{landed} of 1 swap landed.", { landed }) : t("{landed} of {count} swaps landed.", { landed, count: legs.length }))}
+              {failed.length > 0 && t(" The rest can be retried — prices are quoted fresh each time.")}
             </p>
           )}
 
@@ -316,28 +326,28 @@ export function TradeDialog({
                 stopping.current = true;
               }}
             >
-              Stop after this swap
+              {t("Stop after this swap")}
             </Button>
           ) : (
             <Button size="sm" variant="quiet" onClick={onClose}>
-              {phase === "done" ? "Done" : "Cancel"}
+              {phase === "done" ? t("Done") : t("Cancel")}
             </Button>
           )}
 
           {phase === "review" && (
             <Button size="sm" variant="accent" onClick={() => void run(legs.map((_, index) => index))}>
-              {kind === "buy" ? "Start purchase" : "Start rebalance"}
+              {kind === "buy" ? t("Start purchase") : t("Start rebalance")}
             </Button>
           )}
           {phase === "done" && failed.length > 0 && (
             <Button size="sm" variant="accent" onClick={() => void run(failed)}>
-              Retry {failed.length} {failed.length === 1 ? "swap" : "swaps"}
+              {(failed.length === 1 ? t("Retry 1 swap") : t("Retry {count} swaps", { count: failed.length }))}
             </Button>
           )}
           {phase === "running" && (
             <span className="type-label inline-flex items-center gap-1.5 text-text-secondary">
               <Loader2 size={14} className="animate-spin" aria-hidden />
-              Working
+              {t("Working")}
             </span>
           )}
         </footer>

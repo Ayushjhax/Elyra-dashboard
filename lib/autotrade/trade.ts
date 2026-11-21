@@ -75,7 +75,10 @@ export async function openMarketTrade(
       side: order.side,
       coin: order.coin,
       size: Number((order.sizeUsd / price).toPrecision(8)),
+      original_size: Number((order.sizeUsd / price).toPrecision(8)),
       entry_price: Number(price.toPrecision(8)),
+      /* What the fill is measured against: the mid as the order went. */
+      expected_price: Number(mid.toPrecision(8)),
       take_profit: Number(planned.takeProfit.toPrecision(8)),
       stop_loss: Number(planned.stopLoss.toPrecision(8)),
       signal_at: new Date(now).toISOString(),
@@ -123,6 +126,7 @@ export async function openMarketTrade(
     .update({
       status: "open",
       size: result.size,
+      original_size: result.size,
       entry_price: result.entryPrice,
       take_profit: result.takeProfit,
       stop_loss: result.stopLoss,

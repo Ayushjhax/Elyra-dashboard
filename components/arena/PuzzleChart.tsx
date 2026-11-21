@@ -3,6 +3,7 @@
 import type { Bar } from "@/lib/arena/puzzle";
 import { HIDDEN_BARS } from "@/lib/arena/puzzle";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The puzzle's chart: candles on a rebased scale (first close = 100), with
@@ -16,6 +17,7 @@ const HEIGHT = 170;
 const PAD = 6;
 
 export function PuzzleChart({ visible, reveal }: { visible: Bar[]; reveal: Bar[] | null }) {
+  const t = useT();
   const shown = reveal === null ? visible : [...visible, ...reveal];
   const slots = visible.length + (reveal?.length ?? HIDDEN_BARS);
   const lows = shown.map((bar) => bar.low);
@@ -35,8 +37,8 @@ export function PuzzleChart({ visible, reveal }: { visible: Bar[]; reveal: Bar[]
       role="img"
       aria-label={
         reveal === null
-          ? `A chart of ${visible.length} hourly bars, rebased to 100, ending at ${last.toFixed(2)}. The next ${HIDDEN_BARS} bars are hidden.`
-          : `The same chart with the next ${reveal.length} bars revealed, ending at ${(reveal[reveal.length - 1]?.close ?? last).toFixed(2)}.`
+          ? t("A chart of {count} hourly bars, rebased to 100, ending at {last}. The next {HIDDEN_BARS} bars are hidden.", { count: visible.length, last: last.toFixed(2), HIDDEN_BARS })
+          : t("The same chart with the next {count} bars revealed, ending at {value}.", { count: reveal.length, value: (reveal[reveal.length - 1]?.close ?? last).toFixed(2) })
       }
       className="h-44 w-full rounded-card border border-border-subtle bg-surface-base"
     >

@@ -11,6 +11,7 @@ import { formatPriceUsd } from "@/lib/format";
 import { priceDecimals } from "@/lib/market/precision";
 import { isPast, useAlerts } from "@/lib/alerts/useAlerts";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Price alerts on the chart's own market.
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 export function ChartAlerts({ symbol, price }: { symbol: string; price: number | null }) {
+  const t = useT();
   const auth = useElyraAuth();
   const feed = useAlerts();
   const [open, setOpen] = useState(false);
@@ -58,7 +60,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
   return (
     <Popover
       id="chart-alerts"
-      label={`Price alerts for ${symbol}`}
+      label={t("Price alerts for {symbol}", { symbol })}
       open={open}
       onOpenChange={setOpen}
       align="start"
@@ -69,7 +71,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
           aria-expanded={open}
           aria-controls="chart-alerts"
           aria-haspopup="dialog"
-          aria-label={`Price alerts${armed.length > 0 ? `, ${armed.length} armed` : ""}`}
+          aria-label={(armed.length > 0 ? t("Price alerts, {count} armed", { count: armed.length }) : t("Price alerts"))}
           onClick={openPanel}
           className={cn(
             "type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2 @4xl:px-2.5",
@@ -80,20 +82,20 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
           )}
         >
           <Bell size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @4xl:inline">Alerts</span>
+          <span className="hidden @4xl:inline">{t("Alerts")}</span>
           {armed.length > 0 && <span className="type-data-sm text-text-muted">{armed.length}</span>}
         </button>
       }
     >
-      <p className="type-panel-title text-text-primary">{symbol} price alerts</p>
+      <p className="type-panel-title text-text-primary">{t("{symbol} price alerts", { symbol })}</p>
 
       {!auth.available ? (
-        <p className="type-body-sm mt-2 text-text-secondary">Sign-in is not configured, so alerts cannot be saved.</p>
+        <p className="type-body-sm mt-2 text-text-secondary">{t("Sign-in is not configured, so alerts cannot be saved.")}</p>
       ) : !signedIn ? (
         <div className="mt-2">
-          <p className="type-body-sm text-text-secondary">Sign in to set alerts on {symbol}.</p>
+          <p className="type-body-sm text-text-secondary">{t("Sign in to set alerts on {symbol}.", { symbol })}</p>
           <Button className="mt-3" size="sm" variant="accent" onClick={auth.login}>
-            Connect wallet
+            {t("Connect wallet")}
           </Button>
         </div>
       ) : (
@@ -105,15 +107,15 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
               {alerts.map((alert) => (
                 <li key={alert.id} className="flex items-center gap-2 py-1.5">
                   <span className="type-data min-w-0 flex-1 text-text-primary">
-                    {alert.direction === "above" ? "Above" : "Below"} {formatPriceUsd(alert.target)}
+                    {alert.direction === "above" ? t("Above") : t("Below")} {formatPriceUsd(alert.target)}
                   </span>
                   <span className="type-label text-text-muted">
-                    {alert.triggeredAt ? "Fired" : isPast(alert, price) ? "Crossed" : "Armed"}
+                    {alert.triggeredAt ? t("Fired") : isPast(alert, price) ? t("Crossed") : t("Armed")}
                   </span>
                   <button
                     type="button"
                     onClick={() => void feed.remove(alert.id)}
-                    aria-label={`Remove the ${alert.direction} ${formatPriceUsd(alert.target)} alert`}
+                    aria-label={t("Remove the {direction} {target} alert", { direction: alert.direction, target: formatPriceUsd(alert.target) })}
                     className="inline-flex size-7 items-center justify-center rounded-chip text-text-muted hover:bg-surface-hover hover:text-negative"
                   >
                     <Trash2 size={13} strokeWidth={1.5} aria-hidden />
@@ -130,7 +132,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
               void create();
             }}
           >
-            <div role="radiogroup" aria-label="Direction" className="flex gap-1">
+            <div role="radiogroup" aria-label={t("Direction")} className="flex gap-1">
               {(["above", "below"] as const).map((side) => (
                 <button
                   key={side}
@@ -148,23 +150,23 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
                       : "text-text-secondary hover:bg-surface-hover",
                   )}
                 >
-                  {side === "above" ? "Rises above" : "Falls below"}
+                  {side === "above" ? t("Rises above") : t("Falls below")}
                 </button>
               ))}
             </div>
             <label className="sr-only" htmlFor="chart-alert-target">
-              Alert price in USD
+              {t("Alert price in USD")}
             </label>
             <input
               id="chart-alert-target"
               inputMode="decimal"
               value={target}
               onChange={(event) => setTarget(event.target.value.replace(/[^\d.]/g, ""))}
-              placeholder="Price in USD"
+              placeholder={t("Price in USD")}
               className="type-data h-9 rounded-control border border-border-strong bg-surface-raised px-2.5 text-text-primary placeholder:text-text-muted focus:border-accent-quiet focus:outline-none"
             />
             <Button type="submit" size="sm" variant="accent" disabled={saving || Number(target) <= 0}>
-              {saving ? "Saving…" : "Set alert"}
+              {saving ? t("Saving…") : t("Set alert")}
             </Button>
           </form>
 
@@ -186,22 +188,22 @@ export function DeliveryNote({
   delivery: AlertsResponse["delivery"];
   className?: string;
 }) {
+  const t = useT();
   if (delivery === "telegram" || delivery === "app") return null;
   if (delivery === "inbox") {
     return (
       <p className={cn("type-label text-text-muted", className)}>
-        A crossing reaches your Elyra app&rsquo;s inbox, but push is off — turn price alerts on in the app&rsquo;s
-        notification settings to be told at once.
+        {t("A crossing reaches your Elyra app’s inbox, but push is off — turn price alerts on in the app’s notification settings to be told at once.")}
       </p>
     );
   }
   return (
     <p className={cn("type-label text-text-muted", className)}>
       {delivery === "muted"
-        ? "Price alerts are switched off for your Telegram chat, so a crossing is shown here but not sent. "
-        : "Alerts are delivered on Telegram, and no chat is linked — a crossing is shown here but not sent. "}
+        ? t("Price alerts are switched off for your Telegram chat, so a crossing is shown here but not sent. ")
+        : t("Alerts are delivered on Telegram, and no chat is linked — a crossing is shown here but not sent. ")}
       <Link href="/agent" className="text-text-secondary underline underline-offset-2">
-        {delivery === "muted" ? "Turn them on" : "Link Telegram"}
+        {delivery === "muted" ? t("Turn them on") : t("Link Telegram")}
       </Link>
       .
     </p>

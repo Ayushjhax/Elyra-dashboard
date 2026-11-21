@@ -5,6 +5,7 @@ import { Check, Copy } from "lucide-react";
 import { HowToConnect } from "@/components/connections/AgentKeysCard";
 import { Button } from "@/components/ui/Button";
 import { useCopy } from "@/lib/clipboard";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    How the person puts an AI to work on a fund: the connection (their agent
@@ -34,6 +35,7 @@ export function managerPrompt(name: string): string {
 }
 
 export function CopyBlock({ text, label }: { text: string; label: string }) {
+  const t = useT();
   const { state, copy } = useCopy();
   return (
     <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-base p-3">
@@ -41,7 +43,7 @@ export function CopyBlock({ text, label }: { text: string; label: string }) {
       <div>
         <Button size="xs" variant="quiet" onClick={() => void copy(text)} aria-label={label}>
           {state === "copied" ? <Check size={12} aria-hidden /> : <Copy size={12} aria-hidden />}
-          {state === "copied" ? "Copied" : "Copy"}
+          {state === "copied" ? t("Copied") : t("Copy")}
         </Button>
       </div>
     </div>
@@ -50,18 +52,18 @@ export function CopyBlock({ text, label }: { text: string; label: string }) {
 
 /** Shown once, straight after a key is made for a fund: the key is never shown again. */
 export function FreshKey({ keyText, fundName }: { keyText: string; fundName: string }) {
+  const t = useT();
   const origin = useOrigin();
   return (
     <div className="flex flex-col gap-3">
       <p className="type-body-sm text-text-primary">
-        This is the manager&apos;s key. It is shown once — Elyra keeps only its hash. Connect your agent with it, then give the agent its instructions.
+        {t("This is the manager's key. It is shown once — Elyra keeps only its hash. Connect your agent with it, then give the agent its instructions.")}
       </p>
       <HowToConnect origin={origin} keyText={keyText} />
-      <p className="type-label text-text-secondary">Standing instructions for the agent</p>
-      <CopyBlock text={managerPrompt(fundName)} label="Copy the manager's instructions" />
+      <p className="type-label text-text-secondary">{t("Standing instructions for the agent")}</p>
+      <CopyBlock text={managerPrompt(fundName)} label={t("Copy the manager's instructions")} />
       <p className="type-label text-text-muted">
-        Run the agent on a schedule — every hour, say — and the fund is managed while you are away. Elyra marks it, holds it to its charter and halts it at its
-        drawdown limit whether or not the agent is running.
+        {t("Run the agent on a schedule — every hour, say — and the fund is managed while you are away. Elyra marks it, holds it to its charter and halts it at its drawdown limit whether or not the agent is running.")}
       </p>
     </div>
   );

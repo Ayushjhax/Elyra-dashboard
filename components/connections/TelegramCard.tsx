@@ -28,6 +28,8 @@ import { useCopy } from "@/lib/clipboard";
 import { formatRelativeTime } from "@/lib/format";
 import { useMinute, useSecond } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Telegram: a second surface onto the same agent.
@@ -76,6 +78,7 @@ interface IssuedCode {
 type Read = { phase: "loading" } | { phase: "failed" } | { phase: "ready"; status: LinkStatus };
 
 export function TelegramCard() {
+  const t = useT();
   const accountFetch = useAccountFetch();
   const [read, setRead] = useState<Read>({ phase: "loading" });
   const [code, setCode] = useState<IssuedCode | null>(null);
@@ -176,7 +179,7 @@ export function TelegramCard() {
       const response = await accountFetch("/api/telegram/link", { method: "POST" });
       const body = await readJson<IssuedResponse>(response);
       if (!response.ok || typeof body.code !== "string" || typeof body.expiresAt !== "string") {
-        setError(body.error ?? "Could not generate a code. Try again.");
+        setError(body.error ?? t("Could not generate a code. Try again."));
         return;
       }
       const receivedAt = Date.now();
@@ -189,7 +192,7 @@ export function TelegramCard() {
       });
       setReplaced(replacing);
     } catch {
-      setError("Could not reach Elyra to generate a code. Check your connection and try again.");
+      setError(t("Could not reach Elyra to generate a code. Check your connection and try again."));
     } finally {
       inFlight.current = false;
       setIssuing(false);
@@ -205,14 +208,14 @@ export function TelegramCard() {
       const response = await accountFetch("/api/telegram/link", { method: "DELETE" });
       if (!response.ok) {
         const body = await readJson<{ error: string }>(response);
-        setError(body.error ?? "Could not unlink Telegram. The chat is still linked.");
+        setError(body.error ?? t("Could not unlink Telegram. The chat is still linked."));
         return;
       }
       setCode(null);
       setReplaced(false);
       setRead({ phase: "ready", status: { ...status, linked: false, username: null, linkedAt: null } });
     } catch {
-      setError("Could not reach Elyra to unlink. The chat is still linked.");
+      setError(t("Could not reach Elyra to unlink. The chat is still linked."));
     } finally {
       inFlight.current = false;
       setUnlinking(false);
@@ -231,49 +234,49 @@ export function TelegramCard() {
 
   const [badge, label]: [ConnectionStatus, string] =
     read.phase === "loading"
-      ? ["checking", "Checking"]
+      ? ["checking", t("Checking")]
       : linked
-        ? ["connected", "Connected"]
+        ? ["connected", t("Connected")]
         : unknown
           ? ["attention", "Couldn't check"]
           : unconfigured
-            ? ["unavailable", "Unavailable"]
+            ? ["unavailable", t("Unavailable")]
             : expired
-              ? ["expired", "Code expired"]
+              ? ["expired", t("Code expired")]
               : code !== null
-                ? ["awaiting", "Awaiting link"]
+                ? ["awaiting", t("Awaiting link")]
                 : issuing
-                  ? ["connecting", "Connecting"]
-                  : ["not-connected", "Not linked"];
+                  ? ["connecting", t("Connecting")]
+                  : ["not-connected", t("Not linked")];
 
   return (
     <ConnectionCard
       mark={<MarkTile icon={Send} />}
       title="Telegram"
-      subtitle="Your Elyra agent, wherever you are"
+      subtitle={t("Your Elyra agent, wherever you are")}
       status={<StatusBadge name="Telegram" status={badge} label={label} />}
     >
       {read.phase === "loading" ? (
-        <p className="type-body-sm text-text-muted">Checking your Telegram link…</p>
+        <p className="type-body-sm text-text-muted">{t("Checking your Telegram link…")}</p>
       ) : linked && status !== null ? (
         <LinkedSummary status={status} unlinking={unlinking} onUnlink={() => void unlink()} />
       ) : unknown ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <InlineError className="min-w-0 flex-1">
-            {status?.unavailable ?? "Could not check whether Telegram is linked."}
+            {status?.unavailable ?? t("Could not check whether Telegram is linked.")}
           </InlineError>
           <button type="button" onClick={() => void retry()} className={textAction}>
-            Try again
+            {t("Try again")}
           </button>
         </div>
       ) : unconfigured ? (
-        <InlineNote>Telegram is not set up on this deployment, so there is no bot to link.</InlineNote>
+        <InlineNote>{t("Telegram is not set up on this deployment, so there is no bot to link.")}</InlineNote>
       ) : code === null ? (
         <>
-          <p className="type-body-sm text-text-secondary">Same agent, accounts and preferences.</p>
+          <p className="type-body-sm text-text-secondary">{t("Same agent, accounts and preferences.")}</p>
           <button type="button" onClick={() => void issue()} disabled={issuing} className={cn(primaryAction, "w-full")}>
             <Send size={15} strokeWidth={1.5} aria-hidden />
-            {issuing ? "Generating a code…" : "Connect Telegram"}
+            {issuing ? t("Generating a code…") : t("Connect Telegram")}
           </button>
         </>
       ) : expired ? (
@@ -285,34 +288,32 @@ export function TelegramCard() {
           >
             <TimerOff size={16} strokeWidth={1.5} aria-hidden className="mt-0.5 shrink-0 text-negative" />
             <p className="type-body-sm text-text-secondary">
-              That code expired and no longer works. Codes are single use and last{" "}
-              {minutes(code.lifetimeMs)}.
+              {t("That code expired and no longer works. Codes are single use and last {lifetimeMs}.", { lifetimeMs: minutes(code.lifetimeMs) })}
             </p>
           </div>
           <button type="button" onClick={() => void issue()} disabled={issuing} className={cn(primaryAction, "w-full")}>
             <RefreshCw size={15} strokeWidth={1.5} aria-hidden />
-            {issuing ? "Generating a code…" : "Generate a new code"}
+            {issuing ? t("Generating a code…") : t("Generate a new code")}
           </button>
         </>
       ) : (
         <>
           <CodeBlock regionRef={codeRegion} code={code} left={left} />
-          {replaced && <InlineNote>Your previous code no longer works.</InlineNote>}
+          {replaced && <InlineNote>{t("Your previous code no longer works.")}</InlineNote>}
           {code.deepLink === null ? (
             <InlineNote>
-              Send <code className="type-mono-addr text-text-primary">/link {code.code}</code> to the Elyra bot in
-              Telegram.
+              {t("Send")}{" "}<code className="type-mono-addr text-text-primary">{t("/link {code}", { code: code.code })}</code>{" "}{t("to the Elyra bot in Telegram.")}
             </InlineNote>
           ) : (
             <a href={code.deepLink} target="_blank" rel="noopener noreferrer" className={cn(primaryAction, "w-full")}>
               <Send size={15} strokeWidth={1.5} aria-hidden />
-              Open Telegram to link
-              <span className="sr-only">(opens in a new tab)</span>
+              {t("Open Telegram to link")}
+              <span className="sr-only">{t("(opens in a new tab)")}</span>
             </a>
           )}
           <button type="button" onClick={() => void issue()} disabled={issuing} className={cn(textAction, "self-center")}>
             <RefreshCw size={13} strokeWidth={1.5} aria-hidden />
-            {issuing ? "Generating…" : "Generate a new code"}
+            {issuing ? t("Generating…") : t("Generate a new code")}
           </button>
         </>
       )}
@@ -337,6 +338,7 @@ function CodeBlock({
   left: number | null;
   regionRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const t = useT();
   const { state, copy } = useCopy();
 
   return (
@@ -344,14 +346,14 @@ function CodeBlock({
       ref={regionRef}
       tabIndex={-1}
       role="group"
-      aria-label="Linking code"
+      aria-label={t("Linking code")}
       className="rounded-card border border-border-strong bg-surface-base p-3"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="type-eyebrow text-text-muted">Linking code</span>
+        <span className="type-eyebrow text-text-muted">{t("Linking code")}</span>
         {left !== null && (
           <span className="type-data-sm text-text-secondary">
-            Expires in <span className="tabular-nums text-text-primary">{formatCountdown(left)}</span>
+            {t("Expires in")}{" "}<span className="tabular-nums text-text-primary">{formatCountdown(left)}</span>
           </span>
         )}
       </div>
@@ -366,7 +368,7 @@ function CodeBlock({
         <button
           type="button"
           onClick={() => void copy(code.code)}
-          aria-label="Copy the linking code"
+          aria-label={t("Copy the linking code")}
           className={cn(
             "type-label inline-flex h-8 shrink-0 items-center gap-1.5 rounded-control border px-2.5",
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
@@ -382,15 +384,15 @@ function CodeBlock({
           ) : (
             <Copy size={14} strokeWidth={1.5} aria-hidden />
           )}
-          {state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy" : "Copy"}
+          {state === "copied" ? t("Copied") : state === "failed" ? t("Couldn't copy") : t("Copy")}
         </button>
       </div>
 
       <p className="type-label mt-2 text-text-muted">
-        Single use · valid for {minutes(code.lifetimeMs)}
+        {t("Single use · valid for {lifetimeMs}", { lifetimeMs: minutes(code.lifetimeMs) })}
       </p>
       <span aria-live="polite" className="sr-only">
-        {state === "copied" ? "Copied the linking code" : state === "failed" ? "Could not copy the code. Select it instead." : ""}
+        {state === "copied" ? t("Copied the linking code") : state === "failed" ? t("Could not copy the code. Select it instead.") : ""}
       </span>
     </div>
   );
@@ -406,6 +408,7 @@ function LinkedSummary({
   unlinking: boolean;
   onUnlink: () => void;
 }) {
+  const t = useT();
   const now = useMinute();
   const [open, setOpen] = useState(false);
 
@@ -414,10 +417,10 @@ function LinkedSummary({
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
           <p className="type-body truncate font-medium text-text-primary">
-            {status.username === null ? "A Telegram chat" : `@${status.username}`}
+            {status.username === null ? t("A Telegram chat") : `@${status.username}`}
           </p>
           {status.linkedAt !== null && now !== null && (
-            <p className="type-label text-text-muted">Linked {formatRelativeTime(status.linkedAt, now)}</p>
+            <p className="type-label text-text-muted">{t("Linked {linkedAt}", { linkedAt: formatRelativeTime(status.linkedAt, now, t.locale) })}</p>
           )}
         </div>
         {status.botUsername !== null && (
@@ -427,26 +430,26 @@ function LinkedSummary({
             rel="noopener noreferrer"
             className={cn(quietAction, "h-9 px-3")}
           >
-            Open chat
+            {t("Open chat")}
             <ExternalLink size={14} strokeWidth={1.5} aria-hidden />
-            <span className="sr-only">(opens Telegram in a new tab)</span>
+            <span className="sr-only">{t("(opens Telegram in a new tab)")}</span>
           </a>
         )}
       </div>
 
       <CardRule />
 
-      <Disclosure open={open} onOpenChange={setOpen} icon={Bell} label="What Elyra sends you">
+      <Disclosure open={open} onOpenChange={setOpen} icon={Bell} label={t("What Elyra sends you")}>
         <NotificationToggles />
       </Disclosure>
 
       <CardRule />
 
       <ConfirmAction
-        trigger="Unlink"
-        question="Unlink Telegram? The chat stops answering for this account."
-        confirm="Unlink"
-        pendingLabel="Unlinking…"
+        trigger={t("Unlink")}
+        question={t("Unlink Telegram? The chat stops answering for this account.")}
+        confirm={t("Unlink")}
+        pendingLabel={t("Unlinking…")}
         pending={unlinking}
         onConfirm={onUnlink}
       />
@@ -467,12 +470,12 @@ interface Preferences {
 const TOGGLES: Array<{ key: keyof Preferences; label: string; hint: string }> = [
   {
     key: "liquidationAlerts",
-    label: "Liquidation warnings",
-    hint: "When a DeFi position approaches its published liquidation threshold.",
+    label: msg("Liquidation warnings"),
+    hint: msg("When a DeFi position approaches its published liquidation threshold."),
   },
-  { key: "largeMoves", label: "Large moves", hint: "When something you hold moves more than your threshold." },
-  { key: "priceAlerts", label: "Price alerts", hint: "Levels you set on the chart." },
-  { key: "dailySummary", label: "Daily summary", hint: "One message a day with where your capital stands." },
+  { key: "largeMoves", label: msg("Large moves"), hint: msg("When something you hold moves more than your threshold.") },
+  { key: "priceAlerts", label: msg("Price alerts"), hint: msg("Levels you set on the chart.") },
+  { key: "dailySummary", label: msg("Daily summary"), hint: msg("One message a day with where your capital stands.") },
 ];
 
 /**
@@ -485,6 +488,7 @@ const TOGGLES: Array<{ key: keyof Preferences; label: string; hint: string }> = 
  * than either state.
  */
 function NotificationToggles() {
+  const t = useT();
   const accountFetch = useAccountFetch();
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [failed, setFailed] = useState(false);
@@ -520,29 +524,29 @@ function NotificationToggles() {
       });
       if (!response.ok) {
         const body = await readJson<{ error: string }>(response);
-        setError(body.error ?? "Could not save that. Nothing was changed.");
+        setError(body.error ?? t("Could not save that. Nothing was changed."));
         return;
       }
       /* The server's answer, not the optimistic value. A switch that shows
          on while the row says off is a promise the product will not keep. */
       setPreferences((await response.json()) as Preferences);
     } catch {
-      setError("Could not save that. Nothing was changed.");
+      setError(t("Could not save that. Nothing was changed."));
     } finally {
       setPending(null);
     }
   };
 
-  if (failed) return <InlineError>Could not read your notification settings.</InlineError>;
-  if (preferences === null) return <p className="type-body-sm text-text-muted">Loading…</p>;
+  if (failed) return <InlineError>{t("Could not read your notification settings.")}</InlineError>;
+  if (preferences === null) return <p className="type-body-sm text-text-muted">{t("Loading…")}</p>;
 
   return (
     <div className="flex flex-col gap-1">
       {TOGGLES.map((item) => (
         <label key={item.key} className="flex cursor-pointer items-start justify-between gap-3 py-1.5">
           <span className="flex min-w-0 flex-col">
-            <span className="type-body-sm text-text-primary">{item.label}</span>
-            <span className="type-label text-text-muted">{item.hint}</span>
+            <span className="type-body-sm text-text-primary">{t(item.label)}</span>
+            <span className="type-label text-text-muted">{t(item.hint)}</span>
           </span>
           <input
             type="checkbox"

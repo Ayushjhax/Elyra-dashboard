@@ -43,7 +43,7 @@ the same pure modules in `lib/` — one source of truth for every rule.
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [Where to read more](#where-to-read-more)
-- [Three deliberate deviations from the brand doc](#three-deliberate-deviations-from-the-brand-doc)
+- [Four deliberate deviations from the brand doc](#four-deliberate-deviations-from-the-brand-doc)
 
 ## At a glance
 
@@ -104,6 +104,18 @@ holds a colour value.
   chart. Beside it: the watchlist, live signals, an activity feed, trading
   activity (spot, perps, orders, history) and automation. Columns resize,
   fold and remember themselves; focus mode clears everything but the chart.
+  Layouts save the whole arrangement under a name and switch it in one move
+  (the rail's settings menu, or ⌘K); four are built in.
+- **Trade from the chart.** The chart's Trade button opens a ticket for the
+  market on screen: long or short, market or limit, with the limit's price
+  offered from Hyperliquid's book (bid, mid, ask), the chart's pivots and the
+  day's range. Every entry carries its take-profit and stop-loss. Before it
+  is sent, the ticket walks the live order book for the size, so you see the
+  spread, the depth and what the order would fill at. Afterwards each fill
+  reports its price against the mid it was sent at. Open positions close
+  25%, 50%, 75% or all, and their take-profit and stop-loss move by hand.
+  It is paper unless live trading is on (see Trading automation in
+  `CLAUDE.md`).
 - **Ask Elyra.** The agent, in a column beside the chart (a drawer below
   1280px). It leads with a decision brief for the selected market — range,
   EMA, pivots, your exposure, your nearest alert — and answers questions with
@@ -119,13 +131,34 @@ holds a colour value.
 - **Portfolio and assets** (`/portfolio`, `/assets`). The wallet, Hyperliquid
   and Binance in one ledger, with holdings, DeFi deposits and history. Swaps
   and transfers are built by the server and signed in your wallet.
-- **Research** (`/research`). Seven tabs: Reports (PDFs, stored privately),
-  Backtests (a strategy engine with robustness checks and PDF results),
-  Prediction Markets (Polymarket, read-only), Market Recap, Signals, Yield and
-  Unlocks — plus SEC filings, insider activity and XBRL facts straight from
-  EDGAR.
+- **Research** (`/research`). Nine tabs:
+  - Reports: PDFs, stored privately.
+  - Backtests: a strategy engine with robustness checks and PDF results. A
+    result on a market and timeframe that a rule can trade offers "Run on
+    paper", which fills a new paper rule on `/automation` with the same
+    strategy and parameters.
+  - Prediction Markets: Polymarket, read-only.
+  - Market Recap and Signals.
+  - Arbitrage: Hyperliquid's perps against Binance's spot and perps. It shows
+    the basis and the funding gap net of taker fees, and how many days a
+    funding gap takes to pay its fees. These are observations; Elyra trades
+    none of them.
+  - Sentiment: the Fear & Greed Index, how Hyperliquid's perps are
+    positioned (funding and open interest), and how broad the day's move is.
+    Each is shown as it is; there is no blended score.
+  - Yield and Unlocks.
+
+  The page also has SEC filings, insider activity and XBRL facts straight
+  from EDGAR.
 - **Signals.** Elyra's own market signals, smart-money consensus from the
   Hyperliquid leaderboard, and the external signal engine when it is running.
+- **Daily briefing** (`/briefing`). Ten crypto developments every morning at
+  08:00 Beijing time (00:00 UTC), in English and Simplified Chinese, each with
+  its sources linked. Each item comes from six newsrooms' RSS feeds, Snapshot
+  votes in the DAOs Elyra follows, or DefiLlama's hack record. Below the ten
+  is "And more": movers, stablecoin yields and BTC/ETH/SOL signals, computed
+  at publication. Copy gives the numbered 1️⃣…🔟 text, ready to post.
+  Past days stay readable. See `lib/briefing/`.
 - **Referrals** (`/referrals`). A code per account, first-touch attribution
   through `/r/[code]`, and points once a referred account holds value — the
   programme is fixed in `lib/referrals/config.ts`, not set per deployment.
@@ -344,6 +377,12 @@ daily run as a fallback; calling the route twice is safe, because every event
 is claimed once before it is sent. The one-time setup is in
 `supabase/SCHEDULER.md`. A new scheduled job goes there, never in
 `vercel.json`.
+
+The Daily Briefing has a job of its own, `elyra-briefing`
+(`0027_daily_briefing.sql`). It calls `/api/briefing/run` four times in the
+first hour after 00:00 UTC, with the same Vault secrets, so the briefing's two
+model calls get a function's whole 300 seconds instead of sharing the
+five-minute tick's.
 
 One delivery pass claims each event and fans it out per channel: Telegram for
 a linked chat, a push and the inbox for an app device. Notification
@@ -568,7 +607,8 @@ whole card fits.
 Widget order and folds, which side columns are open and how wide, the rail's
 labels, the Trading activity and Automation folds, the trading tab and venue
 filter, the chart's interval, style and indicators, the watchlist and
-favourites, and the selected market. Focus mode does not: it suppresses the
+favourites, the selected market, and saved layouts (`lib/workspaceLayouts.ts`,
+whose widths are held to `lib/layout.ts` when saved and again when applied). Focus mode does not: it suppresses the
 side columns while it is on and finds them exactly as they were when it ends
 (Esc leaves it).
 
@@ -636,6 +676,44 @@ side columns while it is on and finds them exactly as they were when it ends
   `$0.00`. `formatRelativeTime` takes `now` as a required argument: callers
   pass the shared clock from `lib/useClock.ts`, which is null until
   hydration, so the server and the first client render agree.
+
+## Languages
+
+The website speaks English and Simplified Chinese (简体中文). The 文A menu in
+the header switches between them.
+
+- **Choosing the language.** The choice is a cookie, `elyra-locale`. With no
+  cookie, the browser's `Accept-Language` decides, so a Chinese browser lands
+  in Chinese. URLs do not change: there is no `/zh-CN/` prefix, because the
+  shell's geometry (`lib/layout.ts`), referral links and App Links all match
+  on the path. The root layout reads the locale, which renders every page per
+  request rather than as static HTML. That is what lets the HTML arrive in the
+  reader's language with no English flash.
+- **Translating.** The key is the English text: `const t = useT();
+  t("Connect wallet")`, with values by name — `t("{count} positions", {
+  count })`. Plurals are spelled out at the call site. Text defined outside a
+  component is marked `msg("…")` and translated where it renders
+  (`t(item.label)`). A server page passes English to `RouteDrawer`, which
+  translates its title. Metadata goes through `pageMetadata` in
+  `lib/i18n/server.ts`. Dates and ages pass `t.locale` to the formatters in
+  `lib/format.ts`.
+- **The dictionary.** It lives in `lib/i18n/messages/zh-CN/`, one file per
+  part of the product. It is loaded only on the server and handed to the
+  client provider, so English readers download none of it.
+- **What holds it complete.** `lib/i18n/coverage.test.ts` walks the code for
+  every literal `t()`, `msg()`, `translateNow()` and `pageMetadata()` key. It
+  fails on any key without a Chinese entry, and on any entry whose `{placeholders}`
+  differ from its key. `lib/i18n/catalog.test.ts` does the same for text that
+  reaches `t()` as data, such as the Intelligent Portfolios catalog and the
+  cluster names.
+- **The agent.** Elyra's replies follow the reader's language. The chat route
+  reads the same cookie and adds a reply-language line to the operator
+  context (`buildUserContext`). The pinned system prompts are unchanged.
+- **Still in English.** Text written by the server or by data: API error
+  messages, the Events feed's posts, SEC filing descriptions, backtest
+  strategy descriptions and Asset Passport facts. The Android app and the
+  Telegram bot are English only. The Daily Briefing is written in both
+  languages.
 
 # The API
 
@@ -1025,7 +1103,7 @@ for the app). The rules that catch people most often:
 - `CLAUDE.md` and `mobile/AGENTS.md` — the rules every change on either
   client is held to.
 
-# Three deliberate deviations from the brand doc
+# Four deliberate deviations from the brand doc
 
 These are the website's. The app's surfaces are flat, with no glass anywhere.
 Each is noted where it happens, in the file that makes the choice.
@@ -1054,6 +1132,13 @@ Each is noted where it happens, in the file that makes the choice.
    highlight and `--shadow-pop`. Rows and inset cards inside are tints, never
    a second blur. Opaque without backdrop-filter or under reduced
    transparency.
+4. **Chinese text.** Neither Fustat nor General Sans draws a CJK glyph. In
+   Simplified Chinese, the characters fall to the reader's own system face:
+   PingFang SC on Apple, Microsoft YaHei on Windows, Noto or Source Han Sans on
+   Android and Linux. That list is `--font-cjk` in `app/globals.css`. It sits
+   after the brand faces in both stacks, so Latin letters and figures inside a
+   Chinese sentence are still Fustat and General Sans, and tabular figures
+   still hold their columns.
 
 The black surfaces and the luminance layer (blooms, rims, frosted planes,
 gradient-filled controls) that used to be a third deviation are gone: the

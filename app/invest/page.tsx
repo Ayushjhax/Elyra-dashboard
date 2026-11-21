@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { Layers } from "lucide-react";
 import { InvestList } from "@/components/invest/InvestList";
 import { RouteDrawer } from "@/components/shell/RouteDrawer";
+import { pageMetadata } from "@/lib/i18n/server";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Intelligent Portfolios.
@@ -10,18 +13,17 @@ import { RouteDrawer } from "@/components/shell/RouteDrawer";
    chart stays the focus. The page lives in components/invest.
 --------------------------------------------------------------------------- */
 
-export const metadata = {
-  title: "Intelligent Portfolios · Elyra",
-  description: "Model portfolios you buy into your own wallet, with their holdings and drift in plain view.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata("Intelligent Portfolios", "Model portfolios you buy into your own wallet, with their holdings and drift in plain view.");
+}
 
 export default function InvestPage() {
   return (
     <RouteDrawer
-      label="Intelligent Portfolios"
+      label={msg("Intelligent Portfolios")}
       icon={<Layers size={28} strokeWidth={1.5} />}
-      title="Intelligent Portfolios"
-      subtitle="Model portfolios, held in your own wallet"
+      title={msg("Intelligent Portfolios")}
+      subtitle={msg("Model portfolios, held in your own wallet")}
     >
       <InvestList />
     </RouteDrawer>

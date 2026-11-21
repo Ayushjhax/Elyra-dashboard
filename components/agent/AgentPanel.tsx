@@ -39,6 +39,8 @@ import { useElyraStore } from "@/lib/store";
 import type { AgentTab, ChatMessage, ToolCall } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useDictation } from "@/lib/voice/useDictation";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Elyra — the agent panel.
@@ -62,9 +64,9 @@ const COMPOSER_MAX_HEIGHT = 120;
 const BOTTOM_SLOP = 72;
 
 const TABS: Array<{ value: AgentTab; label: string }> = [
-  { value: "ask", label: "Ask Elyra" },
-  { value: "signals", label: "Signals" },
-  { value: "research", label: "Research" },
+  { value: "ask", label: msg("Ask Elyra") },
+  { value: "signals", label: msg("Signals") },
+  { value: "research", label: msg("Research") },
 ];
 
 /**
@@ -73,6 +75,7 @@ const TABS: Array<{ value: AgentTab; label: string }> = [
  * against its evidence.
  */
 function ToolCallBlock({ call }: { call: ToolCall }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const panelId = useId();
 
@@ -92,12 +95,12 @@ function ToolCallBlock({ call }: { call: ToolCall }) {
           className={cn("shrink-0 text-text-muted transition-transform", open && "rotate-90")}
         />
         <Wrench size={14} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
-        <span className="type-data-sm min-w-0 flex-1 truncate text-text-secondary">{call.label}</span>
-        <span className="type-label shrink-0 text-text-muted">{call.rows.length} rows</span>
+        <span className="type-data-sm min-w-0 flex-1 truncate text-text-secondary">{t(call.label)}</span>
+        <span className="type-label shrink-0 text-text-muted">{t("{count} rows", { count: call.rows.length })}</span>
       </button>
       <div id={panelId} hidden={!open} className="overflow-x-auto border-t border-border-subtle">
         <table className="w-full border-collapse text-left">
-          <caption className="sr-only">{call.label}</caption>
+          <caption className="sr-only">{t(call.label)}</caption>
           <thead>
             <tr>
               {call.columns.map((column, index) => (
@@ -150,6 +153,7 @@ function MessageBubble({
   /** The request is in flight and this bubble is where the reply will land. */
   thinking: boolean;
 }) {
+  const t = useT();
   const isAgent = message.role === "agent";
 
   return (
@@ -166,7 +170,7 @@ function MessageBubble({
         {isAgent && message.team && <TeamTrace team={message.team} working={thinking} />}
 
         {message.attachments && message.attachments.length > 0 && (
-          <ul aria-label="Attached files" className="flex list-none flex-wrap justify-end gap-1.5">
+          <ul aria-label={t("Attached files")} className="flex list-none flex-wrap justify-end gap-1.5">
             {message.attachments.map((file, index) =>
               file.previewUrl ? (
                 <li key={`${file.name}-${index}`}>
@@ -195,10 +199,10 @@ function MessageBubble({
           <p aria-live="polite" className="type-body-sm flex items-center gap-2 text-text-secondary">
             <Sparkles size={14} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
             {message.team
-              ? teamWorkingLine(message.team)
+              ? teamWorkingLine(message.team, t)
               : message.activity
-                ? `Reading ${message.activity}…`
-                : "Elyra is working…"}
+                ? t("Reading {activity}…", { activity: message.activity })
+                : t("Elyra is working…")}
           </p>
         ) : message.text.length > 0 || isAgent ? (
           <p
@@ -213,7 +217,7 @@ function MessageBubble({
 
         {!thinking && isAgent && !streaming && message.sources && message.sources.length > 0 && (
           <p className="type-data-sm text-text-muted">
-            <span className="text-text-secondary">Sources</span> · {message.sources.join(" · ")}
+            <span className="text-text-secondary">{t("Sources")}</span> · {message.sources.join(" · ")}
           </p>
         )}
 
@@ -222,7 +226,7 @@ function MessageBubble({
             dateTime={message.at}
             className={cn("type-data-sm text-text-muted", isAgent ? "text-left" : "text-right")}
           >
-            {formatClock(message.at)} UTC
+            {t("{at} UTC", { at: formatClock(message.at, t.locale) })}
           </time>
         )}
       </div>
@@ -241,6 +245,7 @@ function Conversation({
       anything awaiting review. */
   lead?: React.ReactNode;
 }) {
+  const t = useT();
   const messages = useElyraStore((state) => state.messages);
   const pending = useElyraStore((state) => state.agentPending);
   const streamingId = useElyraStore((state) => state.streamingId);
@@ -289,23 +294,22 @@ function Conversation({
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <ElyraMark size={44} />
             <div>
-              <p className="type-panel-title text-text-primary">Ask Elyra about crypto</p>
+              <p className="type-panel-title text-text-primary">{t("Ask Elyra about crypto")}</p>
               <p className="type-body-sm mx-auto mt-1 max-w-[30ch] text-text-secondary">
-                Markets, tokens, protocols and on-chain mechanics, with live prices,
-                funding, open interest and your connected accounts. It never places orders.
+                {t("Markets, tokens, protocols and on-chain mechanics, with live prices, funding, open interest and your connected accounts. It never places orders.")}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => onAsk(`Give me a brief on ${symbol || "the market"} right now.`)}
+              onClick={() => onAsk(t("Give me a brief on {symbol} right now.", { symbol: symbol || t("the market") }))}
               className="type-label rounded-control border border-border-strong px-3 py-1.5 text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
             >
-              Brief me on {symbol || "the market"}
+              {t("Brief me on")}{" "}{symbol || t("the market")}
             </button>
             <TeamArchitecture />
           </div>
         ) : (
-          <ul aria-label="Conversation" className="flex list-none flex-col gap-3">
+          <ul aria-label={t("Conversation")} className="flex list-none flex-col gap-3">
             {messages.map((message, index) => (
               <MessageBubble
                 key={message.id}
@@ -336,7 +340,7 @@ function Conversation({
           )}
         >
           <ArrowDown size={14} strokeWidth={1.5} aria-hidden />
-          New messages
+          {t("New messages")}
         </button>
       )}
     </div>
@@ -345,6 +349,7 @@ function Conversation({
 
 /** A staged file: thumbnail or icon, name, size, and a way to take it back. */
 function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove: () => void }) {
+  const t = useT();
   return (
     <li className="flex max-w-full items-center gap-2 rounded-control border border-border-subtle bg-surface-panel py-1 pl-1 pr-1.5">
       {file.previewUrl ? (
@@ -364,7 +369,7 @@ function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Remove ${file.name}`}
+        aria-label={t("Remove {name}", { name: file.name })}
         className="inline-flex size-6 shrink-0 items-center justify-center rounded-chip text-text-muted hover:bg-surface-hover hover:text-text-primary"
       >
         <X size={13} strokeWidth={1.5} aria-hidden />
@@ -385,6 +390,7 @@ function Composer({
       their height back. */
   showChips: boolean;
 }) {
+  const t = useT();
   const auth = useElyraAuth();
   const draft = useElyraStore((state) => state.composerDraft);
   const setDraft = useElyraStore((state) => state.setComposerDraft);
@@ -431,7 +437,7 @@ function Composer({
   const signedOut = auth.available && auth.ready && !auth.authenticated;
   const canSend =
     (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && dictation.status !== "transcribing";
-  const chips = showChips ? suggestionChips(cryptoSymbol) : [];
+  const chips = showChips ? suggestionChips(cryptoSymbol, t) : [];
 
   const send = () => {
     if (!canSend) return;
@@ -446,29 +452,31 @@ function Composer({
   const voiceBlocked = dictation.mode === "record" && signedOut;
   const voiceLabel =
     dictation.mode === null
-      ? "Voice input is not available in this browser"
+      ? t("Voice input is not available in this browser")
       : voiceBlocked
-        ? "Sign in to use voice input"
+        ? t("Sign in to use voice input")
         : listening
-          ? "Stop voice input"
+          ? t("Stop voice input")
           : dictation.status === "transcribing"
-            ? "Transcribing"
-            : "Speak your question";
+            ? t("Transcribing")
+            : t("Speak your question");
 
   const voiceLine =
     dictation.status === "listening"
-      ? "Listening — speak, then press the microphone to stop."
+      ? t("Listening — speak, then press the microphone to stop.")
       : dictation.status === "recording"
-        ? `Recording ${Math.floor(dictation.elapsed / 60)}:${String(dictation.elapsed % 60).padStart(2, "0")} — press the microphone to stop.`
+        ? t("Recording {time} — press the microphone to stop.", {
+            time: `${Math.floor(dictation.elapsed / 60)}:${String(dictation.elapsed % 60).padStart(2, "0")}`,
+          })
         : dictation.status === "transcribing"
-          ? "Transcribing your recording…"
+          ? t("Transcribing your recording…")
           : null;
   const error = dictation.error ?? notice;
 
   return (
     <div className="shrink-0 border-t border-border-subtle p-4">
       {chips.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2" aria-label="Suggested questions" role="group">
+        <div className="mb-3 flex flex-wrap gap-2" aria-label={t("Suggested questions")} role="group">
           {chips.map((chip) => (
             <button
               key={chip}
@@ -518,7 +526,7 @@ function Composer({
         )}
       >
         {attachments.length > 0 && (
-          <ul aria-label="Attached files" className="flex list-none flex-wrap gap-1.5">
+          <ul aria-label={t("Attached files")} className="flex list-none flex-wrap gap-1.5">
             {attachments.map((file) => (
               <AttachmentChip key={file.id} file={file} onRemove={() => removeAttachment(file.id)} />
             ))}
@@ -544,8 +552,8 @@ function Composer({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={reading || attachments.length >= ATTACHMENT_LIMITS.maxFiles}
-            aria-label="Attach files"
-            title="Attach an image, PDF or text file"
+            aria-label={t("Attach files")}
+            title={t("Attach an image, PDF or text file")}
             className={cn(
               "inline-flex size-8 shrink-0 items-center justify-center rounded-control text-text-muted",
               "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary",
@@ -560,7 +568,7 @@ function Composer({
           </button>
 
           <label htmlFor={composerId} className="sr-only">
-            Ask Elyra
+            {t("Ask Elyra")}
           </label>
           <textarea
             id={composerId}
@@ -592,12 +600,12 @@ function Composer({
             }}
             placeholder={
               signedOut
-                ? "Sign in to ask Elyra…"
+                ? t("Sign in to ask Elyra…")
                 : pending
-                  ? "Elyra is working…"
+                  ? t("Elyra is working…")
                   : listening
-                    ? "Listening…"
-                    : "Ask Elyra anything…"
+                    ? t("Listening…")
+                    : t("Ask Elyra anything…")
             }
             className={cn(
               "type-body-sm min-h-8 flex-1 resize-none bg-transparent px-1.5 py-1.5",
@@ -634,7 +642,7 @@ function Composer({
 
           <button
             type="submit"
-            aria-label="Send message"
+            aria-label={t("Send message")}
             disabled={!canSend}
             className={cn(
               "inline-flex size-8 shrink-0 items-center justify-center rounded-control",
@@ -659,9 +667,9 @@ function Composer({
             <span className="text-text-secondary">{voiceLine}</span>
           </>
         ) : dragging ? (
-          "Drop to attach — images, PDFs and text files."
+          t("Drop to attach — images, PDFs and text files.")
         ) : (
-          "Enter to send · Shift+Enter for a new line · Attach, drop or paste files"
+          t("Enter to send · Shift+Enter for a new line · Attach, drop or paste files")
         )}
       </p>
     </div>
@@ -681,6 +689,7 @@ export function AgentPanel({
   expanded?: boolean;
   onToggleExpand?: () => void;
 }) {
+  const t = useT();
   const auth = useElyraAuth();
   const tab = useElyraStore((state) => state.agentTab);
   const setTab = useElyraStore((state) => state.setAgentTab);
@@ -706,19 +715,19 @@ export function AgentPanel({
   };
 
   const status = pending
-    ? { dot: "bg-agent-accent", text: "Working on your request" }
+    ? { dot: "bg-agent-accent", text: t("Working on your request") }
     : !auth.available
-      ? { dot: "bg-text-muted", text: "Sign-in is not configured" }
+      ? { dot: "bg-text-muted", text: t("Sign-in is not configured") }
       : !auth.authenticated
-        ? { dot: "bg-text-muted", text: "Sign in to ask" }
-        : { dot: "bg-positive", text: "In sync" };
+        ? { dot: "bg-text-muted", text: t("Sign in to ask") }
+        : { dot: "bg-positive", text: t("In sync") };
 
   const control =
     "inline-flex size-8 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary";
 
   return (
     <section
-      aria-label="Elyra intelligence"
+      aria-label={t("Elyra intelligence")}
       className={cn(
         "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-subtle bg-surface-panel",
         className,
@@ -727,7 +736,7 @@ export function AgentPanel({
       <header className="flex shrink-0 items-center gap-3 px-4 pt-3.5">
         <ElyraMark />
         <div className="min-w-0 flex-1">
-          <h2 className="type-h2 truncate text-text-primary">Elyra intelligence</h2>
+          <h2 className="type-h2 truncate text-text-primary">{t("Elyra intelligence")}</h2>
           <p aria-live="polite" className="type-label flex min-w-0 items-center gap-1.5 text-text-secondary">
             <span aria-hidden className={cn("size-1.5 shrink-0 rounded-pill", status.dot)} />
             <span className="truncate">
@@ -741,8 +750,8 @@ export function AgentPanel({
             type="button"
             onClick={onToggleExpand}
             aria-pressed={expanded}
-            aria-label={expanded ? "Restore Elyra's width" : "Widen Elyra"}
-            title={expanded ? "Restore width" : "Widen"}
+            aria-label={expanded ? t("Restore Elyra's width") : t("Widen Elyra")}
+            title={expanded ? t("Restore width") : t("Widen")}
             className={control}
           >
             {expanded ? (
@@ -752,12 +761,12 @@ export function AgentPanel({
             )}
           </button>
         )}
-        <button type="button" onClick={onClose} aria-label="Minimize Elyra" title="Minimize" className={control}>
+        <button type="button" onClick={onClose} aria-label={t("Minimize Elyra")} title={t("Minimize")} className={control}>
           <Minus size={17} strokeWidth={1.5} aria-hidden />
         </button>
       </header>
 
-      <div role="tablist" aria-label="Elyra views" className="mt-2.5 flex shrink-0 gap-1 border-b border-border-subtle px-4">
+      <div role="tablist" aria-label={t("Elyra views")} className="mt-2.5 flex shrink-0 gap-1 border-b border-border-subtle px-4">
         {TABS.map((entry) => {
           const active = entry.value === tab;
           return (
@@ -777,7 +786,7 @@ export function AgentPanel({
                   : "border-transparent text-text-secondary hover:text-text-primary",
               )}
             >
-              {entry.label}
+              {t(entry.label)}
             </button>
           );
         })}
@@ -824,7 +833,7 @@ export function AgentPanel({
           href="/research"
           className="type-label flex shrink-0 items-center justify-between border-t border-border-subtle px-4 py-2.5 text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
         >
-          Reports, backtests, prediction markets and yields
+          {t("Reports, backtests, prediction markets and yields")}
           <ArrowUpRight size={13} strokeWidth={1.5} aria-hidden />
         </Link>
       </div>

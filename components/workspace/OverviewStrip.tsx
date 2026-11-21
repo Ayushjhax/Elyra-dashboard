@@ -22,6 +22,7 @@ import { usePortfolioHistory } from "@/lib/portfolio/useHistory";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The account strip: one compact row between the header and the chart.
@@ -101,6 +102,7 @@ function Sparkline({ values, rising }: { values: number[]; rising: boolean }) {
 }
 
 function Performance({ enabled }: { enabled: boolean }) {
+  const t = useT();
   const history = usePortfolioHistory("1W");
   const values = history.points.map((point) => point.totalValueUsd).filter(Number.isFinite);
 
@@ -112,11 +114,11 @@ function Performance({ enabled }: { enabled: boolean }) {
   } else if (values.length >= 2) {
     body = <Sparkline values={values} rising={values[values.length - 1] >= values[0]} />;
   } else {
-    body = <span className="type-label text-text-muted">No history yet</span>;
+    body = <span className="type-label text-text-muted">{t("No history yet")}</span>;
   }
 
   return (
-    <Figure label="7-day" className="hidden mid:flex">
+    <Figure label={t("7-day")} className="hidden mid:flex">
       {body}
     </Figure>
   );
@@ -132,6 +134,7 @@ function positionCount(snapshot: PortfolioSnapshot) {
 }
 
 function AccountFigures() {
+  const t = useT();
   const auth = useElyraAuth();
   const feed = usePortfolio();
   const hidden = useElyraStore((state) => state.balancesHidden);
@@ -143,12 +146,12 @@ function AccountFigures() {
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <p className="type-body-sm text-text-secondary">
           {auth.available
-            ? "Connect a wallet to see your portfolio, balance and positions."
-            : "Sign-in is not configured (NEXT_PUBLIC_PRIVY_APP_ID)."}
+            ? t("Connect a wallet to see your portfolio, balance and positions.")
+            : t("Sign-in is not configured (NEXT_PUBLIC_PRIVY_APP_ID).")}
         </p>
         {auth.available && (
           <Button size="sm" variant="accent" onClick={auth.login}>
-            Connect wallet
+            {t("Connect wallet")}
           </Button>
         )}
       </div>
@@ -158,7 +161,7 @@ function AccountFigures() {
   if (feed.unconfigured) {
     return (
       <p className="type-body-sm text-text-secondary">
-        Balances are not configured: SOLANA_RPC_URL is not set on the server.
+        {t("Balances are not configured: SOLANA_RPC_URL is not set on the server.")}
       </p>
     );
   }
@@ -168,11 +171,11 @@ function AccountFigures() {
       <div className="flex min-w-0 items-center gap-3">
         <AlertTriangle size={14} strokeWidth={1.5} aria-hidden className="shrink-0 text-negative" />
         <p className="type-body-sm min-w-0 truncate text-text-secondary" title={feed.error}>
-          Portfolio unavailable — {feed.error}
+          {t("Portfolio unavailable — {error}", { error: feed.error })}
         </p>
         <Button size="sm" variant="quiet" onClick={feed.refetch}>
           <RefreshCw size={13} strokeWidth={1.5} aria-hidden />
-          Retry
+          {t("Retry")}
         </Button>
       </div>
     );
@@ -185,7 +188,7 @@ function AccountFigures() {
 
   return (
     <div className="flex min-w-0 items-center gap-x-6">
-      <Figure label="Portfolio value">
+      <Figure label={t("Portfolio value")}>
         {summary === null ? (
           <Skeleton className="h-6 w-28" />
         ) : (
@@ -197,8 +200,8 @@ function AccountFigures() {
           <span
             title={
               change.coveragePct < 99
-                ? `24h change over the ${Math.round(change.coveragePct)}% of value with a price history`
-                : "24h change"
+                ? t("24h change over the {coveragePct}% of value with a price history", { coveragePct: Math.round(change.coveragePct) })
+                : t("24h change")
             }
             className={cn(
               "type-data-sm flex items-center gap-0.5 whitespace-nowrap",
@@ -222,7 +225,7 @@ function AccountFigures() {
 
       <span aria-hidden className="hidden h-8 w-px bg-border-subtle compact:block" />
 
-      <Figure label="Available" className="hidden compact:flex">
+      <Figure label={t("Available")} className="hidden compact:flex">
         {summary === null ? (
           <Skeleton className="h-5 w-20" />
         ) : (
@@ -238,7 +241,7 @@ function AccountFigures() {
 
       <span aria-hidden className="hidden h-8 w-px bg-border-subtle compact:block" />
 
-      <Figure label="Open positions" className="hidden compact:flex">
+      <Figure label={t("Open positions")} className="hidden compact:flex">
         {snapshot === null ? (
           <Skeleton className="h-5 w-8" />
         ) : (
@@ -293,6 +296,7 @@ function Toggle({
 
 /** "1 action awaiting review" — opens the agent on the review card. */
 function PendingBadge() {
+  const t = useT();
   const reviewPendingActions = useElyraStore((state) => state.reviewPendingActions);
   const count = useOpenActionCount();
   if (count === 0) return null;
@@ -307,12 +311,13 @@ function PendingBadge() {
       )}
     >
       <span aria-hidden className="size-1.5 rounded-pill bg-agent-accent" />
-      {count} {count === 1 ? "action" : "actions"} awaiting review
+      {(count === 1 ? t("1 action awaiting review") : t("{count} actions awaiting review", { count }))}
     </button>
   );
 }
 
 export function OverviewStrip({ focus }: { focus: boolean }) {
+  const t = useT();
   const widgetsOpen = useElyraStore((state) => state.widgetsOpen);
   const setWidgetsOpen = useElyraStore((state) => state.setWidgetsOpen);
   const agentOpen = useElyraStore((state) => state.agentOpen);
@@ -325,7 +330,7 @@ export function OverviewStrip({ focus }: { focus: boolean }) {
 
   return (
     <section
-      aria-label="Account overview"
+      aria-label={t("Account overview")}
       className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-panel border border-border-subtle bg-surface-panel px-4 py-2.5"
     >
       <AccountFigures />
@@ -334,12 +339,12 @@ export function OverviewStrip({ focus }: { focus: boolean }) {
         <PendingBadge />
 
         {!focus && (
-          <div role="group" aria-label="Workspace columns" className="flex items-center gap-0.5">
+          <div role="group" aria-label={t("Workspace columns")} className="flex items-center gap-0.5">
             {/* Below 900px the widgets stack under the chart, so there is
                 nothing to switch. */}
             <Toggle
               pressed={widgetsOpen}
-              label={widgetsOpen ? "Hide widgets" : "Show widgets"}
+              label={widgetsOpen ? t("Hide widgets") : t("Show widgets")}
               onClick={() => setWidgetsOpen(!widgetsOpen)}
               className="hidden mid:inline-flex"
             >
@@ -347,7 +352,7 @@ export function OverviewStrip({ focus }: { focus: boolean }) {
             </Toggle>
             <Toggle
               pressed={agentShown}
-              label={agentShown ? "Hide Elyra" : "Show Elyra"}
+              label={agentShown ? t("Hide Elyra") : t("Show Elyra")}
               onClick={() =>
                 agentIsColumn ? setAgentOpen(!agentOpen) : setAgentDrawerOpen(!agentDrawerOpen)
               }
@@ -374,7 +379,7 @@ export function OverviewStrip({ focus }: { focus: boolean }) {
           ) : (
             <Maximize2 size={14} strokeWidth={1.5} aria-hidden />
           )}
-          {focus ? "Exit focus" : "Focus chart"}
+          {focus ? t("Exit focus") : t("Focus chart")}
         </button>
       </div>
     </section>

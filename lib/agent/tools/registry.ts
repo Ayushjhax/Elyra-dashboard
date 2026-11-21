@@ -11,6 +11,7 @@ import { PREDICTION_TOOLS } from "@/lib/agent/tools/prediction";
 import { PREDICTION_SIGNAL_TOOLS } from "@/lib/agent/tools/prediction-signals";
 import { companyResearch } from "@/lib/research/tool";
 import { BACKTEST_TOOLS } from "@/lib/backtest/tool";
+import type { Locale } from "@/lib/i18n/locales";
 
 /* ---------------------------------------------------------------------------
    The tool registry.
@@ -57,6 +58,11 @@ export interface ToolContext {
    * Absent (an outside agent, a scheduled run): nothing may be changed.
    */
   operatorMessage?: string | null;
+  /**
+   * The language the operator reads the website in — the reply is written
+   * in it. Never an instruction from text the operator did not write.
+   */
+  locale?: Locale;
 }
 
 export interface RegisteredTool {

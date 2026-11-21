@@ -12,19 +12,26 @@ import { SignalsTab } from "./SignalsTab";
 import { YieldTab } from "./YieldTab";
 import { UnlocksTab } from "./UnlocksTab";
 import "./research.css";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
+import { ArbitrageTab } from "@/components/research/ArbitrageTab";
+import { SentimentTab } from "@/components/research/SentimentTab";
 
 const TABS = [
-  ["reports", "Reports"],
-  ["backtests", "Backtests"],
-  ["prediction", "Prediction markets"],
-  ["recap", "Market recap"],
-  ["signals", "Signals"],
-  ["yield", "Yield"],
-  ["unlocks", "Unlocks"],
+  ["reports", msg("Reports")],
+  ["backtests", msg("Backtests")],
+  ["prediction", msg("Prediction markets")],
+  ["recap", msg("Market recap")],
+  ["signals", msg("Signals")],
+  ["arbitrage", msg("Arbitrage")],
+  ["sentiment", msg("Sentiment")],
+  ["yield", msg("Yield")],
+  ["unlocks", msg("Unlocks")],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
 export function ResearchWorkspace() {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   const raw = params.get("tab");
@@ -51,11 +58,11 @@ export function ResearchWorkspace() {
     <div className="research-workspace">
       <PageHeader
         icon={FileSearch}
-        title="Research"
-        subtitle="Filings, markets, signals and event intelligence."
+        title={t("Research")}
+        subtitle={t("Filings, markets, signals and event intelligence.")}
         className="mb-6"
       />
-      <div ref={nav} className="r-tabs" role="tablist" aria-label="Research">
+      <div ref={nav} className="r-tabs" role="tablist" aria-label={t("Research")}>
         {TABS.map(([id, label], index) => (
           <button
             key={id}
@@ -84,7 +91,7 @@ export function ResearchWorkspace() {
               )?.focus();
             }}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -105,6 +112,8 @@ export function ResearchWorkspace() {
               {id === "prediction" && <PredictionMarketsTab />}
               {id === "recap" && <RecapTab active={tab === id} />}
               {id === "signals" && <SignalsTab active={tab === id} />}
+              {id === "arbitrage" && <ArbitrageTab active={tab === id} />}
+              {id === "sentiment" && <SentimentTab active={tab === id} />}
               {id === "yield" && <YieldTab active={tab === id} />}
               {id === "unlocks" && (
                 <UnlocksTab

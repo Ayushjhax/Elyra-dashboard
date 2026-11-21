@@ -23,6 +23,7 @@ import { useSecond } from "@/lib/useClock";
 import { walletStatus } from "@/lib/wallet/status";
 import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The connected wallet, and everything you do to it from the header.
@@ -64,6 +65,7 @@ export function AccountMenuView({
   auth: Pick<ElyraAuth, "available" | "ready" | "authenticated" | "solanaAddress" | "walletAddress" | "suiAddress" | "login" | "logout">;
   wallet: WalletDashboard;
 }) {
+  const t = useT();
   const router = useRouter();
   const setWalletSheetOpen = useElyraStore((state) => state.setWalletSheetOpen);
   const setHidden = useElyraStore((state) => state.setBalancesHidden);
@@ -88,7 +90,7 @@ export function AccountMenuView({
     return (
       <Button variant="accent" onClick={auth.login} className="h-10 rounded-card px-4">
         <Wallet size={16} strokeWidth={1.5} aria-hidden />
-        Connect
+        {t("Connect")}
       </Button>
     );
   }
@@ -117,7 +119,7 @@ export function AccountMenuView({
       close(false);
       router.push("/");
     } catch (error: unknown) {
-      setDisconnectError(error instanceof Error ? error.message : "Signing out failed. Try again.");
+      setDisconnectError(error instanceof Error ? error.message : t("Signing out failed. Try again."));
     } finally {
       /* Cleared even on failure, so a network error leaves a usable button
          rather than one stuck saying "Disconnecting". */
@@ -132,7 +134,7 @@ export function AccountMenuView({
     <>
       <Popover
         id="account-menu"
-        label="Wallet"
+        label={t("Wallet")}
         open={open}
         onOpenChange={close}
         surface="glass"
@@ -144,13 +146,13 @@ export function AccountMenuView({
             aria-expanded={open}
             aria-controls="account-menu"
             aria-haspopup="dialog"
-            aria-label={address === null ? "Account" : `Solana wallet ${address}, ${state.label}`}
+            aria-label={address === null ? t("Account") : t("Solana wallet {address}, {label}", { address, label: state.label })}
             onClick={() => close(!open)}
             className={cn(TRIGGER, open && "bg-surface-hover")}
           >
             <Wallet size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
             <span className="type-mono-addr hidden text-text-primary compact:inline">
-              {address === null ? "Signed in" : truncateMiddle(address, 4, 4)}
+              {address === null ? t("Signed in") : truncateMiddle(address, 4, 4)}
             </span>
             <span
               aria-hidden
@@ -165,10 +167,9 @@ export function AccountMenuView({
       >
         {confirming ? (
           <div className="flex flex-col gap-3">
-            <p className="type-h2 font-sans text-text-primary">Disconnect this wallet?</p>
+            <p className="type-h2 font-sans text-text-primary">{t("Disconnect this wallet?")}</p>
             <p className="type-body-sm text-text-secondary">
-              You&rsquo;ll be signed out of Elyra and returned to the workspace. Nothing is deleted; signing back in
-              goes through your original login method.
+              {t("You’ll be signed out of Elyra and returned to the workspace. Nothing is deleted; signing back in goes through your original login method.")}
             </p>
             {disconnectError !== null && (
               <p role="alert" className="type-label text-negative">
@@ -185,7 +186,7 @@ export function AccountMenuView({
                 disabled={busy}
                 className="glass-outline type-body-sm h-9 rounded-card border px-3.5 text-text-primary disabled:opacity-60"
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button
                 type="button"
@@ -194,7 +195,7 @@ export function AccountMenuView({
                 aria-disabled={busy || undefined}
                 className="type-body-sm h-9 rounded-card border border-negative/40 bg-negative-bg px-3.5 font-medium text-negative hover:border-negative/70 aria-disabled:opacity-60"
               >
-                {busy ? "Disconnecting…" : "Disconnect"}
+                {busy ? t("Disconnecting…") : t("Disconnect")}
               </button>
             </div>
           </div>
@@ -202,22 +203,22 @@ export function AccountMenuView({
           <>
             <div className="flex items-center gap-3">
               <CoinMark symbol="SOL" {...logos("SOL")} size={28} className="border-0 bg-transparent" />
-              <h2 className="type-h2 min-w-0 flex-1 truncate font-sans text-text-primary">Solana wallet</h2>
-              <StatusDot tone={state.tone}>{state.label}</StatusDot>
+              <h2 className="type-h2 min-w-0 flex-1 truncate font-sans text-text-primary">{t("Solana wallet")}</h2>
+              <StatusDot tone={state.tone}>{t(state.label)}</StatusDot>
             </div>
 
             {address === null ? (
               <p className="type-body-sm mt-4 text-text-secondary">
-                This account has no Solana wallet yet, so there is no balance or address to show.
+                {t("This account has no Solana wallet yet, so there is no balance or address to show.")}
               </p>
             ) : (
               <>
-                <p className="type-body-sm mt-4 text-text-secondary">Wallet balance</p>
+                <p className="type-body-sm mt-4 text-text-secondary">{t("Wallet balance")}</p>
                 <div className="mt-1 flex items-center gap-3">
                   <div className="min-w-0 flex-1">
                     {snapshot === null ? (
                       wallet.isLoading ? (
-                        <span aria-label="Balance loading" className="skeleton block h-9 w-36 rounded-control" />
+                        <span aria-label={t("Balance loading")} className="skeleton block h-9 w-36 rounded-control" />
                       ) : (
                         <span className="type-display font-sans text-text-muted" title={wallet.error ?? undefined}>
                           —
@@ -226,13 +227,13 @@ export function AccountMenuView({
                     ) : (
                       <Money
                         value={snapshot.usdValue}
-                        reason="The SOL price is unavailable, so the total can't be valued."
+                        reason={t("The SOL price is unavailable, so the total can't be valued.")}
                         className={cn("type-display block truncate font-sans", wallet.stale ? "text-text-secondary" : "text-text-primary")}
                       />
                     )}
                   </div>
                   <IconButton
-                    label={hidden ? "Show balances" : "Hide balances"}
+                    label={hidden ? t("Show balances") : t("Hide balances")}
                     aria-pressed={hidden}
                     onClick={() => setHidden(!hidden)}
                     className={cn("size-9", hidden && "text-accent")}
@@ -243,10 +244,10 @@ export function AccountMenuView({
                 {(wallet.stale || (snapshot === null && !wallet.isLoading) || snapshot?.usdValue === null) && (
                   <p className={cn("type-label mt-1", wallet.stale || snapshot === null ? "text-caution" : "text-text-muted")}>
                     {wallet.stale
-                      ? `Last good reading${wallet.fetchedAt !== null && now !== null ? `, ${formatAge(wallet.fetchedAt, now)}` : ""}.`
+                      ? (wallet.fetchedAt !== null && now !== null ? t("Last good reading, {age}.", { age: formatAge(wallet.fetchedAt, now, t.locale) }) : t("Last good reading."))
                       : snapshot === null
-                        ? (wallet.error ?? "The balance couldn't be read.")
-                        : "No SOL price right now, so the total can't be valued."}
+                        ? (wallet.error ?? t("The balance couldn't be read."))
+                        : t("No SOL price right now, so the total can't be valued.")}
                   </p>
                 )}
 
@@ -254,11 +255,11 @@ export function AccountMenuView({
                   <div className="min-w-0 flex-1">
                     <p className="type-mono-addr truncate text-text-primary" title={address}>
                       {truncateMiddle(address, 6, 6)}
-                      <span className="sr-only"> (full address: {address})</span>
+                      <span className="sr-only">{" "}{t("(full address: {address})", { address })}</span>
                     </p>
                     <p className="type-label text-text-secondary">{network}</p>
                   </div>
-                  <CopyButton value={address} label="wallet address" className="size-9" />
+                  <CopyButton value={address} label={t("wallet address")} className="size-9" />
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-2">
@@ -272,7 +273,7 @@ export function AccountMenuView({
                     className="type-body-sm inline-flex h-10 items-center justify-center gap-2 rounded-card bg-accent font-medium text-text-on-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover"
                   >
                     <QrCode size={17} strokeWidth={1.5} aria-hidden />
-                    Receive
+                    {t("Receive")}
                   </button>
                   <a
                     href={accountExplorerUrl(address, wallet.cluster)}
@@ -282,15 +283,15 @@ export function AccountMenuView({
                     className="glass-outline type-body-sm inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-card border px-2 text-text-primary"
                   >
                     <ExternalLink size={16} strokeWidth={1.5} aria-hidden />
-                    View on explorer
+                    {t("View on explorer")}
                   </a>
                 </div>
               </>
             )}
 
             {(evmAddress !== null || suiAddress !== null) && (
-              <section aria-label="Other wallets" className={cn("mt-4 flex flex-col gap-1.5 border-t pt-3", DIVIDER)}>
-                <p className="type-body-sm text-text-secondary">Other networks</p>
+              <section aria-label={t("Other wallets")} className={cn("mt-4 flex flex-col gap-1.5 border-t pt-3", DIVIDER)}>
+                <p className="type-body-sm text-text-secondary">{t("Other networks")}</p>
                 {evmAddress !== null && (
                   <div className="glass-inset flex items-center gap-2.5 rounded-card border py-2 pl-3 pr-1.5">
                     {/* A few marks, overlapped: one address, several networks. */}
@@ -302,13 +303,13 @@ export function AccountMenuView({
                     <div className="min-w-0 flex-1">
                       <p className="type-mono-addr truncate text-text-primary" title={evmAddress}>
                         {truncateMiddle(evmAddress, 6, 4)}
-                        <span className="sr-only"> (full address: {evmAddress})</span>
+                        <span className="sr-only">{" "}{t("(full address: {evmAddress})", { evmAddress })}</span>
                       </p>
                       <p className="type-label truncate text-text-secondary" title={EVM_NETWORKS_LABEL}>
-                        Ethereum, Base, Arbitrum, BNB, Robinhood
+                        {t("Ethereum, Base, Arbitrum, BNB, Robinhood")}
                       </p>
                     </div>
-                    <CopyButton value={evmAddress} label="EVM wallet address" className="size-9" />
+                    <CopyButton value={evmAddress} label={t("EVM wallet address")} className="size-9" />
                   </div>
                 )}
                 {suiAddress !== null && (
@@ -317,17 +318,17 @@ export function AccountMenuView({
                     <div className="min-w-0 flex-1">
                       <p className="type-mono-addr truncate text-text-primary" title={suiAddress}>
                         {truncateMiddle(suiAddress, 6, 4)}
-                        <span className="sr-only"> (full address: {suiAddress})</span>
+                        <span className="sr-only">{" "}{t("(full address: {suiAddress})", { suiAddress })}</span>
                       </p>
                       <p className="type-label truncate text-text-secondary">Sui</p>
                     </div>
-                    <CopyButton value={suiAddress} label="Sui wallet address" className="size-9" />
+                    <CopyButton value={suiAddress} label={t("Sui wallet address")} className="size-9" />
                   </div>
                 )}
               </section>
             )}
 
-            <nav aria-label="Wallet" className={cn("mt-4 flex flex-col gap-0.5 border-t pt-3", DIVIDER)}>
+            <nav aria-label={t("Wallet")} className={cn("mt-4 flex flex-col gap-0.5 border-t pt-3", DIVIDER)}>
               <button
                 type="button"
                 onClick={() => {
@@ -337,12 +338,12 @@ export function AccountMenuView({
                 className={row}
               >
                 <Wallet size={18} strokeWidth={1.5} aria-hidden className="text-text-secondary" />
-                <span className="flex-1">Open wallet</span>
+                <span className="flex-1">{t("Open wallet")}</span>
                 <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
               </button>
               <Link href="/portfolio" onClick={() => close(false)} className={row}>
                 <PieChart size={18} strokeWidth={1.5} aria-hidden className="text-text-secondary" />
-                <span className="flex-1">Portfolio</span>
+                <span className="flex-1">{t("Portfolio")}</span>
                 <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
               </Link>
             </nav>
@@ -350,7 +351,7 @@ export function AccountMenuView({
             <div className={cn("mt-3 border-t pt-3", DIVIDER)}>
               <button type="button" onClick={() => setConfirming(true)} className={cn(row, "text-negative")}>
                 <Power size={18} strokeWidth={1.5} aria-hidden />
-                <span className="flex-1">Disconnect</span>
+                <span className="flex-1">{t("Disconnect")}</span>
                 <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-negative/70" />
               </button>
             </div>

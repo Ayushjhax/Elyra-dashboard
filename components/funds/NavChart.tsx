@@ -4,6 +4,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import { formatPct, formatTimestamp, formatUsd } from "@/lib/format";
 import type { FundMarkPoint } from "@/lib/funds/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    A fund's NAV per unit over its life — one series, so the card's title
@@ -20,6 +21,7 @@ const HEIGHT = 180;
 const PAD = { top: 10, bottom: 10 };
 
 export function NavChart({ marks, className }: { marks: readonly FundMarkPoint[]; className?: string }) {
+  const t = useT();
   const titleId = useId();
   const frame = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -47,7 +49,7 @@ export function NavChart({ marks, className }: { marks: readonly FundMarkPoint[]
   if (geometry === null) {
     return (
       <div className={cn("flex h-32 items-center justify-center rounded-card border border-dashed border-border-subtle", className)}>
-        <p className="type-label px-4 text-center text-text-muted">The chart starts once the fund has two hourly marks.</p>
+        <p className="type-label px-4 text-center text-text-muted">{t("The chart starts once the fund has two hourly marks.")}</p>
       </div>
     );
   }
@@ -71,17 +73,17 @@ export function NavChart({ marks, className }: { marks: readonly FundMarkPoint[]
   return (
     <figure className={cn("flex flex-col gap-1.5", className)} aria-labelledby={titleId}>
       <figcaption id={titleId} className="sr-only">
-        NAV per unit from {formatTimestamp(marks[0].at)} to {formatTimestamp(last.at)}: from {marks[0].npu.toFixed(2)} to {last.npu.toFixed(2)}, high {geometry.hi.toFixed(2)}, low {geometry.lo.toFixed(2)}.
+        {t("NAV per unit from {at} to {at2}: from {npu} to {npu2}, high {hi}, low {lo}.", { at: formatTimestamp(marks[0].at, t.locale), at2: formatTimestamp(last.at, t.locale), npu: marks[0].npu.toFixed(2), npu2: last.npu.toFixed(2), hi: geometry.hi.toFixed(2), lo: geometry.lo.toFixed(2) })}
       </figcaption>
       <div className="flex items-baseline justify-between gap-2">
         <span className="type-label text-text-muted">
           {active === null ? (
             <>
-              High <span className="type-data-sm text-text-secondary">{geometry.hi.toFixed(2)}</span> · Low{" "}
+              {t("High")}{" "}<span className="type-data-sm text-text-secondary">{geometry.hi.toFixed(2)}</span>{" "}{t("· Low ")}
               <span className="type-data-sm text-text-secondary">{geometry.lo.toFixed(2)}</span>
             </>
           ) : (
-            formatTimestamp(active.mark.at)
+            formatTimestamp(active.mark.at, t.locale)
           )}
         </span>
         {active !== null && (
@@ -97,7 +99,7 @@ export function NavChart({ marks, className }: { marks: readonly FundMarkPoint[]
         onPointerDown={onMove}
         onPointerLeave={() => setHover(null)}
         role="img"
-        aria-label={`NAV per unit, now ${last.npu.toFixed(2)}`}
+        aria-label={t("NAV per unit, now {npu}", { npu: last.npu.toFixed(2) })}
       >
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
           <line x1={0} x2={WIDTH} y1={geometry.baseline} y2={geometry.baseline} className="stroke-border-strong" strokeWidth={1} strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
@@ -112,12 +114,12 @@ export function NavChart({ marks, className }: { marks: readonly FundMarkPoint[]
           />
         )}
         <span className="type-label pointer-events-none absolute right-0 text-text-muted" style={{ top: `calc(${(geometry.baseline / HEIGHT) * 100}% - 1.1rem)` }}>
-          100 · start
+          {t("100 · start")}
         </span>
       </div>
       <div className="flex justify-between">
-        <span className="type-label text-text-muted">{formatTimestamp(marks[0].at)}</span>
-        <span className="type-label text-text-muted">{formatTimestamp(last.at)}</span>
+        <span className="type-label text-text-muted">{formatTimestamp(marks[0].at, t.locale)}</span>
+        <span className="type-label text-text-muted">{formatTimestamp(last.at, t.locale)}</span>
       </div>
     </figure>
   );

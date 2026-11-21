@@ -1,5 +1,6 @@
 import type { PaperAnalysis } from "@/lib/autotrade/analysis";
 import type { AutotradeCoin, AutotradeInterval, RuleMode, Side } from "@/lib/autotrade/rules";
+import type { PartialClose } from "@/lib/autotrade/manage";
 
 /* ---------------------------------------------------------------------------
    /api/automation, as the website (and later the app) reads it. Pure.
@@ -45,6 +46,16 @@ export interface TradeView {
   error: string | null;
   openedAt: string;
   closedAt: string | null;
+  /** 0028: the mid when the entry was sent; null for older positions. */
+  expectedPrice?: number | null;
+  /** What the entry cost against that mid, in basis points; positive is worse. */
+  slippageBps?: number | null;
+  /** The size it opened at; `size` is what is still open. */
+  originalSize?: number;
+  partialCloses?: PartialClose[];
+  realisedPartialUsd?: number;
+  /** An AI fund's position: closed whole only, its exits its manager's. */
+  fund?: boolean;
 }
 
 export interface OrderView {

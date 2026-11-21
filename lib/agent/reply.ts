@@ -1,5 +1,6 @@
 import type { ChatStreamEvent, TeamAgentId, TeamTrace } from "@/lib/agent/events";
 import type { PreparedAction } from "@/lib/personalized/types";
+import { englishTranslator, msg, type Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Turning the agent's stream into the reply bubble — the one rule the
@@ -45,21 +46,21 @@ export function workingLine(activity: string | undefined): string {
 export const TEAM_AGENTS: ReadonlyArray<{ id: TeamAgentId; name: string; role: string; short: string }> = [
   {
     id: "research",
-    name: "Research",
-    role: "Gathers the live figures with Elyra's tools.",
-    short: "Live figures",
+    name: msg("Research"),
+    role: msg("Gathers the live figures with Elyra's tools."),
+    short: msg("Live figures"),
   },
   {
     id: "strategy",
-    name: "Strategy",
-    role: "Reviews the figures and weighs them against your saved rules.",
-    short: "Reviews and weighs",
+    name: msg("Strategy"),
+    role: msg("Reviews the figures and weighs them against your saved rules."),
+    short: msg("Reviews and weighs"),
   },
   {
     id: "execution",
-    name: "Execution",
-    role: "Checks a prepared move before you review and sign it.",
-    short: "Checks a move",
+    name: msg("Execution"),
+    role: msg("Checks a prepared move before you review and sign it."),
+    short: msg("Checks a move"),
   },
 ];
 
@@ -71,15 +72,17 @@ export function teamAgentName(id: TeamAgentId): string {
  * The working line while a team answers: who is on it and what they are
  * reading. Once every member is through, the orchestrator is writing.
  */
-export function teamWorkingLine(team: TeamTrace): string {
+export function teamWorkingLine(team: TeamTrace, t: Translator = englishTranslator): string {
   const working = team.stages.find((stage) => stage.status === "working");
   if (working !== undefined) {
-    const name = teamAgentName(working.id);
-    return working.activity ? `${name} is reading ${working.activity}…` : `${name} is working…`;
+    const name = t(teamAgentName(working.id));
+    return working.activity
+      ? t("{name} is reading {activity}…", { name, activity: t(working.activity) })
+      : t("{name} is working…", { name });
   }
   return team.stages.some((stage) => stage.status === "done")
-    ? "Writing the answer from the team's notes…"
-    : "Elyra is allocating the question…";
+    ? t("Writing the answer from the team's notes…")
+    : t("Elyra is allocating the question…");
 }
 
 export interface ReplyFold {

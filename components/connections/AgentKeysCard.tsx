@@ -21,6 +21,7 @@ import { useCopy } from "@/lib/clipboard";
 import { formatRelativeTime } from "@/lib/format";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    AI agents: keys that let an outside agent — Claude, ChatGPT, a bot of the
@@ -47,38 +48,41 @@ interface KeyView {
 const subscribeNever = () => () => {};
 
 function CopyLine({ text, label, multiline = false }: { text: string; label: string; multiline?: boolean }) {
+  const t = useT();
   const { state, copy } = useCopy();
   return (
     <div className="flex min-w-0 items-start gap-2 rounded-card border border-border-subtle bg-surface-base px-3 py-2">
       <code className={cn("type-mono-addr min-w-0 flex-1 text-text-primary", multiline ? "whitespace-pre-wrap break-all" : "truncate")}>{text}</code>
       <button type="button" onClick={() => void copy(text)} aria-label={label} className={cn(outlinedAction, "h-8 shrink-0 px-2.5")}>
         <Copy size={13} strokeWidth={1.5} aria-hidden />
-        {state === "copied" ? "Copied" : "Copy"}
+        {state === "copied" ? t("Copied") : t("Copy")}
       </button>
     </div>
   );
 }
 
 export function HowToConnect({ origin, keyText }: { origin: string; keyText: string }) {
+  const t = useT();
   const endpoint = `${origin}/api/mcp`;
   const config = JSON.stringify({ mcpServers: { elyra: { type: "http", url: endpoint, headers: { Authorization: `Bearer ${keyText}` } } } }, null, 2);
   return (
     <div className="flex flex-col gap-2">
-      <p className="type-label text-text-secondary">Claude Code</p>
-      <CopyLine multiline label="Copy the Claude Code command" text={`claude mcp add --transport http elyra ${endpoint} --header "Authorization: Bearer ${keyText}"`} />
-      <p className="type-label text-text-secondary">Any MCP client that takes a JSON config (Cursor, Windsurf and others)</p>
-      <CopyLine multiline label="Copy the MCP config" text={config} />
-      <p className="type-label text-text-secondary">Without MCP — plain HTTP</p>
+      <p className="type-label text-text-secondary">{t("Claude Code")}</p>
+      <CopyLine multiline label={t("Copy the Claude Code command")} text={t("claude mcp add --transport http elyra {endpoint} --header \"Authorization: Bearer {keyText}\"", { endpoint, keyText })} />
+      <p className="type-label text-text-secondary">{t("Any MCP client that takes a JSON config (Cursor, Windsurf and others)")}</p>
+      <CopyLine multiline label={t("Copy the MCP config")} text={config} />
+      <p className="type-label text-text-secondary">{t("Without MCP — plain HTTP")}</p>
       <CopyLine
         multiline
-        label="Copy the curl example"
-        text={`curl -X POST ${origin}/api/v1/tools/get_market_snapshot -H "Authorization: Bearer ${keyText}" -H "content-type: application/json" -d '{"symbols":["BTC","NVDA"]}'`}
+        label={t("Copy the curl example")}
+        text={t("curl -X POST {origin}/api/v1/tools/get_market_snapshot -H \"Authorization: Bearer {keyText}\" -H \"content-type: application/json\" -d '{\"symbols\":[\"BTC\",\"NVDA\"]}'", { origin, keyText })}
       />
     </div>
   );
 }
 
 export function AgentKeysCard() {
+  const t = useT();
   const accountFetch = useAccountFetch();
   const now = useMinute();
   const nameId = useId();
@@ -132,7 +136,7 @@ export function AgentKeysCard() {
       });
       const body = await readJson<{ key: string; error: string }>(response);
       if (!response.ok || typeof body.key !== "string") {
-        setProblem(typeof body.error === "string" ? body.error : "The key could not be created.");
+        setProblem(typeof body.error === "string" ? body.error : t("The key could not be created."));
         return;
       }
       setFresh({ key: body.key, name: name.trim() });
@@ -151,7 +155,7 @@ export function AgentKeysCard() {
       const response = await accountFetch(`/api/agent-keys/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const body = await readJson<{ error: string }>(response);
-        setProblem(typeof body.error === "string" ? body.error : "The key could not be revoked.");
+        setProblem(typeof body.error === "string" ? body.error : t("The key could not be revoked."));
       }
       await load();
     } finally {
@@ -162,31 +166,31 @@ export function AgentKeysCard() {
   const list = Array.isArray(keys) ? keys : [];
   const status =
     keys === null ? (
-      <StatusBadge name="AI agents" status="checking" />
+      <StatusBadge name={t("AI agents")} status="checking" />
     ) : keys === "failed" ? (
-      <StatusBadge name="AI agents" status="unavailable" />
+      <StatusBadge name={t("AI agents")} status="unavailable" />
     ) : list.length === 0 ? (
-      <StatusBadge name="AI agents" status="not-connected" label="No keys" />
+      <StatusBadge name={t("AI agents")} status="not-connected" label={t("No keys")} />
     ) : (
-      <StatusBadge name="AI agents" status="connected" label={`${list.length} ${list.length === 1 ? "key" : "keys"}`} />
+      <StatusBadge name={t("AI agents")} status="connected" label={`${list.length} ${list.length === 1 ? "key" : "keys"}`} />
     );
 
   return (
     <ConnectionCard
       mark={<MarkTile icon={BrainCircuit} />}
-      title="AI agents"
-      subtitle="Give Claude, ChatGPT or your own agent Elyra's live market context over MCP. Read-only until you grant it a mandate in Agents."
+      title={t("AI agents")}
+      subtitle={t("Give Claude, ChatGPT or your own agent Elyra's live market context over MCP. Read-only until you grant it a mandate in Agents.")}
       status={status}
     >
       {fresh !== null && (
         <div role="status" className="flex flex-col gap-2 rounded-card border border-accent-quiet p-3">
           <p className="type-body-sm text-text-primary">
-            Key for {fresh.name}. Copy it now — Elyra keeps only a fingerprint and cannot show it again.
+            {t("Key for {name}. Copy it now — Elyra keeps only a fingerprint and cannot show it again.", { name: fresh.name })}
           </p>
-          <CopyLine text={fresh.key} label="Copy the new agent key" />
+          <CopyLine text={fresh.key} label={t("Copy the new agent key")} />
           <HowToConnect origin={origin} keyText={fresh.key} />
           <button type="button" onClick={() => setFresh(null)} className={cn(outlinedAction, "self-start")}>
-            I have saved it
+            {t("I have saved it")}
           </button>
         </div>
       )}
@@ -199,33 +203,33 @@ export function AgentKeysCard() {
         }}
       >
         <label htmlFor={nameId} className="type-label text-text-secondary">
-          New key, named for the agent that will use it
+          {t("New key, named for the agent that will use it")}
         </label>
         <div className="flex flex-wrap gap-2">
           <input
             id={nameId}
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Claude Code on my laptop"
+            placeholder={t("Claude Code on my laptop")}
             maxLength={60}
             className={cn(fieldInput, "min-w-[12rem] flex-1")}
           />
           <button type="submit" disabled={busy || name.trim().length === 0} className={primaryAction}>
             <KeyRound size={15} strokeWidth={1.5} aria-hidden />
-            {busy ? "Creating…" : "Create key"}
+            {busy ? t("Creating…") : t("Create key")}
           </button>
         </div>
         <label className="type-body-sm flex items-start gap-2 text-text-secondary">
           <input type="checkbox" checked={account} onChange={(event) => setAccount(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" />
           <span>
-            Also let it read my portfolio, positions, orders and activity
-            <span className="type-label block text-text-muted">Without this, the key reads market data only.</span>
+            {t("Also let it read my portfolio, positions, orders and activity")}
+            <span className="type-label block text-text-muted">{t("Without this, the key reads market data only.")}</span>
           </span>
         </label>
       </form>
 
       {problem !== null && <InlineError>{problem}</InlineError>}
-      {keys === "failed" && problem === null && <InlineError>Your keys could not be loaded.</InlineError>}
+      {keys === "failed" && problem === null && <InlineError>{t("Your keys could not be loaded.")}</InlineError>}
 
       {list.length > 0 && (
         <>
@@ -238,14 +242,14 @@ export function AgentKeysCard() {
                   <span className="type-mono-addr text-text-muted">{key.prefix}…</span>
                 </div>
                 <span className="type-label text-text-muted">
-                  {key.scopes.includes("account") ? "Market data and your account" : "Market data only"} ·{" "}
-                  {key.lastUsedAt === null || now === null ? "never used" : `used ${formatRelativeTime(key.lastUsedAt, now)}`}
+                  {key.scopes.includes("account") ? t("Market data and your account") : t("Market data only")} ·{" "}
+                  {key.lastUsedAt === null || now === null ? t("never used") : t("used {lastUsedAt}", { lastUsedAt: formatRelativeTime(key.lastUsedAt, now, t.locale) })}
                 </span>
                 <ConfirmAction
-                  trigger="Revoke"
-                  question={`Revoke ${key.name}? Agents using it stop working at once.`}
-                  confirm="Revoke key"
-                  pendingLabel="Revoking…"
+                  trigger={t("Revoke")}
+                  question={t("Revoke {name}? Agents using it stop working at once.", { name: key.name })}
+                  confirm={t("Revoke key")}
+                  pendingLabel={t("Revoking…")}
                   pending={revoking === key.id}
                   onConfirm={() => void revoke(key.id)}
                 />
@@ -255,10 +259,10 @@ export function AgentKeysCard() {
         </>
       )}
 
-      <Disclosure open={helpOpen} onOpenChange={setHelpOpen} label="How to connect an agent" icon={Plug}>
+      <Disclosure open={helpOpen} onOpenChange={setHelpOpen} label={t("How to connect an agent")} icon={Plug}>
         <div className="flex flex-col gap-2">
           <InlineNote>
-            Endpoint <span className="type-mono-addr text-text-primary">{origin}/api/mcp</span>. Each key may make 60 calls a minute and 2,000 a day.
+            {t("Endpoint")}{" "}<span className="type-mono-addr text-text-primary">{t("{origin}/api/mcp", { origin })}</span>{t(". Each key may make 60 calls a minute and 2,000 a day.")}
           </InlineNote>
           <HowToConnect origin={origin} keyText="elyra_ak_YOUR_KEY" />
         </div>

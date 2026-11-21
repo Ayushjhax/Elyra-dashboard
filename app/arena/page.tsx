@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { Swords } from "lucide-react";
 import { ArenaView } from "@/components/arena/ArenaView";
 import { RouteDrawer } from "@/components/shell/RouteDrawer";
+import { pageMetadata } from "@/lib/i18n/server";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Elyra Arena, beside the chart like every other route — the chart stays
@@ -12,17 +15,16 @@ import { RouteDrawer } from "@/components/shell/RouteDrawer";
    boundary of its own.
 --------------------------------------------------------------------------- */
 
-export const metadata = {
-  title: "Arena · Elyra",
-  description: "A daily chart puzzle, calls with receipts and a review of every trade. Points and paper only.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata("Arena", "A daily chart puzzle, calls with receipts and a review of every trade. Points and paper only.");
+}
 
 const one = (value: string | string[] | undefined): string | null => (typeof value === "string" && value !== "" ? value : null);
 
 export default async function ArenaPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const query = await searchParams;
   return (
-    <RouteDrawer label="Arena" icon={<Swords size={28} strokeWidth={1.5} />} title="Arena" subtitle="Judgment, scored">
+    <RouteDrawer label={msg("Arena")} icon={<Swords size={28} strokeWidth={1.5} />} title={msg("Arena")} subtitle={msg("Judgment, scored")}>
       <ArenaView initialTab={one(query.tab)} trade={one(query.trade)} />
     </RouteDrawer>
   );

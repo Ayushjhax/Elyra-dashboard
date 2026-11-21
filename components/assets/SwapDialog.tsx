@@ -17,6 +17,7 @@ import { truncateMiddle } from "@/lib/format";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { buildSwap, runSwap, type BuiltSwap } from "@/lib/wallet/runSwap";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The swap, end to end.
@@ -78,6 +79,7 @@ export function SwapDialog({
   /** Called once the swap has landed and returned its signature. */
   onExecuted?: (signature: string) => void;
 }) {
+  const t = useT();
   const { wallets } = useWallets();
   const { signTransaction } = useSignTransaction();
   /* Both steps are scoped to the session's wallet, so both carry the token —
@@ -146,7 +148,7 @@ export function SwapDialog({
 
     const wallet = wallets.find((entry) => entry.address === address) ?? wallets[0];
     if (wallet === undefined) {
-      setError("No Solana wallet is connected in this browser.");
+      setError(t("No Solana wallet is connected in this browser."));
       return;
     }
 
@@ -169,7 +171,7 @@ export function SwapDialog({
         }
       })
       .finally(() => setWorking(false));
-  }, [authedFetch, request, wallets, address, signTransaction, onExecuted]);
+  }, [authedFetch, request, wallets, address, signTransaction, onExecuted, t]);
 
   const symbols = groups.flatMap((group) => group.symbols);
   const mintsValid = (!sellsOther || isSolanaAddress(fromMint.trim())) && (!buysOther || isSolanaAddress(toMint.trim()));
@@ -188,10 +190,10 @@ export function SwapDialog({
       <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
-            <Eyebrow>Swap</Eyebrow>
+            <Eyebrow>{t("Swap")}</Eyebrow>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Swap one token for another, routed by Jupiter and signed in your browser.
+            {t("Swap one token for another, routed by Jupiter and signed in your browser.")}
           </DialogDescription>
         </header>
 
@@ -208,7 +210,7 @@ export function SwapDialog({
                       setQuote(null);
                     }}
                     placeholder="0.00"
-                    aria-label="Amount to swap"
+                    aria-label={t("Amount to swap")}
                     data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
@@ -218,7 +220,7 @@ export function SwapDialog({
                       setFromSymbol(event.target.value);
                       setQuote(null);
                     }}
-                    aria-label="Token to sell"
+                    aria-label={t("Token to sell")}
                     className={PICKER}
                   >
                     {symbols.map((symbol) => (
@@ -226,13 +228,13 @@ export function SwapDialog({
                         {symbol}
                       </option>
                     ))}
-                    <option value={OTHER}>Other token…</option>
+                    <option value={OTHER}>{t("Other token…")}</option>
                   </select>
                 </div>
                 {sellsOther && (
                   <MintField
                     value={fromMint}
-                    label="Mint of the token to sell"
+                    label={t("Mint of the token to sell")}
                     onChange={(value) => {
                       setFromMint(value);
                       setQuote(null);
@@ -252,7 +254,7 @@ export function SwapDialog({
                       setToSymbol(event.target.value);
                       setQuote(null);
                     }}
-                    aria-label="Token to receive"
+                    aria-label={t("Token to receive")}
                     className={PICKER}
                   >
                     {symbols.map((symbol) => (
@@ -260,13 +262,13 @@ export function SwapDialog({
                         {symbol}
                       </option>
                     ))}
-                    <option value={OTHER}>Other token…</option>
+                    <option value={OTHER}>{t("Other token…")}</option>
                   </select>
                 </div>
                 {buysOther && (
                   <MintField
                     value={toMint}
-                    label="Mint of the token to buy"
+                    label={t("Mint of the token to buy")}
                     onChange={(value) => {
                       setToMint(value);
                       setQuote(null);
@@ -287,8 +289,7 @@ export function SwapDialog({
                     }}
                     className="mt-0.5"
                   />
-                  I have checked this mint and its Asset Passport. Anyone can create a token under any name; Elyra has not
-                  verified this one and will not value or count it.
+                  {t("I have checked this mint and its Asset Passport. Anyone can create a token under any name; Elyra has not verified this one and will not value or count it.")}
                 </label>
               )}
 
@@ -312,7 +313,7 @@ export function SwapDialog({
 
               {quote?.action !== undefined && !ready && (
                 <div className="rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
-                  <p className="type-label text-negative">Cannot be executed</p>
+                  <p className="type-label text-negative">{t("Cannot be executed")}</p>
                   <p className="type-label mt-1 text-text-secondary">
                     {quote.action.reason}
                   </p>
@@ -321,7 +322,7 @@ export function SwapDialog({
 
               {address === null && (
                 <p className="type-label text-text-muted">
-                  Connect a Solana wallet to swap.
+                  {t("Connect a Solana wallet to swap.")}
                 </p>
               )}
 
@@ -335,7 +336,7 @@ export function SwapDialog({
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2 rounded-card border border-positive/40 bg-positive-bg px-3 py-2.5">
                 <Check size={14} className="text-positive" aria-hidden />
-                <p className="type-label text-positive">Swap landed.</p>
+                <p className="type-label text-positive">{t("Swap landed.")}</p>
               </div>
               <a
                 href={txExplorerUrl(signature)}
@@ -344,7 +345,7 @@ export function SwapDialog({
                 className="type-label flex items-center gap-1.5 text-text-secondary hover:text-text-primary"
               >
                 <ExternalLink size={12} aria-hidden />
-                View on explorer
+                {t("View on explorer")}
               </a>
             </div>
           )}
@@ -352,7 +353,7 @@ export function SwapDialog({
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-4 py-3">
           <Button size="sm" variant="quiet" onClick={onClose}>
-            {signature === null ? "Cancel" : "Done"}
+            {signature === null ? t("Cancel") : t("Done")}
           </Button>
 
           {signature === null &&
@@ -361,7 +362,7 @@ export function SwapDialog({
                 {working && (
                   <Loader2 size={14} className={cn("animate-spin")} aria-hidden />
                 )}
-                {working ? "Confirming" : "Confirm swap"}
+                {working ? t("Confirming") : t("Confirm swap")}
               </Button>
             ) : (
               <Button
@@ -371,7 +372,7 @@ export function SwapDialog({
                 onClick={onQuote}
               >
                 {quoting && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {quoting ? "Quoting" : "Get quote"}
+                {quoting ? t("Quoting") : t("Get quote")}
               </Button>
             ))}
         </footer>
@@ -395,6 +396,7 @@ function MintField({
   onChange: (value: string) => void;
   onPassport: (mint: string) => void;
 }) {
+  const t = useT();
   const typed = value.trim();
   const valid = isSolanaAddress(typed);
   return (
@@ -402,21 +404,21 @@ function MintField({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Token mint address"
+        placeholder={t("Token mint address")}
         aria-label={label}
         spellCheck={false}
         autoComplete="off"
         className={MINT_FIELD}
       />
       {typed.length > 0 && !valid ? (
-        <p className="type-label text-negative">That is not a Solana mint address.</p>
+        <p className="type-label text-negative">{t("That is not a Solana mint address.")}</p>
       ) : valid ? (
         <button
           type="button"
           onClick={() => onPassport(typed)}
           className="type-label self-start text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
         >
-          Check its Asset Passport
+          {t("Check its Asset Passport")}
         </button>
       ) : null}
     </div>

@@ -13,6 +13,7 @@ import { accountExplorerUrl } from "@/lib/solana/address";
 import { CLUSTER_LABEL, EXPECTED_CLUSTER, type Cluster } from "@/lib/solana/cluster";
 import { isSuiAddress, suiAddressUrl, SUI_EXPLORER } from "@/lib/sui/chain";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Where to send funds.
@@ -49,6 +50,7 @@ export function ReceiveDialog({
   /** The network the dialog opens on. */
   network?: Network;
 }) {
+  const t = useT();
   const auth = useElyraAuth();
   const evmAddress = isEvmAddress(auth.walletAddress) ? auth.walletAddress : null;
   const suiAddress = isSuiAddress(auth.suiAddress) ? auth.suiAddress : null;
@@ -82,20 +84,20 @@ export function ReceiveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[min(400px,calc(100vw-24px))] p-0">
         <DialogHeader className="border-b border-border-subtle px-4 py-3">
-          <DialogTitle className="type-h2 text-text-primary">Receive</DialogTitle>
+          <DialogTitle className="type-h2 text-text-primary">{t("Receive")}</DialogTitle>
           <DialogDescription className="type-body-sm text-text-secondary">
             {network === "solana"
-              ? "Send SOL or Solana tokens to this address."
+              ? t("Send SOL or Solana tokens to this address.")
               : network === "sui"
-                ? "Send SUI or Sui coins to this address."
-                : `Send ${EVM_CHAINS[network].nativeSymbol} or tokens on ${NETWORK_NAME[network]} to this address.`}
+                ? t("Send SUI or Sui coins to this address.")
+                : t("Send {nativeSymbol} or tokens on {value} to this address.", { nativeSymbol: EVM_CHAINS[network].nativeSymbol, value: NETWORK_NAME[network] })}
           </DialogDescription>
         </DialogHeader>
 
         {networks.length > 1 && (
           <div className="shrink-0 border-b border-border-subtle px-4 py-2">
             <OptionMenu
-              label="Network"
+              label={t("Network")}
               icon={NetworkIcon}
               value={network}
               onChange={(id) => setChosen(id as Network)}
@@ -123,16 +125,17 @@ export function ReceiveDialog({
 
 /** The code, the whole address and the copy — the same for every network. */
 function AddressBlock({ address }: { address: string }) {
+  const t = useT();
   return (
     <>
-      <QrCode value={address} label="QR code of the wallet address" />
+      <QrCode value={address} label={t("QR code of the wallet address")} />
       <div className="flex w-full flex-col gap-2">
         {/* Selectable as well as copyable, whole: a receiving address is
             never shown truncated. */}
         <p className="type-mono-addr w-full select-all break-all rounded-control border border-border-subtle bg-surface-base px-3 py-2.5 text-center text-text-primary">
           {address}
         </p>
-        <CopyButton value={address} label="wallet address" text="Copy address" className="w-full" />
+        <CopyButton value={address} label={t("wallet address")} text={t("Copy address")} className="w-full" />
       </div>
     </>
   );
@@ -160,6 +163,7 @@ function Warning({ children, severe = false }: { children: React.ReactNode; seve
 }
 
 function ExplorerLink({ href, name }: { href: string; name: string }) {
+  const t = useT();
   return (
     <a
       href={href}
@@ -170,7 +174,7 @@ function ExplorerLink({ href, name }: { href: string; name: string }) {
         "transition-colors duration-[var(--dur-fast)] ease-brand hover:text-text-primary",
       )}
     >
-      View on {name}
+      {t("View on {name}", { name })}
       <ExternalLink size={12} strokeWidth={1.5} aria-hidden />
     </a>
   );
@@ -185,25 +189,26 @@ function SolanaReceive({
   cluster: Cluster | null;
   embedded: boolean;
 }) {
+  const t = useT();
   const network = CLUSTER_LABEL[cluster ?? EXPECTED_CLUSTER];
   const offMainnet = cluster !== null && cluster !== EXPECTED_CLUSTER;
 
   if (address === null) {
     return (
       <p className="type-body-sm px-4 py-6 text-text-secondary">
-        This account has no Solana wallet to receive into. Link one from your account to get an address.
+        {t("This account has no Solana wallet to receive into. Link one from your account to get an address.")}
       </p>
     );
   }
 
   return (
     <div className="flex flex-col items-center gap-4 px-4 pb-4 pt-4">
-      <NetworkCard network="solana" label={network} detail={embedded ? "Your Elyra wallet" : "Your linked Solana wallet"} />
+      <NetworkCard network="solana" label={network} detail={embedded ? t("Your Elyra wallet") : t("Your linked Solana wallet")} />
       <AddressBlock address={address} />
       <Warning severe={offMainnet}>
         {offMainnet
-          ? `This wallet is being read on ${network}. Funds sent on mainnet will not show here until the RPC points at mainnet.`
-          : `Only send assets on ${network}. Tokens sent from another network, such as Ethereum, can be lost.`}
+          ? t("This wallet is being read on {network}. Funds sent on mainnet will not show here until the RPC points at mainnet.", { network })
+          : t("Only send assets on {network}. Tokens sent from another network, such as Ethereum, can be lost.", { network })}
       </Warning>
       <ExplorerLink href={accountExplorerUrl(address, cluster)} name="Solscan" />
     </div>
@@ -211,18 +216,18 @@ function SolanaReceive({
 }
 
 function EvmReceive({ chain, address, embedded }: { chain: EvmChainKey; address: string; embedded: boolean }) {
+  const t = useT();
   const here = EVM_CHAINS[chain];
   return (
     <div className="flex flex-col items-center gap-4 px-4 pb-4 pt-4">
       <NetworkCard
         network={chain}
         label={here.name}
-        detail={embedded ? "Your Elyra EVM wallet" : "Your linked EVM wallet"}
+        detail={embedded ? t("Your Elyra EVM wallet") : t("Your linked EVM wallet")}
       />
       <AddressBlock address={address} />
       <Warning>
-        Only send on {here.name}. This address is also yours on the other EVM networks, but each keeps its own
-        balance — funds sent on one never appear on another. Never send from Solana or Sui.
+        {t("Only send on {name}. This address is also yours on the other EVM networks, but each keeps its own balance — funds sent on one never appear on another. Never send from Solana or Sui.", { name: here.name })}
       </Warning>
       <ExplorerLink href={evmAddressUrl(chain, address)} name={here.explorer.name} />
     </div>
@@ -230,13 +235,13 @@ function EvmReceive({ chain, address, embedded }: { chain: EvmChainKey; address:
 }
 
 function SuiReceive({ address }: { address: string }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center gap-4 px-4 pb-4 pt-4">
-      <NetworkCard network="sui" label="Sui" detail="Your Elyra Sui wallet" />
+      <NetworkCard network="sui" label="Sui" detail={t("Your Elyra Sui wallet")} />
       <AddressBlock address={address} />
       <Warning>
-        Only send SUI or Sui coins, on Sui. A Sui address is longer than an EVM one and is not the same wallet —
-        funds sent from Ethereum or Solana can be lost.
+        {t("Only send SUI or Sui coins, on Sui. A Sui address is longer than an EVM one and is not the same wallet — funds sent from Ethereum or Solana can be lost.")}
       </Warning>
       <ExplorerLink href={suiAddressUrl(address)} name={SUI_EXPLORER.name} />
     </div>

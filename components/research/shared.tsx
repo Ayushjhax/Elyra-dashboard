@@ -4,8 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
+import { intlLocale } from "@/lib/i18n/locales";
 
 export function useResearchResource<T>(url: string, enabled = true) {
+  const t = useT();
   const request = useAuthedFetch();
   const auth = useElyraAuth();
   const resourceKey = `${auth.account?.id ?? "public"}:${url}`;
@@ -38,8 +42,8 @@ export function useResearchResource<T>(url: string, enabled = true) {
         if (!response.ok)
           throw new Error(
             response.status === 401
-              ? "Sign in to read this research."
-              : "This data could not be loaded. Try again.",
+              ? t("Sign in to read this research.")
+              : t("This data could not be loaded. Try again."),
           );
         const data = (await response.json()) as T;
         if (!controller.signal.aborted)
@@ -52,13 +56,13 @@ export function useResearchResource<T>(url: string, enabled = true) {
             error:
               error instanceof Error
                 ? error.message
-                : "This data could not be loaded.",
+                : t("This data could not be loaded."),
             loading: false,
           }));
       }
     });
     return () => controller.abort();
-  }, [url, resourceKey, enabled, revision]);
+  }, [url, resourceKey, enabled, revision, t]);
   const reload = useCallback(() => setRevision((value) => value + 1), []);
   return {
     data: state?.url === resourceKey ? state.data : null,
@@ -83,34 +87,36 @@ export function Problem({
   children: React.ReactNode;
   retry?: () => void;
 }) {
+  const t = useT();
   return (
     <div role="status" className="r-problem">
-      <span>{children}</span>
+      <span>{typeof children === "string" ? t(children) : children}</span>
       {retry && (
         <button type="button" className="r-button" onClick={retry}>
           <RefreshCw size={14} aria-hidden />
-          Try again
+          {t("Try again")}
         </button>
       )}
     </div>
   );
 }
 export function SignIn({
-  children = "Sign in to read this research.",
+  children = msg("Sign in to read this research."),
 }: {
   children?: React.ReactNode;
 }) {
+  const t = useT();
   const auth = useElyraAuth();
   return (
     <div className="r-problem">
-      <span>{children}</span>
+      <span>{typeof children === "string" ? t(children) : children}</span>
       <button
         type="button"
         className="r-button"
         onClick={auth.login}
         disabled={!auth.available}
       >
-        Connect wallet
+        {t("Connect wallet")}
       </button>
     </div>
   );
@@ -157,17 +163,18 @@ export const dollars = (value: number | null | undefined) =>
     : "—";
 export function Timestamp({
   at,
-  label = "Source updated",
+  label = msg("Source updated"),
 }: {
   at?: string | null;
   label?: string;
 }) {
+  const t = useT();
   if (!at || !Number.isFinite(Date.parse(at))) return null;
   return (
     <span className="r-timestamp">
-      {label}{" "}
+      {t(label)}{" "}
       <time dateTime={at}>
-        {new Date(at).toLocaleString("en-GB", {
+        {new Date(at).toLocaleString(intlLocale(t.locale), {
           dateStyle: "medium",
           timeStyle: "short",
           timeZone: "UTC",

@@ -8,6 +8,7 @@ import { Tip } from "@/components/shell/RouteDrawer";
 import { SwapDialog } from "@/components/assets/SwapDialog";
 import { TransferDialog } from "@/components/assets/TransferDialog";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The four capital actions.
@@ -113,13 +114,14 @@ function CapitalAction({
  * renders — the same split `WalletActions` makes, for the same reason.
  */
 function DepositAction({ address }: { address: string }) {
+  const t = useT();
   const { fundWallet } = useFundWallet();
   const [busy, setBusy] = useState(false);
 
   return (
     <CapitalAction
       icon={ArrowDownToLine}
-      label="Deposit"
+      label={t("Deposit")}
       tone="primary"
       reason={null}
       busy={busy}
@@ -155,6 +157,7 @@ export function AssetActionBar({
   /** A swap or transfer landed; the caller refreshes what it shows. */
   onExecuted?: () => void;
 }) {
+  const t = useT();
   const auth = useElyraAuth();
   const [open, setOpen] = useState<Exclude<AssetAction, "deposit"> | null>(null);
 
@@ -163,11 +166,11 @@ export function AssetActionBar({
      provider. They carry the same guard Deposit does, with the reason. */
   const signReason =
     address === null
-      ? "Link a Solana wallet first."
+      ? t("Link a Solana wallet first.")
       : !auth.available
-        ? "Wallet signing is unavailable on this deployment."
+        ? t("Wallet signing is unavailable on this deployment.")
         : !walletFunded
-          ? "The wallet holds nothing to move yet — deposit first."
+          ? t("The wallet holds nothing to move yet — deposit first.")
           : null;
 
   return (
@@ -178,15 +181,15 @@ export function AssetActionBar({
         ) : (
           <CapitalAction
             icon={ArrowDownToLine}
-            label="Deposit"
+            label={t("Deposit")}
             tone="primary"
-            reason={address === null ? "Link a Solana wallet to deposit into." : "Wallet funding is unavailable on this deployment."}
+            reason={address === null ? t("Link a Solana wallet to deposit into.") : t("Wallet funding is unavailable on this deployment.")}
             onClick={() => {}}
           />
         )}
-        <CapitalAction icon={ArrowLeftRight} label="Swap" tone="secondary" reason={signReason} onClick={() => setOpen("swap")} />
-        <CapitalAction icon={Send} label="Transfer" tone="secondary" reason={signReason} onClick={() => setOpen("transfer")} />
-        <CapitalAction icon={ArrowUpRight} label="Withdraw" tone="secondary" reason={signReason} onClick={() => setOpen("withdraw")} />
+        <CapitalAction icon={ArrowLeftRight} label={t("Swap")} tone="secondary" reason={signReason} onClick={() => setOpen("swap")} />
+        <CapitalAction icon={Send} label={t("Transfer")} tone="secondary" reason={signReason} onClick={() => setOpen("transfer")} />
+        <CapitalAction icon={ArrowUpRight} label={t("Withdraw")} tone="secondary" reason={signReason} onClick={() => setOpen("withdraw")} />
       </div>
 
       {signReason === null && address !== null && open === "swap" && (

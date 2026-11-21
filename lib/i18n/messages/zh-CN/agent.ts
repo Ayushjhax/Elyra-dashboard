@@ -171,8 +171,12 @@ export const agent: Messages = {
     "买入 {shares} 股",
   "Brief me on":
     "简报：",
+  "Cancel":
+    "取消",
   "Catalysts":
     "催化剂",
+  "Close":
+    "关闭",
   "Cluster buy":
     "集体买入",
   "Companies":
@@ -183,6 +187,8 @@ export const agent: Messages = {
     "公司",
   "Company on EDGAR":
     "EDGAR 上的公司",
+  "Confirm":
+    "确认",
   "Connect a Solana wallet in this browser to sign it.":
     "在此浏览器中连接 Solana 钱包以签名。",
   "Conversation":
@@ -295,6 +301,8 @@ export const agent: Messages = {
     "管理层",
   "Less":
     "收起",
+  "Leverage":
+    "杠杆",
   "Listening — speak, then press the microphone to stop.":
     "正在聆听——说完后点按麦克风停止。",
   "Listening…":
@@ -411,6 +419,8 @@ export const agent: Messages = {
     "统筹",
   "Over its last {filings} Form 4s, insiders at {company} ({ticker}) bought {buyValue} in {buys} trades and sold {sellValue} in {sells} trades. What does this pattern suggest, and what would change that reading?":
     "在最近 {filings} 份 Form 4 中，{company}（{ticker}）的内部人通过 {buys} 笔交易买入 {buyValue}，通过 {sells} 笔交易卖出 {sellValue}。这种模式说明了什么？什么会改变这个判断？",
+  "Paper":
+    "模拟",
   "Period {periodEnd}":
     "报告期 {periodEnd}",
   "planned insider sales · {count}":
@@ -493,6 +503,8 @@ export const agent: Messages = {
     "再显示 {value} 条，共 {count} 条",
   "Show notes":
     "显示笔记",
+  "Sign in":
+    "登录",
   "Sign in to ask":
     "登录后提问",
   "Sign in to ask Elyra…":
@@ -507,6 +519,8 @@ export const agent: Messages = {
     "无法读取信号。",
   "Since entry":
     "入场以来",
+  "Size":
+    "规模",
   "Smart-money consensus":
     "聪明钱共识",
   "Smart-money tracker":
@@ -525,16 +539,22 @@ export const agent: Messages = {
     "说出你的问题",
   "Stake {changePct}":
     "持股 {changePct}",
+  "Starting…":
+    "正在启动…",
   "Still reading the latest filings — this fills in over the next minute.":
     "仍在读取最新申报——一分钟内会陆续补全。",
   "Stop voice input":
     "停止语音输入",
+  "Stop-loss":
+    "止损",
   "Straight from SEC EDGAR: the filings as filed, and figures as tagged in XBRL. Not advice.":
     "直接来自 SEC EDGAR：原始申报文件，以及 XBRL 中标注的数据。不构成建议。",
   "Suggested questions":
     "推荐问题",
   "Summarise {name} ({ticker}) from its SEC filings: the latest quarter, what changed against a year ago, and anything material it filed recently.":
     "根据 SEC 申报文件总结 {name}（{ticker}）：最新一个季度、与去年同期相比的变化，以及近期提交的任何重大事项。",
+  "Take-profit":
+    "止盈",
   "Team":
     "团队",
   "The answer cites no figures to trace.":
@@ -597,6 +617,8 @@ export const agent: Messages = {
     "值得优先关注",
   "Yesterday":
     "昨天",
+  "You":
+    "你",
   "Your exposure":
     "你的敞口",
   "Your recent actions, read back to the team.":

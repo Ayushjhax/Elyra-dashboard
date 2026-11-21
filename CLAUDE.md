@@ -124,6 +124,42 @@ more than asked, nothing else falls, SOL leaves only for fees (or the amount
 sold), no account gains a delegate, owner or close authority, and the
 wallet still belongs to the System Program. It fails closed.
 
+Tokenized stocks listed by Sunrise (`lib/sunrise/`, docs.sunrise.xyz) trade
+through that same path, not beside it. They are issued through Backpack's
+tokenization service and Trek Nexus Markets' trust. A token is Sunrise-listed
+only by its mint on Sunrise's own list for `backpack_securities`
+(`sunriseEquities`), or by a symbol exactly one of them holds that the
+allowlist does not. Its decimals are held to the mint account
+(`checkedDecimals`). `/api/swap/build` quotes it across Sunrise's routes
+(`previewSunriseSwap`, best signable output) for the session's wallet, the
+swap guard simulates the result like any other, and `/api/swap/submit` hands
+the signed bytes unchanged to Sunrise's `/v1/execute` (a `sunrise:` quoteRef).
+Sunrise's terms exclude US persons, PRC residents and sanctioned
+jurisdictions, and its API cannot see where a server-side request comes from.
+So every such trade passes `eligibility` (`lib/sunrise/eligibility.ts`) at
+build and again at submit: the request's country (`x-vercel-ip-country`,
+unknown refused, `RESTRICTED_REGIONS` not a setting), then the person's
+confirmation for that trade (`confirmEligible`). They are deliberately not on
+the `lib/trade.ts` allowlist, so the chat command, Telegram and Intelligent
+Portfolios, which cannot ask that question, never reach them. The swap
+dialog lists them only with `?include=sunrise`, and the Android app's
+request does not ask for them. An execute whose outcome is unknown is resent
+once with the same bytes (`sunriseExecute`), never re-signed. The person is
+told to check their wallet, never to sign again. An RFQ route places an order
+a market maker fills later. The dialog follows it through `/api/swap/orders`,
+which reads only the session's wallet. Sunrise has no mint or redeem API: the
+primary market is Backpack Exchange's conversion flow, which Elyra links to
+and never claims to perform. Copy follows Sunrise's terms over its docs:
+these tokens are not the shares, and redemption is not guaranteed.
+`SUNRISE_API_KEY` is issued by Sunrise on request. Without it, none of this
+appears.
+
+Tokenized stocks (`/stocks`, `lib/equities/`) is every issuer's tokens in one
+list, grouped by the share behind them: Sunrise's, Backed's xStocks and Ondo's
+on Solana, and Robinhood's on Robinhood Chain, which are shown read-only.
+Each share is priced by Pyth's US equity feed and each Solana token at its
+on-chain price. The premium compares one token with one share and says so.
+
 Intelligent Portfolios (`/invest`) are published model portfolios, not
 tokens: `lib/invest/catalog.ts` holds the weights, every holding must be on
 the swap allowlist in `lib/trade.ts`, and a person buys each holding into
@@ -189,6 +225,24 @@ every rule and are not settings. Rules start on paper; live orders need
 The pass runs on the five-minute tick, before delivery, and writes each
 position row before its order is sent (`unique (rule_id, signal_at)`), so a
 bar never trades twice.
+
+Copy trading (`/automation/copy`, `lib/copy/`, `docs/COPY_TRADING.md`) is
+automation too, not another path. A person groups rules into sets
+(`trading_rule_sets`) and may share one, shown by Arena handle and never by
+wallet. A follow (`copy_follows`) copies a shared set's new entries:
+`runCopy` runs on the tick right after `runAutotrade`, sizes each entry with
+`copyOrderFor`, and sends it through `openMarketTrade`, so `accountGate`, the
+live switch and the follower's key all apply. A copy keeps the leader's
+take-profit and stop-loss as prices, is skipped once the price has moved past
+the follower's allowance, and is unique on (`copy_id`, `leader_position_id`).
+It closes through `closeTrade` when the leader's position closes
+(`exit_reason: "leader_closed"`). A set's record is exactly its tagged
+positions (`set_id`, written at entry), in returns on margin, never dollars.
+A backtest (`simulateRule`) is always labelled as one, never shown as a
+record. Elyra's own sets (`lib/copy/house.ts`) are real paper rules owned by
+a profile no Privy login can resolve to (`elyra:house`), written from code by
+`ensureHouse`. Their record is only what they have traded; never seed,
+backfill or invent one. Elyra holds no capital, so they never trade live.
 
 Elyra's agent reads a person's own trading record back through two tools,
 `trading_record` and `trading_what_if` (`lib/agent/tools/trading.ts`), both
@@ -434,7 +488,27 @@ the Android app stay on `runAgent`. Both share `toolLoop`
 Attachments are checked by `validateAttachments` in `lib/attachments.ts`
 wherever a body carries them — type, leading bytes, count, size — and are
 never written to the database. Dictation only fills the composer; nothing
-spoken is sent or acted on without the person pressing send.
+it hears is sent without the person pressing send.
+
+A voice conversation (`components/agent/VoiceMode.tsx`, `lib/voice/`) is the
+one place speech is sent by itself: the person starts and ends it, the
+microphone is off while Elyra speaks, three silent turns pause it, and
+closing the panel ends it. Each finished utterance is first read by
+`parseVoiceCommand` (`lib/voice/command.ts`) — code, never the model. An order
+becomes a ticket, filled with the chart ticket's defaults where unsaid
+(`TICKET_DEFAULTS`), checked by `validateMarketOrder`, read back aloud, and
+placed only through the chart ticket's own routes after the person confirms:
+a spoken "confirm" may place paper only (`voiceMayConfirm`); live money needs
+a tap; a swap opens `SwapDialog` prefilled, to be signed there. Anything else
+is a question for the single agent (`team: false`, for a sooner reply) sent
+with the persona's id (`voice`), which adds `spokenReplyInstruction` to the
+run's context — an id from `VOICE_PERSONAS`, never text from the body. A
+persona is a voice and a manner, never different facts or powers. Replies
+are spoken through `/api/agent/speak` (Gemini's streamed TTS, raw PCM played
+as it arrives; signed in, a persona from the list, capped per piece and per
+minute) or the browser's own voice, after `toSpeakable` drops tables, code,
+links and addresses. `lib/voice/speaker.ts` is the one speaker on the page,
+so nothing talks over anything else.
 
 `formatRelativeTime` and `formatDayGroup` take `now` as a required argument —
 pass the shared clock from `lib/useClock.ts`, never `Date.now()` in render.

@@ -97,7 +97,7 @@ function GroupCard({ group, onTrade }: { group: EquityGroup; onTrade: (symbol: s
         <div className="shrink-0 text-right">
           <p className="type-data-sm tabular-nums text-text-primary">{group.shareUsd === null ? "—" : formatPriceUsd(group.shareUsd)}</p>
           <p className="type-label text-text-muted">
-            {group.session !== null && group.session !== "regular" ? t("Share · outside regular hours") : t("Share")}
+            {group.session !== null && group.session !== "regular" ? t("Share price · outside regular hours") : t("Share price")}
           </p>
         </div>
       </div>
@@ -166,7 +166,7 @@ export function StocksView() {
                 {data !== null && <span className="type-label text-text-muted"> · {t("{count} tokens", { count: data.counts[entry] })}</span>}
               </p>
               <p className="type-label text-text-secondary">
-                <span className="text-text-muted">{t("Primary")}: </span>
+                <span className="text-text-muted">{t("Primary market")}: </span>
                 {t(PRIMARY[entry])}
                 {entry === "sunrise" && (
                   <>
@@ -179,7 +179,7 @@ export function StocksView() {
                 )}
               </p>
               <p className="type-label text-text-secondary">
-                <span className="text-text-muted">{t("Secondary")}: </span>
+                <span className="text-text-muted">{t("Secondary market")}: </span>
                 {t(SECONDARY[entry])}
               </p>
             </li>

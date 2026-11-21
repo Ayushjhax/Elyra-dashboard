@@ -201,8 +201,6 @@ export const arena: Messages = {
     "结算价 {settledPrice}（",
   "SHA-256 of the call's exact words and the time the server received it. It cannot be changed after posting; anyone can recompute it.":
     "对预测的原文和服务器收到它的时间计算的 SHA-256。发布后无法更改；任何人都可以重新计算验证。",
-  "Sign in":
-    "登录",
   "Sign in to play":
     "登录后参与",
   "Streak":
@@ -225,8 +223,6 @@ export const arena: Messages = {
     "谁能看到",
   "Wrong":
     "错误",
-  "You":
-    "你",
   "You are {vsBot} ahead of the momentum bot.":
     "你领先动量机器人 {vsBot}。",
   "You faded with {points} points":

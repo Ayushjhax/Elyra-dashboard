@@ -551,10 +551,6 @@ export const research: Messages = {
     "仅稳定币",
   "Stale reading":
     "读数过时",
-  "Starting…":
-    "正在启动…",
-  "Stop":
-    "止损",
   "Strategy builder":
     "策略构建器",
   "Strategy logic":

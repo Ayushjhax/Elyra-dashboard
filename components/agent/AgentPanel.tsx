@@ -6,6 +6,7 @@ import { ElyraMark } from "@/components/ui/ElyraMark";
 import {
   ArrowDown,
   ArrowUpRight,
+  AudioLines,
   ChevronRight,
   FileText,
   Loader2,
@@ -18,6 +19,7 @@ import {
   SendHorizontal,
   Sparkles,
   Square,
+  Volume2,
   Wrench,
   X,
 } from "lucide-react";
@@ -28,6 +30,7 @@ import { PendingActions } from "@/components/agent/PendingActions";
 import { SmartMoneyPanel } from "@/components/panels/SmartMoneyPanel";
 import { SecResearch } from "@/components/agent/SecResearch";
 import { TeamArchitecture, TeamTrace } from "@/components/agent/TeamTrace";
+import { VoiceMode } from "@/components/agent/VoiceMode";
 import { sendToAgent } from "@/lib/agentChat";
 import { ACCEPT, ATTACHMENT_LIMITS, type ComposerAttachment } from "@/lib/attachments";
 import { describeSize, readAttachments } from "@/lib/attachments-read";
@@ -39,6 +42,8 @@ import { useElyraStore } from "@/lib/store";
 import type { AgentTab, ChatMessage, ToolCall } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useDictation } from "@/lib/voice/useDictation";
+import { useVoicePersona } from "@/lib/voice/preferences";
+import { speak, stopSpeaking, unlockAudio, useSpeaking } from "@/lib/voice/speaker";
 import { useT } from "@/lib/i18n/client";
 import { msg } from "@/lib/i18n/translate";
 
@@ -143,6 +148,36 @@ function ToolCallBlock({ call }: { call: ToolCall }) {
   );
 }
 
+/** Reads a reply out loud in the chosen voice; pressed again, stops. */
+function ReadAloud({ id, text }: { id: string; text: string }) {
+  const t = useT();
+  const auth = useElyraAuth();
+  const persona = useVoicePersona();
+  const speaking = useSpeaking() === id;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (speaking) {
+          stopSpeaking();
+          return;
+        }
+        unlockAudio();
+        void speak(text, { persona, locale: t.locale, getToken: auth.getAccessToken, key: id, addressWord: t("the address") });
+      }}
+      aria-pressed={speaking}
+      aria-label={speaking ? t("Stop reading aloud") : t("Read aloud as {name}", { name: persona.name })}
+      title={speaking ? t("Stop reading aloud") : t("Read aloud as {name}", { name: persona.name })}
+      className={cn(
+        "inline-flex size-7 shrink-0 items-center justify-center rounded-control transition-colors duration-[var(--dur-fast)] ease-brand",
+        speaking ? "bg-accent-quiet text-text-primary" : "text-text-muted hover:bg-surface-hover hover:text-text-primary",
+      )}
+    >
+      {speaking ? <Square size={11} strokeWidth={2} aria-hidden className="fill-current" /> : <Volume2 size={14} strokeWidth={1.5} aria-hidden />}
+    </button>
+  );
+}
+
 function MessageBubble({
   message,
   streaming,
@@ -222,12 +257,12 @@ function MessageBubble({
         )}
 
         {!thinking && (
-          <time
-            dateTime={message.at}
-            className={cn("type-data-sm text-text-muted", isAgent ? "text-left" : "text-right")}
-          >
-            {t("{at} UTC", { at: formatClock(message.at, t.locale) })}
-          </time>
+          <div className={cn("flex items-center gap-2", isAgent ? "justify-between" : "justify-end")}>
+            <time dateTime={message.at} className="type-data-sm text-text-muted">
+              {t("{at} UTC", { at: formatClock(message.at, t.locale) })}
+            </time>
+            {isAgent && !streaming && message.text.length > 0 && !message.failed && <ReadAloud id={message.id} text={message.text} />}
+          </div>
         )}
       </div>
     </li>
@@ -381,11 +416,14 @@ function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove
 function Composer({
   cryptoSymbol,
   onAsk,
+  onVoice,
   showChips,
 }: {
   /** The selected market when it is a crypto asset, for the first suggestion. */
   cryptoSymbol: string;
   onAsk: (prompt: string) => void;
+  /** Opens a voice conversation (components/agent/VoiceMode.tsx). */
+  onVoice: () => void;
   /** Suggested questions belong to the conversation; the other views get
       their height back. */
   showChips: boolean;
@@ -640,18 +678,41 @@ function Composer({
             )}
           </button>
 
-          <button
-            type="submit"
-            aria-label={t("Send message")}
-            disabled={!canSend}
-            className={cn(
-              "inline-flex size-8 shrink-0 items-center justify-center rounded-control",
-              "transition-colors duration-[var(--dur-fast)] ease-brand",
-              canSend ? "bg-accent text-text-on-accent hover:bg-accent-hover" : "text-text-muted",
-            )}
-          >
-            <SendHorizontal size={15} strokeWidth={1.5} aria-hidden />
-          </button>
+          {/* With nothing to send, the send button is the way into a voice
+              conversation — the composer keeps its width on a narrow column. */}
+          {draft.trim().length === 0 && attachments.length === 0 && !listening ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (busyVoice) dictation.cancel();
+                unlockAudio();
+                onVoice();
+              }}
+              disabled={pending}
+              aria-label={t("Talk to Elyra")}
+              title={t("Talk to Elyra — a voice conversation")}
+              className={cn(
+                "inline-flex size-8 shrink-0 items-center justify-center rounded-control bg-accent text-text-on-accent",
+                "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover",
+                "disabled:pointer-events-none disabled:bg-surface-raised disabled:text-text-muted",
+              )}
+            >
+              <AudioLines size={15} strokeWidth={1.5} aria-hidden />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              aria-label={t("Send message")}
+              disabled={!canSend}
+              className={cn(
+                "inline-flex size-8 shrink-0 items-center justify-center rounded-control",
+                "transition-colors duration-[var(--dur-fast)] ease-brand",
+                canSend ? "bg-accent text-text-on-accent hover:bg-accent-hover" : "text-text-muted",
+              )}
+            >
+              <SendHorizontal size={15} strokeWidth={1.5} aria-hidden />
+            </button>
+          )}
         </div>
       </form>
 
@@ -700,6 +761,10 @@ export function AgentPanel({
   const symbol = asset?.symbol ?? "";
   const cryptoSymbol = asset?.assetType === "crypto" ? asset.symbol : "";
   const tabsId = useId();
+  /* A voice conversation lasts while the panel is open: closing it — or the
+     column becoming a drawer — ends the conversation and its microphone.
+     What was asked and answered is in the store's conversation either way. */
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   /* Every way of asking — the composer, a suggestion, the empty state, a
      signal card — goes through here, and lands on the conversation. */
@@ -729,7 +794,7 @@ export function AgentPanel({
     <section
       aria-label={t("Elyra intelligence")}
       className={cn(
-        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-subtle bg-surface-panel",
+        "relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-border-subtle bg-surface-panel",
         className,
       )}
     >
@@ -838,7 +903,16 @@ export function AgentPanel({
         </Link>
       </div>
 
-      <Composer cryptoSymbol={cryptoSymbol} onAsk={ask} showChips={tab === "ask"} />
+      <Composer
+        cryptoSymbol={cryptoSymbol}
+        onAsk={ask}
+        onVoice={() => {
+          setTab("ask");
+          setVoiceOpen(true);
+        }}
+        showChips={tab === "ask"}
+      />
+      {voiceOpen && <VoiceMode onEnd={() => setVoiceOpen(false)} />}
     </section>
   );
 }

@@ -31,8 +31,6 @@ export const events: Messages = {
     "更早的事件",
   "Returned":
     "已追回",
-  "Save":
-    "收藏",
   "Save a post and it appears here.":
     "收藏一条帖子，它就会出现在这里。",
   "Saved":

@@ -23,8 +23,6 @@ export const markets: Messages = {
     "基准指数",
   "Briefing":
     "简报",
-  "closed":
-    "休市",
   "Closed":
     "已收盘",
   "closes in {duration}":

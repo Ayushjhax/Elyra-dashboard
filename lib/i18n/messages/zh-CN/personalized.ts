@@ -49,8 +49,6 @@ export const personalized: Messages = {
     "资金智能",
   "Collapse your context":
     "折叠你的上下文",
-  "Confirm":
-    "确认",
   "Context":
     "上下文",
   "Context follows your selected account.":

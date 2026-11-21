@@ -72,9 +72,12 @@ export function premiumPct(tokenUsd: number | null, shareUsd: number | null): nu
 }
 
 /**
- * Tokens grouped by their share, issuers in a fixed order within a group,
- * groups by ticker. A token whose share is unknown is kept, under its own
- * symbol, so nothing listed is dropped for want of a ticker.
+ * Tokens grouped by their share, issuers in a fixed order within a group.
+ * Shares with a token Elyra can trade come first, then the read-only ones,
+ * each run by ticker — Robinhood alone lists hundreds, and they would
+ * otherwise bury what can be traded. A token whose share is unknown is
+ * kept, under its own symbol, so nothing listed is dropped for want of a
+ * ticker.
  */
 export function groupEquities(
   tokens: readonly EquityToken[],
@@ -97,8 +100,10 @@ export function groupEquities(
   const rank = (issuer: EquityIssuer) => ISSUER_ORDER.indexOf(issuer);
   return [...groups.values()]
     .map((group) => ({ ...group, tokens: [...group.tokens].sort((a, b) => rank(a.issuer) - rank(b.issuer) || a.symbol.localeCompare(b.symbol)) }))
-    .sort((a, b) => a.ticker.localeCompare(b.ticker));
+    .sort((a, b) => Number(tradable(b)) - Number(tradable(a)) || a.ticker.localeCompare(b.ticker));
 }
+
+const tradable = (group: EquityGroup): boolean => group.tokens.some((token) => token.swap !== null);
 
 /** "Tesla xStock" and "Tesla (Ondo)" both name Tesla. */
 export function baseName(name: string): string {

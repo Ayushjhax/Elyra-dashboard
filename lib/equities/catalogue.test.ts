@@ -67,6 +67,18 @@ describe("groupEquities", () => {
     const groups = groupEquities([token({ ticker: "TSLA" }), token({ ticker: "AAPL", symbol: "AAPLX", address: "a" })], new Map());
     expect(groups.map((group) => group.ticker)).toEqual(["AAPL", "TSLA"]);
   });
+
+  it("puts shares Elyra can trade before the read-only ones", () => {
+    const groups = groupEquities(
+      [
+        token({ issuer: "robinhood", symbol: "AAOI", ticker: "AAOI", chain: "robinhood", swap: null, address: "0x1" }),
+        token({ ticker: "TSLA" }),
+        token({ issuer: "robinhood", symbol: "TSLA", ticker: "TSLA", chain: "robinhood", swap: null, address: "0x2" }),
+      ],
+      new Map(),
+    );
+    expect(groups.map((group) => group.ticker)).toEqual(["TSLA", "AAOI"]);
+  });
 });
 
 describe("matches and baseName", () => {

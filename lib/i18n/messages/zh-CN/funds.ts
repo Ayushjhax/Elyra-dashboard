@@ -175,8 +175,6 @@ export const funds: Messages = {
     "成立于 {createdAt}",
   "Launching":
     "正在发起",
-  "Leverage":
-    "杠杆",
   "Lifecycle":
     "生命周期",
   "Live capital in USD":
@@ -243,8 +241,6 @@ export const funds: Messages = {
     "转出",
   "Paper capital. Adding or withdrawing buys or redeems units at today's NAV per unit, so the fund's return is unchanged.":
     "模拟资金。追加或取出会按今天的单位净值申购或赎回份额，因此基金的收益不变。",
-  "Pause":
-    "暂停",
   "Pausing stops new positions; open ones keep their exits. Resuming from a halt restarts the drawdown and the day's loss from today's NAV. Winding down closes everything now and freezes the record.":
     "暂停会停止新开仓；已开头寸保留其出场条件。从熔断中恢复会以今天的资产净值重新计算回撤和当日亏损。清盘会立即平掉所有头寸并冻结记录。",
   "per position · 1–{maxLeverage}x":
@@ -261,8 +257,6 @@ export const funds: Messages = {
     "已实现",
   "result pending":
     "结果待定",
-  "Resume":
-    "恢复",
   "Resume from the halt":
     "从熔断中恢复",
   "Resumed":

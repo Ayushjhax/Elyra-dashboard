@@ -55,8 +55,14 @@ export const copy: Messages = {
     "修改跟单 {name} 的方式",
   "Choose one in Arena.":
     "前往竞技场设置。",
+  "closed early":
+    "提前平仓",
+  "closed outside Elyra":
+    "在 Elyra 之外平仓",
   "Copy {name}":
     "跟单 {name}",
+  "Copy this set":
+    "跟单此规则组",
   "Copy a rule set someone shares, or one of Elyra's own. When its rules enter, Elyra opens the same trade in your account on the same five-minute check — at your size, with the leader's take-profit and stop-loss — and closes it when the leader closes. Your account's limits on Your rules apply to every copy.":
     "跟单他人分享的规则组，或 Elyra 自己运行的规则组。当其规则开仓时，Elyra 会在同一次五分钟检查中在你的账户里开出同样的交易——按你的仓位大小，沿用带单方的止盈和止损——并在带单方平仓时一同平仓。你在“你的规则”中设置的账户限额适用于每一笔跟单。",
   "Copy a shared set of automation rules, or one of Elyra's own, into your own Hyperliquid account, and share sets of your own.":
@@ -117,6 +123,8 @@ export const copy: Messages = {
     "将从 {set} 移出",
   "New set":
     "新建规则组",
+  "No one copies it yet":
+    "还没有人跟单",
   "No closed trades yet":
     "尚无已平仓交易",
   "No sets are shared yet.":
@@ -139,6 +147,8 @@ export const copy: Messages = {
     "分享，让他人可以跟单",
   "Share your own rules":
     "分享你自己的规则",
+  "Save changes":
+    "保存修改",
   "Shared":
     "已分享",
   "Sharing needs an Arena handle: a shared set is shown by your handle, never your wallet.":
@@ -189,4 +199,14 @@ export const copy: Messages = {
     "你的规则",
   "Your set":
     "你的规则组",
+  "closed":
+    "休市",
+  "Pause":
+    "暂停",
+  "Resume":
+    "恢复",
+  "Save":
+    "收藏",
+  "Stop":
+    "止损",
 };

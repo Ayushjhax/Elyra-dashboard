@@ -178,7 +178,7 @@ export function FollowForm({
           {t("Cancel")}
         </Button>
         <Button size="sm" variant="accent" type="submit" disabled={saving}>
-          {saving ? t("Saving…") : initial === null ? t("Start copying") : t("Save")}
+          {saving ? t("Saving…") : initial === null ? t("Start copying") : t("Save changes")}
         </Button>
       </div>
     </form>
@@ -301,7 +301,7 @@ export function SetEditor({
           {t("Cancel")}
         </Button>
         <Button size="sm" variant="accent" type="submit" disabled={saving}>
-          {saving ? t("Saving…") : initial === null ? t("Make set") : t("Save")}
+          {saving ? t("Saving…") : initial === null ? t("Make set") : t("Save changes")}
         </Button>
       </div>
     </form>

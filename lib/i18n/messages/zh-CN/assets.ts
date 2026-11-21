@@ -121,8 +121,6 @@ export const assets: Messages = {
     "余额、交易平台和资金流动，集中一处。",
   "Broadcast — waiting for the network to confirm it.":
     "已广播——等待网络确认。",
-  "Cancel":
-    "取消",
   "Cannot be executed":
     "无法执行",
   "Capital Accounts":
@@ -141,8 +139,6 @@ export const assets: Messages = {
     "在筛选中选择其他类型。",
   "Clear search":
     "清除搜索",
-  "Close":
-    "关闭",
   "Confirm {title}":
     "确认{title}",
   "Confirm swap":
@@ -403,8 +399,6 @@ export const assets: Messages = {
     "登录后，你的钱包、交易平台和头寸会汇集于此——余额、配置以及可转移的资金。",
   "Sign-in isn't configured on this deployment, so there is no account to read.":
     "此部署未配置登录，因此没有可读取的账户。",
-  "Size":
-    "规模",
   "Some positions couldn't be read":
     "部分头寸无法读取",
   "Source":

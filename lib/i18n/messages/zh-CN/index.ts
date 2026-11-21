@@ -9,6 +9,7 @@ import { common } from "./common";
 import { connections } from "./connections";
 import { copy } from "./copy";
 import { dynamic } from "./dynamic";
+import { equities } from "./equities";
 import { events } from "./events";
 import { funds } from "./funds";
 import { invest } from "./invest";
@@ -21,6 +22,7 @@ import { research } from "./research";
 import { shell } from "./shell";
 import { telegram } from "./telegram";
 import { trade } from "./trade";
+import { voice } from "./voice";
 import { wallet } from "./wallet";
 import { workspace } from "./workspace";
 
@@ -49,6 +51,7 @@ export const zhCN: Messages = {
   ...connections,
   ...copy,
   ...dynamic,
+  ...equities,
   ...events,
   ...funds,
   ...invest,
@@ -61,6 +64,7 @@ export const zhCN: Messages = {
   ...shell,
   ...telegram,
   ...trade,
+  ...voice,
   ...wallet,
   ...workspace,
 };

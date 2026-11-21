@@ -101,9 +101,11 @@ const exitLabel = (t: Translator, reason: string | null) =>
         ? t("exit rule")
         : reason === "closed_by_hand"
           ? t("by hand")
-          : reason === null
-            ? null
-            : t("closed");
+          : reason === "closed_outside_elyra"
+            ? t("closed outside Elyra")
+            : reason === null
+              ? null
+              : t("closed early");
 
 function LeaderDetailPanel({ id }: { id: string }) {
   const t = useT();
@@ -217,7 +219,7 @@ function LeaderRow({ leader, data, feed }: { leader: LeaderSummary; data: CopyRe
           <span className="type-label truncate text-text-muted">{coins.join(" · ")}</span>
           <RecordLine record={leader.record} />
           <span className="type-label text-text-muted">
-            {leader.followers === 1 ? t("1 person copies it") : t("{count} people copy it", { count: leader.followers })}
+            {leader.followers === 0 ? t("No one copies it yet") : leader.followers === 1 ? t("1 person copies it") : t("{count} people copy it", { count: leader.followers })}
             {leader.open > 0 && ` · ${leader.open === 1 ? t("1 position open") : t("{count} positions open", { count: leader.open })}`}
           </span>
         </div>
@@ -243,7 +245,7 @@ function LeaderRow({ leader, data, feed }: { leader: LeaderSummary; data: CopyRe
           !copying && (
             <Button size="sm" variant="accent" onClick={() => setCopying(true)}>
               <Copy size={14} aria-hidden />
-              {t("Copy")}
+              {t("Copy this set")}
             </Button>
           )
         )}
@@ -325,7 +327,7 @@ function FollowRow({ follow, data, feed }: { follow: FollowView; data: CopyRespo
             {t("Change")}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setConfirming(true)} className="ml-auto">
-            {t("Stop")}
+            {t("Stop copying")}
           </Button>
         </div>
       )}
@@ -355,7 +357,7 @@ function SetRow({ set, mine, feed }: { set: MySetView; mine: NonNullable<CopyRes
       </div>
       <span className="type-label text-text-muted">
         {set.ruleIds.length === 1 ? t("1 rule") : t("{count} rules", { count: set.ruleIds.length })}
-        {set.published && ` · ${set.followers === 1 ? t("1 person copies it") : t("{count} people copy it", { count: set.followers })}`}
+        {set.published && ` · ${set.followers === 0 ? t("No one copies it yet") : set.followers === 1 ? t("1 person copies it") : t("{count} people copy it", { count: set.followers })}`}
       </span>
       {confirming ? (
         <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-base p-2.5">

@@ -171,26 +171,26 @@ export async function runCopy(now: number = Date.now()): Promise<CopyReport> {
         );
         if ("skip" in planned) {
           report.skipped += 1;
-          await note(`Did not copy ${leaderName}'s ${entry.coin} ${side}: ${planned.skip}`);
+          await note(`Did not copy ${entry.coin} ${side} from ${leaderName}: ${planned.skip}`);
           continue;
         }
         const outcome = await openMarketTrade(follow.user_id, planned.order, {
           ruleName: `Copy · ${leaderName}`,
-          reason: `Copied ${leaderName}'s ${side} on ${entry.coin}${entry.entry_reason === null ? "" : `: ${entry.entry_reason}`}`,
+          reason: `Copied from ${leaderName}${entry.entry_reason === null ? "." : `: ${entry.entry_reason}`}`,
           copy: { followId: follow.id, leaderPositionId: entry.id },
         });
         if (outcome.ok) {
           report.copied += 1;
           done.add(`${follow.id}:${entry.id}`);
           const position = outcome.position;
-          await note(`Copied ${leaderName}'s ${entry.coin} ${side} at ${px(position.entryPrice)}.`);
+          await note(`Copied ${entry.coin} ${side} from ${leaderName} at ${px(position.entryPrice)}.`);
           await notify(follow.user_id, `Copied ${entry.coin} ${side}`, [
             `${leaderName} (${follow.mode}): ${side === "long" ? "bought" : "sold short"} ${usd(terms.sizeUsd)} of ${entry.coin} at ${px(position.entryPrice)}, ${planned.order.leverage}x.`,
             `TP ${px(position.takeProfit)}, SL ${px(position.stopLoss)}${follow.mode === "live" ? " are on Hyperliquid" : ""}. It closes when the leader closes.`,
           ]);
         } else if (outcome.status !== 409) {
           report.failed += 1;
-          await note(`Did not copy ${leaderName}'s ${entry.coin} ${side}: ${outcome.error}`);
+          await note(`Did not copy ${entry.coin} ${side} from ${leaderName}: ${outcome.error}`);
           /* The exchange refusing a live order is worth a message; a limit of the follower's own is in the note. */
           if (outcome.status >= 500) await notify(follow.user_id, `Copy failed · ${entry.coin}`, [`${leaderName}: ${outcome.error}`]);
         }

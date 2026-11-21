@@ -266,11 +266,13 @@ function TicketCard({
           <Button size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
             {t("Cancel")}
           </Button>
-          <span className="type-label text-text-muted">
-            {live || (ticket.kind === "close" && ticket.positions.some((position) => position.mode === "live"))
-              ? t("Live money: tap to confirm.")
-              : t("Or say “confirm”.")}
-          </span>
+          {ticket.error === null && (
+            <span className="type-label text-text-muted">
+              {live || (ticket.kind === "close" && ticket.positions.some((position) => position.mode === "live"))
+                ? t("Live money: tap to confirm.")
+                : t("Or say “confirm”.")}
+            </span>
+          )}
         </div>
       )}
     </section>

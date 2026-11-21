@@ -171,8 +171,6 @@ export const automation: Messages = {
     "立即按市价开仓，逐仓保证金，止盈和止损按成交价设置，并在同一请求中提交到 Hyperliquid。股票市场是 trade[XYZ] 永续合约——跟踪股价的合约，而非股票本身——在 Hyperliquid 上单独计算保证金。",
   "paper":
     "模拟",
-  "Paper":
-    "模拟",
   "Paper trade analysis":
     "模拟交易分析",
   "Paper trades only, after estimated fees and slippage. Win rate counts a trade as a win when it closed above zero after costs.":
@@ -217,16 +215,12 @@ export const automation: Messages = {
     "登录后即可自动交易",
   "Size ($)":
     "规模（$）",
-  "Stop-loss":
-    "止损",
   "Stop-loss (%)":
     "止损（%）",
   "Stop-loss ($)":
     "止损价（$）",
   "Strategy":
     "策略",
-  "Take-profit":
-    "止盈",
   "Take-profit (%)":
     "止盈（%）",
   "Take-profit ($)":

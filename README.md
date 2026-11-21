@@ -116,6 +116,14 @@ holds a colour value.
   25%, 50%, 75% or all, and their take-profit and stop-loss move by hand.
   It is paper unless live trading is on (see Trading automation in
   `CLAUDE.md`).
+- **Copy trading** (`/automation/copy`). Group your automation rules into
+  sets and share one under your Arena handle, or copy someone else's. When a
+  copied set's rule enters, the same trade opens in your account on the same
+  five-minute check: your size, the leader's exits, your account's limits.
+  It closes when the leader closes. Elyra runs three sets of its own on paper,
+  so there is something to copy from the first day. Their records are only
+  what they have traded, and a labelled backtest sits beside them.
+  `docs/COPY_TRADING.md`.
 - **Ask Elyra.** The agent, in a column beside the chart (a drawer below
   1280px). It leads with a decision brief for the selected market — range,
   EMA, pivots, your exposure, your nearest alert — and answers questions with
@@ -137,6 +145,21 @@ holds a colour value.
 - **Portfolio and assets** (`/portfolio`, `/assets`). The wallet, Hyperliquid
   and Binance in one ledger, with holdings, DeFi deposits and history. Swaps
   and transfers are built by the server and signed in your wallet.
+- **Tokenized stocks** (`/stocks`). Every tokenized stock and ETF Elyra knows,
+  grouped by the share behind it. The issuers are Sunrise (Backpack/Trek
+  tokens), Backed's xStocks and Ondo on Solana, and Robinhood on Robinhood
+  Chain. For each share it shows:
+  - the share's price, from Pyth;
+  - each token's on-chain price and its premium to one share;
+  - how that issuer mints and redeems (the primary market);
+  - where the token trades (the secondary market).
+
+  Solana tokens trade in your wallet through the one swap path. Sunrise's
+  stocks are quoted across Sunrise's routes (Jupiter, Titan, DFlow and its
+  RFQ market makers), and only after the request's country and your own
+  confirmation clear their eligibility rules: no US persons, PRC residents
+  or sanctioned jurisdictions. Robinhood's are shown, not traded. See
+  `lib/sunrise/` and `lib/equities/`.
 - **Research** (`/research`). Nine tabs:
   - Reports: PDFs, stored privately.
   - Backtests: a strategy engine with robustness checks and PDF results. A
@@ -327,6 +350,7 @@ without it. In summary:
 | `SOLANA_RPC_URL` | Wallet balances and history say the RPC is unconfigured. Use a paid endpoint; there is deliberately no fallback to the public one |
 | `NEXT_PUBLIC_SOLANA_RPC_URL` | Signing fails in Privy's confirm modal. A **separate**, browser-safe key restricted to your domains. Treat it as required |
 | `JUPITER_API_KEY` | Pricing falls back to Jupiter's keyless tier and drops prices under load |
+| `SUNRISE_API_KEY` | Sunrise's tokenized stocks are not listed or tradable. Issued by Sunrise on request (contact@sunrise.xyz) |
 | `BIRDEYE_API_KEY` | No price fallback for mints Jupiter cannot price, and no history |
 | `GEMINI_API_KEY` (`GEMINI_MODEL`, `GEMINI_TRANSCRIBE_MODEL`, `GEMINI_TTS_MODEL`) | No model fallback, no dictation in Firefox and Brave, and Elyra's voices fall back to the browser's own |
 | `SEC_USER_AGENT` (`SEC_MAX_RPS`) | No filings-backed research. Format: `Company Name contact@domain` |

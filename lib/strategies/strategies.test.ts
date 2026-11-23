@@ -185,5 +185,9 @@ describe("the AI's proposals", () => {
     expect(proposalsIn({ toolCalls: [{ name: "propose_strategies", arguments: { strategies: [proposal] } }], text: null })).toHaveLength(1);
     expect(proposalsIn({ toolCalls: [], text: `Here: ${JSON.stringify({ strategies: [proposal, proposal] })}` })).toHaveLength(2);
     expect(proposalsIn({ toolCalls: [], text: "No strategies today." })).toEqual([]);
+    /* As a model sometimes sends it: the array as a JSON string, bare or wrapped. */
+    expect(proposalsIn({ toolCalls: [{ name: "propose_strategies", arguments: { strategies: JSON.stringify({ strategies: [proposal] }) } }], text: null })).toHaveLength(1);
+    expect(proposalsIn({ toolCalls: [{ name: "propose_strategies", arguments: { strategies: JSON.stringify([proposal, proposal]) } }], text: null })).toHaveLength(2);
+    expect(proposalsIn({ toolCalls: [{ name: "propose_strategies", arguments: { strategies: "not json" } }], text: null })).toEqual([]);
   });
 });

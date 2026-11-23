@@ -45,6 +45,8 @@ export async function testDesign(
     return { ok: false, error: outcome.error ?? "The backtest could not run." };
   }
   const metrics = outcome.metrics;
+  /* Designs run on spot candles, where there is no funding to exclude. */
+  const relevant = (line: string) => !/^Funding is excluded/.test(line);
   return {
     ok: true,
     result: {
@@ -66,7 +68,7 @@ export async function testDesign(
         averageBarsHeld: metrics.averageBarsHeld,
         totalFees: metrics.totalFees,
       },
-      quality: outcome.quality ?? { level: "valid", issues: [] },
+      quality: outcome.quality === undefined ? { level: "valid", issues: [] } : { level: outcome.quality.level, issues: outcome.quality.issues.filter(relevant) },
       equity: downsample((outcome.equity ?? []).map((point) => ({ time: point.time, equity: point.equity })), 240),
       initialCapitalUsd: outcome.config.initialCapitalUsd,
       trades: (outcome.trades ?? [])
@@ -81,7 +83,7 @@ export async function testDesign(
           netPnl: trade.netPnl,
           exitReason: trade.exitReason,
         })),
-      warnings: outcome.warnings ?? [],
+      warnings: (outcome.warnings ?? []).filter(relevant),
       testedAt: new Date(endAt).toISOString(),
     },
   };

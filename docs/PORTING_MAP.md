@@ -182,6 +182,7 @@ app through push and the inbox.
 |---|---|---|---|---|
 | Research tabs | `components/research/ResearchWorkspace.tsx` | Research tab | — | in progress — built (Prompts 14–15); signed-in device check pending |
 | Reports + PDF | `components/research/ReportsTab.tsx`, `lib/research/*` | Research → Reports, share PDF | `/api/research/reports*` same | in progress — built (Prompts 14–15); signed-in device check pending |
+| Strategies: designer, library, AI lab, saved designs | `components/strategies/*`, `lib/strategies/*` (`spec`, `library`, `types` are pure) | — | `GET`/`POST /api/strategies`, `PATCH`/`DELETE /api/strategies/[id]`, `POST /api/strategies/backtest`, `POST /api/strategies/generate` | todo — web only for now; the condition editor needs a native form and the result a native line chart |
 | Backtests + PDF, compare | `components/research/BacktestsTab.tsx`, `lib/backtest/*` | Research → Backtests | `/api/backtest/*` same | in progress — built (Prompts 14–15); signed-in device check pending |
 | Market recap | `components/research/RecapTab.tsx` | Research → Recap | `/api/research/recap` same | in progress — built (Prompts 14–15); signed-in device check pending |
 | Research signals | `components/research/SignalsTab.tsx` | Research → Signals | `/api/research/signals` same | in progress — built (Prompts 14–15); signed-in device check pending |

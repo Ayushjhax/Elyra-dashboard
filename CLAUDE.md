@@ -263,6 +263,23 @@ state them: no capital limit, every later entry as it happened, fees
 counted, and funding over the extra time held estimated separately.
 `lib/autotrade/review.ts` holds the arithmetic and is pure.
 
+Strategies (`/strategies`, `lib/strategies/`) are trading rules as data: a
+`StrategyDesign` is entry and exit condition groups over a closed set of
+operands (prices, SMA, EMA, RSI, MACD, Bollinger, Donchian, ATR %, % change,
+stochastic, volume, numbers) and risk limits, checked by `validateDesign`
+whoever wrote it — the designer, the library (`lib/strategies/library.ts`) or
+the AI. One interpreter (`designStrategy`) runs every design through the
+backtest engine on Binance spot candles (`runDesigned`), with the catalogue's
+execution and costs; stops, targets and time limits are the engine's
+`config.risk`, checked inside each bar, stop first when a bar spans both, and
+absent for catalogue strategies, whose results they do not change. A design's
+rules are described by code (`describeDesign`), never by the model. The AI
+lab (`generateStrategies`) asks the model only through the
+`propose_strategies` tool whose schema is the vocabulary, claims one
+`claimAgentRun`, drops any proposal `validateDesign` refuses, keeps the
+model's summary only if it `staysOnFacts` against the design's own numbers,
+and backtests what survives before the person sees it. Nothing in it trades.
+
 Research's Arbitrage and Sentiment tabs are observations, read live and
 never acted on. Arbitrage (`lib/research/arbitrage.ts`, `arbitrageMath.ts`)
 compares Hyperliquid's liquid perps with Binance's spot and perps net of

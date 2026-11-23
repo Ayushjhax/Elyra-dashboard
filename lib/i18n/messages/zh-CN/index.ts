@@ -25,6 +25,7 @@ import { trade } from "./trade";
 import { voice } from "./voice";
 import { wallet } from "./wallet";
 import { workspace } from "./workspace";
+import { strategies } from "./strategies";
 
 /* ---------------------------------------------------------------------------
    Simplified Chinese.
@@ -41,6 +42,7 @@ import { workspace } from "./workspace";
 --------------------------------------------------------------------------- */
 
 export const zhCN: Messages = {
+  ...strategies,
   ...agent,
   ...arena,
   ...assets,

@@ -105,12 +105,15 @@ function OperandEditor({ operand, onChange, label }: { operand: Operand; onChang
   const num = (value: number | null) => (value === null ? Number.NaN : value);
   return (
     <div className="grid grid-cols-2 gap-2 @max-[360px]:grid-cols-1">
-      <Select<OperandKind>
-        label={label}
-        value={operand.kind}
-        onChange={(kind) => onChange(defaultOperand(kind))}
-        options={OPERAND_KINDS.map((kind) => [kind, t(OPERAND_NAME[kind])])}
-      />
+      {/* What it is takes the full row, so a long name is never cut. */}
+      <div className="col-span-2 @max-[360px]:col-span-1">
+        <Select<OperandKind>
+          label={label}
+          value={operand.kind}
+          onChange={(kind) => onChange(defaultOperand(kind))}
+          options={OPERAND_KINDS.map((kind) => [kind, t(OPERAND_NAME[kind])])}
+        />
+      </div>
       {operand.kind === "price" && (
         <Select
           label={t("Of the bar")}

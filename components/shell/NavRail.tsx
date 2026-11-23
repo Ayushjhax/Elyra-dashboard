@@ -4,7 +4,35 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bookmark, Bot, CandlestickChart, ChevronsLeft, ChevronsRight, Coins, FileSearch, Gift, Globe2, Landmark, Layers, LayoutDashboard, LayoutGrid, Link2, Newspaper, PieChart, Plus, RotateCcw, Settings, ShieldCheck, Sparkles, Sunrise, Swords, Wallet, X, type LucideIcon } from "lucide-react";
+import {
+  Bookmark,
+  Bot,
+  CandlestickChart,
+  ChevronsLeft,
+  ChevronsRight,
+  Coins,
+  FileSearch,
+  FlaskConical,
+  Gift,
+  Globe2,
+  Landmark,
+  Layers,
+  LayoutDashboard,
+  LayoutGrid,
+  Link2,
+  Newspaper,
+  PieChart,
+  Plus,
+  RotateCcw,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Sunrise,
+  Swords,
+  Wallet,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { RailAccount } from "@/components/shell/RailAccount";
 import { Popover } from "@/components/ui/Popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,6 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/automation", label: msg("Automation"), icon: Bot },
   { href: "/agents", label: msg("Agents"), icon: ShieldCheck },
   { href: "/funds", label: msg("Funds"), icon: Landmark },
+  { href: "/strategies", label: msg("Strategies"), icon: FlaskConical },
   { href: "/arena", label: msg("Arena"), icon: Swords },
   { href: "/personalized", label: msg("Personalized"), icon: Sparkles },
   { href: "/assets", label: msg("Assets"), icon: Coins },

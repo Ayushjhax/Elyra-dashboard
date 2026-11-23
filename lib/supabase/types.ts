@@ -428,6 +428,18 @@ export interface PaymentRequestRow {
   created_at: string;
 }
 
+/* Strategy designs (0030). `design` is a validated StrategyDesign (lib/strategies/spec.ts). */
+export interface StrategyDesignRow {
+  id: string;
+  user_id: string;
+  name: string;
+  design: Record<string, unknown>;
+  source: "designer" | "library" | "ai";
+  result: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /* Autonomous AI funds (0025). Numeric columns may come back as string or number. */
 export interface AiFundRow {
   id: string;
@@ -1212,6 +1224,7 @@ export interface Database {
         | "closed_at"
       >;
       ai_fund_flows: Table<AiFundFlowRow, "id" | "created_at">;
+      strategy_designs: Table<StrategyDesignRow, "id" | "result" | "created_at" | "updated_at">;
       ai_fund_marks: Table<AiFundMarkRow, "gross_usd" | "positions">;
       ai_fund_notes: Table<AiFundNoteRow, "id" | "key_id" | "position_id" | "created_at">;
     };

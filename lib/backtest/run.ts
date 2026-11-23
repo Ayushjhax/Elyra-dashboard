@@ -9,10 +9,10 @@ import {
   INTERVAL_MS,
   type Candle,
 } from "@/lib/backtest/candles";
-import { runBacktest, type BacktestConfig, ENGINE_VERSION } from "@/lib/backtest/engine";
+import { runBacktest, type BacktestConfig, type RiskLimits, ENGINE_VERSION } from "@/lib/backtest/engine";
 import { assessQuality, computeMetrics, type BacktestMetrics } from "@/lib/backtest/metrics";
 import { assessRobustness, type RobustnessReport } from "@/lib/backtest/robustness";
-import { defaultParams, getStrategy } from "@/lib/backtest/strategies";
+import { defaultParams, getStrategy, type StrategyDefinition } from "@/lib/backtest/strategies";
 import { parseBacktestRequest, type ParsedRequest } from "@/lib/backtest/parse";
 import type { BacktestRecord, ComparisonResult, ComparisonRow } from "@/lib/backtest/types";
 
@@ -215,6 +215,50 @@ export async function runOne(
       ok: false,
       error: error instanceof Error ? error.message : "The simulation failed.",
     };
+  }
+}
+
+/**
+ * Runs a strategy given directly — a designed one (lib/strategies) — on the
+ * same data, costs and execution rules as the catalogue's, with its risk
+ * limits. Not saved: a design is tested many times while it is drafted.
+ */
+export async function runDesigned(
+  request: Omit<RunRequest, "strategyId" | "params">,
+  strategy: StrategyDefinition,
+  risk: RiskLimits,
+): Promise<RunOutcome & { benchmarkReturnPct?: number | null }> {
+  if (!isSupportedInterval(request.timeframe)) return { ok: false, error: `"${request.timeframe}" is not a supported timeframe.` };
+  if (request.endAt <= request.startAt) return { ok: false, error: "The period ends before it starts." };
+  const bars = (request.endAt - request.startAt) / (INTERVAL_MS[request.timeframe] ?? 1);
+  if (bars > MAX_BARS) {
+    return { ok: false, error: `That period is ${Math.round(bars).toLocaleString()} bars, above the ${MAX_BARS.toLocaleString()} limit. Use a longer timeframe or a shorter period.` };
+  }
+
+  const full: RunRequest = { ...request, strategyId: strategy.id, params: {} };
+  const declaredWarmup = strategy.warmupFor({});
+  const loaded = await loadCandles(full, declaredWarmup);
+  if ("error" in loaded) return { ok: false, error: loaded.error };
+  const warmupBars = warmupOffset(loaded.candles, request.startAt, declaredWarmup);
+  const config: BacktestConfig = { ...configFor(full, {}), risk };
+
+  try {
+    const run = runBacktest({ candles: loaded.candles, config, warmupBars, strategy });
+    const metrics = computeMetrics(run);
+    return {
+      ok: true,
+      config,
+      metrics,
+      trades: run.trades,
+      equity: run.equity,
+      quality: assessQuality(run, metrics),
+      warnings: [...loaded.warnings, ...run.warnings],
+      barsLoaded: loaded.candles.length,
+      coverage: loaded.coverage,
+      benchmarkReturnPct: run.benchmarkReturnPct,
+    };
+  } catch (error: unknown) {
+    return { ok: false, error: error instanceof Error ? error.message : "The simulation failed." };
   }
 }
 

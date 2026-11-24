@@ -116,6 +116,14 @@ holds a colour value.
   25%, 50%, 75% or all, and their take-profit and stop-loss move by hand.
   It is paper unless live trading is on (see Trading automation in
   `CLAUDE.md`).
+- **Live and Paper.** Two accounts side by side, switched in the top bar on
+  every page. Paper starts with $100,000 in virtual funds, trades at
+  Hyperliquid's live prices less fees and slippage, and never touches your
+  money. While it is on, a band under the header shows its equity and what
+  is available. The chart's ticket and Automation's order forms send to
+  whichever account is on, and a signal card's Paper trade tries a signal
+  without a fill. The balance is the trades it is made of, and it resets to
+  $100,000 when nothing is open.
 - **Copy trading** (`/automation/copy`). Group your automation rules into
   sets and share one under your Arena handle, or copy someone else's. When a
   copied set's rule enters, the same trade opens in your account on the same
@@ -129,6 +137,23 @@ holds a colour value.
   EMA, pivots, your exposure, your nearest alert — and answers questions with
   streamed replies, the tools it used, and sources taken from what those
   tools returned. It accepts images, PDFs and text files, and dictation.
+  Ask about any token and it pulls several sources into one summary:
+  - "Tell me about SOL": price (Pyth), market cap, rank, FDV, volume and
+    supply (CoinGecko). For a Solana token it adds holders, liquidity, flows
+    and links (Jupiter).
+  - "Is this token safe?" with its mint: a 0–100 score with each deduction,
+    covering on-chain mint and freeze authority, holder concentration,
+    liquidity, and Rugcheck's reading.
+  - "What's the sentiment for BTC?": Fear & Greed, funding, relative
+    strength and flows.
+  - "Compare ETH and SOL", and "what's the S&P doing?": SPY, QQQ, the Dow,
+    the VIX, gold, oil, DXY and the 10-year yield.
+  - "Deep research on BONK": a full report, saved under Your deep research
+    in the agent's Research tab.
+
+  Type `/` in the composer for shortcuts (`/analyze`, `/safe`,
+  `/sentiment`, `/compare`, `/macro`, `/deep`, `/research`), or press
+  Analyze on the chart. Each reply names its sources and offers follow-ups.
   It also answers questions about your own automation record. Ask "how much
   capital has my X rule needed, and what has it returned?" or "what would
   have happened to my X trades without the stop-loss?" and it reads your

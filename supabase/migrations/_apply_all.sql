@@ -2655,3 +2655,94 @@ create table if not exists public.strategy_designs (
 create index if not exists strategy_designs_user_idx on public.strategy_designs(user_id, updated_at desc);
 
 alter table public.strategy_designs enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- 0031 — Insider watch: fresh Hyperliquid wallets whose first trade is big.
+--
+-- `insider_wallets` holds every account the scan (lib/insider/server.ts
+-- `runInsiderScan`, on the five-minute tick) has judged, once: `flagged`
+-- with its finding — first funding, first bet, the entry's place in the
+-- past week's range — or `passed` with the reason. The address is the key,
+-- so two overlapping scans write the same row. Everything in a finding is
+-- read from Hyperliquid's public data; nothing here trades.
+--
+-- `insider_watches` is a person asking to be told: the smallest first bet
+-- they want to hear about. The website's bell shows the wallets flagged
+-- after `created_at` at or above it — on the website only; nothing is sent
+-- to the app, push or Telegram.
+--
+-- `insider_scans` is the last scan, so the page can say when it last looked.
+--
+-- Same lockdown as the rest of the schema: RLS on with no policies, the
+-- service-role client the only reader and writer. Additive; safe to run
+-- twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.insider_wallets (
+  address         text primary key check (address ~ '^0x[0-9a-f]{40}$'),
+  status          text not null check (status in ('flagged', 'passed')),
+  reason          text,
+  first_trade_at  timestamptz,
+  notional_usd    numeric,
+  window_open     boolean not null default false,
+  finding         jsonb,
+  detected_at     timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists insider_wallets_flagged_idx on public.insider_wallets(status, first_trade_at desc);
+
+create table if not exists public.insider_watches (
+  user_id     uuid primary key references public.profiles(id) on delete cascade,
+  min_usd     numeric not null check (min_usd >= 1000000),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create table if not exists public.insider_scans (
+  id                text primary key,
+  at                timestamptz not null,
+  leaderboard_rows  integer not null default 0,
+  candidates        integer not null default 0,
+  checked           integer not null default 0,
+  flagged           integer not null default 0,
+  error             text
+);
+
+alter table public.insider_wallets enable row level security;
+alter table public.insider_watches enable row level security;
+alter table public.insider_scans enable row level security;
+
+-- =================== 0032_paper_account.sql ===================
+-- ---------------------------------------------------------------------------
+-- 0032 — The paper account.
+--
+-- A person trades from two accounts side by side: Live, with the funds in
+-- their own Hyperliquid account, and Paper, with virtual equity that never
+-- touches their money. The Live / Paper switch in the header picks which one
+-- orders go to (`active`).
+--
+-- The paper balance is never stored as a figure. It is `starting_usd` plus
+-- the results of the account's paper positions opened since `started_at`,
+-- read from trading_positions (lib/paper/funds.ts), so it cannot drift from
+-- the trades it is made of. Claiming starts it at $100,000; a reset starts
+-- it again from now. An AI fund's paper positions are the fund's own
+-- capital (0025) and are not part of it.
+--
+-- Same lockdown as the rest of the schema: RLS on with no policies, the
+-- service-role client the only writer. Additive and safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.paper_accounts (
+  user_id       uuid primary key references public.profiles(id) on delete cascade,
+  starting_usd  numeric not null default 100000 check (starting_usd > 0 and starting_usd <= 1000000),
+  -- Paper positions opened from here on are this balance's.
+  started_at    timestamptz not null default now(),
+  -- The account orders go to: true is Paper, false is Live.
+  active        boolean not null default false,
+  resets        integer not null default 0,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+alter table public.paper_accounts enable row level security;

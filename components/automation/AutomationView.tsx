@@ -22,7 +22,9 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
 import { msg } from "@/lib/i18n/translate";
 import type { Translator } from "@/lib/i18n/translate";
+import { refreshPaper, usePaper } from "@/lib/paper/usePaper";
 import { FillReport, PositionControls } from "@/components/trade/PositionControls";
+import { OrderAccount } from "@/components/paper/Paper";
 
 /* ---------------------------------------------------------------------------
    Trading automation: rules Elyra runs on Hyperliquid perps, and the trades
@@ -430,7 +432,9 @@ const marketLabel = (coin: string) => marketFor(coin)?.label ?? coin;
 
 function MarketOrder({ data, feed }: { data: AutomationResponse; feed: AutomationFeed }) {
   const t = useT();
-  const [form, setForm] = useState({ coin: "BTC", sizeUsd: "50", leverage: "2", takeProfitPct: "4", stopLossPct: "2", mode: "paper" });
+  const [form, setForm] = useState({ coin: "BTC", sizeUsd: "50", leverage: "2", takeProfitPct: "4", stopLossPct: "2" });
+  /* The account the header shows is the account the order goes to. */
+  const mode = usePaper().mode;
   const [busy, setBusy] = useState<"long" | "short" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -450,16 +454,17 @@ function MarketOrder({ data, feed }: { data: AutomationResponse; feed: Automatio
         leverage: Number(form.leverage),
         takeProfitPct: Number(form.takeProfitPct),
         stopLossPct: Number(form.stopLossPct),
-        mode: form.mode,
+        mode,
       })
       .then((result) => {
         setError(result.error);
+        refreshPaper();
         if (result.error === null) {
           setDone(
             t("{side} {market} opened ({mode}). It is under Trades.", {
               side: side === "long" ? t("Long") : t("Short"),
               market: marketLabel(form.coin),
-              mode: form.mode === "live" ? t("live {network}", { network: data.live.network }) : t("paper"),
+              mode: mode === "live" ? t("live {network}", { network: data.live.network }) : t("paper"),
             }),
           );
         }
@@ -492,14 +497,15 @@ function MarketOrder({ data, feed }: { data: AutomationResponse; feed: Automatio
           <Label htmlFor="trade-sl">{t("Stop-loss (%)")}</Label>
           <input id="trade-sl" inputMode="decimal" className={field} value={form.stopLossPct} onChange={set("stopLossPct")} />
         </div>
-        <div className="col-span-2 flex flex-col gap-1">
-          <Label htmlFor="trade-mode">{t("Mode")}</Label>
-          <select id="trade-mode" className={field} value={form.mode} onChange={set("mode")}>
-            <option value="paper">{t("Paper")}</option>
-            <option value="live" disabled={!liveReady}>
-              {liveReady ? t("Live ({network})", { network: data.live.network }) : t("Live — not available")}
-            </option>
-          </select>
+        <div className="col-span-2">
+          <OrderAccount
+            liveReady={liveReady}
+            liveNote={
+              data.live.enabled
+              ? t("Approve Elyra's trading key on Automation before trading live on Hyperliquid {network}.", { network: data.live.network })
+              : t("This server sends no live orders, so an order on Live is refused. Switch to Paper to practise.")
+            }
+          />
         </div>
       </div>
       <p className="type-label text-text-muted">
@@ -569,7 +575,8 @@ function OrderRow({ order, feed, now }: { order: OrderView; feed: AutomationFeed
 
 function LimitOrders({ data, feed, now }: { data: AutomationResponse; feed: AutomationFeed; now: number | null }) {
   const t = useT();
-  const [form, setForm] = useState({ coin: "BTC", side: "long", price: "", sizeUsd: "50", leverage: "2", takeProfit: "", stopLoss: "", mode: "paper" });
+  const [form, setForm] = useState({ coin: "BTC", side: "long", price: "", sizeUsd: "50", leverage: "2", takeProfit: "", stopLoss: "" });
+  const mode = usePaper().mode;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const liveReady = data.live.enabled && data.agent !== null && data.agent.approved && data.agent.network === data.live.network;
@@ -595,10 +602,11 @@ function LimitOrders({ data, feed, now }: { data: AutomationResponse; feed: Auto
               leverage: Number(form.leverage),
               takeProfit: Number(form.takeProfit),
               stopLoss: Number(form.stopLoss),
-              mode: form.mode,
+              mode,
             })
             .then((result) => {
               setError(result.error);
+              refreshPaper();
               if (result.error === null) setForm((current) => ({ ...current, price: "", takeProfit: "", stopLoss: "" }));
             })
             .finally(() => setBusy(false));
@@ -638,14 +646,15 @@ function LimitOrders({ data, feed, now }: { data: AutomationResponse; feed: Auto
             <Label htmlFor="order-leverage">{t("Leverage (1–{maxLeverage}x)", { maxLeverage: LIMITS.maxLeverage })}</Label>
             <input id="order-leverage" inputMode="numeric" className={field} value={form.leverage} onChange={set("leverage")} />
           </div>
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="order-mode">{t("Mode")}</Label>
-            <select id="order-mode" className={field} value={form.mode} onChange={set("mode")}>
-              <option value="paper">{t("Paper")}</option>
-              <option value="live" disabled={!liveReady}>
-                {liveReady ? t("Live ({network})", { network: data.live.network }) : t("Live — not available")}
-              </option>
-            </select>
+          <div className="col-span-2">
+            <OrderAccount
+              liveReady={liveReady}
+              liveNote={
+                data.live.enabled
+                ? t("Approve Elyra's trading key on Automation before trading live on Hyperliquid {network}.", { network: data.live.network })
+                : t("This server sends no live orders, so an order on Live is refused. Switch to Paper to practise.")
+              }
+            />
           </div>
         </div>
         <p className="type-label text-text-muted">

@@ -9,6 +9,7 @@ import { COPY_LIMITS, COPY_PRESETS, validateFollow, validateSet } from "@/lib/co
 import type { CopyResponse, FollowView, MyRuleView, MySetView } from "@/lib/copy/types";
 import type { CopyFeed } from "@/lib/copy/useCopy";
 import { useT } from "@/lib/i18n/client";
+import { usePaper } from "@/lib/paper/usePaper";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -86,7 +87,9 @@ export function FollowForm({
   const [sizeUsd, setSizeUsd] = useState(String(initial?.sizeUsd ?? standard.sizeUsd));
   const [maxLeverage, setMaxLeverage] = useState(String(initial?.maxLeverage ?? standard.maxLeverage));
   const [maxDriftPct, setMaxDriftPct] = useState(String(initial?.maxDriftPct ?? standard.maxDriftPct));
-  const [mode, setMode] = useState<RuleMode>(initial?.mode ?? "paper");
+  /* A new copy starts on the account the header shows; a copy can still be moved to the other one. */
+  const account = usePaper().mode;
+  const [mode, setMode] = useState<RuleMode>(initial?.mode ?? (account === "live" && live.enabled ? "live" : "paper"));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 

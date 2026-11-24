@@ -19,6 +19,7 @@ import type { Candle } from "@/lib/backtest/intervals";
 import { getStrategy } from "@/lib/backtest/strategies";
 import { HOUSE_USER_ID } from "@/lib/copy/house";
 import { decryptSecret } from "@/lib/crypto/credentials";
+import { paperGate } from "@/lib/paper/store";
 import { recipientFor, send, type DeliveryReport, type Recipient } from "@/lib/notifications/deliver";
 import { serviceClient } from "@/lib/supabase/server";
 import type { TradingAgentRow, TradingOrderRow, TradingPositionRow } from "@/lib/supabase/types";
@@ -410,6 +411,16 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
         }
         if (account.liveOrderCoins.has(rule.coin)) {
           await note(`A live limit order on ${rule.coin} is resting; Hyperliquid keeps one position per coin, so this rule waits.`);
+          continue;
+        }
+      }
+
+      /* A paper entry needs its margin from the paper account (lib/paper/store.ts), as a paper order by hand does.
+         Elyra's own rules (lib/copy/house.ts) have no account to draw on. */
+      if (rule.mode === "paper" && rule.userId !== HOUSE_USER_ID) {
+        const refusal = await paperGate(rule.userId, rule.sizeUsd / Math.max(1, rule.leverage)).catch(() => null);
+        if (refusal !== null) {
+          await note(`Signal on the latest bar, but nothing was entered. ${refusal}`);
           continue;
         }
       }

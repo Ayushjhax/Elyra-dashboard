@@ -16,7 +16,8 @@ import { msg } from "@/lib/i18n/translate";
    reload — and it is local, so there is no request that can fail.
 --------------------------------------------------------------------------- */
 
-export type NotificationCategory = "alert" | "action" | "failed" | "agent";
+/** `insider` is the website's insider watch (lib/insider), merged in by the bell. */
+export type NotificationCategory = "alert" | "action" | "failed" | "agent" | "insider";
 
 export type NotificationTarget =
   /** A page or an outside link. */
@@ -91,10 +92,9 @@ export function toNotification(event: AccountEvent): NotificationItem | null {
   }
 }
 
-export function notificationsFrom(events: readonly AccountEvent[]): NotificationItem[] {
-  return events
-    .map(toNotification)
-    .filter((item): item is NotificationItem => item !== null)
+/** The bell's list: the account events that ask for attention, and any items made elsewhere (`extra`). */
+export function notificationsFrom(events: readonly AccountEvent[], extra: readonly NotificationItem[] = []): NotificationItem[] {
+  return [...events.map(toNotification).filter((item): item is NotificationItem => item !== null), ...extra]
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, NOTIFICATION_LIMIT);
 }

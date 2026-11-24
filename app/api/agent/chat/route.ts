@@ -10,6 +10,7 @@ import { planPreparedAction } from "@/lib/personalized/plan";
 import type { PreparedAction } from "@/lib/personalized/types";
 import { localeFromHeaders } from "@/lib/i18n/locales";
 import { personaById } from "@/lib/voice/personas";
+import { attachReply } from "@/lib/analysis/reports";
 
 /* ---------------------------------------------------------------------------
    The web surface.
@@ -154,6 +155,19 @@ export async function POST(request: Request) {
         };
         /* Read beside the answer, so the preview costs no extra wait. */
         const planning = planFor(trimmed, user);
+        /* A run that did deep research saved its facts (lib/analysis/reports.ts);
+           the reply the person reads is attached to that report once it is final. */
+        const startedAt = new Date().toISOString();
+        let researched = false;
+        const watch = (event: ChatStreamEvent) => {
+          if (
+            (event.type === "tools" && event.labels.some((label) => /deep research/i.test(label))) ||
+            (event.type === "team_stage" && typeof event.activity === "string" && /deep research/i.test(event.activity))
+          ) {
+            researched = true;
+          }
+          send(event);
+        };
         try {
           const conversationId = await ensureConversation({ userId, surface: "web" });
           const question = {
@@ -168,7 +182,7 @@ export async function POST(request: Request) {
                cookie the pages use; it sets the reply's language only. */
             locale: localeFromHeaders(request.headers.get("cookie"), request.headers.get("accept-language")),
             voice,
-            onEvent: send,
+            onEvent: watch,
           };
           const { reply, runId, sources } = team
             ? await runTeam({ ...question, planning })
@@ -176,6 +190,7 @@ export async function POST(request: Request) {
           const planned = await planning;
           if (planned !== null) send({ type: "prepared_action", action: planned.action, id: planned.id });
           send({ type: "done", reply, runId, sources });
+          if (researched) await attachReply(userId, startedAt, reply).catch(() => undefined);
         } catch (error) {
           if (error instanceof UsageLimitError) {
             send({ type: "error", message: error.message });

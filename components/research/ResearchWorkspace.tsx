@@ -16,6 +16,7 @@ import { useT } from "@/lib/i18n/client";
 import { msg } from "@/lib/i18n/translate";
 import { ArbitrageTab } from "@/components/research/ArbitrageTab";
 import { SentimentTab } from "@/components/research/SentimentTab";
+import { InsiderTab } from "@/components/research/InsiderTab";
 
 const TABS = [
   ["reports", msg("Reports")],
@@ -23,6 +24,7 @@ const TABS = [
   ["prediction", msg("Prediction markets")],
   ["recap", msg("Market recap")],
   ["signals", msg("Signals")],
+  ["insiders", msg("Insider watch")],
   ["arbitrage", msg("Arbitrage")],
   ["sentiment", msg("Sentiment")],
   ["yield", msg("Yield")],
@@ -112,6 +114,7 @@ export function ResearchWorkspace() {
               {id === "prediction" && <PredictionMarketsTab />}
               {id === "recap" && <RecapTab active={tab === id} />}
               {id === "signals" && <SignalsTab active={tab === id} />}
+              {id === "insiders" && <InsiderTab active={tab === id} />}
               {id === "arbitrage" && <ArbitrageTab active={tab === id} />}
               {id === "sentiment" && <SentimentTab active={tab === id} />}
               {id === "yield" && <YieldTab active={tab === id} />}

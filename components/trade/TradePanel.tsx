@@ -8,6 +8,7 @@ import { FillReport, PositionControls } from "@/components/trade/PositionControl
 import { Button } from "@/components/ui/Button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Eyebrow } from "@/components/ui/Eyebrow";
+import { OrderAccount } from "@/components/paper/Paper";
 import { exitPrices, LIMITS, marketFor, PAPER_COSTS, type PerpMarket, type Side } from "@/lib/autotrade/rules";
 import type { TradeView } from "@/lib/autotrade/types";
 import { useAutomation } from "@/lib/autotrade/useAutomation";
@@ -16,6 +17,7 @@ import { useT } from "@/lib/i18n/client";
 import { bookStats, estimateFill, type Book } from "@/lib/market/book";
 import type { PriceRow } from "@/lib/market/pyth/types";
 import { useLevels } from "@/lib/market/useLevels";
+import { refreshPaper, usePaper } from "@/lib/paper/usePaper";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -162,7 +164,19 @@ function NotTradable({ symbol, onClose }: { symbol: string; onClose: () => void 
   );
 }
 
-function Ticket({ market, row, onClose }: { market: PerpMarket; row: PriceRow | undefined; onClose: () => void }) {
+function Ticket({
+  market,
+  row,
+  onClose,
+  initialSide = "long",
+  paperOnly = false,
+}: {
+  market: PerpMarket;
+  row: PriceRow | undefined;
+  onClose: () => void;
+  initialSide?: Side;
+  paperOnly?: boolean;
+}) {
   const t = useT();
   const auth = useElyraAuth();
   const feed = useAutomation();
@@ -170,9 +184,11 @@ function Ticket({ market, row, onClose }: { market: PerpMarket; row: PriceRow | 
   const { book, error: bookError } = useBook(market.coin);
   const { data: levels } = useLevels(market.coin.replace(STOCK_PREFIX, ""));
 
-  const [side, setSide] = useState<Side>("long");
+  const [side, setSide] = useState<Side>(initialSide);
   const [type, setType] = useState<"market" | "limit">("market");
-  const [mode, setMode] = useState<"paper" | "live">("paper");
+  /* The account the header shows — Live or Paper — is the account the order goes to; a Paper trade always goes to paper. */
+  const paperFeed = usePaper();
+  const mode = paperOnly ? "paper" : paperFeed.mode;
   const [sizeUsd, setSizeUsd] = useState("100");
   const [leverage, setLeverage] = useState(2);
   const [tpPct, setTpPct] = useState("4");
@@ -217,6 +233,7 @@ function Ticket({ market, row, onClose }: { market: PerpMarket; row: PriceRow | 
       const sent = await feed.write("/api/automation/trade", "POST", { ...common, takeProfitPct: Number(tpPct), stopLossPct: Number(slPct) });
       if (sent.error !== null) setError(sent.error);
       else setResult({ kind: "position", trade: sent.body.position as TradeView });
+      refreshPaper();
     } else {
       if (planned === null) {
         setBusy(false);
@@ -231,6 +248,7 @@ function Ticket({ market, row, onClose }: { market: PerpMarket; row: PriceRow | 
       });
       if (sent.error !== null) setError(sent.error);
       else setResult({ kind: "order", price: entry });
+      refreshPaper();
     }
     setBusy(false);
   };
@@ -302,15 +320,20 @@ function Ticket({ market, row, onClose }: { market: PerpMarket; row: PriceRow | 
       </div>
       {planned !== null && (
         <p className="type-label text-text-muted">
-          {t("Take-profit at {tp} · stop-loss at {sl}, placed on Hyperliquid with the entry.", { tp: formatPriceUsd(planned.takeProfit), sl: formatPriceUsd(planned.stopLoss) })}
+          {mode === "paper"
+            ? t("Take-profit at {tp} · stop-loss at {sl}, held on paper and checked every five minutes.", { tp: formatPriceUsd(planned.takeProfit), sl: formatPriceUsd(planned.stopLoss) })
+            : t("Take-profit at {tp} · stop-loss at {sl}, placed on Hyperliquid with the entry.", { tp: formatPriceUsd(planned.takeProfit), sl: formatPriceUsd(planned.stopLoss) })}
         </p>
       )}
 
-      <Segment<"paper" | "live">
-        label={t("Mode")}
-        value={mode}
-        onChange={(next) => (next === "live" && !liveReady ? undefined : setMode(next))}
-        options={[["paper", t("Paper")], ["live", liveReady ? t("Live ({network})", { network: data?.live.network ?? "" }) : t("Live — not available")]]}
+      <OrderAccount
+        paperOnly={paperOnly}
+        liveReady={liveReady}
+        liveNote={
+          data?.live.enabled !== true
+            ? t("This server sends no live orders, so an order on Live is refused. Switch to Paper to practise.")
+            : t("Approve Elyra's trading key on Automation before trading live on Hyperliquid {network}.", { network: data.live.network })
+        }
       />
 
       {type === "market" ? (
@@ -413,7 +436,21 @@ function Ticket({ market, row, onClose }: { market: PerpMarket; row: PriceRow | 
   );
 }
 
-export function TradePanel({ symbol, row, onClose }: { symbol: string; row: PriceRow | undefined; onClose: () => void }) {
+export function TradePanel({
+  symbol,
+  row,
+  onClose,
+  initialSide,
+  paper = false,
+}: {
+  symbol: string;
+  row: PriceRow | undefined;
+  onClose: () => void;
+  /** The side to start on — a signal's. */
+  initialSide?: Side;
+  /** A Paper trade: sent to the paper account whatever the header shows. */
+  paper?: boolean;
+}) {
   const t = useT();
   const market = perpFor(symbol);
   return (
@@ -429,7 +466,7 @@ export function TradePanel({ symbol, row, onClose }: { symbol: string; row: Pric
             {t("Open a long or a short on Hyperliquid from the chart, with its take-profit and stop-loss, and manage what is open.")}
           </DialogDescription>
         </header>
-        {market === null ? <NotTradable symbol={symbol} onClose={onClose} /> : <Ticket market={market} row={row} onClose={onClose} />}
+        {market === null ? <NotTradable symbol={symbol} onClose={onClose} /> : <Ticket market={market} row={row} onClose={onClose} initialSide={initialSide} paperOnly={paper} />}
       </DialogContent>
     </Dialog>
   );

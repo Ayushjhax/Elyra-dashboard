@@ -22,6 +22,9 @@ const LABELS: Record<string, string> = {
   jupiter: "Jupiter",
   defillama: "DefiLlama",
   yahoo: "Yahoo Finance",
+  coingecko: "CoinGecko",
+  rugcheck: "Rugcheck",
+  "alternative.me": "Alternative.me",
   solana: "Solana RPC",
   wallet: "Your wallet",
 };

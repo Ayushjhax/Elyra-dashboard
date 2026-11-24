@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAge, formatClock12 } from "./format";
+import { formatAge, formatClock12, formatCompactUsd } from "./format";
 
 /**
  * Built from a local-time string, so the expectation holds whatever timezone
@@ -48,5 +48,23 @@ describe("formatAge", () => {
     expect(formatAge(now - 2 * 3_600_000, now)).toBe("2h ago");
     /* A clock that reads slightly behind the stamp is not "in the future". */
     expect(formatAge(now + 1_000, now)).toBe("just now");
+  });
+});
+
+describe("formatCompactUsd", () => {
+  it("scales to the largest unit that fits", () => {
+    expect(formatCompactUsd(15_944_228)).toBe("$15.9M");
+    expect(formatCompactUsd(412_800_000)).toBe("$413M");
+    expect(formatCompactUsd(1_280_000_000)).toBe("$1.28B");
+    expect(formatCompactUsd(84_200)).toBe("$84.2K");
+    expect(formatCompactUsd(-2_500_000)).toBe("-$2.50M");
+    expect(formatCompactUsd(12.5)).toBe("$12.50");
+  });
+
+  it("moves up a unit when rounding reaches a thousand", () => {
+    expect(formatCompactUsd(999_999.6)).toBe("$1.00M");
+    expect(formatCompactUsd(999_600_000)).toBe("$1.00B");
+    expect(formatCompactUsd(999.996)).toBe("$1.00K");
+    expect(formatCompactUsd(999_400)).toBe("$999K");
   });
 });

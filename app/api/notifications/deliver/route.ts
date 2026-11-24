@@ -5,8 +5,10 @@ import { runAutotrade } from "@/lib/autotrade/engine";
 import { runCopy } from "@/lib/copy/engine";
 import { runEvents } from "@/lib/events/engine";
 import { runFunds } from "@/lib/funds/run";
+import { runInsiderScan } from "@/lib/insider/server";
 import { deliverNotifications } from "@/lib/notifications/deliver";
 import { runRails } from "@/lib/rails/run";
+import { runScoutTick } from "@/lib/scout/engine";
 
 /* ---------------------------------------------------------------------------
    The delivery pass, as a scheduled endpoint — every channel at once: the
@@ -78,8 +80,23 @@ export async function GET(request: Request): Promise<Response> {
     error: error instanceof Error ? error.message : "Rails pass failed.",
   }));
 
+  /* Then insider watch (lib/insider/server.ts): fresh Hyperliquid wallets
+     whose first trade is big, recorded once each. Its notifications are the
+     website's bell, read from those records — nothing is sent from here. */
+  const insider = await runInsiderScan().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Insider scan failed.",
+  }));
+
+  /* Then Scout's auto-buys (lib/scout/engine.ts): a smart-money flow or an
+     exchange's own listing announcement opens a trade for a rule that wants
+     it, through the same order path as the chart ticket, so the notice
+     reaches the person in this pass. Nothing is read unless a rule is on. */
+  const scout = await runScoutTick().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Scout pass failed.",
+  }));
+
   const report = await deliverNotifications();
-  return NextResponse.json({ ...report, automation, copy, funds, arena, events, rails }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ ...report, automation, copy, funds, arena, events, rails, insider, scout }, { headers: { "cache-control": "no-store" } });
 }
 
 /** Same work, for schedulers that only issue POSTs. */

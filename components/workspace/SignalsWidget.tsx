@@ -7,12 +7,14 @@ import { CoinMark } from "@/components/ui/CoinMark";
 import { DeltaText } from "@/components/ui/DeltaText";
 import { Section, SectionControl } from "@/components/ui/Section";
 import type { WidgetProps } from "@/components/workspace/WidgetColumn";
+import { marketFor } from "@/lib/autotrade/rules";
 import { formatCompactUsd, formatPrice, formatPriceUsd, formatRelativeTime } from "@/lib/format";
 import { priceDecimals } from "@/lib/market/precision";
 import { useTickerLogos, type TickerLogo } from "@/lib/market/tickerLogos";
 import { refreshPrices, useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
 import type { PriceRow, PythAsset } from "@/lib/market/pyth/types";
 import { parseTrackerSignalList, type TrackerSignal } from "@/lib/tracker/types";
+import { requestTicket } from "@/lib/trade/ticketRequest";
 import { useMinute } from "@/lib/useClock";
 import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
@@ -175,6 +177,18 @@ function MarketRow({
           {row.marketSession && row.marketSession !== "regular" ? ` · ${t(row.marketSession)}` : ""}
           {` · ${age(row.publishedAt, now, t.locale)}`}
         </p>
+        {/* Try the signal without a fill: the chart's ticket, on this market and side, on paper. */}
+        {(marketFor(asset.symbol) ?? marketFor(`xyz:${asset.symbol}`)) !== null && (
+          <button
+            type="button"
+            onClick={() => requestTicket({ assetId: asset.id, side: above ? "long" : "short", paper: true })}
+            aria-label={t("Paper trade {symbol} {side}", { symbol: asset.symbol, side: above ? t("long") : t("short") })}
+            className="type-label mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-chip text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
+          >
+            <FlaskConical size={12} strokeWidth={1.5} aria-hidden />
+            {t("Paper trade")}
+          </button>
+        )}
       </div>
       <div className="shrink-0 text-right">
         <p className={cn("type-data rounded-chip px-1 text-text-primary", flash)}>

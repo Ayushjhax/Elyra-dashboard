@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ElyraMark } from "@/components/ui/ElyraMark";
 import {
   ArrowDown,
@@ -29,6 +30,7 @@ import { ElyraSignals } from "@/components/agent/ElyraSignals";
 import { PendingActions } from "@/components/agent/PendingActions";
 import { SmartMoneyPanel } from "@/components/panels/SmartMoneyPanel";
 import { SecResearch } from "@/components/agent/SecResearch";
+import { MarketReports } from "@/components/agent/MarketReports";
 import { TeamArchitecture, TeamTrace } from "@/components/agent/TeamTrace";
 import { VoiceMode } from "@/components/agent/VoiceMode";
 import { sendToAgent } from "@/lib/agentChat";
@@ -38,6 +40,9 @@ import { formatClock } from "@/lib/format";
 import { useAssets } from "@/lib/market/usePrices";
 import { teamWorkingLine } from "@/lib/agent/reply";
 import { suggestionChips } from "@/lib/agent/suggestions";
+import { isShortcutDraft, matchingShortcuts } from "@/lib/agent/shortcuts";
+import { webShortcut, webShortcutMenu } from "@/lib/agent/webShortcuts";
+import { analysisFollowUps } from "@/lib/agent/followUps";
 import { useElyraStore } from "@/lib/store";
 import type { AgentTab, ChatMessage, ToolCall } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -182,11 +187,16 @@ function MessageBubble({
   message,
   streaming,
   thinking,
+  followUps = [],
+  onAsk,
 }: {
   message: ChatMessage;
   streaming: boolean;
   /** The request is in flight and this bubble is where the reply will land. */
   thinking: boolean;
+  /** Questions to offer next, sent as the person's own words when tapped. */
+  followUps?: string[];
+  onAsk?: (prompt: string) => void;
 }) {
   const t = useT();
   const isAgent = message.role === "agent";
@@ -254,6 +264,22 @@ function MessageBubble({
           <p className="type-data-sm text-text-muted">
             <span className="text-text-secondary">{t("Sources")}</span> · {message.sources.join(" · ")}
           </p>
+        )}
+
+        {!thinking && !streaming && followUps.length > 0 && onAsk !== undefined && (
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("Ask next")}>
+            {followUps.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => onAsk(prompt)}
+                className="type-label inline-flex min-h-8 items-center gap-1 rounded-control border border-border-subtle px-2 py-1 text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand hover:border-border-strong hover:bg-surface-hover hover:text-text-primary"
+              >
+                {prompt}
+                <ArrowUpRight size={12} strokeWidth={1.5} aria-hidden className="text-text-muted" />
+              </button>
+            ))}
+          </div>
         )}
 
         {!thinking && (
@@ -358,6 +384,13 @@ function Conversation({
                   message.role === "agent" &&
                   message.text.length === 0
                 }
+                /* Under the latest answer to an analysis question, what to ask next (lib/agent/followUps.ts). */
+                followUps={
+                  !pending && index === messages.length - 1 && message.role === "agent" && message.failed !== true && messages[index - 1]?.role === "user"
+                    ? analysisFollowUps(messages[index - 1].text, t)
+                    : []
+                }
+                onAsk={onAsk}
               />
             ))}
           </ul>
@@ -476,6 +509,9 @@ function Composer({
   const canSend =
     (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && dictation.status !== "transcribing";
   const chips = showChips ? suggestionChips(cryptoSymbol, t) : [];
+  const router = useRouter();
+  /* "/" then letters: the shortcuts that match, to pick from (lib/agent/webShortcuts.ts). */
+  const shortcutMenu = attachments.length === 0 && isShortcutDraft(draft) ? webShortcutMenu(matchingShortcuts(draft)) : [];
 
   const send = () => {
     if (!canSend) return;
@@ -483,7 +519,18 @@ function Composer({
        belongs to a question that has now been asked. */
     if (busyVoice) dictation.cancel();
     setNotice(null);
-    onAsk(draft);
+    const shortcut = attachments.length === 0 ? webShortcut(draft) : null;
+    if (shortcut?.kind === "help") {
+      setDraft("/");
+      inputRef.current?.focus();
+      return;
+    }
+    if (shortcut?.kind === "open") {
+      setDraft("");
+      router.push(shortcut.href);
+      return;
+    }
+    onAsk(shortcut?.kind === "ask" ? shortcut.prompt : draft);
   };
 
   /* Recording needs the transcription route, which needs a session. */
@@ -567,6 +614,27 @@ function Composer({
           <ul aria-label={t("Attached files")} className="flex list-none flex-wrap gap-1.5">
             {attachments.map((file) => (
               <AttachmentChip key={file.id} file={file} onRemove={() => removeAttachment(file.id)} />
+            ))}
+          </ul>
+        )}
+
+        {shortcutMenu.length > 0 && (
+          <ul aria-label={t("Shortcuts")} className="flex max-h-56 list-none flex-col overflow-y-auto">
+            {shortcutMenu.map((entry) => (
+              <li key={entry.command}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft(`/${entry.command}${entry.example.length > 0 ? " " : ""}`);
+                    inputRef.current?.focus();
+                  }}
+                  className="flex w-full min-w-0 items-baseline gap-2 rounded-control px-2 py-1.5 text-left transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover"
+                >
+                  <span className="type-data-sm shrink-0 text-text-primary">/{entry.command}</span>
+                  {entry.example.length > 0 && <span className="type-label shrink-0 text-text-muted">{t(entry.example)}</span>}
+                  <span className="type-label min-w-0 truncate text-text-secondary">{t(entry.description)}</span>
+                </button>
+              </li>
             ))}
           </ul>
         )}
@@ -892,6 +960,7 @@ export function AgentPanel({
         hidden={tab !== "research"}
         className={cn("min-h-0 flex-1 flex-col", tab === "research" ? "flex" : "hidden")}
       >
+        <MarketReports onAsk={ask} />
         <SecResearch onAsk={ask} />
         <SmartMoneyPanel bare findingsOnly />
         <Link

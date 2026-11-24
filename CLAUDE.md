@@ -244,6 +244,48 @@ a profile no Privy login can resolve to (`elyra:house`), written from code by
 `ensureHouse`. Their record is only what they have traded; never seed,
 backfill or invent one. Elyra holds no capital, so they never trade live.
 
+Live and Paper are two accounts side by side (`lib/paper/`,
+`components/paper/Paper.tsx`, migration 0032). The header's switch (in the
+account menu on a phone) sets `paper_accounts.active`, and every order
+surface follows it, never a mode of its own: the chart's ticket, Automation's
+Trade now and limit orders. A signal card's Paper trade opens the ticket on
+paper whatever the switch shows (`lib/trade/ticketRequest.ts`). A new rule
+still starts on paper and goes live only from its own switch, and a copy may
+be moved between the two. The paper balance is never stored. It is
+`starting_usd` plus the results of the account's paper positions since
+`started_at` (`paperFunds`), with AI funds' positions left out. Every paper
+order — by hand, a rule's entry, a copy — needs its margin from what is
+available (`paperGate` through `accountGate`, and in the engine). A paper
+trade without an account makes one with $100,000, and claiming never tops one
+up. A reset starts the balance again only while nothing is open on paper.
+Voice orders stay paper unless the person says "live".
+
+Market analysis is five read-only agent tools (`lib/agent/tools/analysis.ts`,
+arithmetic in `lib/analysis/`):
+- `token_overview`: a token's whole picture, or several side by side.
+- `token_safety`: a 0–100 score from the mint's on-chain controls and
+  Jupiter's audit, holders and liquidity, with Rugcheck's own reading kept
+  beside it, never folded in.
+- `market_sentiment`: Fear & Greed, perp positioning, relative strength and
+  on-chain flows.
+- `macro_snapshot`: SPY, QQQ, DIA, the VIX, gold, oil, DXY and the 10-year.
+- `deep_research`: gathers all of the above with technicals and saves it.
+
+Both scores travel with every deduction or reading that made them, and the
+prompt has the reply show them. Price of record stays Pyth's. CoinGecko
+supplies market cap, rank, FDV and supply; Jupiter's token index supplies a
+Solana token's holders, liquidity, flows and authorities; Yahoo supplies the
+macro series Pyth lacks. A mint not on Elyra's verified list reaches the
+model by address only: its claimed name, symbol and creator-set links are
+withheld (`withheld`). Deep research's facts are saved to `market_reports`
+(0033). The web chat route attaches the finished reply when the run used
+it, and the agent's Research tab lists them. The composer's slash commands
+work on the website through `webShortcut`, on top of the shared
+`lib/agent/shortcuts.ts`. Follow-up chips under an analysis reply come from
+the question (`lib/agent/followUps.ts`), never the reply. None of these
+tools is on the agent-API allowlist: `deep_research` writes to the owner's
+account.
+
 Elyra's agent reads a person's own trading record back through two tools,
 `trading_record` and `trading_what_if` (`lib/agent/tools/trading.ts`), both
 read-only. A record is a book (`lib/autotrade/books.ts`): a rule, every rule
@@ -279,6 +321,24 @@ lab (`generateStrategies`) asks the model only through the
 `claimAgentRun`, drops any proposal `validateDesign` refuses, keeps the
 model's summary only if it `staysOnFacts` against the design's own numbers,
 and backtests what survives before the person sees it. Nothing in it trades.
+
+Insider watch (Research's Insider watch tab, `lib/insider/`) flags fresh
+Hyperliquid wallets whose first trade is big, from Hyperliquid's public data
+only. `runInsiderScan` runs on the tick: its candidates are leaderboard
+accounts whose all-time volume sits inside the last day (then the last week,
+to catch up), each judged once by `assess` and recorded in `insider_wallets`
+by address — first activity at most `maxSetupHours` before the first perp
+trade, and a first-hour bet of at least `minBetUsd`. `INSIDER_RULES` are
+constants, not settings. Where the entry sat in the week before is read from
+Hyperliquid's hourly candles after any redenomination (`rangeTiming`) and
+shown, never scored, and how the bet has gone since is the live mid,
+whichever way it went. Every sentence is code's (`lib/insider/words.ts`); a
+flag is a pattern, never called proof or an accusation. Its notifications are
+the website's only: a watch (`insider_watches`) makes the bell show the
+wallets flagged after it was set, at or above its size and found within
+`notifyWithinHours` of the first trade, plus a browser notice while a tab is
+open if the person allows it (`lib/insider/desktop.ts`). Nothing reaches the
+inbox, push or Telegram, the app has none of it, and nothing in it trades.
 
 Research's Arbitrage and Sentiment tabs are observations, read live and
 never acted on. Arbitrage (`lib/research/arbitrage.ts`, `arbitrageMath.ts`)

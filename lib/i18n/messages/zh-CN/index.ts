@@ -1,4 +1,5 @@
 import type { Messages } from "../../translate";
+import { analysis } from "./analysis";
 import { agent } from "./agent";
 import { arena } from "./arena";
 import { assets } from "./assets";
@@ -15,6 +16,7 @@ import { funds } from "./funds";
 import { invest } from "./invest";
 import { markets } from "./markets";
 import { personalized } from "./personalized";
+import { paper } from "./paper";
 import { portfolio } from "./portfolio";
 import { rails } from "./rails";
 import { referrals } from "./referrals";
@@ -26,6 +28,7 @@ import { voice } from "./voice";
 import { wallet } from "./wallet";
 import { workspace } from "./workspace";
 import { strategies } from "./strategies";
+import { insider } from "./insider";
 
 /* ---------------------------------------------------------------------------
    Simplified Chinese.
@@ -42,7 +45,9 @@ import { strategies } from "./strategies";
 --------------------------------------------------------------------------- */
 
 export const zhCN: Messages = {
+  ...analysis,
   ...strategies,
+  ...insider,
   ...agent,
   ...arena,
   ...assets,
@@ -59,6 +64,7 @@ export const zhCN: Messages = {
   ...invest,
   ...markets,
   ...personalized,
+  ...paper,
   ...portfolio,
   ...rails,
   ...referrals,

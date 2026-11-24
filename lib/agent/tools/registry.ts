@@ -10,6 +10,7 @@ import { PORTFOLIO_TOOLS } from "@/lib/agent/tools/portfolio";
 import { PREDICTION_TOOLS } from "@/lib/agent/tools/prediction";
 import { PREDICTION_SIGNAL_TOOLS } from "@/lib/agent/tools/prediction-signals";
 import { TRADING_TOOLS } from "@/lib/agent/tools/trading";
+import { ANALYSIS_TOOLS } from "@/lib/agent/tools/analysis";
 import { companyResearch } from "@/lib/research/tool";
 import { BACKTEST_TOOLS } from "@/lib/backtest/tool";
 import type { Locale } from "@/lib/i18n/locales";
@@ -83,6 +84,7 @@ export interface RegisteredTool {
 
 export const TOOLS: RegisteredTool[] = [
   ...MARKET_TOOLS,
+  ...ANALYSIS_TOOLS,
   ...PORTFOLIO_TOOLS,
   ...TRADING_TOOLS,
   ...ELYRA_TOOLS,

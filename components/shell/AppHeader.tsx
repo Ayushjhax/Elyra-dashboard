@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Menu, Search } from "lucide-react";
+import { ModeSwitch } from "@/components/paper/Paper";
 import { ElyraMark } from "@/components/ui/ElyraMark";
 import { AccountMenu } from "@/components/shell/status/AccountMenu";
 import { ConnectionStatus } from "@/components/shell/status/ConnectionStatus";
@@ -109,6 +110,8 @@ export function AppHeader() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1 compact:gap-2">
+        {/* Live or Paper, on every page. On a phone the account menu has it. */}
+        <ModeSwitch className="hidden compact:grid" />
         <ConnectionStatus className="hidden full:flex" />
         <div className="hidden compact:block">
           <TelegramLink />

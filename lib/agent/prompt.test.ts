@@ -34,6 +34,12 @@ describe("the agent's system prompt", () => {
     expect(STABLE_SYSTEM_PROMPT).toMatch(/not a forecast,\s+and not a reason to trade without a stop/);
   });
 
+  it("routes token analysis to its tools, and never shows a score without its parts", () => {
+    expect(STABLE_SYSTEM_PROMPT).toMatch(/`token_overview`/);
+    expect(STABLE_SYSTEM_PROMPT).toMatch(/always shown with the deductions or readings that made it, never alone/);
+    expect(STABLE_SYSTEM_PROMPT).toMatch(/stays named by its address/);
+  });
+
   it("gives no financial advice", () => {
     expect(STABLE_SYSTEM_PROMPT).toMatch(/Give no financial advice/);
   });

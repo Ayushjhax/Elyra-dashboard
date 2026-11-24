@@ -6,6 +6,7 @@ import { validateLimitOrder } from "@/lib/autotrade/orders";
 import { marketFor } from "@/lib/autotrade/rules";
 import { automationUser } from "@/lib/autotrade/session";
 import { tablesMissing, toOrder, tradingNetwork } from "@/lib/autotrade/store";
+import { marginFor } from "@/lib/paper/funds";
 import { serviceClient } from "@/lib/supabase/server";
 
 /* ---------------------------------------------------------------------------
@@ -43,7 +44,7 @@ export async function POST(request: Request): Promise<Response> {
   if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
   const order = checked.order;
 
-  const gate = await accountGate(userId, order.coin, order.mode, "orders");
+  const gate = await accountGate(userId, order.coin, order.mode, "orders", marginFor(order));
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const db = serviceClient();

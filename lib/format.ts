@@ -28,12 +28,15 @@ export function formatCompactUsd(value: number): string {
     [1e6, "M"],
     [1e3, "K"],
   ];
-  for (const [threshold, suffix] of units) {
-    if (abs >= threshold) {
-      return `${prefix}${(abs / threshold).toFixed(abs / threshold >= 100 ? 0 : abs / threshold >= 10 ? 1 : 2)}${suffix}`;
-    }
+  for (const [index, [threshold, suffix]] of units.entries()) {
+    if (abs < threshold) continue;
+    const scaled = abs / threshold;
+    const text = scaled.toFixed(scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2);
+    /* $999,999.60 rounds to "1000K", which is $1.00M. */
+    if (Number(text) >= 1000 && index > 0) return `${prefix}${(abs / units[index - 1][0]).toFixed(2)}${units[index - 1][1]}`;
+    return `${prefix}${text}${suffix}`;
   }
-  return `${prefix}${abs.toFixed(2)}`;
+  return Number(abs.toFixed(2)) >= 1000 ? `${prefix}1.00K` : `${prefix}${abs.toFixed(2)}`;
 }
 
 export function formatPct(

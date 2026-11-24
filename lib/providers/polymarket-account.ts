@@ -14,10 +14,13 @@ import {
 /* ---------------------------------------------------------------------------
    Polymarket — a specific account's positions and activity.
 
-   Verified against the official Data API spec
-   (docs.polymarket.com/api-spec/data-openapi.yaml) and live calls. Paths are
-   not guessed: `/positions`, `/activity`, `/value` and `/closed-positions`
-   are all in that document, all keyed on `user`.
+   Data API v2 (data-api.polymarket.com/v2/openapi.json), verified against
+   live calls on 2026-11-25. v1 was retired on 2 November 2026 and now
+   answers every route with an error, so nothing here may call it. v2 wraps
+   each payload in `data`, writes fields in snake_case, pages by cursor and
+   rejects `offset`; its positions route serves the whole lifecycle behind a
+   single `status` (OPEN, REDEEMABLE, REDEEMABLE_LOST, MERGEABLE, CLOSED),
+   and deposits and withdrawals appear in activity only when asked for.
 
    ── Public, and why that matters ───────────────────────────────────────
 
@@ -41,7 +44,7 @@ import {
    never "$0". Those are different facts and only one of them is true.
 --------------------------------------------------------------------------- */
 
-const DATA = "https://data-api.polymarket.com";
+const DATA = "https://data-api.polymarket.com/v2";
 
 /** Positions change on fills, not continuously. */
 const POSITION_TTL_MS = 20_000;
@@ -61,27 +64,39 @@ function isAddress(value: string): boolean {
    Positions
 --------------------------------------------------------------------------- */
 
+/** Every v2 read: the payload in `data`, and a cursor where it pages. */
+interface Envelope<T> {
+  data?: T | null;
+  pagination?: { has_more?: boolean; next_cursor?: string | null } | null;
+}
+
 interface WirePosition {
-  proxyWallet?: string;
-  asset?: string;
-  conditionId?: string;
-  size?: number;
-  avgPrice?: number;
-  initialValue?: number;
-  currentValue?: number;
-  cashPnl?: number;
-  percentPnl?: number;
-  realizedPnl?: number;
-  curPrice?: number;
+  proxy_wallet?: string;
+  token_id?: string;
+  condition_id?: string;
+  current_size?: number;
+  avg_price?: number;
+  /** What the shares still held cost, before fees — v1's `initialValue`. */
+  entry_cost_usdc?: number;
+  current_value?: number;
+  /** current_value − entry_cost_usdc — v1's `cashPnl`. */
+  unrealized_pnl?: number;
+  percent_pnl?: number;
+  realized_pnl?: number;
+  total_pnl?: number;
+  current_price?: number;
+  status?: string;
   redeemable?: boolean;
   mergeable?: boolean;
   title?: string;
   slug?: string;
-  eventId?: string;
+  event_id?: string;
   outcome?: string;
-  outcomeIndex?: number;
-  endDate?: string;
-  negativeRisk?: boolean;
+  outcome_index?: number;
+  end_date?: string;
+  negative_risk?: boolean;
+  /** Epoch seconds of the row's last economic event. */
+  last_event_at?: number;
 }
 
 /**
@@ -100,7 +115,7 @@ interface WirePosition {
  * still worth something.
  */
 function statusOf(wire: WirePosition): PredictionPositionStatus {
-  const value = wire.currentValue ?? 0;
+  const value = wire.current_value ?? 0;
 
   if (wire.redeemable === true) {
     return value > 0 ? "claimable" : "resolved";
@@ -110,43 +125,67 @@ function statusOf(wire: WirePosition): PredictionPositionStatus {
      Distinguished from a long shot still trading near zero by the end date
      having passed. */
   const ended =
-    typeof wire.endDate === "string" && Date.parse(wire.endDate) < Date.now();
-  if (ended && (wire.curPrice ?? 1) === 0) return "resolved";
+    typeof wire.end_date === "string" && Date.parse(wire.end_date) < Date.now();
+  if (ended && (wire.current_price ?? 1) === 0) return "resolved";
 
   return "open";
 }
 
 function toPosition(wire: WirePosition, account: string): PredictionPosition | null {
-  if (wire.conditionId === undefined || wire.title === undefined) return null;
+  if (typeof wire.condition_id !== "string" || wire.condition_id.length === 0 || typeof wire.title !== "string") return null;
 
-  const size = num(wire.size);
-  const current = num(wire.curPrice);
+  const size = num(wire.current_size);
+  const current = num(wire.current_price);
 
   return {
-    /* Asset id is the outcome token, which is what makes a row unique — a
-       user can hold both YES and NO on the same condition. */
-    id: wire.asset ?? `${wire.conditionId}:${wire.outcomeIndex ?? 0}`,
+    /* The token id is the outcome token, which is what makes a row unique —
+       a user can hold both YES and NO on the same condition. */
+    id: wire.token_id || `${wire.condition_id}:${wire.outcome_index ?? 0}`,
     provider: "polymarket",
     accountId: account,
-    marketId: wire.conditionId,
-    eventId: wire.eventId ?? null,
+    marketId: wire.condition_id,
+    eventId: wire.event_id || null,
     marketTitle: wire.title,
-    slug: wire.slug ?? null,
-    outcome: wire.outcome ?? "?",
-    outcomeIndex: wire.outcomeIndex ?? null,
+    slug: wire.slug || null,
+    outcome: wire.outcome || "?",
+    outcomeIndex: wire.outcome_index ?? null,
     quantity: size,
-    entryPrice: num(wire.avgPrice),
+    entryPrice: num(wire.avg_price),
     currentPrice: current === null ? null : Math.min(1, Math.max(0, current)),
-    costBasisUsd: num(wire.initialValue),
-    currentValueUsd: num(wire.currentValue),
-    pnlUsd: num(wire.cashPnl),
-    pnlPct: num(wire.percentPnl),
-    realizedPnlUsd: num(wire.realizedPnl),
-    endsAt: wire.endDate ?? null,
+    costBasisUsd: num(wire.entry_cost_usdc),
+    currentValueUsd: num(wire.current_value),
+    pnlUsd: num(wire.unrealized_pnl),
+    pnlPct: num(wire.percent_pnl),
+    realizedPnlUsd: num(wire.realized_pnl),
+    endsAt: wire.end_date || null,
     status: statusOf(wire),
     /* Only true when there is value to collect — see statusOf. */
-    redeemable: wire.redeemable === true && (wire.currentValue ?? 0) > 0,
+    redeemable: wire.redeemable === true && (wire.current_value ?? 0) > 0,
   };
+}
+
+/** One page of one position status, or the failure that stopped it. */
+async function positionsPage(
+  account: string,
+  status: "OPEN" | "REDEEMABLE" | "CLOSED",
+  extra: Record<string, string>,
+): Promise<ToolResult<WirePosition[]>> {
+  const params = new URLSearchParams({ user: account, status, ...extra });
+  const response = await providerFetch<Envelope<WirePosition[]>>({
+    provider: "polymarket",
+    url: `${DATA}/positions?${params.toString()}`,
+    timeoutMs: 15_000,
+  });
+  if (!response.ok || !Array.isArray(response.data?.data)) {
+    /* A failure, never an empty list. "We could not read your positions"
+       and "you have none" are opposite claims about someone's money. */
+    return fail<WirePosition[]>(
+      "polymarket",
+      response.error?.code ?? "UPSTREAM_UNAVAILABLE",
+      response.error?.message ?? "Polymarket positions could not be read.",
+    );
+  }
+  return ok(response.data.data, "polymarket");
 }
 
 export interface PositionQuery {
@@ -177,37 +216,109 @@ export async function polymarketPositions(
     );
   }
 
-  const params = new URLSearchParams({
-    user: account,
-    limit: String(Math.min(Math.max(query.limit ?? 100, 1), 500)),
-    sortBy: "CURRENT",
-    sortDirection: "DESC",
-    sizeThreshold: String(query.sizeThreshold ?? 1),
-  });
-  if (query.redeemableOnly === true) params.set("redeemable", "true");
+  const limit = Math.min(Math.max(query.limit ?? 100, 1), 500);
+  const threshold = query.sizeThreshold ?? 1;
+  /* v1's one list was every position still held. v2 splits it: OPEN is a
+     market still trading, REDEEMABLE a resolved one not yet claimed — the
+     row that carries unclaimed winnings, so it is never left out. One
+     status per request, so two requests; either failing fails the read. */
+  const statuses = query.redeemableOnly === true ? (["REDEEMABLE"] as const) : (["OPEN", "REDEEMABLE"] as const);
+  const extra = { limit: String(limit), sort_by: "CURRENT_VALUE", sort_direction: "DESC" };
 
-  return cached(`polymarket:positions:${params.toString()}`, POSITION_TTL_MS, async () => {
-    const response = await providerFetch<WirePosition[]>({
-      provider: "polymarket",
-      url: `${DATA}/positions?${params.toString()}`,
-      timeoutMs: 15_000,
-    });
-
-    if (!response.ok || !Array.isArray(response.data)) {
-      /* A failure, never an empty list. "We could not read your positions"
-         and "you have none" are opposite claims about someone's money. */
+  return cached(`polymarket:positions:${account}:${statuses.join(",")}:${limit}:${threshold}`, POSITION_TTL_MS, async () => {
+    const pages = await Promise.all(statuses.map((status) => positionsPage(account, status, extra)));
+    const failed = pages.find((page) => !page.ok);
+    if (failed !== undefined) {
       return fail<PredictionPosition[]>(
         "polymarket",
-        response.error?.code ?? "UPSTREAM_UNAVAILABLE",
-        response.error?.message ?? "Polymarket positions could not be read.",
+        failed.error?.code ?? "UPSTREAM_UNAVAILABLE",
+        failed.error?.message ?? "Polymarket positions could not be read.",
       );
     }
 
-    const positions = response.data
+    const seen = new Set<string>();
+    const positions = pages
+      .flatMap((page) => page.data ?? [])
       .map((wire) => toPosition(wire, account))
-      .filter((position): position is PredictionPosition => position !== null);
+      .filter((position): position is PredictionPosition => {
+        if (position === null || seen.has(position.id)) return false;
+        seen.add(position.id);
+        /* Dust is hidden, as v1's sizeThreshold did — a share count, not
+           a dollar value. */
+        return (position.quantity ?? 0) >= threshold;
+      })
+      .sort((a, b) => (b.currentValueUsd ?? 0) - (a.currentValueUsd ?? 0))
+      .slice(0, limit);
 
     return ok(positions, "polymarket");
+  });
+}
+
+/** A position whose outcome is settled: sold out, redeemed, or resolved and unclaimed. */
+export interface ClosedPredictionPosition {
+  id: string;
+  marketTitle: string;
+  outcome: string;
+  /** The position's final result in USD: realised, plus what a resolved row still holds. */
+  pnlUsd: number;
+  /** When its last economic event happened. */
+  at: string;
+}
+
+const CLOSED_PAGES = 4;
+
+/**
+ * Settled positions since `sinceSec`, newest first — the prediction half of
+ * a win rate. CLOSED rows are fully exited; REDEEMABLE rows are resolved and
+ * still held, so their outcome is final too (a resolved loser holds $0).
+ * Rows with no clock are left out by the API itself under a time bound.
+ */
+export async function polymarketClosedPositions(
+  address: string,
+  sinceSec: number,
+): Promise<ToolResult<ClosedPredictionPosition[]>> {
+  const account = address.trim().toLowerCase();
+  if (!isAddress(account)) {
+    return fail<ClosedPredictionPosition[]>("polymarket", "INVALID_REQUEST", "That is not an EVM address.");
+  }
+
+  return cached(`polymarket:closed:${account}:${Math.floor(sinceSec / 3600)}`, ACTIVITY_TTL_MS, async () => {
+    const rows: ClosedPredictionPosition[] = [];
+    for (const status of ["CLOSED", "REDEEMABLE"] as const) {
+      let cursor: string | null = null;
+      for (let page = 0; page < CLOSED_PAGES; page += 1) {
+        const extra: Record<string, string> = { sort_by: "TIMESTAMP", sort_direction: "DESC", start: String(Math.max(0, Math.floor(sinceSec))) };
+        if (cursor === null) extra.limit = "500";
+        else extra.cursor = cursor;
+        const params = new URLSearchParams({ user: account, status, ...extra });
+        const response: ToolResult<Envelope<WirePosition[]>> = await providerFetch<Envelope<WirePosition[]>>({
+          provider: "polymarket",
+          url: `${DATA}/positions?${params.toString()}`,
+          timeoutMs: 15_000,
+        });
+        if (!response.ok || !Array.isArray(response.data?.data)) {
+          return fail<ClosedPredictionPosition[]>(
+            "polymarket",
+            response.error?.code ?? "UPSTREAM_UNAVAILABLE",
+            response.error?.message ?? "Polymarket's closed positions could not be read.",
+          );
+        }
+        for (const wire of response.data.data) {
+          const pnl = num(wire.total_pnl) ?? num(wire.realized_pnl);
+          if (pnl === null || typeof wire.last_event_at !== "number" || typeof wire.title !== "string") continue;
+          rows.push({
+            id: wire.token_id || `${wire.condition_id}:${wire.outcome_index ?? 0}`,
+            marketTitle: wire.title,
+            outcome: wire.outcome || "?",
+            pnlUsd: pnl,
+            at: new Date(wire.last_event_at * 1000).toISOString(),
+          });
+        }
+        cursor = response.data.pagination?.has_more === true ? (response.data.pagination.next_cursor ?? null) : null;
+        if (cursor === null) break;
+      }
+    }
+    return ok(rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at)), "polymarket");
   });
 }
 
@@ -221,13 +332,13 @@ export async function polymarketAccountValue(
   }
 
   return cached(`polymarket:value:${account}`, POSITION_TTL_MS, async () => {
-    const response = await providerFetch<Array<{ user?: string; value?: number }>>({
+    const response = await providerFetch<Envelope<{ proxy_wallet?: string; value?: number }>>({
       provider: "polymarket",
       url: `${DATA}/value?user=${account}`,
       timeoutMs: 10_000,
     });
 
-    const value = num(response.data?.[0]?.value);
+    const value = num(response.data?.data?.value);
     if (!response.ok || value === null) {
       return fail<number>(
         "polymarket",
@@ -246,11 +357,11 @@ export async function polymarketAccountValue(
 
 interface WireActivity {
   timestamp?: number;
-  conditionId?: string;
+  condition_id?: string;
   type?: string;
   size?: number;
-  usdcSize?: number;
-  transactionHash?: string;
+  usdc_size?: number;
+  transaction_hash?: string;
   price?: number;
   side?: string;
   title?: string;
@@ -289,13 +400,13 @@ export async function polymarketActivity(
   const size = Math.min(Math.max(limit, 1), 100);
 
   return cached(`polymarket:activity:${account}:${size}`, ACTIVITY_TTL_MS, async () => {
-    const response = await providerFetch<WireActivity[]>({
+    const response = await providerFetch<Envelope<WireActivity[]>>({
       provider: "polymarket",
       url: `${DATA}/activity?user=${account}&limit=${size}`,
       timeoutMs: 15_000,
     });
 
-    if (!response.ok || !Array.isArray(response.data)) {
+    if (!response.ok || !Array.isArray(response.data?.data)) {
       return fail<PredictionActivity[]>(
         "polymarket",
         response.error?.code ?? "UPSTREAM_UNAVAILABLE",
@@ -304,27 +415,83 @@ export async function polymarketActivity(
     }
 
     const rows: PredictionActivity[] = [];
-    for (const wire of response.data) {
+    for (const wire of response.data.data) {
       if (typeof wire.timestamp !== "number") continue;
 
       rows.push({
-        id: wire.transactionHash ?? `${wire.conditionId}:${wire.timestamp}`,
+        id: wire.transaction_hash || `${wire.condition_id}:${wire.timestamp}`,
         provider: "polymarket",
         kind: activityKind(wire.type, wire.side),
-        marketId: wire.conditionId ?? null,
-        marketTitle: wire.title ?? null,
-        outcome: wire.outcome ?? null,
+        marketId: wire.condition_id || null,
+        marketTitle: wire.title || null,
+        outcome: wire.outcome || null,
         quantity: num(wire.size),
         price: num(wire.price),
-        usdValue: num(wire.usdcSize),
+        usdValue: num(wire.usdc_size),
         /* Seconds on the wire. Treating it as milliseconds dates every row to
            1970 and sorts the whole ledger wrong. */
         at: new Date(wire.timestamp * 1000).toISOString(),
-        txHash: wire.transactionHash ?? null,
+        txHash: wire.transaction_hash || null,
       });
     }
 
     return ok(rows, "polymarket");
+  });
+}
+
+/** Money into or out of the Polymarket account: positive in, negative out. */
+export interface PredictionFlow {
+  usd: number;
+  at: string;
+  txHash: string | null;
+}
+
+/**
+ * Deposits and withdrawals since `sinceSec` — what the portfolio's flow
+ * tracking needs so that funding Polymarket does not read as a gain. v2
+ * drops these rows unless `exclude_deposits_withdrawals=false`.
+ */
+export async function polymarketFlows(
+  address: string,
+  sinceSec: number,
+): Promise<ToolResult<PredictionFlow[]>> {
+  const account = address.trim().toLowerCase();
+  if (!isAddress(account)) {
+    return fail<PredictionFlow[]>("polymarket", "INVALID_REQUEST", "That is not an EVM address.");
+  }
+  const params = new URLSearchParams({
+    user: account,
+    type: "DEPOSIT,WITHDRAWAL",
+    exclude_deposits_withdrawals: "false",
+    start: String(Math.max(0, Math.floor(sinceSec))),
+    limit: "500",
+  });
+  return cached(`polymarket:flows:${params.toString()}`, ACTIVITY_TTL_MS, async () => {
+    const response = await providerFetch<Envelope<WireActivity[]>>({
+      provider: "polymarket",
+      url: `${DATA}/activity?${params.toString()}`,
+      timeoutMs: 15_000,
+    });
+    if (!response.ok || !Array.isArray(response.data?.data)) {
+      return fail<PredictionFlow[]>(
+        "polymarket",
+        response.error?.code ?? "UPSTREAM_UNAVAILABLE",
+        response.error?.message ?? "Polymarket deposits and withdrawals could not be read.",
+      );
+    }
+    const flows: PredictionFlow[] = [];
+    for (const wire of response.data.data) {
+      const usd = num(wire.usdc_size);
+      if (typeof wire.timestamp !== "number" || usd === null) continue;
+      const type = (wire.type ?? "").toUpperCase();
+      if (type !== "DEPOSIT" && type !== "WITHDRAWAL") continue;
+      flows.push({
+        usd: type === "DEPOSIT" ? usd : -usd,
+        at: new Date(wire.timestamp * 1000).toISOString(),
+        txHash: wire.transaction_hash || null,
+      });
+    }
+    return ok(flows, "polymarket");
   });
 }
 

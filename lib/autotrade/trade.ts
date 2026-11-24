@@ -5,6 +5,7 @@ import { midPrice, openPosition } from "@/lib/autotrade/hyperliquid";
 import { agentKeyFor } from "@/lib/autotrade/liveGate";
 import type { MarketOrderInput } from "@/lib/autotrade/orders";
 import { exitPrices, marketFor, paperFill } from "@/lib/autotrade/rules";
+import { marginFor } from "@/lib/paper/funds";
 import { toPosition, tradingNetwork, type PositionView } from "@/lib/autotrade/store";
 import { serviceClient } from "@/lib/supabase/server";
 
@@ -50,7 +51,8 @@ export async function openMarketTrade(
 ): Promise<TradeOutcome> {
   const label = marketFor(order.coin)?.label ?? order.coin;
 
-  const gate = await accountGate(userId, order.coin, order.mode, "trades");
+  /* A fund's order is held to the fund's capital (lib/funds/policy.ts), not the paper account. */
+  const gate = await accountGate(userId, order.coin, order.mode, "trades", placedBy.fundId === undefined ? marginFor(order) : undefined);
   if (!gate.ok) return { ok: false, error: gate.error, status: gate.status };
 
   const network = tradingNetwork();

@@ -8,6 +8,7 @@ import {
   ChevronRight,
   CircleAlert,
   ClipboardCheck,
+  Radar,
   RefreshCw,
   Settings,
   SlidersHorizontal,
@@ -24,6 +25,7 @@ import {
   type NotificationItem,
 } from "@/lib/activity/notifications";
 import { useAccountEvents, type AccountFeed } from "@/lib/activity/useAccountEvents";
+import { useInsiderNotifications } from "@/lib/insider/useInsider";
 import { formatRelativeTime } from "@/lib/format";
 import { useElyraStore } from "@/lib/store";
 import { useMinute } from "@/lib/useClock";
@@ -53,6 +55,7 @@ const CATEGORY: Record<NotificationCategory, { icon: LucideIcon; tone: string; l
   action: { icon: ClipboardCheck, tone: "text-accent", label: msg("Action") },
   failed: { icon: CircleAlert, tone: "text-negative", label: msg("Failure") },
   agent: { icon: Sparkles, tone: "text-agent-accent", label: "Elyra" },
+  insider: { icon: Radar, tone: "text-caution", label: msg("Insider watch") },
 };
 
 function absolute(iso: string, locale: Locale): string {
@@ -158,11 +161,14 @@ function Row({
 }
 
 export function NotificationsMenu() {
-  return <NotificationsMenuView feed={useAccountEvents()} />;
+  /* Insider watch is merged in here, on the website only (lib/insider). */
+  return <NotificationsMenuView feed={useAccountEvents()} extra={useInsiderNotifications()} />;
 }
 
+const NO_EXTRA: NotificationItem[] = [];
+
 /** The menu with its feed passed in, so every state renders from fixtures too. */
-export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
+export function NotificationsMenuView({ feed, extra = NO_EXTRA }: { feed: AccountFeed; extra?: NotificationItem[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"all" | "unread">("all");
@@ -173,7 +179,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
   const reviewPendingActions = useElyraStore((state) => state.reviewPendingActions);
   const now = useMinute();
 
-  const items = useMemo(() => notificationsFrom(feed.events), [feed.events]);
+  const items = useMemo(() => notificationsFrom(feed.events, extra), [feed.events, extra]);
   const unreadItems = items.filter((item) => isUnread(item, seenAt, readIds));
   const unread = unreadItems.length;
   const shown = tab === "unread" ? unreadItems : items;

@@ -14,9 +14,11 @@ import {
   PenTool,
   Pointer,
   Star,
+  Sparkles,
   Zap,
 } from "lucide-react";
 import { TradePanel } from "@/components/trade/TradePanel";
+import { clearTicketRequest, useTicketRequest } from "@/lib/trade/ticketRequest";
 import { AssetSelectDialog } from "@/components/panels/AssetSelectDialog";
 import { ChartAlerts } from "@/components/panels/ChartAlerts";
 import { CoinMark } from "@/components/ui/CoinMark";
@@ -321,6 +323,7 @@ function FeedFooter({
 export function ChartPanel({ focus = false }: { focus?: boolean }) {
   const t = useT();
   const assetId = useElyraStore((state) => state.selectedAssetId);
+  const askElyra = useElyraStore((state) => state.askElyra);
   const interval = useElyraStore((state) => state.interval);
   const setInterval = useElyraStore((state) => state.setInterval);
   const chartStyle = useElyraStore((state) => state.chartStyle);
@@ -338,8 +341,10 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
   const flash = useFlash(seq, direction);
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  /* The order ticket for the chart's market (components/trade/TradePanel). */
+  /* The order ticket for the chart's market (components/trade/TradePanel), opened
+     here or asked for from elsewhere — a signal card's Paper trade (lib/trade/ticketRequest). */
   const [trading, setTrading] = useState(false);
+  const ticketRequest = useTicketRequest();
   const [status, setStatus] = useState<Status>("loading");
   const [reloads, setReloads] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -663,6 +668,17 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           <Zap size={15} strokeWidth={1.5} aria-hidden />
           <span className="type-label">{t("Trade")}</span>
         </button>
+        {/* Asks Elyra for this market's whole picture — price, safety, sentiment, technicals; the person sends it. */}
+        <button
+          type="button"
+          onClick={() => askElyra(t("Analyze {symbol} right now", { symbol }))}
+          disabled={asset === undefined}
+          title={t("Ask Elyra to analyze {symbol}", { symbol })}
+          className={cn(TOOL, "gap-1.5 px-2.5")}
+        >
+          <Sparkles size={15} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+          <span className="type-label">{t("Analyze")}</span>
+        </button>
         <Indicators />
         <ChartAlerts symbol={symbol} price={row?.price ?? null} />
         <button
@@ -828,7 +844,19 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
       <FeedFooter row={row ?? null} status={feedStatus} engaged={engaged} />
 
       <AssetSelectDialog open={pickerOpen} onOpenChange={setPickerOpen} />
-      {trading && asset !== undefined && <TradePanel symbol={asset.symbol} row={row} onClose={() => setTrading(false)} />}
+      {(trading || ticketRequest !== null) && asset !== undefined && (
+        <TradePanel
+          key={`${asset.symbol}:${ticketRequest?.at ?? "chart"}`}
+          symbol={asset.symbol}
+          row={row}
+          initialSide={ticketRequest?.side}
+          paper={ticketRequest?.paper === true}
+          onClose={() => {
+            setTrading(false);
+            clearTicketRequest();
+          }}
+        />
+      )}
     </section>
   );
 }

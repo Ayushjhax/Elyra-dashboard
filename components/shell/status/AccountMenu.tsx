@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, PieChart, Power, QrCode, Wallet } from "lucide-react";
+import { PaperMenuRow } from "@/components/paper/Paper";
 import { Money, useBalancesHidden } from "@/components/portfolio/primitives";
 import { ReceiveDialog } from "@/components/portfolio/ReceiveDialog";
 import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
@@ -346,6 +347,8 @@ export function AccountMenuView({
                 <span className="flex-1">{t("Portfolio")}</span>
                 <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
               </Link>
+              {/* Live or Paper — the header has the switch from 640px; here it is on every screen. */}
+              <PaperMenuRow className={row} onDone={() => close(false)} />
             </nav>
 
             <div className={cn("mt-3 border-t pt-3", DIVIDER)}>

@@ -6,7 +6,8 @@ import { coversSince, flowsIn, PEGGED, valueFlows, type FlowEvent, type FlowNetw
 import type { OverviewNote } from "@/lib/portfolio/performance";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 import { polymarketFlows } from "@/lib/providers/polymarket-account";
-import { EVM_CHAINS, type EvmChainKey } from "@/lib/evm/chains";
+import type { EvmChainKey } from "@/lib/evm/chains";
+import { networkLabel } from "@/lib/portfolio/networkLabel";
 import { readAccountActivity } from "@/lib/wallet/readActivity";
 
 /* ---------------------------------------------------------------------------
@@ -41,16 +42,6 @@ export interface FlowAccount {
   polymarketAddress: string | null;
 }
 
-const NETWORK_NAMES: Record<string, string> = {
-  solana: "Solana",
-  sui: "Sui",
-  polymarket: "Polymarket",
-  ...Object.fromEntries(Object.entries(EVM_CHAINS).map(([key, chain]) => [key, chain.name])),
-};
-
-export function networkLabel(network: string): string {
-  return NETWORK_NAMES[network] ?? network;
-}
 
 /** What each wallet network holds, from a portfolio read — to tell an unreadable chain that matters from one that is empty. */
 export function valueByNetwork(snapshot: PortfolioSnapshot | null): Map<FlowNetwork, number> {

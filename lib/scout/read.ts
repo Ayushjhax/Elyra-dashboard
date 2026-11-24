@@ -192,7 +192,7 @@ async function freshSource(userId: string, input: { url?: string; text?: string 
 
 async function saveSource(source: Source, now: number): Promise<void> {
   /* Pastes are not shared: a person's text stays in their own read. */
-  if (source.kind === "text") return;
+  if (source.kind === "text" || source.textOrigin === "pasted") return;
   await serviceClient()
     .from("scout_sources")
     .upsert(

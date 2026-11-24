@@ -5,6 +5,7 @@ import { normalizeBook } from "@/lib/prediction/book";
 import { estimateExecution } from "@/lib/prediction/execution";
 import { polymarketOrderbook } from "@/lib/providers/polymarket";
 import { serviceClient } from "@/lib/supabase/server";
+import type { PolyBasketLegRow } from "@/lib/supabase/types";
 import { BASKET_LIMITS, basketTotals, payoutOf, splitStake, type BasketInput } from "@/lib/poly/basketMath";
 import { marketsByCondition } from "@/lib/poly/scan";
 import type { BasketLegView, BasketsResponse, BasketView } from "@/lib/poly/types";
@@ -36,7 +37,7 @@ export async function createBasket(userId: string, input: BasketInput): Promise<
 
   const markets = await marketsByCondition(input.legs.map((leg) => leg.conditionId));
   const stakes = splitStake(input.stakeUsd, input.legs.length);
-  const legs: Array<Record<string, unknown>> = [];
+  const legs: PolyBasketLegRow[] = [];
   const basketId = randomUUID();
   const now = new Date().toISOString();
 

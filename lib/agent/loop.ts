@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_TOKENS,
   ProviderError,
   type AgentMessage,
+  type Effort,
   type SystemPrompt,
   type ToolCall,
   type ToolDef,
@@ -36,6 +37,8 @@ export interface ToolLoopOptions {
   /** Ceiling on one provider call, inside what is left of the wall clock. */
   callTimeoutMs: number;
   maxTokens?: number;
+  /** How hard the model thinks on each call (lib/agent/effort.ts). Absent: the model's default. */
+  effort?: Effort;
   /** The model's words as they are written. Absent: nothing streams. */
   onText?: (delta: string) => void;
   /** The model went to read something; the labels say what. */
@@ -122,6 +125,7 @@ export async function toolLoop(options: ToolLoopOptions): Promise<ToolLoopResult
           messages,
           tools: options.tools,
           maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+          ...(options.effort === undefined ? {} : { effort: options.effort }),
           /* Never let one provider call outlive the run's own budget. */
           timeoutMs: Math.min(remaining, options.callTimeoutMs),
         },

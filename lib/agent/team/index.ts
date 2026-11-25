@@ -3,6 +3,7 @@ import "server-only";
 import type { RunAgentInput, RunAgentResult } from "@/lib/agent";
 import type { TeamAgentId, TeamStageStatus, TeamTrace } from "@/lib/agent/events";
 import { loadHistory, persistMessage, recordRun } from "@/lib/agent/conversation";
+import { effortFor } from "@/lib/agent/effort";
 import { toolLoop, type ToolLoopOptions } from "@/lib/agent/loop";
 import { STABLE_SYSTEM_PROMPT, buildUserContext } from "@/lib/agent/prompt";
 import { route, type RoutedResult } from "@/lib/agent/providers/router";
@@ -245,6 +246,7 @@ export async function runTeam(input: RunTeamInput): Promise<RunTeamResult> {
         messages: [...history, asked],
         tools: [],
         maxTokens: MEMBER_MAX_TOKENS,
+        effort: effortFor("review"),
         timeoutMs: Math.min(MEMBER_TIMEOUT_MS, left() - SYNTHESIS_FLOOR_MS),
       });
       last = result;
@@ -277,6 +279,7 @@ export async function runTeam(input: RunTeamInput): Promise<RunTeamResult> {
         : solo ? SOLO_MS : RESEARCH_MS,
     startedAt,
     callTimeoutMs: attachments.length > 0 ? ATTACHMENT_CALL_TIMEOUT_MS : CALL_TIMEOUT_MS,
+    effort: effortFor(solo ? "answer" : "research"),
     /* Alone, Research's words are the answer and stream as the single
        agent's do. On a team they are notes, and only the write-up streams. */
     onText: solo && emit !== undefined ? (delta) => emit({ type: "text", delta }) : undefined,
@@ -356,6 +359,7 @@ export async function runTeam(input: RunTeamInput): Promise<RunTeamResult> {
               wallClockMs: elapsed() + FOLLOW_UP_MS,
               startedAt,
               callTimeoutMs: CALL_TIMEOUT_MS,
+              effort: effortFor("research"),
               onTools: (labels) => stage("research", "working", { activity: activityFor(labels) }),
               onToolRound: recordRound,
             });
@@ -413,6 +417,7 @@ export async function runTeam(input: RunTeamInput): Promise<RunTeamResult> {
             messages: [...history, asked],
             tools: [],
             maxTokens: DEFAULT_MAX_TOKENS,
+            effort: effortFor("write"),
             timeoutMs: Math.min(SYNTHESIS_TIMEOUT_MS, left()),
           },
           undefined,

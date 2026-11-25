@@ -2,6 +2,7 @@ import "server-only";
 import type { AgentEvent } from "@/lib/agent/events";
 
 import { loadHistory, persistMessage, recordRun } from "@/lib/agent/conversation";
+import { effortFor } from "@/lib/agent/effort";
 import { toolLoop } from "@/lib/agent/loop";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import type { AgentMessage } from "@/lib/agent/providers/types";
@@ -111,6 +112,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     wallClockMs: attachments.length > 0 ? ATTACHMENT_WALL_CLOCK_MS : WALL_CLOCK_MS,
     startedAt,
     callTimeoutMs: attachments.length > 0 ? ATTACHMENT_CALL_TIMEOUT_MS : 30_000,
+    effort: effortFor(input.voice === undefined ? "answer" : "voice"),
     onText: emit === undefined ? undefined : (delta) => emit({ type: "text", delta }),
     onTools: emit === undefined ? undefined : (labels) => emit({ type: "tools", labels }),
     onToolRound: ({ result, results }) =>

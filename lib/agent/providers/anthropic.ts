@@ -167,11 +167,19 @@ export function toWireMessages(messages: AgentMessage[]): WireMessage[] {
   return wire;
 }
 
+/** Whether a model accepts `output_config.effort`: the Claude 5 family, Fable and Mythos, Opus 4.5 on, and the 4.6 Sonnet. */
+export function takesEffort(model: string): boolean {
+  return /^claude-(fable|mythos)-|^claude-(opus|sonnet|haiku)-5|^claude-opus-4-[5-9]|^claude-sonnet-4-6/.test(model);
+}
+
 function requestBody(model: string, request: ProviderRequest, stream: boolean) {
   return {
     model,
     max_tokens: request.maxTokens ?? DEFAULT_MAX_TOKENS,
     ...(stream ? { stream: true } : {}),
+    /* Thinking stays adaptive; effort sets how much of it a step gets (lib/agent/effort.ts).
+       Sent only to a model that takes it: Haiku 4.5 and Sonnet 4.5 refuse the field. */
+    ...(request.effort === undefined || !takesEffort(model) ? {} : { output_config: { effort: request.effort } }),
     /* Two blocks, one breakpoint. Everything before `cache_control` is a
        stable prefix that caches across runs; the per-run user context goes
        after it, where a change costs nothing. One concatenated string would

@@ -33,7 +33,7 @@ export const Kicker: React.FC<{ f: number; at?: number; children: React.ReactNod
 };
 
 /**
- * A headline whose words rise out of a mask one after another. A word
+ * A headline whose words rise out of a mask one after another. A phrase
  * wrapped in `*stars*` is set in citron.
  */
 export const Title: React.FC<{
@@ -54,9 +54,10 @@ export const Title: React.FC<{
     <div style={{ fontFamily: display, fontWeight: weight, fontSize: size, lineHeight, letterSpacing: "-0.025em", color, textAlign: align, maxWidth }}>
       {lines.map((line, li) => (
         <div key={li} style={{ display: "flex", flexWrap: "wrap", justifyContent: align === "center" ? "center" : "flex-start", columnGap: size * 0.26 }}>
-          {line.split(" ").map((word, wi) => {
-            const accent = word.startsWith("*");
-            const clean = word.replace(/\*/g, "");
+          {line
+            .split("*")
+            .flatMap((segment, si) => segment.split(" ").filter(Boolean).map((word) => ({ word, accent: si % 2 === 1 })))
+            .map(({ word: clean, accent }, wi) => {
             const t = prog(f, at + index * stagger, at + index * stagger + 16, "land");
             index += 1;
             return (

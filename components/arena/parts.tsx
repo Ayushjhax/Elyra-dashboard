@@ -3,6 +3,7 @@
 import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useCopy } from "@/lib/clipboard";
+import { useT } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 /* The Arena's small parts, shared by every tab: fields, cards, a problem line, a copy button. */
@@ -52,11 +53,12 @@ export function Card({ title, right, children, className }: { title: string; rig
 }
 
 export function CopyButton({ text, label }: { text: string; label: string }) {
+  const t = useT();
   const { state, copy } = useCopy();
   return (
     <Button size="xs" variant="quiet" onClick={() => void copy(text)} aria-label={label}>
       <Copy size={12} aria-hidden />
-      {state === "copied" ? "Copied" : "Copy"}
+      {state === "copied" ? t("Copied") : t("Copy")}
     </Button>
   );
 }

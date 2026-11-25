@@ -237,4 +237,376 @@ export const arena: Messages = {
     "你的预测",
   "your groups":
     "你的小组",
+  "Trading as a game and a sport: a daily chart puzzle, leagues with friends, calls with receipts and a review of every paper trade. Points and paper only.":
+    "把交易当作游戏与运动：每日图表谜题、与好友的联赛、附带凭证的预测，以及对每笔模拟交易的复盘。仅限积分和模拟。",
+  "Play, compete, trade on paper":
+    "游戏、竞赛、模拟交易",
+  "League":
+    "联赛",
+  "Ladder":
+    "排行榜",
+  "Trading as a game and a sport: a daily chart puzzle, leagues with friends, calls with receipts and a review of every paper trade. Scored on judgment, not on how much you trade.":
+    "把交易当作游戏与运动：每日图表谜题、与好友的联赛、附带凭证的预测，以及对每笔模拟交易的复盘。按判断力计分，而不是按交易量。",
+  "your pick":
+    "轮到你选",
+  "Unsettled":
+    "待结算",
+  "Hit":
+    "命中",
+  "Missed":
+    "未命中",
+  "Void":
+    "作废",
+  "Brier {brier} over 1 call":
+    "1 次预测的 Brier 分数为 {brier}",
+  "Nothing shared with you yet. Join a group under Ladder to see friends' calls.":
+    "还没有人与你分享。在“排行榜”中加入一个小组即可看到好友的预测。",
+  "you":
+    "你",
+  "puzzle":
+    "道谜题",
+  "puzzles":
+    "道谜题",
+  "The ladder is not available right now.":
+    "排行榜暂不可用。",
+  "Ranked on judgment only. The puzzle ladder is the daily puzzle's rating, highest first. The calls ladder is the Brier score of settled calls, lowest first: 0 is perfect, always saying 50% scores 0.25.":
+    "只按判断力排名。谜题榜按每日谜题评分从高到低排列。预测榜按已结算预测的 Brier 分数从低到高排列：0 为完美，始终给出 50% 的得分为 0.25。",
+  "Whose ladder":
+    "查看谁的排行榜",
+  "Everyone":
+    "所有人",
+  "Puzzle rating":
+    "谜题评分",
+  "Nobody ranks yet. A player ranks after {count} puzzles.":
+    "暂无人上榜。完成 {count} 道谜题后参与排名。",
+  "Call calibration":
+    "预测校准度",
+  "Nobody ranks yet. A caller ranks after {count} settled calls.":
+    "暂无人上榜。结算满 {count} 次预测后参与排名。",
+  "You appear here once your profile is public. Your groups see you either way, by handle.":
+    "资料设为公开后你会出现在这里。无论是否公开，你的小组都能通过昵称看到你。",
+  "2-minute picks":
+    "每次选秀 2 分钟",
+  "1-hour picks":
+    "每次选秀 1 小时",
+  "8-hour picks":
+    "每次选秀 8 小时",
+  "2 minutes":
+    "2 分钟",
+  "8 hours":
+    "8 小时",
+  "timed picks":
+    "限时选秀",
+  "{markets} markets each · {rounds} daily rounds · {clock}":
+    "每人 {markets} 个市场 · {rounds} 轮（每轮一天）· {clock}",
+  "{markets} markets each · {rounds} weekly rounds · {clock}":
+    "每人 {markets} 个市场 · {rounds} 轮（每轮一周）· {clock}",
+  "now":
+    "现在",
+  "{hours}h {minutes}m":
+    "{hours} 小时 {minutes} 分",
+  "{days}d {hours}h":
+    "{days} 天 {hours} 小时",
+  "League name":
+    "联赛名称",
+  "Friday desk":
+    "周五交易组",
+  "Markets each":
+    "每人市场数",
+  "Rounds":
+    "轮数",
+  "A round lasts":
+    "每轮时长",
+  "A day":
+    "一天",
+  "A week":
+    "一周",
+  "Pick clock":
+    "选秀计时",
+  "Up to {managers} managers with {markets} markets each. Two-minute picks suit a live draft night; eight-hour picks, a slow one. You will get an invite code to send.":
+    "最多 {managers} 位经理，每人 {markets} 个市场。2 分钟的选秀适合现场选秀之夜，8 小时则适合慢节奏。创建后你会得到一个可以发送的邀请码。",
+  "Create league":
+    "创建联赛",
+  "Choose a handle":
+    "设置昵称",
+  "A league shows its managers by handle — never by wallet. Pick one to create or join a league.":
+    "联赛只以昵称显示经理，绝不显示钱包。设置昵称后即可创建或加入联赛。",
+  "Save handle":
+    "保存昵称",
+  "Join my Elyra league \"{name}\" with the code {code}. Points only: we draft markets and go head-to-head.":
+    "用邀请码 {code} 加入我的 Elyra 联赛“{name}”。只计积分：我们选秀市场，然后一对一对决。",
+  "Invite code":
+    "邀请码",
+  "Copy an invite to send":
+    "复制邀请文字",
+  "Managers · {count} of {room}":
+    "经理 · {count} / {room}",
+  "league owner":
+    "联赛创建者",
+  "When the draft starts, slots are dealt at random and the league closes to new managers. The season starts at the first 00:00 UTC after the last pick.":
+    "选秀开始时，顺位随机分配，联赛不再接受新经理。赛季在最后一次选秀后的第一个 00:00 UTC 开始。",
+  "Start the draft — needs two managers":
+    "开始选秀——至少需要两位经理",
+  "Start the draft":
+    "开始选秀",
+  "Close the league":
+    "关闭联赛",
+  "Leave the league":
+    "退出联赛",
+  "Pick {pick} of {total}":
+    "第 {pick} 选，共 {total} 选",
+  "The draft is wrapping up":
+    "选秀即将结束",
+  "You are on the clock":
+    "轮到你选择",
+  "@{handle} is on the clock":
+    "轮到 @{handle} 选择",
+  "{time} left · then the first market on the board is picked":
+    "剩余 {time} · 超时将自动选择列表中的第一个市场",
+  "Choose a market":
+    "选择一个市场",
+  "On the board":
+    "可选市场",
+  "Draft {market}":
+    "选择 {market}",
+  "Drafting":
+    "正在选择",
+  "Your roster · {count} of {size}":
+    "你的阵容 · {count} / {size}",
+  "Nothing yet.":
+    "暂无。",
+  "Picks":
+    "选秀记录",
+  "auto":
+    "自动",
+  "Bye":
+    "轮空",
+  "No opponent this round.":
+    "本轮没有对手。",
+  "In play":
+    "进行中",
+  "No result":
+    "无结果",
+  "Tied":
+    "平局",
+  "You won":
+    "你赢了",
+  "@{handle} won":
+    "@{handle} 获胜",
+  "vs":
+    "对阵",
+  "bye":
+    "轮空",
+  "This round's lineup":
+    "本轮阵容",
+  "Next round's lineup":
+    "下轮阵容",
+  "{added} joins your lineup next round; {dropped} counts through this one.":
+    "{added} 将从下一轮加入你的阵容；{dropped} 仍计入本轮。",
+  "Drop from roster":
+    "移出阵容",
+  "Add a free agent":
+    "添加自由球员",
+  "{left} of {moves} moves left this round. A move counts from the next round; the market you drop still counts for this one, then anyone can add it.":
+    "本轮还剩 {left} / {moves} 次调整。调整从下一轮生效；你移出的市场仍计入本轮，之后任何人都可以添加它。",
+  "Make the move":
+    "确认调整",
+  "The season is over":
+    "赛季已结束",
+  "The season starts soon":
+    "赛季即将开始",
+  "Round 1 starts in {time}":
+    "第 1 轮将在 {time} 后开始",
+  "The last round is being settled":
+    "最后一轮正在结算",
+  "Round {round} of {rounds}":
+    "第 {round} 轮，共 {rounds} 轮",
+  "ends in {time}":
+    "{time} 后结束",
+  "settling":
+    "结算中",
+  "Champion":
+    "冠军",
+  "Round 1":
+    "第 1 轮",
+  "Round {round}":
+    "第 {round} 轮",
+  "Every matchup this round":
+    "本轮所有对阵",
+  "League table":
+    "联赛积分榜",
+  "A win is worth 1, a tie a half. Level teams are split by points for: the sum of their round scores.":
+    "胜一场得 1 分，平局得 0.5 分。积分相同时按总得分（各轮得分之和）排序。",
+  "Round {round} recap":
+    "第 {round} 轮回顾",
+  "Copy your last result":
+    "复制你的上轮结果",
+  "Your roster":
+    "你的阵容",
+  "Results, round by round":
+    "逐轮结果",
+  "Every roster":
+    "所有阵容",
+  "Forming":
+    "组建中",
+  "In season":
+    "赛季中",
+  "Finished":
+    "已结束",
+  "Reading the league…":
+    "正在读取联赛…",
+  "Friends join with a code and snake-draft markets — crypto, memecoins, Nasdaq stocks. Once a market is picked, nobody else in the league can hold it.":
+    "好友通过邀请码加入，以蛇形选秀挑选市场——加密货币、迷因币、纳斯达克股票。一个市场一旦被选中，联赛中的其他人就不能再持有它。",
+  "Then it is head-to-head, a day or a week a round. Your score is the average move of your lineup over the round; the better score wins.":
+    "之后进行一对一对决，每轮一天或一周。你的得分是本轮阵容的平均涨跌幅，得分高者获胜。",
+  "Two free-agent moves a round, a table, a champion, and a recap after every round. Points only — nothing is staked.":
+    "每轮两次自由球员调整，有积分榜、冠军，每轮结束后都有回顾。只计积分——不押注任何东西。",
+  "Leagues":
+    "联赛",
+  "Start a league":
+    "创建联赛",
+  "Fantasy sport, played with markets. Draft with friends, then go head-to-head every round.":
+    "用市场来玩的梦幻体育。与好友选秀，然后每轮一对一对决。",
+  "Back to your leagues":
+    "返回你的联赛",
+  "How a league works":
+    "联赛玩法",
+  "New league":
+    "新联赛",
+  "Join a league":
+    "加入联赛",
+  "Your leagues":
+    "你的联赛",
+  "New or join":
+    "新建或加入",
+  "{rank}st of {managers}":
+    "第 {rank} 名，共 {managers} 人",
+  "{rank}nd of {managers}":
+    "第 {rank} 名，共 {managers} 人",
+  "{rank}rd of {managers}":
+    "第 {rank} 名，共 {managers} 人",
+  "{rank}th of {managers}":
+    "第 {rank} 名，共 {managers} 人",
+  "Waiting for managers. The invite code is in League.":
+    "正在等待经理加入。邀请码在“联赛”中。",
+  "The draft is wrapping up.":
+    "选秀即将结束。",
+  "{time} left":
+    "剩余 {time}",
+  "you went {record}":
+    "你的战绩为 {record}",
+  "champion @{handle}":
+    "冠军 @{handle}",
+  "Round 1:":
+    "第 1 轮：",
+  "A bye this round":
+    "本轮轮空",
+  "in play":
+    "进行中",
+  "The season starts at 00:00 UTC":
+    "赛季于 00:00 UTC 开始",
+  "Points and paper only":
+    "仅限积分和模拟",
+  "Play the day's chart, run your league, make a call, take a paper trade. Every score here is judgment — never how much or how often you trade.":
+    "玩今天的图表、管理你的联赛、发布预测、做一笔模拟交易。这里的每个分数都衡量判断力——从不衡量你交易得多大或多频繁。",
+  "Play today's chart":
+    "玩今天的图表",
+  "See the puzzle":
+    "查看谜题",
+  "Today's chart is being prepared.":
+    "今天的图表正在准备中。",
+  "Not played yet. Rating {rating}":
+    "尚未参与。评分 {rating}",
+  "a {count}-day streak to keep":
+    "{count} 天连续记录待保持",
+  "rating {rating}":
+    "评分 {rating}",
+  "1 day in a row":
+    "连续 1 天",
+  "{count} days in a row":
+    "连续 {count} 天",
+  "Start or join a league":
+    "创建或加入联赛",
+  "Draft markets with friends, then go head-to-head every round.":
+    "与好友选秀市场，然后每轮一对一对决。",
+  "Make your pick":
+    "进行选择",
+  "Watch the draft":
+    "观看选秀",
+  "Open the league":
+    "打开联赛",
+  "Make a call":
+    "发布预测",
+  "See your calls":
+    "查看你的预测",
+  "No open calls. Say what a market does, and how sure you are.":
+    "没有待结算的预测。说出一个市场会怎么走，以及你有多确定。",
+  "{count} open · next:":
+    "{count} 个待结算 · 下一个：",
+  "Take a paper trade":
+    "做一笔模拟交易",
+  "See your trades":
+    "查看你的交易",
+  "Nothing open.":
+    "没有持仓。",
+  "{count} open.":
+    "{count} 笔持仓。",
+  "Last review:":
+    "最近复盘：",
+  "Paper long {market} is open. It closes at its target or its stop, or when you close it; then it is reviewed.":
+    "{market} 模拟做多已开仓。它会在触及目标或止损、或由你手动平仓时平仓，随后进行复盘。",
+  "Paper short {market} is open. It closes at its target or its stop, or when you close it; then it is reviewed.":
+    "{market} 模拟做空已开仓。它会在触及目标或止损、或由你手动平仓时平仓，随后进行复盘。",
+  "Target (%)":
+    "目标（%）",
+  "Stop (%)":
+    "止损（%）",
+  "Paper size ($)":
+    "模拟规模（$）",
+  "Leverage (1–{max}x)":
+    "杠杆（1–{max}x）",
+  "Set a target and a stop: the plan the review judges.":
+    "设置目标和止损：复盘依据的就是这个计划。",
+  "The plan risks 1 to make {reward}.":
+    "该计划以 1 的风险博取 {reward} 的收益。",
+  "Paper only — it pays an estimated fee and slippage on each fill, and no order reaches an exchange. Size and leverage do not change the review: it is measured against the risk you planned.":
+    "仅限模拟——每次成交都会扣除估算的手续费和滑点，不会有任何订单发送到交易所。规模和杠杆不影响复盘：复盘以你计划承担的风险为准。",
+  "Paper long":
+    "模拟做多",
+  "Paper short":
+    "模拟做空",
+  "Long {market} at {price}":
+    "在 {price} 做多 {market}",
+  "Short {market} at {price}":
+    "在 {price} 做空 {market}",
+  "Target {takeProfit} · stop {stopLoss}":
+    "目标 {takeProfit} · 止损 {stopLoss}",
+  "opened {time}":
+    "开仓于 {time}",
+  "Close at the market":
+    "按市价平仓",
+  "A paper trade fills at Hyperliquid's mid less estimated slippage and fees, and is managed by the five-minute pass like any other. When it closes it gets a review, from Brilliant to Blunder, judged against its own plan.":
+    "模拟交易按 Hyperliquid 中间价扣除估算滑点和手续费成交，并像其他交易一样由每五分钟一次的检查管理。平仓后它会得到一次复盘，从“妙手”到“大错”，依据其自身计划评判。",
+  "Open trades":
+    "持仓中的交易",
+  "Reading your trades…":
+    "正在读取你的交易…",
+  "Nothing open. A trade you take above shows here until it closes.":
+    "没有持仓。你在上方开的交易会显示在这里，直到平仓。",
+  "Brilliant":
+    "妙手",
+  "Great":
+    "出色",
+  "Good":
+    "好",
+  "Inaccuracy":
+    "欠准",
+  "Mistake":
+    "失误",
+  "Blunder":
+    "大错",
+  "Nasdaq stocks · trade[XYZ]":
+    "纳斯达克股票 · trade[XYZ]",
+  "Choose":
+    "请选择",
 };

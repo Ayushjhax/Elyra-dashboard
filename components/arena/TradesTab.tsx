@@ -11,6 +11,7 @@ import type { TradeView } from "@/lib/autotrade/types";
 import { useAutomation, type AutomationFeed } from "@/lib/autotrade/useAutomation";
 import { LIMITS, marketFor } from "@/lib/autotrade/rules";
 import { formatPriceUsd, formatRelativeTime, formatUsd } from "@/lib/format";
+import { useT } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
 const marketLabel = (coin: string) => marketFor(coin)?.label ?? coin;
 
 function PaperTicket({ feed }: { feed: AutomationFeed }) {
+  const t = useT();
   const [form, setForm] = useState({ coin: "BTC", sizeUsd: "1000", leverage: "1", takeProfitPct: "4", stopLossPct: "2" });
   const [busy, setBusy] = useState<"long" | "short" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -57,7 +59,12 @@ function PaperTicket({ feed }: { feed: AutomationFeed }) {
       .then((result) => {
         setProblem(result.error);
         if (result.error === null) {
-          setDone(`Paper ${side} ${marketLabel(form.coin)} is open. It closes at its target or its stop, or when you close it; then it is reviewed.`);
+          const market = marketLabel(form.coin);
+          setDone(
+            side === "long"
+              ? t("Paper long {market} is open. It closes at its target or its stop, or when you close it; then it is reviewed.", { market })
+              : t("Paper short {market} is open. It closes at its target or its stop, or when you close it; then it is reviewed.", { market }),
+          );
         }
       })
       .finally(() => setBusy(null));
@@ -67,39 +74,40 @@ function PaperTicket({ feed }: { feed: AutomationFeed }) {
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2 flex flex-col gap-1">
-          <Label htmlFor="arena-trade-coin">Market</Label>
+          <Label htmlFor="arena-trade-coin">{t("Market")}</Label>
           <select id="arena-trade-coin" className={field} value={form.coin} onChange={set("coin")}>
             <MarketOptions />
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="arena-trade-tp">Target (%)</Label>
+          <Label htmlFor="arena-trade-tp">{t("Target (%)")}</Label>
           <input id="arena-trade-tp" inputMode="decimal" className={field} value={form.takeProfitPct} onChange={set("takeProfitPct")} />
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="arena-trade-sl">Stop (%)</Label>
+          <Label htmlFor="arena-trade-sl">{t("Stop (%)")}</Label>
           <input id="arena-trade-sl" inputMode="decimal" className={field} value={form.stopLossPct} onChange={set("stopLossPct")} />
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="arena-trade-size">Paper size ($)</Label>
+          <Label htmlFor="arena-trade-size">{t("Paper size ($)")}</Label>
           <input id="arena-trade-size" inputMode="decimal" className={field} value={form.sizeUsd} onChange={set("sizeUsd")} />
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="arena-trade-leverage">Leverage (1–{LIMITS.maxLeverage}x)</Label>
+          <Label htmlFor="arena-trade-leverage">{t("Leverage (1–{max}x)", { max: LIMITS.maxLeverage })}</Label>
           <input id="arena-trade-leverage" inputMode="numeric" className={field} value={form.leverage} onChange={set("leverage")} />
         </div>
       </div>
       <p className="type-label text-text-muted">
-        {reward === null ? "Set a target and a stop: the plan the review judges." : `The plan risks 1 to make ${reward.toFixed(1)}.`} Paper only — it pays an
-        estimated fee and slippage on each fill, and no order reaches an exchange. Size and leverage do not change the review: it is measured
-        against the risk you planned.
+        {reward === null ? t("Set a target and a stop: the plan the review judges.") : t("The plan risks 1 to make {reward}.", { reward: reward.toFixed(1) })}{" "}
+        {t(
+          "Paper only — it pays an estimated fee and slippage on each fill, and no order reaches an exchange. Size and leverage do not change the review: it is measured against the risk you planned.",
+        )}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="accent" disabled={busy !== null} onClick={() => trade("long")}>
-          {busy === "long" ? "Opening" : "Paper long"}
+          {busy === "long" ? t("Opening") : t("Paper long")}
         </Button>
         <Button size="sm" variant="quiet" disabled={busy !== null} onClick={() => trade("short")}>
-          {busy === "short" ? "Opening" : "Paper short"}
+          {busy === "short" ? t("Opening") : t("Paper short")}
         </Button>
       </div>
       <Done text={done} />
@@ -109,19 +117,22 @@ function PaperTicket({ feed }: { feed: AutomationFeed }) {
 }
 
 function OpenTrade({ trade, feed, now }: { trade: TradeView; feed: AutomationFeed; now: number | null }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <li className="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
       <div className="flex items-baseline justify-between gap-2">
         <span className="type-data-sm min-w-0 truncate text-text-primary">
-          {trade.side === "long" ? "Long" : "Short"} {marketLabel(trade.coin)} at {formatPriceUsd(trade.entryPrice)}
+          {trade.side === "long"
+            ? t("Long {market} at {price}", { market: marketLabel(trade.coin), price: formatPriceUsd(trade.entryPrice) })
+            : t("Short {market} at {price}", { market: marketLabel(trade.coin), price: formatPriceUsd(trade.entryPrice) })}
         </span>
-        <span className="type-label shrink-0 text-text-muted">{trade.mode === "paper" ? "Paper" : "Live"}</span>
+        <span className="type-label shrink-0 text-text-muted">{trade.mode === "paper" ? t("Paper") : t("Live")}</span>
       </div>
       <span className="type-label text-text-muted">
-        Target {formatPriceUsd(trade.takeProfit)} · stop {formatPriceUsd(trade.stopLoss)}
-        {now !== null && <> · opened {formatRelativeTime(trade.openedAt, now)}</>}
+        {t("Target {takeProfit} · stop {stopLoss}", { takeProfit: formatPriceUsd(trade.takeProfit), stopLoss: formatPriceUsd(trade.stopLoss) })}
+        {now !== null && <> · {t("opened {time}", { time: formatRelativeTime(trade.openedAt, now, t.locale) })}</>}
       </span>
       {trade.mode === "paper" && trade.status === "open" && (
         <div>
@@ -137,7 +148,7 @@ function OpenTrade({ trade, feed, now }: { trade: TradeView; feed: AutomationFee
                 .finally(() => setBusy(false));
             }}
           >
-            Close at the market
+            {t("Close at the market")}
           </Button>
         </div>
       )}
@@ -156,26 +167,32 @@ const LABEL_TONE: Record<ReviewLabel, string> = {
 };
 
 function ReviewRow({ review, highlighted }: { review: ReviewView; highlighted: boolean }) {
+  const t = useT();
   const { facts } = review;
   return (
     <li id={`review-${review.positionId}`} className={cn("flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0", highlighted && "rounded-card bg-surface-hover px-2")}>
       <div className="flex items-center justify-between gap-2">
         <span className="type-data-sm text-text-primary">
-          {facts.coin} {facts.side} · {facts.mode}
+          {facts.coin} {facts.side === "long" ? t("long") : t("short")} · {facts.mode === "live" ? t("live") : t("paper")}
         </span>
-        <span className={cn("type-label rounded-chip border px-1.5", LABEL_TONE[review.label])}>{LABEL_TEXT[review.label]}</span>
+        <span className={cn("type-label rounded-chip border px-1.5", LABEL_TONE[review.label])}>{t(LABEL_TEXT[review.label])}</span>
       </div>
       <p className="type-body-sm text-text-secondary">{review.coaching}</p>
       <span className="type-label text-text-muted">
-        In {formatPriceUsd(facts.entryPrice)} · out {formatPriceUsd(facts.exitPrice)} · {formatUsd(facts.pnlUsd, { sign: true })}
+        {t("In {entryPrice} · out {exitPrice} · {pnlUsd}", {
+          entryPrice: formatPriceUsd(facts.entryPrice),
+          exitPrice: formatPriceUsd(facts.exitPrice),
+          pnlUsd: formatUsd(facts.pnlUsd, { sign: true }),
+        })}
         {facts.rMultiple !== null && <> ({facts.rMultiple.toFixed(1)}R)</>}
-        {facts.capture !== null && facts.pnlUsd > 0 && <> · kept {Math.round(facts.capture * 100)}% of the best move</>}
+        {facts.capture !== null && facts.pnlUsd > 0 && <> {t("· kept {value}% of the best move", { value: Math.round(facts.capture * 100) })}</>}
       </span>
     </li>
   );
 }
 
 function Reviews({ data, trade }: { data: ArenaResponse; trade: string | null }) {
+  const t = useT();
   const total = REVIEW_LABELS.reduce((sum, label) => sum + data.labelCounts[label], 0);
   const wanted = trade === null ? null : (data.reviews.find((review) => review.positionId === trade) ?? null);
   useEffect(() => {
@@ -183,14 +200,23 @@ function Reviews({ data, trade }: { data: ArenaResponse; trade: string | null })
   }, [wanted]);
   return (
     <div className="flex flex-col gap-3">
-      <Card title="How your trades are played" right={<InfoTip text="Each closed trade is judged against its own plan: a loss taken at the planned stop is Good; a winner given back is not. The label is computed, never written by the AI." />}>
+      <Card
+        title={t("How your trades are played")}
+        right={
+          <InfoTip
+            text={t(
+              "Each closed trade is judged against its own plan: a loss taken at the planned stop is Good; a winner given back is not. The label is computed, never written by the AI.",
+            )}
+          />
+        }
+      >
         {total === 0 ? (
-          <p className="type-body-sm text-text-secondary">No reviews yet. Every closed trade, paper or live, is reviewed within a few minutes.</p>
+          <p className="type-body-sm text-text-secondary">{t("No reviews yet. Every closed trade, paper or live, is reviewed within a few minutes.")}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {REVIEW_LABELS.map((label) => (
               <li key={label} className="grid grid-cols-[6.5rem_1fr_2rem] items-center gap-2">
-                <span className="type-label text-text-secondary">{LABEL_TEXT[label]}</span>
+                <span className="type-label text-text-secondary">{t(LABEL_TEXT[label])}</span>
                 <span aria-hidden className="h-1.5 overflow-hidden rounded-pill bg-surface-hover">
                   <span className="block h-full rounded-pill bg-accent-quiet" style={{ width: `${(data.labelCounts[label] / total) * 100}%` }} />
                 </span>
@@ -201,10 +227,10 @@ function Reviews({ data, trade }: { data: ArenaResponse; trade: string | null })
         )}
       </Card>
       {trade !== null && wanted === null && (
-        <p className="type-label text-text-muted">That trade&apos;s review is not written yet — it appears within a few minutes of the trade closing.</p>
+        <p className="type-label text-text-muted">{t("That trade's review is not written yet — it appears within a few minutes of the trade closing.")}</p>
       )}
       {data.reviews.length > 0 && (
-        <Card title="Reviews">
+        <Card title={t("Reviews")}>
           <ul className="flex flex-col divide-y divide-border-subtle">
             {data.reviews.map((review) => (
               <ReviewRow key={review.id} review={review} highlighted={review.positionId === trade} />
@@ -217,21 +243,28 @@ function Reviews({ data, trade }: { data: ArenaResponse; trade: string | null })
 }
 
 export function TradesTab({ data, trade, now }: { data: ArenaResponse; trade: string | null; now: number | null }) {
+  const t = useT();
   const automation = useAutomation();
   const open = (automation.data?.trades ?? []).filter((row) => row.status === "open" || row.status === "opening");
   return (
     <div className="flex flex-col gap-3">
       <Card
-        title="Take a paper trade"
-        right={<InfoTip text="A paper trade fills at Hyperliquid's mid less estimated slippage and fees, and is managed by the five-minute pass like any other. When it closes it gets a review, from Brilliant to Blunder, judged against its own plan." />}
+        title={t("Take a paper trade")}
+        right={
+          <InfoTip
+            text={t(
+              "A paper trade fills at Hyperliquid's mid less estimated slippage and fees, and is managed by the five-minute pass like any other. When it closes it gets a review, from Brilliant to Blunder, judged against its own plan.",
+            )}
+          />
+        }
       >
         <PaperTicket feed={automation} />
       </Card>
-      <Card title="Open trades">
+      <Card title={t("Open trades")}>
         {automation.loading && automation.data === null ? (
-          <p className="type-body-sm text-text-secondary">Reading your trades…</p>
+          <p className="type-body-sm text-text-secondary">{t("Reading your trades…")}</p>
         ) : open.length === 0 ? (
-          <p className="type-body-sm text-text-secondary">Nothing open. A trade you take above shows here until it closes.</p>
+          <p className="type-body-sm text-text-secondary">{t("Nothing open. A trade you take above shows here until it closes.")}</p>
         ) : (
           <ul className="flex flex-col divide-y divide-border-subtle">
             {open.map((row) => (

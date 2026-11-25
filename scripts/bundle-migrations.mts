@@ -61,6 +61,8 @@ const SOURCES = [
   "supabase/migrations/0021_arena.sql",
   "supabase/migrations/0022_agent_keys.sql",
   "supabase/migrations/0023_events.sql",
+  "supabase/migrations/0036_arena_leagues.sql",
+  "supabase/migrations/0037_desk.sql",
 ];
 
 const TARGET = "supabase/migrations/_apply_all.sql";

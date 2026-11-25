@@ -278,3 +278,56 @@ describe("the puzzle", () => {
     expect(state.db.rows("arena_puzzle_answers")).toEqual([]);
   });
 });
+
+describe("the ladders", () => {
+  /* Five days of answers, so the puzzle ladder ranks the player. */
+  async function playFiveDays(userId: string, confidence: number) {
+    for (let day = 0; day < 5; day += 1) {
+      vi.setSystemTime(NOW + day * 86_400_000);
+      as(userId);
+      expect((await puzzle.POST(post({ direction: "up", confidence }))).status).toBe(200);
+    }
+  }
+
+  it("ranks public handles for everyone and groupmates by handle, never anyone private or by wallet", async () => {
+    await shareAGroup();
+    as("user-a");
+    await profile.POST(post({ handle: "ana", public: true }));
+    as("user-b");
+    await profile.POST(post({ handle: "ben", public: false }));
+    as("user-c");
+    expect((await profile.POST(post({ handle: "cyd", public: true }))).status).toBe(200);
+    await playFiveDays("user-a", 80);
+    await playFiveDays("user-b", 60);
+    await playFiveDays("user-c", 70);
+
+    const seen = await read("user-a");
+    const everyone = seen.ladders.find((ladder) => ladder.scope === "everyone");
+    expect(everyone?.puzzle.map((row) => [row.rank, row.handle, row.me, row.sample])).toEqual([
+      [1, "ana", true, 5],
+      [2, "cyd", false, 5],
+    ]);
+    const group = seen.ladders.find((ladder) => ladder.scope !== "everyone");
+    expect(group?.puzzle.map((row) => row.handle)).toEqual(["ana", "ben"]);
+    expect(JSON.stringify(seen.ladders)).not.toMatch(/user-[abc]/);
+  });
+
+  it("keeps the profile's stats in step with the answers, including for someone who chooses a handle later", async () => {
+    await playFiveDays("user-a", 70);
+    as("user-a");
+    await profile.POST(post({ handle: "ana", public: true }));
+    const [row] = state.db.rows("arena_profiles");
+    expect(row).toMatchObject({ handle: "ana", puzzle_played: 5 });
+    expect(Number(row.puzzle_rating)).toBeGreaterThan(1500);
+  });
+
+  it("lets a league's manager keep their handle until the season ends", async () => {
+    as("user-a");
+    await profile.POST(post({ handle: "ana", public: false }));
+    state.db.seed("arena_leagues", [{ id: "league-1", status: "active" }]);
+    state.db.seed("arena_league_managers", [{ league_id: "league-1", user_id: "user-a", draft_slot: 0, joined_at: new Date(NOW).toISOString() }]);
+    const response = await profile.POST(post({ handle: "", public: false }));
+    expect(response.status).toBe(400);
+    expect((await json(response)).error).toMatch(/keep one until the season ends/);
+  });
+});

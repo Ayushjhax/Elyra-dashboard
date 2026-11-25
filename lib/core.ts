@@ -136,12 +136,19 @@ export const CORE_MODULES = [
   "lib/backtest/parse.ts",
   "lib/backtest/metrics.ts",
 
-  /* Arena: trade reviews, calls, the daily puzzle */
+  /* Arena: trade reviews, calls, the daily puzzle, leagues, the ladders */
   "lib/autotrade/rules.ts",
   "lib/arena/review.ts",
   "lib/arena/calls.ts",
   "lib/arena/puzzle.ts",
+  "lib/arena/league.ts",
+  "lib/arena/ladder.ts",
   "lib/arena/types.ts",
+
+  /* The Desk: its seats, its procedure and arithmetic, its views */
+  "lib/desk/roster.ts",
+  "lib/desk/protocol.ts",
+  "lib/desk/types.ts",
 
   /* brand */
   "lib/tokens.ts",

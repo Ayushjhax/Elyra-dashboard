@@ -10,7 +10,9 @@ import type { Attachment } from "@/lib/attachments";
    line in the router.
 --------------------------------------------------------------------------- */
 
-export type ProviderId = "anthropic" | "gemini";
+/* Anthropic and Gemini run the agent; Cohere and the OpenAI-compatible hosts
+   (Groq, OpenRouter, Mistral, OpenAI) sit at the Desk (lib/desk), text only. */
+export type ProviderId = "anthropic" | "gemini" | "cohere" | "openai_compatible";
 
 /** A model's request to run one tool. */
 export interface ToolCall {

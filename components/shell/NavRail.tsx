@@ -21,6 +21,7 @@ import {
   Settings,
   Sparkles,
   Swords,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -49,6 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/invest", label: "Invest", icon: Layers },
   { href: "/automation", label: "Automation", icon: Bot },
   { href: "/arena", label: "Arena", icon: Swords },
+  { href: "/desk", label: "Desk", icon: Users },
   { href: "/personalized", label: "Personalized", icon: Sparkles },
   { href: "/assets", label: "Assets", icon: Coins },
   { href: "/agent", label: "Connections", icon: Link2 },

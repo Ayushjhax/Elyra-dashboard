@@ -172,8 +172,8 @@ export function toContents(messages: AgentMessage[]): Content[] {
   return contents;
 }
 
-export function geminiProvider(): Provider {
-  const model = optional("GEMINI_MODEL") ?? DEFAULT_MODEL;
+export function geminiProvider(chosen?: string): Provider {
+  const model = chosen ?? optional("GEMINI_MODEL") ?? DEFAULT_MODEL;
 
   return {
     id: "gemini",

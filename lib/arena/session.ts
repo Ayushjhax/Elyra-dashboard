@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { ArenaError } from "@/lib/arena/server";
+import { ArenaError } from "@/lib/arena/errors";
 import { databaseUnavailableMessage, getSessionUser, hasProfile } from "@/lib/auth/session";
 
 /* The verified caller for an Arena route; the user is the token's, never the body's. */

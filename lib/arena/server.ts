@@ -1,8 +1,9 @@
 import "server-only";
 
-import { createHash, randomInt } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
   WEEKLY_POINTS,
+  brierScore,
   calibration,
   canonicalStatement,
   isoWeek,
@@ -23,12 +24,15 @@ import {
   type Bar,
   type UpDown,
 } from "@/lib/arena/puzzle";
+import { ArenaError, inviteCode } from "@/lib/arena/errors";
+import { rankLadder, type LadderEntrant } from "@/lib/arena/ladder";
+import { leagueSummaries } from "@/lib/arena/leagues";
 import { REVIEW_LABELS, type ReviewFacts, type ReviewLabel } from "@/lib/arena/review";
-import type { ArenaCallView, ArenaResponse, GroupView, PuzzleView, ReviewView } from "@/lib/arena/types";
+import type { ArenaCallView, ArenaResponse, GroupView, LadderView, PuzzleView, ReviewView } from "@/lib/arena/types";
 import { hyperliquidCandles } from "@/lib/autotrade/hyperliquid";
 import { num } from "@/lib/autotrade/store";
 import { serviceClient } from "@/lib/supabase/server";
-import type { ArenaCallRow, ArenaPuzzleDayRow } from "@/lib/supabase/types";
+import type { ArenaCallRow, ArenaProfileRow, ArenaPuzzleDayRow } from "@/lib/supabase/types";
 
 /* ---------------------------------------------------------------------------
    Elyra Arena, server side: what the page reads, and every write it makes.
@@ -38,19 +42,10 @@ import type { ArenaCallRow, ArenaPuzzleDayRow } from "@/lib/supabase/types";
    handle — and an author is named by handle or not at all, never by wallet.
 --------------------------------------------------------------------------- */
 
-export class ArenaError extends Error {
-  constructor(
-    message: string,
-    readonly status = 400,
-  ) {
-    super(message);
-    this.name = "ArenaError";
-  }
-}
+export { ArenaError };
 
 export const MAX_GROUPS = 10;
 export const MAX_MEMBERS = 50;
-const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function sha256(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
@@ -167,6 +162,7 @@ export async function answerPuzzle(userId: string, date: string, input: Record<s
     streak,
   });
   if (inserted.error !== null) throw new ArenaError("Today's puzzle is already answered.");
+  await refreshStats(userId).catch(() => undefined);
   const { count } = await db.from("arena_puzzle_answers").select("user_id", { count: "exact", head: true }).eq("user_id", userId);
   return puzzleView(day, { direction: input.direction, confidence, correct, rating_before: ratingBefore, rating_after: ratingAfter }, ratingAfter, streak, count ?? 1);
 }
@@ -282,9 +278,6 @@ export async function backCall(userId: string, callId: string, input: Record<str
 
 /* ---- groups and profile ---- */
 
-function inviteCode(): string {
-  return Array.from({ length: 8 }, () => INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)]).join("");
-}
 
 export async function createGroup(userId: string, name: unknown): Promise<void> {
   const text = typeof name === "string" ? name.trim().slice(0, 40) : "";
@@ -315,10 +308,86 @@ export async function setProfile(userId: string, input: Record<string, unknown>)
   if (handle !== null && !/^[a-z0-9_]{3,20}$/.test(handle)) throw new ArenaError("A handle is 3–20 letters, numbers or underscores.");
   const isPublic = input.public === true;
   if (isPublic && handle === null) throw new ArenaError("Choose a handle to go public.");
-  const { error } = await serviceClient()
+  const db = serviceClient();
+  if (handle === null) {
+    /* A league shows its managers by handle, so a manager keeps one until the season ends. */
+    const leagues = await db.from("arena_league_managers").select("league_id").eq("user_id", userId);
+    const ids = (leagues.data ?? []).map((row) => row.league_id);
+    const playing = ids.length === 0 ? { data: [] } : await db.from("arena_leagues").select("id, status").in("id", ids);
+    if ((playing.data ?? []).some((row) => row.status !== "done")) {
+      throw new ArenaError("Your league sees you by your handle, so keep one until the season ends.");
+    }
+  }
+  const { error } = await db
     .from("arena_profiles")
     .upsert({ user_id: userId, handle, public: isPublic, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
   if (error !== null) throw new ArenaError(/duplicate|unique/i.test(error.message ?? "") ? "That handle is taken." : "The profile could not be saved.");
+  await refreshStats(userId).catch(() => undefined);
+}
+
+/* ---- the ladders ---- */
+
+/**
+ * The ladders' four columns on the profile, recomputed from the source rows:
+ * the latest puzzle rating and how many were answered, and the mean Brier
+ * score of settled calls and how many there are. Called whenever any of
+ * them can change, so the ladder never drifts from what the person sees.
+ */
+export async function refreshStats(userId: string): Promise<void> {
+  const db = serviceClient();
+  const [latest, played, settled] = await Promise.all([
+    lastAnswer(userId),
+    db.from("arena_puzzle_answers").select("user_id", { count: "exact", head: true }).eq("user_id", userId),
+    db.from("arena_calls").select("*").eq("user_id", userId).in("status", ["hit", "miss"]).limit(2000),
+  ]);
+  const scores = (settled.data ?? []).map((row) => (row.brier === null ? brierScore(row.confidence, row.status === "hit") : num(row.brier)));
+  await db.from("arena_profiles").upsert(
+    {
+      user_id: userId,
+      puzzle_rating: latest === null ? null : num(latest.rating_after),
+      puzzle_played: played.count ?? 0,
+      calls_settled: scores.length,
+      calls_brier: scores.length === 0 ? null : Number((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(6)),
+    },
+    { onConflict: "user_id" },
+  );
+}
+
+const present = <T,>(value: T | null | undefined): value is T => value !== null && value !== undefined;
+
+function entrant(row: ArenaProfileRow): LadderEntrant {
+  return {
+    userId: row.user_id,
+    handle: typeof row.handle === "string" ? row.handle : null,
+    puzzleRating: present(row.puzzle_rating) ? num(row.puzzle_rating) : null,
+    puzzlePlayed: row.puzzle_played ?? 0,
+    callsSettled: row.calls_settled ?? 0,
+    callsBrier: present(row.calls_brier) ? num(row.calls_brier) : null,
+  };
+}
+
+/** Everyone who is public, then each of the viewer's groups by its members' handles. */
+async function ladders(userId: string, groups: GroupView[], members: { group_id: string; user_id: string }[]): Promise<LadderView[]> {
+  const db = serviceClient();
+  const people = [...new Set([userId, ...members.map((member) => member.user_id)])];
+  const [byRating, byBrier, ours] = await Promise.all([
+    db.from("arena_profiles").select("*").eq("public", true).order("puzzle_rating", { ascending: false, nullsFirst: false }).limit(300),
+    db.from("arena_profiles").select("*").eq("public", true).order("calls_brier", { ascending: true, nullsFirst: false }).limit(300),
+    db.from("arena_profiles").select("*").in("user_id", people),
+  ]);
+  if (byRating.error !== null) return [];
+  const everyone = [...(byRating.data ?? []), ...(byBrier.data ?? [])].filter((row) => row.public).map(entrant);
+  const known = new Map((ours.data ?? []).map((row) => [row.user_id, entrant(row)]));
+  return [
+    { scope: "everyone", name: "Everyone", puzzle: rankLadder(everyone, "puzzle", userId), calls: rankLadder(everyone, "calls", userId) },
+    ...groups.map((group) => {
+      const inGroup = members
+        .filter((member) => member.group_id === group.id)
+        .map((member) => known.get(member.user_id))
+        .filter(present);
+      return { scope: group.id, name: group.name, puzzle: rankLadder(inGroup, "puzzle", userId), calls: rankLadder(inGroup, "calls", userId) };
+    }),
+  ];
 }
 
 /* ---- the page's read ---- */
@@ -366,7 +435,7 @@ export async function arenaState(userId: string, now: number, today: string): Pr
   const profilesRead = authors.length === 0 ? { data: [] } : await db.from("arena_profiles").select("*").in("user_id", authors);
   const handles = new Map<string, string>();
   for (const profile of profilesRead.data ?? []) {
-    if (profile.handle !== null) handles.set(profile.user_id, profile.handle);
+    if (typeof profile.handle === "string") handles.set(profile.user_id, profile.handle);
   }
   /* A public call shows only from someone who is public; a group call only to groupmates (already filtered). */
   const publicAuthors = new Set((profilesRead.data ?? []).filter((profile) => profile.public).map((profile) => profile.user_id));
@@ -423,6 +492,8 @@ export async function arenaState(userId: string, now: number, today: string): Pr
     calibration: calibration(myCalls.map((row) => ({ status: row.status, confidence: row.confidence, brier: row.brier === null ? null : num(row.brier) }))),
     reviews,
     labelCounts,
+    leagues: await leagueSummaries(userId, now).catch(() => []),
+    ladders: await ladders(userId, groups, membersRead.data ?? []).catch(() => []),
     error: null,
   };
 }

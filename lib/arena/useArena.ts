@@ -104,6 +104,12 @@ function reset(): void {
   for (const listener of listeners) listener();
 }
 
+/** Reads the Arena again now — after a write made elsewhere, such as a league action. */
+export function refreshArena(): Promise<void> {
+  if (inFlight !== null) return inFlight;
+  return poll();
+}
+
 export interface ArenaFeed extends StoreState {
   signedIn: boolean;
   /** Sends a write and refreshes. Null on success, otherwise the reason in words. */

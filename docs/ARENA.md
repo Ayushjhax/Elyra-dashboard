@@ -23,12 +23,26 @@ more often, with more size or with more leverage.
   shown only by handle, never by wallet.
 - **No emoji, sentence case, brand tokens only.**
 
-## Phase 1 — built (web)
+## Built (web) — the launch layout
 
-Route `/arena` sits beside the chart, with the tabs Puzzle, Calls, Reviews
-and Groups (`components/arena/ArenaView.tsx`). `?tab=` opens a tab, and
-`?trade=<position id>` jumps to that trade's review. A closed trade in
-`/automation` links there.
+Trading, played as a game and a sport. People have always played games,
+played sport and traded; Arena puts the three in one place, on points and
+paper. Route `/arena` sits beside the chart (`components/arena/ArenaView.tsx`),
+one file per tab:
+
+| Tab | What it is | File |
+|---|---|---|
+| Today | The matchday page: the day's puzzle, each league's draft or score, open calls, open paper trades | `TodayTab.tsx` |
+| Puzzle | Play: one real chart a day, the same for everyone | `PuzzleTab.tsx` |
+| League | Sport: draft markets with friends, head-to-head every round | `LeagueTab.tsx` |
+| Calls | Calls with receipts, tail and fade | `CallsTab.tsx` |
+| Trades | Take a paper trade with a plan; every closed trade reviewed | `TradesTab.tsx` |
+| Ladder | The puzzle's rating and calls' calibration, by handle; handle and groups | `LadderTab.tsx` |
+
+`?tab=` opens a tab, `?trade=<position id>` jumps to that trade's review and
+`?league=<id>` opens a league. The pre-launch names still work: `?tab=reviews`
+opens Trades and `?tab=groups` opens Ladder. A closed trade in `/automation`
+links to its review.
 
 ### Trade Review
 
@@ -107,9 +121,88 @@ Groups have up to 50 members, and a person can be in up to 10 groups. Each
 group has an 8-character invite code. A handle is 3–20 characters from
 `a–z`, `0–9` and `_`, and is unique. A public call needs a public handle. If
 a person turns their profile private, their public calls disappear from
-strangers' feeds and can no longer be backed by them.
+strangers' feeds and can no longer be backed by them. A manager in a league
+that has not finished cannot clear their handle: the league shows them by it.
 
-### Tables (migration `0021_arena.sql`)
+### Leagues — fantasy sport, played with markets
+
+The rules are pure, in `lib/arena/league.ts`; the writes and the read are in
+`lib/arena/leagues.ts`; the tick's part is `lib/arena/leagueEngine.ts`.
+
+- **Forming.** A league has a name, 3–6 markets a roster, 3–12 rounds, a
+  round of a day or a week, and a pick clock of 2 minutes (a live draft
+  night), 1 hour or 8 hours. Friends join with an 8-character code. Joining
+  needs a handle. A league holds as many managers as the board can fill —
+  `capacity` = min(10, ⌊33 ÷ roster size⌋) — and a person can be in 5
+  unfinished leagues. Before the draft a manager may leave; the owner's
+  leaving closes the league.
+- **The draft.** The owner starts it with two managers or more. Slots are
+  dealt at random (`randomInt`), the order snakes, and the league closes to
+  new managers. The pool is `PERP_MARKETS` — crypto, memecoins and Nasdaq
+  stock perps — and once a market is picked nobody else in the league can
+  hold it (`arena_league_picks` unique on (league, market)). When a clock
+  runs out, the first market still on the board is picked for that manager,
+  stamped at the moment the clock ran out so the next clock starts there.
+  Run-out picks happen lazily on any read or write, and on the tick, so a
+  slow draft moves even when nobody has the page open. A slow draft (1 hour
+  or more) tells the manager on the clock once per pick.
+- **The season.** It starts at the first 00:00 UTC after the last pick.
+  Round k runs `round days` from `season start + (k − 1) × round days`. The
+  schedule is a round-robin by the circle method, cycled for longer
+  seasons; an odd count gives one bye a round.
+- **Scoring.** On Hyperliquid's daily bars, which open at 00:00 UTC where
+  the last one closed. A market's move is the open of the day after the
+  round ends over the open of the round's first day, minus one. While the
+  round is under way, the current mid stands in for the end. A team scores
+  the mean of its lineup's moves. A market with no price is left out of the
+  mean; a team with no price at all makes the matchup void. Scores are
+  compared at two decimals, so a win is never invisible. Daily opens are
+  cached once in `arena_market_opens`.
+- **Lineups and moves.** A lineup locks when its round starts. A manager
+  has 2 free-agent moves a round (drop one, add a market nobody holds); a
+  move counts from the next round, and the dropped market counts through
+  this one before anyone can add it. Each roster slot carries the first and
+  last round it counts for, so any round's lineup is read without a
+  snapshot. No moves once the last round is under way.
+- **The table.** A win is 1, a tie ½. Level teams split on points for (the
+  sum of round scores), then on fewer rounds played, then by handle. When
+  the last round settles, the top of the table is champion.
+- **The commentator.** After each round, the model writes a short recap
+  from `recapFacts` — who beat whom, at what score, the best and worst
+  market started — through `writeFromFacts`, which discards a reply with a
+  number or a link the facts do not hold and uses `fallbackRecap` instead.
+- **Share text**, without emoji: `Elyra League · Round 3 · @ana +3.21% beat
+  @ben −0.40%`.
+
+Nothing is staked and nothing is won but the table. A league rewards picking
+well; there is no buy-in, no prize and no way to buy a pick or a move.
+
+### The ladders
+
+`lib/arena/ladder.ts`. Two tables: the puzzle rating (highest first, after
+5 puzzles) and the calls' mean Brier score (lowest first, after 10 settled
+calls). Equal values as shown share a rank. The everyone ladder lists only
+people whose profile is public; each group's ladder lists its members who
+have a handle. Every row shows its sample. The viewer's own row is shown
+below the top 25 when they rank lower.
+
+The ladders read four columns on `arena_profiles` — `puzzle_rating`,
+`puzzle_played`, `calls_settled`, `calls_brier` — recomputed from the source
+rows by `refreshStats` whenever they can change: an answer, a settled call,
+a handle saved. Migration 0036 backfills them.
+
+### Trades — take a paper trade
+
+The Trades tab's ticket sends paper only: it posts to the same hand-trade
+route as Automation (`/api/automation/trade`) with `mode: "paper"` fixed, so
+the same limits and `accountGate` apply and no order reaches an exchange.
+Every trade carries its plan — a target and a stop — because the review
+judges how it was played against that plan, measured in R, so size and
+leverage do not change a label. Open trades show there, with a close at the
+market (`DELETE /api/automation/positions/[id]`), and each closed trade's
+review follows.
+
+### Tables (migrations `0021_arena.sql` and `0036_arena_leagues.sql`)
 
 All tables have RLS on with no policies; the server reads and writes them
 with the service role.
@@ -124,6 +217,15 @@ with the service role.
 | `arena_call_backings` | stance, points, ISO week, settled points | (`call_id`, `user_id`) |
 | `arena_puzzle_days` | the day's chart, reveal, outcome, momentum bot | `puzzle_date` (pk) |
 | `arena_puzzle_answers` | answer, rating before and after, streak | (`user_id`, `puzzle_date`) (pk) |
+| `arena_leagues` | settings, status, draft start, season start, champion | `invite_code` |
+| `arena_league_managers` | membership, draft slot | (`league_id`, `user_id`) (pk), (`league_id`, `draft_slot`) |
+| `arena_league_picks` | the draft, append-only; auto or by hand | (`league_id`, `pick`) (pk), (`league_id`, `market`) |
+| `arena_league_slots` | who holds what, first and last round it counts | (`league_id`, `market`) while held |
+| `arena_league_matchups` | fixture, scores, result, the per-market facts | (`league_id`, `round`, `home_id`) (pk) |
+| `arena_league_recaps` | the round's recap and the facts it was written from | (`league_id`, `round`) (pk) |
+| `arena_market_opens` | Hyperliquid's daily open, cached | (`market`, `day`) (pk) |
+
+`arena_profiles` gains the ladders' four columns in 0036.
 
 ### Routes
 
@@ -135,6 +237,12 @@ with the service role.
 | `POST /api/arena/puzzle` | Answers today's puzzle, once |
 | `POST /api/arena/groups` | Creates a group, or joins one with `{ action: "join", code }` |
 | `POST /api/arena/profile` | Sets the handle and whether the profile is public |
+| `POST /api/arena/leagues` | Creates a league, or joins one with `{ action: "join", code }` |
+| `GET /api/arena/leagues/[id]` | One league, for its managers: draft, rosters, live scores, schedule, table, recaps |
+| `POST /api/arena/leagues/[id]` | `{ action: "start" }`, `"pick"` with `market`, `"move"` with `drop` and `add`, `"leave"` |
+
+`GET /api/arena` now also carries `leagues` (each league's status, round,
+record, rank and this round's score) and `ladders`.
 
 ### The tick and model cost
 
@@ -143,75 +251,27 @@ after the trading pass and before delivery. Each run:
 
 - reviews at most **4** trades;
 - settles at most **40** calls;
-- writes at most **4** call cards.
+- writes at most **4** call cards;
+- runs the leagues (`runLeagues`): makes run-out picks, tells a slow
+  draft's manager they are up and every manager when the draft is done, and
+  settles at most **4** rounds (one per league), each with one recap.
 
-Each review or card is one model call, capped at 220 output tokens with a
-15-second timeout, through the agent's provider router. The worst case is
-8 model calls per tick, or 96 per hour. A backlog clears over several ticks
+Each review, card or recap is one model call, capped at 220 output tokens
+with a 15-second timeout, through the agent's provider router. The worst
+case is 12 model calls per tick, or 144 per hour. A round settles once it
+has ended and the next daily bar has opened (10 minutes after); it waits up
+to a day while Hyperliquid cannot be reached. A backlog clears over several ticks
 rather than in one long run. In steady state, model calls track the number
 of closed trades and settled calls, so a quiet day costs close to nothing.
 
-## Phase 2 — data model only (not built)
+## Next — data model only (not built)
 
-Every table below follows Phase 1's rules: points only, RLS on with no
-policies, service-role writes, and the AI writing only from computed facts.
-None of these tables exists yet. Each will get its own migration when the
-feature is built.
-
-### Draft night
-
-Fantasy leagues of markets: a snake draft, weekly head-to-head on percentage
-performance, a waiver wire and trades between managers.
-
-```sql
-create table draft_leagues (
-  id uuid primary key, name text not null, owner_id uuid not null,
-  invite_code text unique not null, season text not null,          -- e.g. '2027-S1'
-  roster_size int not null check (roster_size between 3 and 10),
-  status text not null check (status in ('forming','drafting','active','done')),
-  draft_starts_at timestamptz not null, created_at timestamptz not null
-);
-create table draft_managers (
-  league_id uuid references draft_leagues, user_id uuid not null,
-  draft_slot int not null, primary key (league_id, user_id),
-  unique (league_id, draft_slot)
-);
-create table draft_picks (                    -- the draft itself, append-only
-  league_id uuid, round int, pick int, user_id uuid not null,
-  market text not null, picked_at timestamptz not null,
-  primary key (league_id, round, pick)
-);
-create table draft_rosters (                  -- who holds what now
-  league_id uuid, market text, user_id uuid not null,
-  acquired_via text check (acquired_via in ('draft','waiver','trade')),
-  acquired_at timestamptz not null,
-  primary key (league_id, market)              -- a market belongs to one manager only
-);
-create table draft_matchups (
-  league_id uuid, week text, home_id uuid, away_id uuid,
-  home_pct numeric, away_pct numeric, winner_id uuid,
-  recap text, recap_model text,                -- AI recap from computed facts
-  primary key (league_id, week, home_id)
-);
-create table draft_waiver_claims (
-  id uuid primary key, league_id uuid, user_id uuid, add_market text,
-  drop_market text, priority int, status text, resolved_at timestamptz
-);
-create table draft_trades (
-  id uuid primary key, league_id uuid, from_id uuid, to_id uuid,
-  give text[] not null, get text[] not null,
-  status text check (status in ('proposed','accepted','declined','expired')),
-  created_at timestamptz, decided_at timestamptz
-);
-create table draft_pick_grades (              -- AI grades picks, from facts only
-  league_id uuid, round int, pick int, grade text, facts jsonb, note text,
-  primary key (league_id, round, pick)
-);
-```
-
-A week's percentage comes from Hyperliquid's weekly open and close for each
-rostered market, in pure code (a future `lib/arena/draft.ts`). The draft
-order is a snake by `draft_slot`.
+Draft night is built, as Leagues (above), without trades between managers;
+a trade proposal (`give`, `get`, accept or decline before the next round
+locks) is the natural next step and needs one more table. Everything below
+follows the same rules: points only, RLS on with no policies, service-role
+writes, and the AI writing only from computed facts. None of these tables
+exists yet. Each will get its own migration when the feature is built.
 
 ### Raid nights
 

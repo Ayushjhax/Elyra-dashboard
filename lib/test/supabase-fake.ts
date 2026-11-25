@@ -313,6 +313,27 @@ function collides(a: Row, b: Row): boolean {
   /* arena_group_members: pk (group, user). */
   if (a.group_id !== undefined && a.group_id === b.group_id && a.user_id === b.user_id) return true;
 
+  /* Arena leagues (0036). */
+  if (a.league_id !== undefined && a.league_id === b.league_id) {
+    /* arena_league_picks: pk (league, pick) and unique (league, market). */
+    if (a.pick !== undefined) return a.pick === b.pick || a.market === b.market;
+    /* arena_league_slots: one holder per market, among slots still held. */
+    if (a.from_round !== undefined) return a.market === b.market && (a.to_round ?? null) === null && (b.to_round ?? null) === null;
+    /* arena_league_matchups: pk (league, round, home). */
+    if (a.home_id !== undefined) return a.round === b.round && a.home_id === b.home_id;
+    /* arena_league_recaps: pk (league, round). */
+    if (a.model !== undefined) return a.round === b.round;
+    /* arena_league_managers: pk (league, user) and unique (league, draft slot). */
+    if (a.user_id === b.user_id) return true;
+    if (a.draft_slot !== undefined && a.draft_slot !== null && a.draft_slot === b.draft_slot) return true;
+  }
+  /* desk_turns (0037): pk (run, seat, round). */
+  if (a.run_id !== undefined && a.seat !== undefined && a.round !== undefined && a.run_id === b.run_id && a.seat === b.seat && a.round === b.round) return true;
+  /* desk_seat_stats (0037): pk (seat, model). */
+  if (a.brier_sum !== undefined && a.seat === b.seat && a.model === b.model) return true;
+  /* arena_market_opens: pk (market, day). */
+  if (a.day !== undefined && a.open !== undefined && a.market === b.market && a.day === b.day) return true;
+
   /* portfolio_fills (0017): one row per token a swap moved. */
   if (a.signature !== undefined && a.signature === b.signature && a.mint !== undefined && a.mint === b.mint) {
     return true;

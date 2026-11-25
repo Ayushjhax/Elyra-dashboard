@@ -11,7 +11,8 @@
      GET /v1/symbols       the feed catalogue — ~3.7k instruments with the
                            metadata this app needs (id, class, exponent, a
                            CoinMarketCap id for the logo).
-     GET /v1/latest_price  batched current prices, one request for many feeds.
+     POST /v1/latest_price batched current prices, one request for many feeds,
+                           on the price host (lib/market/pyth/client.ts).
 
    Prices arrive as an integer mantissa plus a base-10 exponent rather than a
    float, because a float cannot hold an exact decimal price. Decoding happens

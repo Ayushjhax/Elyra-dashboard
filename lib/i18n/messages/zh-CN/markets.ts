@@ -17,8 +17,8 @@ export const markets: Messages = {
     "相对前收盘：{up} 涨 · {down} 跌",
   "After hours":
     "盘后",
-  "An index is Pyth's price for the index itself. A fund tracks it: one on the market's own exchange in its currency, or one in New York in dollars, which also moves with the currency.":
-    "指数是 Pyth 对该指数本身的报价。基金跟踪指数：一种在当地交易所以当地货币交易，另一种在纽约以美元交易，后者也会随汇率波动。",
+  "An index is the price of the index itself, from Pyth, or from Yahoo Finance where Pyth's plan does not cover it. A fund tracks it: one on the market's own exchange in its currency, or one in New York in dollars, which also moves with the currency.":
+    "指数是该指数本身的价格，来自 Pyth；若 Pyth 的套餐未覆盖，则来自 Yahoo Finance。基金跟踪指数：一种在当地交易所以当地货币交易，另一种在纽约以美元交易，后者也会随汇率波动。",
   "Benchmarks":
     "基准指数",
   "Briefing":
@@ -55,8 +55,8 @@ export const markets: Messages = {
     "{duration}后开盘",
   "Pre-market":
     "盘前",
-  "Prices from Pyth. Change against the previous close. London, Frankfurt, Paris and São Paulo are shown through funds and New York listings until Pyth's local feeds go live.":
-    "价格来自 Pyth，涨跌相对前收盘。在 Pyth 的本地数据源上线之前，伦敦、法兰克福、巴黎和圣保罗通过基金和纽约上市品种显示。",
+  "Prices from Pyth, with Yahoo Finance standing in for any feed Pyth's plan does not cover. Change against the previous close. London, Frankfurt, Paris and São Paulo are shown through funds and New York listings until Pyth's local feeds go live.":
+    "价格来自 Pyth，Pyth 套餐未覆盖的数据源由 Yahoo Finance 代为提供。涨跌相对前收盘。在 Pyth 的本地数据源上线之前，伦敦、法兰克福、巴黎和圣保罗通过基金和纽约上市品种显示。",
   "Pyth publishes {comingSoon} more {city} listings that are not live yet. They appear here when they are.":
     "Pyth 还发布了 {comingSoon} 个尚未上线的{city}上市品种，上线后会显示在这里。",
   "Pyth's live rates. A move in the yen, won or euro changes what a market's move is worth in dollars.":

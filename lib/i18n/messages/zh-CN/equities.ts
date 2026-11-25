@@ -79,8 +79,8 @@ export const equities: Messages = {
     "全部发行方",
   "Tokenized stocks could not be read just now.":
     "暂时无法读取代币化股票。",
-  "The listings and prices come from each issuer and from Pyth. Try again in a moment.":
-    "上架信息和价格来自各发行方和 Pyth。请稍后再试。",
+  "The listings and prices come from each issuer, from Pyth and from Yahoo Finance. Try again in a moment.":
+    "上架信息和价格来自各发行方、Pyth 和 Yahoo Finance。请稍后再试。",
   "Nothing matches that.":
     "没有匹配的结果。",
   "Try a ticker such as TSLA, or a company name.":

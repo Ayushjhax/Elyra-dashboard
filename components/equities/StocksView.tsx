@@ -269,7 +269,7 @@ export function StocksView() {
       ) : failed && data === null ? (
         <EmptyState
           title={t("Tokenized stocks could not be read just now.")}
-          body={t("The listings and prices come from each issuer and from Pyth. Try again in a moment.")}
+          body={t("The listings and prices come from each issuer, from Pyth and from Yahoo Finance. Try again in a moment.")}
           action={
             <Button size="sm" variant="quiet" onClick={reload}>
               {t("Try again")}

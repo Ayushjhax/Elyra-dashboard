@@ -2,6 +2,7 @@ import "server-only";
 
 import { TTL, cached } from "@/lib/market/cache";
 import { catalogue, pythApiKey } from "@/lib/market/pyth/catalog";
+import { standInPrices, type StandInFeed } from "@/lib/market/pyth/standIn";
 import {
   PythError,
   decodePrice,
@@ -23,12 +24,20 @@ import {
    Cloudflare block page, while the catalogue (`/v1/symbols`) and history
    stay there; the price read moved to `PRICE_URL`, asked for the same
    fields, its answer wrapped in `parsed`.
+
+   A feed the key's plan does not cover — equities and equity indices on the
+   current plan — is priced from Yahoo's quote instead, marked
+   `source: "yahoo"` (lib/market/pyth/standIn.ts). Pyth answers in well
+   under a second but now and then takes several, so a call that times out
+   is asked once more on a fresh connection before the feed goes blank.
 --------------------------------------------------------------------------- */
 
 /** Feeds per upstream request. */
 const BATCH_SIZE = 100;
 
-const REQUEST_TIMEOUT_MS = 8_000;
+/** Per attempt; a timed-out or unreachable call is tried twice in all. */
+const REQUEST_TIMEOUT_MS = 5_000;
+const ATTEMPTS = 2;
 
 export const PRICE_URL = "https://pyth-lazer.dourolabs.app/v1/latest_price";
 
@@ -52,24 +61,28 @@ async function refusalReason(response: Response): Promise<string | null> {
 }
 
 async function fetchBatch(ids: number[]): Promise<RawLatestPriceResponse> {
-  let response: Response;
-  try {
-    response = await fetch(PRICE_URL, {
-      method: "POST",
-      headers: { authorization: `Bearer ${pythApiKey()}`, "content-type": "application/json" },
-      body: JSON.stringify(latestPriceBody(ids)),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      cache: "no-store",
-    });
-  } catch (error: unknown) {
-    const timedOut = error instanceof Error && error.name === "TimeoutError";
-    throw new PythError(
-      "upstream",
-      timedOut
-        ? `Pyth did not respond within ${REQUEST_TIMEOUT_MS}ms`
-        : `Pyth unreachable: ${error instanceof Error ? error.message : "unknown"}`,
-    );
+  let response: Response | null = null;
+  let failure: PythError | null = null;
+  for (let attempt = 0; attempt < ATTEMPTS && response === null; attempt += 1) {
+    try {
+      response = await fetch(PRICE_URL, {
+        method: "POST",
+        headers: { authorization: `Bearer ${pythApiKey()}`, "content-type": "application/json" },
+        body: JSON.stringify(latestPriceBody(ids)),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        cache: "no-store",
+      });
+    } catch (error: unknown) {
+      const timedOut = error instanceof Error && error.name === "TimeoutError";
+      failure = new PythError(
+        "upstream",
+        timedOut
+          ? `Pyth did not respond within ${REQUEST_TIMEOUT_MS}ms, twice`
+          : `Pyth unreachable: ${error instanceof Error ? error.message : "unknown"}`,
+      );
+    }
   }
+  if (response === null) throw failure ?? new PythError("upstream", "Pyth unreachable");
 
   if (response.status === 401 || response.status === 403) {
     const reason = await refusalReason(response);
@@ -208,10 +221,16 @@ export function grantGroup(asset: { assetType: string; pythSymbol: string } | un
   return asset.assetType === "equity" ? asset.pythSymbol.split(".").slice(0, 2).join(".") : asset.assetType;
 }
 
+/** The grant a feed falls under, from its Pyth symbol alone: "Equity.HK.0700/HKD" → "Equity.HK", "FX.USD/JPY" → "fx". */
+export function grantGroupOfSymbol(pythSymbol: string): string {
+  const parts = pythSymbol.split(".");
+  return parts[0] === "Equity" ? parts.slice(0, 2).join(".") : (parts[0] ?? "unknown").toLowerCase();
+}
+
 /** One batch, with a single refused feed dropped and the rest asked again. */
-async function loadGranted(ids: number[]): Promise<PythPrice[]> {
+async function loadGranted(ids: number[], load: (ids: number[]) => Promise<PythPrice[]> = loadBatch): Promise<PythPrice[]> {
   try {
-    return await loadBatch(ids);
+    return await load(ids);
   } catch (error) {
     const refused = refusedFeed(error);
     if (refused === null) throw error;
@@ -219,7 +238,7 @@ async function loadGranted(ids: number[]): Promise<PythPrice[]> {
     const rest = ids.filter((id) => id !== refused);
     if (rest.length === 0) throw error;
     try {
-      return await loadBatch(rest);
+      return await load(rest);
     } catch (again) {
       if (refusedFeed(again) !== null) for (const id of rest) notEntitled.set(id, Date.now() + NOT_ENTITLED_MS);
       throw again;
@@ -227,15 +246,39 @@ async function loadGranted(ids: number[]): Promise<PythPrice[]> {
   }
 }
 
+const refusedNow = (id: number, now = Date.now()) => (notEntitled.get(id) ?? 0) > now;
+
+/**
+ * Pyth's answers, then a stand-in for every feed its plan refused. The error
+ * of a batch the stand-in covered is not reported: those feeds have a price.
+ */
+async function withStandIns(unique: number[], settled: PromiseSettledResult<PythPrice[]>[], feedOf: (id: number) => StandInFeed | undefined): Promise<PythPrice[]> {
+  const prices: PythPrice[] = [];
+  let firstError: unknown = null;
+  for (const outcome of settled) {
+    if (outcome.status === "fulfilled") prices.push(...outcome.value);
+    else if (refusedFeed(outcome.reason) === null) firstError ??= outcome.reason;
+  }
+  const answered = new Set(prices.map((price) => price.id));
+  const refused = unique.filter((id) => !answered.has(id) && refusedNow(id));
+  if (refused.length > 0) {
+    const feeds = refused.map(feedOf).filter((feed): feed is StandInFeed => feed !== undefined);
+    prices.push(...(await standInPrices(feeds).catch((): PythPrice[] => [])));
+  }
+  /* Nothing to show: report it, so the caller can tell "Pyth is down" from "those feeds have no price". */
+  if (prices.length === 0) {
+    if (firstError) throw firstError;
+    if (refused.length > 0) throw new PythError("unauthorized", "Pyth's plan for PYTH_API_KEY does not cover these feeds, and Yahoo has no price for them.", 403);
+  }
+  return prices;
+}
+
 /** Current prices for a list of feed ids, batched and deduplicated. */
 export async function pricesForIds(ids: number[]): Promise<PythPrice[]> {
   const now = Date.now();
   const unique = [...new Set(ids)].filter((id) => Number.isInteger(id) && id > 0);
   if (unique.length === 0) return [];
-  const asked = unique.filter((id) => (notEntitled.get(id) ?? 0) <= now);
-  if (asked.length === 0) {
-    throw new PythError("unauthorized", "Pyth's plan for PYTH_API_KEY does not cover these feeds.", 403);
-  }
+  const asked = unique.filter((id) => !refusedNow(id, now));
 
   const { byId } = await catalogue();
   const groups = new Map<string, number[]>();
@@ -250,20 +293,12 @@ export async function pricesForIds(ids: number[]): Promise<PythPrice[]> {
 
   /* One failing batch must not lose the others — a watchlist of 40 assets
      should still render 20 of them if one upstream call fails. */
-  const settled = await Promise.allSettled(batches.map(loadGranted));
+  const settled = await Promise.allSettled(batches.map((batch) => loadGranted(batch)));
 
-  const prices: PythPrice[] = [];
-  let firstError: unknown = null;
-  for (const outcome of settled) {
-    if (outcome.status === "fulfilled") prices.push(...outcome.value);
-    else firstError ??= outcome.reason;
-  }
-
-  /* Every batch failed and there is nothing to show: report it, so the caller
-     can distinguish "Pyth is down" from "those feeds have no price". */
-  if (prices.length === 0 && firstError) throw firstError;
-
-  return prices;
+  return withStandIns(unique, settled, (id) => {
+    const asset = byId.get(id);
+    return asset === undefined ? undefined : { id, symbol: asset.symbol, pythSymbol: asset.pythSymbol };
+  });
 }
 
 /** Current prices by ticker. Unknown tickers are simply absent from the result. */
@@ -290,26 +325,29 @@ export async function priceForSymbol(symbol: string): Promise<PythPrice | null> 
  * and cached like `pricesForIds`, under its own keys.
  */
 export async function pricesForLabelledIds(labels: ReadonlyMap<number, string>): Promise<PythPrice[]> {
+  const now = Date.now();
   const ids = [...labels.keys()].filter((id) => Number.isInteger(id) && id > 0).sort((a, b) => a - b);
-  const batches: number[][] = [];
-  for (let i = 0; i < ids.length; i += BATCH_SIZE) batches.push(ids.slice(i, i + BATCH_SIZE));
-
-  const settled = await Promise.allSettled(
-    batches.map(async (batch) => {
-      const result = await cached(`pyth:price:labelled:${batch.join(",")}`, TTL.price, async () => {
-        const response = await fetchBatch(batch);
-        return decodeWith(response, (id) => labels.get(id));
-      });
-      return result.value;
-    }),
-  );
-
-  const prices: PythPrice[] = [];
-  let firstError: unknown = null;
-  for (const outcome of settled) {
-    if (outcome.status === "fulfilled") prices.push(...outcome.value);
-    else firstError ??= outcome.reason;
+  /* Batched by grant, like `pricesForIds`, so a refused market cannot blank the others. */
+  const groups = new Map<string, number[]>();
+  for (const id of ids.filter((id) => !refusedNow(id, now))) {
+    const group = grantGroupOfSymbol(labels.get(id) ?? "");
+    groups.set(group, [...(groups.get(group) ?? []), id]);
   }
-  if (prices.length === 0 && firstError) throw firstError;
-  return prices;
+  const batches: number[][] = [];
+  for (const group of groups.values()) {
+    for (let i = 0; i < group.length; i += BATCH_SIZE) batches.push(group.slice(i, i + BATCH_SIZE));
+  }
+  const load = async (batch: number[]) => {
+    const result = await cached(`pyth:price:labelled:${batch.join(",")}`, TTL.price, async () => {
+      const response = await fetchBatch(batch);
+      return decodeWith(response, (id) => labels.get(id));
+    });
+    return result.value;
+  };
+
+  const settled = await Promise.allSettled(batches.map((batch) => loadGranted(batch, load)));
+  return withStandIns(ids, settled, (id) => {
+    const pythSymbol = labels.get(id);
+    return pythSymbol === undefined ? undefined : { id, symbol: pythSymbol, pythSymbol };
+  });
 }

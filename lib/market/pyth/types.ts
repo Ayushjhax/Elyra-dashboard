@@ -80,7 +80,15 @@ export interface PythPrice {
   marketSession: string | null;
   /** When Pyth last updated the feed. */
   publishedAt: string;
+  /**
+   * Where the price came from. Absent means Pyth. "yahoo" is a stand-in for
+   * a feed Pyth's plan does not cover (lib/market/pyth/standIn.ts), and is
+   * labelled as Yahoo wherever a source is shown.
+   */
+  source?: PriceSource;
 }
+
+export type PriceSource = "pyth" | "yahoo";
 
 /** Raw `/v1/latest_price` row, before decoding. */
 export interface RawPriceFeed {
@@ -167,8 +175,10 @@ export class PythError extends Error {
 export interface PriceRow {
   id: number;
   symbol: string;
-  /** From Pyth. Always. */
+  /** From Pyth, or Yahoo's quote where Pyth's plan does not cover the feed (`source`). */
   price: number;
+  /** Absent or "pyth" for Pyth; "yahoo" for a stand-in. */
+  source?: PriceSource;
   /** From the exchange sources, null when none of them list the asset. */
   change24hPct: number | null;
   /**

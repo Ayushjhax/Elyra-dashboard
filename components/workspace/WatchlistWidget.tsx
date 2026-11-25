@@ -307,7 +307,13 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
             feed.status === "live" ? "bg-positive" : feed.status === "error" ? "bg-negative" : "bg-text-muted",
           )}
         />
-        {feed.status === "live" ? t("Pyth live") : feed.status === "error" ? t("Prices delayed") : t("Connecting")}{" "}{t("· USD")}
+        {feed.status === "live"
+          ? [...feed.rows.values()].some((row) => row.source === "yahoo")
+            ? t("Pyth and Yahoo Finance live")
+            : t("Pyth live")
+          : feed.status === "error"
+            ? t("Prices delayed")
+            : t("Connecting")}{" "}{t("· USD")}
       </p>
 
       <AssetSelectDialog open={pickerOpen} onOpenChange={setPickerOpen} />

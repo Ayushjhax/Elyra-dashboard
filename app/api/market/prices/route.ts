@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
       id: price.id,
       symbol: price.symbol,
       price: price.price,
+      source: price.source ?? "pyth",
       change24hPct: changes.get(price.id)?.change24hPct ?? null,
       high24h: changes.get(price.id)?.high24h ?? null,
       low24h: changes.get(price.id)?.low24h ?? null,

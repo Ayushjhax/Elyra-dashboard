@@ -150,18 +150,35 @@ now. Its people still receive every trade notice through push and the inbox.
 
 ## Arena
 
-Points and paper only — see `docs/ARENA.md`. The scoring, the puzzle and the
-review labels are pure and already shared (`lib/arena/review.ts`,
-`calls.ts`, `puzzle.ts`, `types.ts` in `lib/core.ts`), so the app ports
-screens, not rules. Reviews, settlements and their notices already reach the
-app through push and the inbox.
+Points and paper only — see `docs/ARENA.md`. The scoring, the puzzle, the
+review labels, the league rules and the ladders are pure and already shared
+(`lib/arena/review.ts`, `calls.ts`, `puzzle.ts`, `league.ts`, `ladder.ts`,
+`types.ts` in `lib/core.ts`), so the app ports screens, not rules. Reviews,
+settlements, league results and their notices already reach the app through
+push and the inbox. A phone's draft room needs the board as large touch
+targets and the pick clock on screen.
 
 | Feature | Web source | In the app | API | Status |
 |---|---|---|---|---|
-| Daily chart puzzle (answer, reveal, rating, streak, share text, beat the bot) | `components/arena/ArenaView.tsx` (`PuzzleTab`), `components/arena/PuzzleChart.tsx`, `lib/arena/puzzle.ts` | — | `GET /api/arena` (`puzzle`), `POST /api/arena/puzzle` | todo — web only |
-| Calls with receipts (post, calibration, tail and fade with weekly points) | same (`CallsTab`), `lib/arena/calls.ts` | — | `POST /api/arena/calls`, `POST /api/arena/calls/[id]/back` | todo — web only |
-| Trade Review (label distribution, coaching, link from a closed trade) | same (`ReviewsTab`), `lib/arena/review.ts`, `lib/arena/engine.ts` | — | `GET /api/arena` (`reviews`) | todo — web only |
-| Groups and handle (create, join by code, public or private) | same (`GroupsTab`) | — | `POST /api/arena/groups`, `POST /api/arena/profile` | todo — web only |
+| Today (matchday page: puzzle, leagues, calls, trades at a glance) | `components/arena/TodayTab.tsx` | — | `GET /api/arena` | todo — web only |
+| Daily chart puzzle (answer, reveal, rating, streak, share text, beat the bot) | `components/arena/PuzzleTab.tsx`, `components/arena/PuzzleChart.tsx`, `lib/arena/puzzle.ts` | — | `GET /api/arena` (`puzzle`), `POST /api/arena/puzzle` | todo — web only |
+| Leagues (create, join by code, snake draft with a pick clock, live round scores, table, free-agent moves, recaps, champion) | `components/arena/LeagueTab.tsx`, `lib/arena/useArenaLeague.ts`, `lib/arena/league.ts` | — | `POST /api/arena/leagues`, `GET` and `POST /api/arena/leagues/[id]` | todo — web only |
+| Calls with receipts (post, calibration, tail and fade with weekly points) | `components/arena/CallsTab.tsx`, `lib/arena/calls.ts` | — | `POST /api/arena/calls`, `POST /api/arena/calls/[id]/back` | todo — web only |
+| Trades (paper ticket with a plan, open trades, label distribution, coaching, link from a closed trade) | `components/arena/TradesTab.tsx`, `lib/arena/review.ts`, `lib/arena/engine.ts` | — | `GET /api/arena` (`reviews`), `POST /api/automation/trade` (paper), `DELETE /api/automation/positions/[id]` | todo — web only |
+| Ladder, handle and groups (puzzle rating and call calibration, everyone and per group; create, join by code, public or private) | `components/arena/LadderTab.tsx`, `lib/arena/ladder.ts` | — | `GET /api/arena` (`ladders`), `POST /api/arena/groups`, `POST /api/arena/profile` | todo — web only |
+
+## Desk
+
+A committee of models from several labs; see `docs/DESK.md`. The procedure,
+the arithmetic and the views are pure and shared (`lib/desk/roster.ts`,
+`protocol.ts`, `types.ts` in `lib/core.ts`), and a session's settlement
+notice already reaches the app through push and the inbox.
+
+| Feature | Web source | In the app | API | Status |
+|---|---|---|---|---|
+| Convene the desk (market, horizon, note; sessions left today) | `components/desk/DeskView.tsx` (`Convene`), `lib/desk/useDesk.ts` | — | `POST /api/desk` | todo — web only |
+| A session (stages, members before and after review, pooled vote, dissent, memo, fact sheet, settlement) | same (`RunCard`) | — | `GET /api/desk` (`runs`) | todo — web only |
+| Scoreboard (seats and the desk by Brier, against a coin flip) and the seats | same (`Scoreboard`, `Seats`) | — | `GET /api/desk` (`scoreboard`, `seats`) | todo — web only |
 
 ## Elyra (AI)
 

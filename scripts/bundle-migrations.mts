@@ -72,6 +72,8 @@ const SOURCES = [
   "supabase/migrations/0033_market_reports.sql",
   "supabase/migrations/0034_portfolio_tracking.sql",
   "supabase/migrations/0035_scout.sql",
+  "supabase/migrations/0036_arena_leagues.sql",
+  "supabase/migrations/0037_desk.sql",
 ];
 
 /** The signals repo's migration, which is not checked out on every machine. */

@@ -9,9 +9,9 @@ import type { Effort } from "@/lib/agent/providers/types";
    Claude Sonnet 5 runs at `high` effort unless told otherwise, and the
    thinking that effort buys is most of the wait before a reply starts. Not
    every step needs it: Strategy's and Execution's reviews read notes and
-   use no tools, and a spoken reply is short by design, so those run `low`;
-   Research's tool use, the single agent and the orchestrator's written reply
-   run `medium`.
+   use no tools, a spoken reply is short by design, and a Desk seat writes
+   one short answer from one fact sheet, so those run `low`; Research's tool
+   use, the single agent and the orchestrator's written reply run `medium`.
 
    Chosen for speed and not yet held to an eval of answer quality. One switch
    undoes it without a deploy: `ANTHROPIC_EFFORT=model` leaves every step at
@@ -19,7 +19,7 @@ import type { Effort } from "@/lib/agent/providers/types";
    or `high` puts every step at that level.
 --------------------------------------------------------------------------- */
 
-export type AgentStep = "answer" | "research" | "review" | "write" | "voice";
+export type AgentStep = "answer" | "research" | "review" | "write" | "voice" | "desk";
 
 export const FAST: Readonly<Record<AgentStep, Effort>> = {
   answer: "medium",
@@ -27,6 +27,8 @@ export const FAST: Readonly<Record<AgentStep, Effort>> = {
   review: "low",
   write: "medium",
   voice: "low",
+  /* A Desk seat reads one fact sheet and writes a short answer (lib/desk). */
+  desk: "low",
 };
 
 /** The effort for a step under a setting; undefined means the model's default. */

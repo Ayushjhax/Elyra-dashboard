@@ -1,7 +1,9 @@
 import "server-only";
 
 import { brierScore, settleBacking, settleCall, type CallStatus } from "@/lib/arena/calls";
+import { runLeagues, type LeagueReport } from "@/lib/arena/leagueEngine";
 import { LABEL_TEXT, fallbackCoaching, factLines, labelTrade, reviewFacts } from "@/lib/arena/review";
+import { refreshStats } from "@/lib/arena/server";
 import { writeFromFacts } from "@/lib/arena/writer";
 import { hyperliquidCandles } from "@/lib/autotrade/hyperliquid";
 import { marketFor } from "@/lib/autotrade/rules";
@@ -15,7 +17,9 @@ import { serviceClient } from "@/lib/supabase/server";
      1. review trades that have closed and have no review yet;
      2. settle calls whose time has come, at Hyperliquid's one-minute close
         for that minute — or void them if no price exists for it;
-     3. write the card for settled calls that have none.
+     3. write the card for settled calls that have none;
+     4. run the leagues: expired pick clocks, settled rounds, recaps and
+        champions (lib/arena/leagueEngine.ts).
 
    Each step is capped per run: the model is paid per call, and a backlog
    clears over a few ticks rather than in one long, expensive pass. A
@@ -35,11 +39,12 @@ export interface ArenaReport {
   settled: number;
   voided: number;
   cards: number;
+  leagues: LeagueReport | null;
   notes: string[];
 }
 
 export async function runArena(now: number = Date.now()): Promise<ArenaReport> {
-  const report: ArenaReport = { reviewed: 0, settled: 0, voided: 0, cards: 0, notes: [] };
+  const report: ArenaReport = { reviewed: 0, settled: 0, voided: 0, cards: 0, leagues: null, notes: [] };
   const db = serviceClient();
 
   const recipients = new Map<string, Promise<Recipient>>();
@@ -166,6 +171,8 @@ export async function runArena(now: number = Date.now()): Promise<ArenaReport> {
       }
       if (status === "void") report.voided += 1;
       else report.settled += 1;
+      /* The calls ladder reads the author's calibration from their profile. */
+      await refreshStats(call.user_id).catch(() => undefined);
       await notify(call.user_id, status === "hit" ? "Your call hit" : status === "miss" ? "Your call missed" : "Your call was voided", [
         call.statement,
         settledPrice === null ? "No price existed for that minute, so it does not count." : `It settled at $${Number(settledPrice.toPrecision(6))}.`,
@@ -206,6 +213,13 @@ export async function runArena(now: number = Date.now()): Promise<ArenaReport> {
     } catch (error) {
       report.notes.push(`card ${call.id}: ${error instanceof Error ? error.message : "failed"}`);
     }
+  }
+
+  /* ---- 4. leagues ---- */
+  try {
+    report.leagues = await runLeagues(now, notify);
+  } catch (error) {
+    report.notes.push(`leagues: ${error instanceof Error ? error.message : "failed"}`);
   }
 
   return report;

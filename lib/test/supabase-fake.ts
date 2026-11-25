@@ -84,8 +84,20 @@ class Query implements PromiseLike<Result<Row[]>> {
     return this;
   }
 
-  gte(column: string, value: string) {
-    this.filters.push((row) => row[column] !== null && row[column] !== undefined && String(row[column]) >= value);
+  /** Numbers compare as numbers, as in Postgres; anything else (ISO times) as text. */
+  gte(column: string, value: string | number) {
+    this.filters.push((row) => {
+      const cell = row[column];
+      if (cell === null || cell === undefined) return false;
+      return typeof value === "number" ? Number(cell) >= value : String(cell) >= value;
+    });
+    return this;
+  }
+
+  /** `not(column, "is", null)`: the only negation the code uses. */
+  not(column: string, operator: "is", value: null) {
+    void operator;
+    this.filters.push((row) => (row[column] ?? null) !== value);
     return this;
   }
 
@@ -362,6 +374,28 @@ function collides(a: Row, b: Row): boolean {
   /* scout_fires (0035): a rule acts on a signal once. */
   if (a.signal_key !== undefined && a.rule_id !== undefined && a.rule_id === b.rule_id && a.signal_key === b.signal_key) return true;
 
+  /* Arena leagues (0036). Its returns end the check, false included, so it
+     stays below every rule above that only ever returns true. */
+  if (a.league_id !== undefined && a.league_id === b.league_id) {
+    /* arena_league_picks: pk (league, pick) and unique (league, market). */
+    if (a.pick !== undefined) return a.pick === b.pick || a.market === b.market;
+    /* arena_league_slots: one holder per market, among slots still held. */
+    if (a.from_round !== undefined) return a.market === b.market && (a.to_round ?? null) === null && (b.to_round ?? null) === null;
+    /* arena_league_matchups: pk (league, round, home). */
+    if (a.home_id !== undefined) return a.round === b.round && a.home_id === b.home_id;
+    /* arena_league_recaps: pk (league, round). */
+    if (a.model !== undefined) return a.round === b.round;
+    /* arena_league_managers: pk (league, user) and unique (league, draft slot). */
+    if (a.user_id === b.user_id) return true;
+    if (a.draft_slot !== undefined && a.draft_slot !== null && a.draft_slot === b.draft_slot) return true;
+  }
+  /* desk_turns (0037): pk (run, seat, round). */
+  if (a.run_id !== undefined && a.seat !== undefined && a.round !== undefined && a.run_id === b.run_id && a.seat === b.seat && a.round === b.round) return true;
+  /* desk_seat_stats (0037): pk (seat, model). */
+  if (a.brier_sum !== undefined && a.seat === b.seat && a.model === b.model) return true;
+  /* arena_market_opens: pk (market, day). */
+  if (a.day !== undefined && a.open !== undefined && a.market === b.market && a.day === b.day) return true;
+
   /* portfolio_fills (0017): one row per token a swap moved. */
   if (a.signature !== undefined && a.signature === b.signature && a.mint !== undefined && a.mint === b.mint) {
     return true;
@@ -389,6 +423,7 @@ export class FakeSupabase {
   }
 
   async rpc(name: string, args: Record<string, unknown>) {
+    if (name.startsWith("arena_league_")) return { data: this.leagueRpc(name, args), error: null };
     if (name === "claim_agent_key_call") {
       /* 0022: one call against an agent key's daily cap. */
       const keyId = String(args.p_key_id);
@@ -436,5 +471,47 @@ export class FakeSupabase {
 
     existing.runs = runs + 1;
     return { data: [{ allowed: true, runs: runs + 1 }], error: null };
+  }
+
+  /** 0036's three league functions, with the same answers as the SQL. */
+  private leagueRpc(name: string, args: Record<string, unknown>): unknown {
+    const table = (key: string) => {
+      const rows = this.tables.get(key) ?? [];
+      this.tables.set(key, rows);
+      return rows;
+    };
+    const league = table("arena_leagues").find((row) => row.id === args.p_league);
+    const managers = table("arena_league_managers").filter((row) => row.league_id === args.p_league);
+    if (name === "arena_league_join") {
+      if (league === undefined) return "missing";
+      if (managers.some((row) => row.user_id === args.p_user)) return "member";
+      if (league.status !== "forming") return "closed";
+      if (managers.length >= Number(args.p_capacity)) return "full";
+      table("arena_league_managers").push({ league_id: args.p_league, user_id: args.p_user, draft_slot: null, joined_at: new Date().toISOString() });
+      return "joined";
+    }
+    if (name === "arena_league_start") {
+      if (league === undefined) return "missing";
+      if (league.owner_id !== args.p_owner) return "not_owner";
+      if (league.status !== "forming") return "started";
+      const order = args.p_order as string[];
+      if (new Set(order).size !== order.length || order.length !== managers.length || managers.some((row) => !order.includes(String(row.user_id)))) return "changed";
+      for (const row of managers) row.draft_slot = order.indexOf(String(row.user_id));
+      Object.assign(league, { status: "drafting", draft_started_at: args.p_at });
+      return "ok";
+    }
+    if (name === "arena_league_pick") {
+      if (league?.status !== "drafting") return null;
+      const picks = table("arena_league_picks");
+      const slots = table("arena_league_slots");
+      const sameLeague = (row: Row) => row.league_id === args.p_league;
+      if (picks.some((row) => sameLeague(row) && (row.pick === args.p_pick || row.market === args.p_market))) return null;
+      if (slots.some((row) => sameLeague(row) && row.market === args.p_market && (row.to_round ?? null) === null)) return null;
+      picks.push({ league_id: args.p_league, pick: args.p_pick, user_id: args.p_user, market: args.p_market, auto: args.p_auto, picked_at: args.p_at });
+      const id = uuid();
+      slots.push({ id, league_id: args.p_league, user_id: args.p_user, market: args.p_market, from_round: 1, to_round: null, via: "draft", created_at: args.p_at });
+      return id;
+    }
+    return null;
   }
 }

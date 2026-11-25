@@ -71,7 +71,23 @@ type OptionalKey =
   | "SEC_USER_AGENT"
   | "SEC_MAX_RPS"
   | "TOKENOMIST_API_KEY"
-  | "COINMARKETCAL_API_KEY";
+  | "COINMARKETCAL_API_KEY"
+  /* The Desk (lib/desk/roster.ts): each seat's key and model. */
+  | "COHERE_API_KEY"
+  | "GROQ_API_KEY"
+  | "OPENROUTER_API_KEY"
+  | "MISTRAL_API_KEY"
+  | "OPENAI_API_KEY"
+  | "DESK_CHAIR_MODEL"
+  | "DESK_STRATEGIST_MODEL"
+  | "DESK_STRUCTURE_MODEL"
+  | "DESK_RISK_MODEL"
+  | "DESK_POSITIONING_MODEL"
+  | "DESK_CROSS_MARKET_MODEL"
+  | "DESK_QUANT_MODEL"
+  | "DESK_CONTRARIAN_MODEL"
+  | "DESK_SECOND_OPINION_MODEL"
+  | "DESK_GENERALIST_MODEL";
 
 type RequiredKey = (typeof REQUIRED)[number];
 
@@ -90,6 +106,8 @@ export function required(key: RequiredKey): string {
 }
 
 /** An optional variable, absent when the feature that needs it is unused. */
+export type { OptionalKey };
+
 export function optional(key: OptionalKey): string | undefined {
   return read(key);
 }

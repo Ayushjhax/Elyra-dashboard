@@ -469,7 +469,16 @@ size or leverage. A call is append-only and its receipt is SHA-256 over the
 statement and the server's time; it settles on Hyperliquid's one-minute
 close for its minute, or is void. `runArena` runs on the tick after the
 trading pass, capped per run (`REVIEW_CAP`, `SETTLE_CAP`, `CARD_CAP`). A
-person is shown by handle or not at all, never by wallet.
+person is shown by handle or not at all, never by wallet. Leagues
+(`lib/arena/league.ts`) are fantasy sport played with markets: a snake draft
+where each market has one holder per league, rounds scored on Hyperliquid's
+daily opens (cached in `arena_market_opens`), a table and a champion — no
+buy-in, no prize, nothing staked. A run-out pick is made by whichever
+request comes first; a round settles in the tick only
+(`LEAGUE_SETTLE_CAP`), so each result is written and announced once. The
+ladders rank the puzzle rating and calls' Brier score, never profit. The
+Trades tab's ticket is paper only: it posts `mode: "paper"` to
+`/api/automation/trade`.
 
 Scout (`/scout`, `lib/scout/`, `lib/poly/`, `docs/SCOUT.md`) reads any
 YouTube video, post on X or article and grades every claim by evidence. It
@@ -577,6 +586,19 @@ in full, and `writeFromFacts` — the Events feed, Arena cards, the markets
 brief — discards a reply carrying a link or a domain the facts do not hold.
 Every model run for a person claims `claimAgentRun` (`lib/agent/quota.ts`),
 one durable daily cap shared by the agent and Ask Elyra.
+
+The Desk (`/desk`, `lib/desk/`, `docs/DESK.md`) seats models from several
+labs on one committee: Anthropic's (Opus chairs and does not vote), Cohere,
+Gemini, and OpenAI-compatible hosts such as Groq, OpenRouter, Mistral and
+OpenAI. A seat is filled only when its key is set. It forecasts one question
+the market settles, and its output is words, a probability and a record:
+nothing in `lib/desk/` trades. Members read one code-built fact sheet, and a
+member that cites a number not on it is flagged and its reasoning withheld.
+They see each other only anonymised ("Member A"). The vote is pooled by code,
+weighted by each seat's Brier record (`desk_seat_stats`), and every forecast
+is scored at settlement on the tick. A session claims `claimAgentRun` and
+one of `DESK_RUNS_PER_DAY`. Cohere and the OpenAI-compatible adapters are
+text-only: they refuse tools and attachments, never drop them.
 
 The agent's conversation, its in-flight request and the composer draft live in
 the store, and `lib/agentChat.ts` sends and reads streamed replies outside any

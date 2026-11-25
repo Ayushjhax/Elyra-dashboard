@@ -35,6 +35,9 @@ describe("sourceStatuses", () => {
     expect(statuses.positions).toEqual({
       state: "failed",
       label: "2 open · partly unread",
+      /* The website translates the template; the app shows the label. */
+      template: "{count} open · partly unread",
+      values: { count: 2 },
     });
     expect(statuses.activity).toEqual({
       state: "failed",

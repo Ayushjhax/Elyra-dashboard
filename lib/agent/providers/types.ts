@@ -10,7 +10,9 @@ import type { Attachment } from "@/lib/attachments";
    line in the router.
 --------------------------------------------------------------------------- */
 
-export type ProviderId = "anthropic" | "gemini";
+/* Anthropic and Gemini run the agent; Cohere and the OpenAI-compatible hosts
+   (Groq, OpenRouter, Mistral, OpenAI) sit at the Desk (lib/desk), text only. */
+export type ProviderId = "anthropic" | "gemini" | "cohere" | "openai_compatible";
 
 /** A model's request to run one tool. */
 export interface ToolCall {
@@ -107,6 +109,12 @@ export interface ProviderResult {
    */
   refused: boolean;
   refusalReason: string | null;
+  /**
+   * The answer stopped at `maxTokens` rather than finishing. Thinking counts
+   * against that cap, so a short one can end mid-sentence or before any text.
+   * Set by every adapter the Desk seats; absent means it finished.
+   */
+  truncated?: boolean;
   /** The provider's own content blocks, for `providerContent` on a continuation. */
   rawContent?: unknown[];
   /** Text reached the caller as it was generated, through `onText`. */

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cronAuthorised } from "@/lib/notifications/cron";
 import { runArena } from "@/lib/arena/engine";
+import { runDeskTick } from "@/lib/desk/tick";
 import { runAutotrade } from "@/lib/autotrade/engine";
 import { runCopy } from "@/lib/copy/engine";
 import { runEvents } from "@/lib/events/engine";
@@ -74,6 +75,12 @@ export async function GET(request: Request): Promise<Response> {
   const events = await runEvents().catch((error: unknown) => ({
     error: error instanceof Error ? error.message : "Events pass failed.",
   }));
+  /* Then the Desk (lib/desk/tick.ts): its calls that came due are
+     settled on Hyperliquid's close and every forecast in them scored. */
+  const desk = await runDeskTick().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Desk pass failed.",
+  }));
+
   /* Then the agent rails (lib/rails/run.ts): lapse intents nobody answered,
      and settle open payment requests from the chain. */
   const rails = await runRails().catch((error: unknown) => ({
@@ -96,7 +103,10 @@ export async function GET(request: Request): Promise<Response> {
   }));
 
   const report = await deliverNotifications();
-  return NextResponse.json({ ...report, automation, copy, funds, arena, events, rails, insider, scout }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json(
+    { ...report, automation, copy, funds, arena, events, desk, rails, insider, scout },
+    { headers: { "cache-control": "no-store" } },
+  );
 }
 
 /** Same work, for schedulers that only issue POSTs. */

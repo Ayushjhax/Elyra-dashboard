@@ -105,6 +105,11 @@ export async function perpMeta(network: Network, coin: string): Promise<PerpMeta
   return metaCache.get(key)?.byCoin.get(coin) ?? null;
 }
 
+/** Every mid on one exchange: Hyperliquid's own (`dex` null) or a builder dex such as "xyz". A read. */
+export async function allMids(network: Network, dex: string | null): Promise<Record<string, string>> {
+  return post<Record<string, string>>(network, "/info", dex === null ? { type: "allMids" } : { type: "allMids", dex });
+}
+
 export async function midPrice(network: Network, coin: string): Promise<number | null> {
   const dex = dexOf(coin);
   const mids = await post<Record<string, string>>(network, "/info", dex === null ? { type: "allMids" } : { type: "allMids", dex });

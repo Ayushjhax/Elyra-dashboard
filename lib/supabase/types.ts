@@ -231,6 +231,11 @@ export interface ArenaProfileRow {
   user_id: string;
   handle: string | null;
   public: boolean;
+  /* The ladders' columns (0036), refreshed from the answers and the calls. */
+  puzzle_rating: string | number | null;
+  puzzle_played: number;
+  calls_settled: number;
+  calls_brier: string | number | null;
   created_at: string;
   updated_at: string;
 }
@@ -308,6 +313,136 @@ export interface ArenaPuzzleAnswerRow {
   rating_after: string | number;
   streak: number;
   created_at: string;
+}
+
+/* Arena leagues (0036): fantasy sport, played with markets. */
+export interface ArenaLeagueRow {
+  id: string;
+  name: string;
+  invite_code: string;
+  owner_id: string;
+  roster_size: number;
+  rounds: number;
+  round_days: number;
+  pick_seconds: number;
+  status: "forming" | "drafting" | "active" | "done";
+  draft_started_at: string | null;
+  season_starts_at: string | null;
+  notified_pick: number | null;
+  champion_id: string | null;
+  created_at: string;
+}
+
+export interface ArenaLeagueManagerRow {
+  league_id: string;
+  user_id: string;
+  draft_slot: number | null;
+  joined_at: string;
+}
+
+export interface ArenaLeaguePickRow {
+  league_id: string;
+  pick: number;
+  user_id: string;
+  market: string;
+  auto: boolean;
+  picked_at: string;
+}
+
+export interface ArenaLeagueSlotRow {
+  id: string;
+  league_id: string;
+  user_id: string;
+  market: string;
+  from_round: number;
+  to_round: number | null;
+  via: "draft" | "free_agent";
+  created_at: string;
+}
+
+export interface ArenaLeagueMatchupRow {
+  league_id: string;
+  round: number;
+  home_id: string;
+  away_id: string | null;
+  home_pct: string | number | null;
+  away_pct: string | number | null;
+  result: "home" | "away" | "tie" | "void" | null;
+  facts: Record<string, unknown> | null;
+  settled_at: string | null;
+}
+
+export interface ArenaLeagueRecapRow {
+  league_id: string;
+  round: number;
+  text: string;
+  model: string;
+  facts: string[];
+  created_at: string;
+}
+
+export interface ArenaMarketOpenRow {
+  market: string;
+  day: string;
+  open: string | number;
+  created_at: string;
+}
+
+/* The Desk (0037): a committee of models that forecasts and is scored. */
+export interface DeskRunRow {
+  id: string;
+  user_id: string;
+  market: string;
+  horizon: string;
+  start_price: string | number;
+  resolves_at: string;
+  statement: string;
+  note: string | null;
+  stage: "facts" | "brief" | "independent" | "review" | "vote" | "memo" | "done" | "failed";
+  /** The fact sheet, one `DeskFact` (lib/desk/protocol.ts) a line. */
+  facts: unknown[];
+  assignments: Record<string, string>;
+  weights: Record<string, number>;
+  p_independent: string | number | null;
+  p_final: string | number | null;
+  spread: string | number | null;
+  memo: string | null;
+  memo_model: string | null;
+  dissent: { title: string; p: number } | null;
+  status: "open" | "up" | "down" | "void";
+  settled_price: string | number | null;
+  settled_at: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeskTurnRow {
+  run_id: string;
+  seat: string;
+  round: "independent" | "review";
+  provider: string;
+  model: string;
+  p: number | null;
+  thesis: string;
+  note: string;
+  changed: boolean | null;
+  flagged: boolean;
+  error: string | null;
+  latency_ms: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  brier: string | number | null;
+  created_at: string;
+}
+
+export interface DeskSeatStatsRow {
+  seat: string;
+  model: string;
+  settled: number;
+  brier_sum: string | number;
+  independent_brier_sum: string | number;
+  updated_at: string;
 }
 
 /** One of Elyra's AI posts on the events feed (0023). */
@@ -1176,7 +1311,7 @@ export interface Database {
         "id" | "mode" | "max_drift_pct" | "enabled" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
       >;
       trade_reviews: Table<TradeReviewRow, "id" | "created_at">;
-      arena_profiles: Table<ArenaProfileRow, "handle" | "public" | "created_at" | "updated_at">;
+      arena_profiles: Table<ArenaProfileRow, "handle" | "public" | "puzzle_rating" | "puzzle_played" | "calls_settled" | "calls_brier" | "created_at" | "updated_at">;
       arena_groups: Table<ArenaGroupRow, "id" | "created_at">;
       arena_group_members: Table<ArenaGroupMemberRow, "joined_at">;
       arena_calls: Table<
@@ -1186,6 +1321,39 @@ export interface Database {
       arena_call_backings: Table<ArenaCallBackingRow, "id" | "settled_points" | "created_at">;
       arena_puzzle_days: Table<ArenaPuzzleDayRow, "created_at">;
       arena_puzzle_answers: Table<ArenaPuzzleAnswerRow, "created_at">;
+      arena_leagues: Table<
+        ArenaLeagueRow,
+        "id" | "status" | "draft_started_at" | "season_starts_at" | "notified_pick" | "champion_id" | "created_at"
+      >;
+      arena_league_managers: Table<ArenaLeagueManagerRow, "draft_slot" | "joined_at">;
+      arena_league_picks: Table<ArenaLeaguePickRow, "auto">;
+      arena_league_slots: Table<ArenaLeagueSlotRow, "id" | "to_round" | "created_at">;
+      arena_league_matchups: Table<ArenaLeagueMatchupRow, "away_id" | "home_pct" | "away_pct" | "result" | "facts" | "settled_at">;
+      arena_league_recaps: Table<ArenaLeagueRecapRow, "created_at">;
+      arena_market_opens: Table<ArenaMarketOpenRow, "created_at">;
+      desk_runs: Table<
+        DeskRunRow,
+        | "id"
+        | "note"
+        | "stage"
+        | "facts"
+        | "assignments"
+        | "weights"
+        | "p_independent"
+        | "p_final"
+        | "spread"
+        | "memo"
+        | "memo_model"
+        | "dissent"
+        | "status"
+        | "settled_price"
+        | "settled_at"
+        | "error"
+        | "created_at"
+        | "updated_at"
+      >;
+      desk_turns: Table<DeskTurnRow, "thesis" | "note" | "changed" | "flagged" | "error" | "latency_ms" | "tokens_in" | "tokens_out" | "brier" | "created_at">;
+      desk_seat_stats: Table<DeskSeatStatsRow, "settled" | "brier_sum" | "independent_brier_sum" | "updated_at">;
       trading_orders: Table<
         TradingOrderRow,
         "id" | "network" | "entry_cloid" | "tp_cloid" | "sl_cloid" | "position_id" | "error" | "created_at" | "filled_at" | "cancelled_at"
@@ -1404,6 +1572,21 @@ export interface Database {
       claim_agent_key_call: {
         Args: { p_key_id: string; p_limit: number };
         Returns: { allowed: boolean; calls: number }[];
+      };
+      /** Joins a league under its row lock (0036). */
+      arena_league_join: {
+        Args: { p_league: string; p_user: string; p_capacity: number };
+        Returns: "joined" | "member" | "closed" | "full" | "missing";
+      };
+      /** Deals the draft slots in the order given and starts the clock (0036). */
+      arena_league_start: {
+        Args: { p_league: string; p_owner: string; p_order: string[]; p_at: string };
+        Returns: "ok" | "not_owner" | "started" | "changed" | "missing";
+      };
+      /** A pick and its roster slot together; the slot's id, or null when it was not made (0036). */
+      arena_league_pick: {
+        Args: { p_league: string; p_pick: number; p_user: string; p_market: string; p_auto: boolean; p_at: string };
+        Returns: string | null;
       };
     };
     Enums: Record<never, never>;

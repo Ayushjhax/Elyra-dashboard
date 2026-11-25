@@ -289,6 +289,7 @@ function toResult(
     usage: meta.usage,
     refused,
     refusalReason: refused ? (meta.stopDetails?.category ?? "content_policy") : null,
+    truncated: meta.stopReason === "max_tokens",
     rawContent: blocks,
     streamed: meta.streamed,
   };
@@ -307,8 +308,9 @@ function streamFailure(error: StreamError): ProviderError {
   return new ProviderError(kind, "anthropic", `${error.type}: ${error.message}`);
 }
 
-export function anthropicProvider(): Provider {
-  const model = optional("ANTHROPIC_MODEL") ?? DEFAULT_MODEL;
+/** The agent's model by default; the Desk seats other Claude models by passing one. */
+export function anthropicProvider(chosen?: string): Provider {
+  const model = chosen ?? optional("ANTHROPIC_MODEL") ?? DEFAULT_MODEL;
 
   return {
     id: "anthropic",

@@ -9,6 +9,7 @@ import { catalog } from "./catalog";
 import { common } from "./common";
 import { connections } from "./connections";
 import { copy } from "./copy";
+import { desk } from "./desk";
 import { dynamic } from "./dynamic";
 import { equities } from "./equities";
 import { events } from "./events";
@@ -63,6 +64,7 @@ export const zhCN: Messages = {
   ...common,
   ...connections,
   ...copy,
+  ...desk,
   ...dynamic,
   ...equities,
   ...events,

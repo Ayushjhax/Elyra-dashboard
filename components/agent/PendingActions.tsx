@@ -11,6 +11,8 @@ import { swapPrefill, useOpenActions } from "@/lib/actions/useOpenActions";
 import { useSecond } from "@/lib/useClock";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Actions awaiting review — kept apart from the conversation.
@@ -31,10 +33,10 @@ import { cn } from "@/lib/utils";
 /** The last badge request handled, so a remount does not scroll again. */
 let handledFocus = 0;
 
-function remaining(expiresAt: string, now: number | null): string {
+function remaining(expiresAt: string, now: number | null, t: Translator): string {
   if (now === null) return "";
   const minutes = Math.max(0, Math.ceil((Date.parse(expiresAt) - now) / 60_000));
-  return minutes <= 1 ? "expires within a minute" : `expires in ${minutes} min`;
+  return minutes <= 1 ? t("expires within a minute") : t("expires in {minutes} min", { minutes });
 }
 
 function ActionCard({
@@ -50,25 +52,26 @@ function ActionCard({
   onReview: (() => void) | null;
   onDismiss: () => void;
 }) {
+  const t = useT();
   const { action } = entry;
   const acknowledged = entry.status === "acknowledged";
-  const origin = entry.surface === "telegram" ? "Prepared in Telegram" : "Prepared in Elyra";
+  const origin = entry.surface === "telegram" ? t("Prepared in Telegram") : t("Prepared in Elyra");
 
   return (
     <article
-      aria-label={`Action awaiting review: ${action.summary}`}
+      aria-label={t("Action awaiting review: {summary}", { summary: action.summary })}
       className="agent-rail rounded-r-card border border-l-0 border-border-subtle bg-surface-raised"
     >
       <header className="flex items-center gap-2 px-3 pt-2.5">
         <ClipboardCheck size={14} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
-        <span className="type-eyebrow text-text-muted">Action awaiting review</span>
+        <span className="type-eyebrow text-text-muted">{t("Action awaiting review")}</span>
         <span
           className={cn(
             "type-label ml-auto rounded-chip px-1.5",
             acknowledged ? "bg-surface-hover text-text-secondary" : "bg-negative-bg text-negative",
           )}
         >
-          {acknowledged ? "Acknowledged" : "Needs review"}
+          {acknowledged ? t("Acknowledged") : t("Needs review")}
         </span>
       </header>
 
@@ -76,8 +79,8 @@ function ActionCard({
         <p className="type-body-sm font-medium text-text-primary">{action.summary}</p>
         <p className="type-label mt-0.5 text-text-secondary">
           {origin}
-          {acknowledged ? " · you asked to proceed there" : ""}
-          {now !== null ? ` · ${remaining(entry.expiresAt, now)}` : ""}
+          {acknowledged ? t(" · you asked to proceed there") : ""}
+          {now !== null ? ` · ${remaining(entry.expiresAt, now, t)}` : ""}
         </p>
       </div>
 
@@ -103,22 +106,22 @@ function ActionCard({
       <p role="status" className="type-label px-3 pt-2 text-text-secondary">
         {onReview !== null
           ? canSign
-            ? "Nothing is sent until your wallet signs it. The swap is re-quoted first."
-            : "Connect a Solana wallet in this browser to sign it."
-          : (action.reason ?? "This kind of action cannot be carried out in Elyra.")}
+            ? t("Nothing is sent until your wallet signs it. The swap is re-quoted first.")
+            : t("Connect a Solana wallet in this browser to sign it.")
+          : (action.reason ?? t("This kind of action cannot be carried out in Elyra."))}
       </p>
 
       <footer className="flex items-center justify-end gap-2 px-3 pb-3 pt-2.5">
         <Button size="sm" variant="ghost" onClick={onDismiss}>
-          Dismiss
+          {t("Dismiss")}
         </Button>
         {onReview !== null ? (
           <Button size="sm" variant="accent" onClick={onReview} disabled={!canSign}>
-            Review swap
+            {t("Review swap")}
           </Button>
         ) : action.kind === "transfer" || action.kind === "withdraw" ? (
           <Link href="/assets" className={buttonVariants({ variant: "quiet", size: "sm" })}>
-            Open Assets
+            {t("Open Assets")}
           </Link>
         ) : null}
       </footer>

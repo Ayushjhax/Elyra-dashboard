@@ -10,6 +10,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { useMinute } from "@/lib/useClock";
 import { KIND_LABEL, type SmartMoneyFinding } from "@/lib/smartmoney/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Smart money.
@@ -76,6 +77,7 @@ function ScoreBar({ score }: { score: number }) {
 }
 
 function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number | null }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const risk = finding.kind === "disclosure_risk";
 
@@ -105,10 +107,10 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
             {KIND_LABEL[finding.kind]}
           </span>
           <span className="type-label text-text-muted">
-            evidence knowable {now === null ? "—" : formatRelativeTime(finding.observedAt, now)}
+            {t("evidence knowable {value}", { value: now === null ? "—" : formatRelativeTime(finding.observedAt, now, t.locale) })}
           </span>
           <span className="type-label ml-auto text-text-muted">
-            confidence {finding.confidence.toFixed(2)}
+            {t("confidence {confidence}", { confidence: finding.confidence.toFixed(2) })}
           </span>
         </div>
 
@@ -125,7 +127,7 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
             "hover:bg-surface-hover hover:text-text-primary",
           )}
         >
-          Evidence and filings
+          {t("Evidence and filings")}
           <ChevronDown
             size={14}
             strokeWidth={1.5}
@@ -140,7 +142,7 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
         {open && (
           <div className="flex flex-col gap-2 px-2">
             <div>
-              <Eyebrow className="mb-1">Evidence</Eyebrow>
+              <Eyebrow className="mb-1">{t("Evidence")}</Eyebrow>
               <ul className="flex list-none flex-col gap-0.5">
                 {finding.edges.map((edge) => (
                   <li key={edge.key} className="flex items-baseline gap-2">
@@ -166,7 +168,7 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
             </div>
 
             <div>
-              <Eyebrow className="mb-1">Filings</Eyebrow>
+              <Eyebrow className="mb-1">{t("Filings")}</Eyebrow>
               <ul className="flex list-none flex-col gap-0.5">
                 {finding.filings.map((filing) => (
                   <li key={filing.accession}>
@@ -186,7 +188,7 @@ function FindingCard({ finding, now }: { finding: SmartMoneyFinding; now: number
                           this became public, and says so rather than being
                           silently equivalent. */}
                       {!filing.availableAtExact && (
-                        <span className="shrink-0 opacity-70">(time inferred)</span>
+                        <span className="shrink-0 opacity-70">{t("(time inferred)")}</span>
                       )}
                       <span className="min-w-0 flex-1 truncate opacity-70">
                         {filing.accession}
@@ -215,6 +217,7 @@ export function SmartMoneyPanel({
       the live filings itself, where this panel's fallback would repeat them. */
   findingsOnly?: boolean;
 }) {
+  const t = useT();
   const [state, setState] = useState<FeedState>(INITIAL);
   const now = useMinute();
 
@@ -264,19 +267,19 @@ export function SmartMoneyPanel({
   if (findingsOnly && state.findings.length === 0) return null;
 
   return (
-    <Frame label="Smart money">
+    <Frame label={t("Smart money")}>
       <PanelHeader>
-        <Eyebrow>Filings</Eyebrow>
+        <Eyebrow>{t("Filings")}</Eyebrow>
         <span className="type-label ml-auto text-text-muted">
           {/* "0 findings" is a statement about the filings. It must not be
               shown when no filing was ever consulted — so while the scan's
               store is down this names what IS shown instead. */}
-          {showLive ? "Live from EDGAR" : `${state.findings.length} findings`}
+          {showLive ? t("Live from EDGAR") : t("{count} findings", { count: state.findings.length })}
         </span>
         <button
           type="button"
           onClick={() => void load().then(setState)}
-          aria-label="Refresh findings"
+          aria-label={t("Refresh findings")}
           className={cn(
             "ml-2 rounded-control p-1 text-text-muted",
             "transition-colors duration-[var(--dur-fast)] ease-brand hover:text-text-primary",
@@ -295,8 +298,7 @@ export function SmartMoneyPanel({
         {/* Said once, in the panel's own voice, rather than only in a
             disclaimer at the bottom of each card. */}
         <p className="type-label border-b border-border-subtle px-3 py-2 text-text-muted">
-          Findings from SEC filings — what the documents say. No entry, target
-          or stop: filings contain no prices, so those cannot be computed here.
+          {t("Findings from SEC filings — what the documents say. No entry, target or stop: filings contain no prices, so those cannot be computed here.")}
         </p>
 
         {/* When the scan's findings cannot be shown, say why in a line and
@@ -306,14 +308,13 @@ export function SmartMoneyPanel({
           <details className="mx-4 mt-3 rounded-control border border-border-subtle bg-surface-raised px-3 py-2">
             <summary className="type-label cursor-pointer text-text-secondary">
               {state.needsMigration
-                ? "Findings need a database table that has not been created."
-                : "Findings need the database, which can't be reached — showing live filings instead."}
+                ? t("Findings need a database table that has not been created.")
+                : t("Findings need the database, which can't be reached — showing live filings instead.")}
             </summary>
             <p className="type-label mt-1.5 break-words text-text-muted">
               {state.needsMigration ? (
                 <>
-                  Run <code>elyra-signals/migrations/0002_smart_money.sql</code> in the
-                  Supabase SQL editor, then run the scan.
+                  {t("Run")}{" "}<code>{t("elyra-signals/migrations/0002_smart_money.sql")}</code>{" "}{t("in the Supabase SQL editor, then run the scan.")}
                 </>
               ) : (
                 state.error
@@ -325,8 +326,7 @@ export function SmartMoneyPanel({
         {state.rejected.length > 0 && (
           <div className="mx-3 mt-3 rounded-card border border-negative/40 bg-negative-bg px-2.5 py-2">
             <p className="type-label text-negative">
-              {state.rejected.length} finding
-              {state.rejected.length === 1 ? "" : "s"} dropped at the boundary
+              {(state.rejected.length === 1 ? t("{count} finding dropped at the boundary", { count: state.rejected.length }) : t("{count} findings dropped at the boundary", { count: state.rejected.length }))}
             </p>
             <ul className="mt-0.5 list-none">
               {state.rejected.map((reason) => (
@@ -348,7 +348,7 @@ export function SmartMoneyPanel({
 
         {state.lastScanAt !== null && (
           <p className="type-label px-3 py-2 text-text-muted">
-            Last scan {now === null ? "—" : formatRelativeTime(state.lastScanAt, now)}
+            {t("Last scan {value}", { value: now === null ? "—" : formatRelativeTime(state.lastScanAt, now, t.locale) })}
           </p>
         )}
       </PanelBody>

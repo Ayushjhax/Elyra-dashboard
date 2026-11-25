@@ -10,6 +10,7 @@ import { PreferenceEditor, type EditorIntent } from "@/components/personalized/P
 import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Tip } from "@/components/shell/RouteDrawer";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { ComposerAttachment } from "@/lib/attachments";
 import { usePersonalizedChat, usePersonalizedMemory, type ChatFeed, type MemoryFeed } from "@/lib/personalized/client";
 import { accountContextOn, sourceStatuses } from "@/lib/personalized/sources";
@@ -21,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { useDictation } from "@/lib/voice/useDictation";
 import { useWalletActivity, type ActivityFeed } from "@/lib/wallet/useWalletActivity";
 import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Capital Intelligence — the conversation, and the context it reads.
@@ -41,21 +44,22 @@ const outlined = cn(
 );
 
 const STARTER_PROMPT: Record<Exclude<Starter, "preferences">, { text: string; select?: string }> = {
-  portfolio: { text: "Review my portfolio: what I hold, how it's allocated, and anything that stands out." },
-  research: { text: "I want to research SOL before I act — what drives it, the main risks, and what should I watch?", select: "SOL" },
-  deposit: { text: "Help me plan my first deposit: how to get funds in, and what to think about before I do." },
+  portfolio: { text: msg("Review my portfolio: what I hold, how it's allocated, and anything that stands out.") },
+  research: { text: msg("I want to research SOL before I act — what drives it, the main risks, and what should I watch?"), select: "SOL" },
+  deposit: { text: msg("Help me plan my first deposit: how to get funds in, and what to think about before I do.") },
 };
 
 function RailHeading({ onCollapse }: { onCollapse?: () => void }) {
+  const t = useT();
   return (
     <div className="flex items-center justify-between gap-2 px-1 pb-2.5">
-      <h2 className="type-h1 text-text-primary">Your context</h2>
+      <h2 className="type-h1 text-text-primary">{t("Your context")}</h2>
       {onCollapse !== undefined && (
-        <Tip label="Fold the context away">
+        <Tip label={t("Fold the context away")}>
           <button
             type="button"
             onClick={onCollapse}
-            aria-label="Collapse your context"
+            aria-label={t("Collapse your context")}
             aria-expanded
             className="grid size-8 place-items-center rounded-control border border-border-subtle text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary"
           >
@@ -96,6 +100,7 @@ export function CapitalIntelligenceView({
   wallet: WalletDashboard;
   activity: ActivityFeed;
 }) {
+  const t = useT();
 
   const rawSources = useElyraStore((state) => state.contextSources);
   const setSources = useElyraStore((state) => state.setContextSources);
@@ -175,7 +180,7 @@ export function CapitalIntelligenceView({
       return;
     }
     const prompt = STARTER_PROMPT[starter];
-    setDraft(prompt.text);
+    setDraft(t(prompt.text));
     focusComposer(prompt.select);
   };
 
@@ -218,65 +223,63 @@ export function CapitalIntelligenceView({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 @container">
-      <header className="flex shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Sparkles size={30} strokeWidth={1.5} aria-hidden className="shrink-0 text-accent" />
-          <div className="min-w-0">
-            <h1 className="type-h1 text-text-primary">Capital Intelligence</h1>
-            <p className="type-body text-text-secondary">Your capital. A clearer perspective.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* On a phone the three buttons do not fit one row with their
-              labels, so this one, the least asked-for, keeps only its icon. */}
-          {signedIn && (
+      <PageHeader
+        icon={Sparkles}
+        title={t("Capital Intelligence")}
+        subtitle={t("Your capital. A clearer perspective.")}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* On a phone the three buttons do not fit one row with their
+                labels, so this one, the least asked-for, keeps only its icon. */}
+            {signedIn && (
+              <button
+                type="button"
+                onClick={() => setContextOpen(true)}
+                aria-label={t("Context")}
+                className={cn(
+                  outlined,
+                  "border-border-strong text-text-primary @max-[36rem]:w-10 @max-[36rem]:px-0 @[64rem]:hidden",
+                )}
+              >
+                <PanelRightOpen size={17} strokeWidth={1.5} aria-hidden />
+                <span className="@max-[36rem]:hidden">{t("Context")}</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setContextOpen(true)}
-              aria-label="Context"
-              className={cn(
-                outlined,
-                "border-border-strong text-text-primary @max-[36rem]:w-10 @max-[36rem]:px-0 @[64rem]:hidden",
-              )}
+              onClick={() => setHistoryOpen(true)}
+              disabled={!signedIn}
+              className={cn(outlined, "border-border-strong text-text-primary disabled:opacity-50")}
             >
-              <PanelRightOpen size={17} strokeWidth={1.5} aria-hidden />
-              <span className="@max-[36rem]:hidden">Context</span>
+              <Clock3 size={17} strokeWidth={1.5} aria-hidden />
+              {t("History")}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setHistoryOpen(true)}
-            disabled={!signedIn}
-            className={cn(outlined, "border-border-strong text-text-primary disabled:opacity-50")}
-          >
-            <Clock3 size={17} strokeWidth={1.5} aria-hidden />
-            History
-          </button>
-          <button
-            type="button"
-            onClick={newChat}
-            disabled={!signedIn}
-            className={cn(outlined, "border-accent text-text-primary hover:border-accent-hover disabled:opacity-50")}
-          >
-            <Plus size={17} strokeWidth={1.5} aria-hidden className="text-accent" />
-            New chat
-          </button>
-        </div>
-      </header>
+            <button
+              type="button"
+              onClick={newChat}
+              disabled={!signedIn}
+              className={cn(outlined, "border-accent text-text-primary hover:border-accent-hover disabled:opacity-50")}
+            >
+              <Plus size={17} strokeWidth={1.5} aria-hidden className="text-accent" />
+              {t("New chat")}
+            </button>
+          </div>
+        }
+      />
 
       {!auth.ready ? (
-        <div aria-busy="true" aria-label="Loading" className="min-h-0 flex-1 rounded-panel border border-border-subtle bg-surface-panel" />
+        <div aria-busy="true" aria-label={t("Loading")} className="min-h-0 flex-1 rounded-panel border border-border-subtle bg-surface-panel" />
       ) : !signedIn ? (
         <section className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-panel border border-border-subtle bg-surface-panel px-6 text-center">
-          <h2 className="type-display text-text-primary">What&rsquo;s your next move?</h2>
+          <h2 className="type-display text-text-primary">{t("What’s your next move?")}</h2>
           <p className="type-body max-w-md text-text-secondary">
             {auth.available
-              ? "Elyra grounds every answer in your own balances, positions and the preferences you save. Sign in to begin."
-              : "Sign-in isn't configured on this deployment, so there is no account for Elyra to read."}
+              ? t("Elyra grounds every answer in your own balances, positions and the preferences you save. Sign in to begin.")
+              : t("Sign-in isn't configured on this deployment, so there is no account for Elyra to read.")}
           </p>
           {auth.available && (
             <button type="button" onClick={auth.login} className={cn(outlined, "border-accent text-text-primary")}>
-              Connect wallet
+              {t("Connect wallet")}
             </button>
           )}
         </section>
@@ -322,23 +325,23 @@ export function CapitalIntelligenceView({
           />
 
           {collapsed ? (
-            <aside aria-label="Your context" className="hidden min-h-0 @[64rem]:flex">
-              <Tip label="Show your context">
+            <aside aria-label={t("Your context")} className="hidden min-h-0 @[64rem]:flex">
+              <Tip label={t("Show your context")}>
                 <button
                   type="button"
                   onClick={() => setCollapsed(false)}
-                  aria-label="Expand your context"
+                  aria-label={t("Expand your context")}
                   aria-expanded={false}
                   className="flex w-12 flex-col items-center gap-3 rounded-panel border border-border-subtle bg-surface-panel py-4 text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary"
                 >
                   <PanelRightOpen size={18} strokeWidth={1.5} aria-hidden />
-                  <span className="type-label [writing-mode:vertical-rl]">Your context</span>
+                  <span className="type-label [writing-mode:vertical-rl]">{t("Your context")}</span>
                 </button>
               </Tip>
             </aside>
           ) : (
             <aside
-              aria-label="Your context"
+              aria-label={t("Your context")}
               className="hidden min-h-0 flex-col overflow-y-auto rounded-panel border border-border-subtle bg-surface-panel p-3 @[64rem]:flex"
             >
               <RailHeading onCollapse={() => setCollapsed(true)} />
@@ -352,8 +355,8 @@ export function CapitalIntelligenceView({
       <Dialog open={contextOpen} onOpenChange={setContextOpen}>
         <DialogContent side="right" surface="panel" className="w-[min(400px,calc(100vw-24px))] p-0">
           <DialogHeader className="sr-only">
-            <DialogTitle>Your context</DialogTitle>
-            <DialogDescription>Your portfolio, saved preferences and the data sources Elyra can read.</DialogDescription>
+            <DialogTitle>{t("Your context")}</DialogTitle>
+            <DialogDescription>{t("Your portfolio, saved preferences and the data sources Elyra can read.")}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3 pt-4">
             <RailHeading />

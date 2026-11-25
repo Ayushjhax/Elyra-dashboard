@@ -399,9 +399,11 @@ export function riskiestPosition(snapshot: PortfolioSnapshot): PerpPosition | nu
 export function holdingFor(
   snapshot: PortfolioSnapshot,
   symbol: string,
+  /** Narrows where the holding may be — a swap sizes only from the wallet it runs on. */
+  where: (holding: SpotHolding) => boolean = () => true,
 ): SpotHolding | null {
   const wanted = symbol.toUpperCase();
   return (
-    counted(snapshot).find((holding) => holding.symbol.toUpperCase() === wanted) ?? null
+    counted(snapshot).find((holding) => holding.symbol.toUpperCase() === wanted && where(holding)) ?? null
   );
 }

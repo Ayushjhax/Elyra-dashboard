@@ -61,25 +61,62 @@ const SOURCES = [
   "supabase/migrations/0021_arena.sql",
   "supabase/migrations/0022_agent_keys.sql",
   "supabase/migrations/0023_events.sql",
+  "supabase/migrations/0024_agent_rails.sql",
+  "supabase/migrations/0025_ai_funds.sql",
+  "supabase/migrations/0027_daily_briefing.sql",
+  "supabase/migrations/0028_trading_fills.sql",
+  "supabase/migrations/0029_copy_trading.sql",
+  "supabase/migrations/0030_strategy_designs.sql",
+  "supabase/migrations/0031_insider_watch.sql",
+  "supabase/migrations/0032_paper_account.sql",
+  "supabase/migrations/0033_market_reports.sql",
+  "supabase/migrations/0034_portfolio_tracking.sql",
+  "supabase/migrations/0035_scout.sql",
 ];
 
+/** The signals repo's migration, which is not checked out on every machine. */
+const SIGNALS = "../elyra-signals/migrations/0002_smart_money.sql";
+
 const TARGET = "supabase/migrations/_apply_all.sql";
+
+const headerFor = (name: string) => {
+  const bar = "=".repeat(Math.max(4, Math.floor((62 - name.length - 2) / 2)));
+  return `-- ${bar} ${name} ${bar}\n`;
+};
+
+/**
+ * The signals migration's section as the current bundle already carries it,
+ * for a machine without the signals repo. Null when the bundle has none.
+ */
+async function bundledSection(name: string): Promise<string | null> {
+  const existing = await readFile(TARGET, "utf8").catch(() => "");
+  const header = headerFor(name);
+  const start = existing.indexOf(header);
+  if (start === -1) return null;
+  const from = start + header.length;
+  const next = existing.slice(from).search(/^-- =+ \d{4}_[a-z0-9_]+\.sql =+$/m);
+  return (next === -1 ? existing.slice(from) : existing.slice(from, from + next)).trimEnd();
+}
 
 async function build(): Promise<string> {
   const parts: string[] = [HEADER];
 
   for (const path of SOURCES) {
+    const name = basename(path);
     let body: string;
     try {
       body = await readFile(path, "utf8");
     } catch {
-      console.error(`\n  ✗ Missing migration: ${path}\n`);
-      process.exit(1);
+      const kept = path === SIGNALS ? await bundledSection(name) : null;
+      if (kept === null) {
+        console.error(`\n  ✗ Missing migration: ${path}\n`);
+        process.exit(1);
+      }
+      console.warn(`  ! ${path} is not checked out; keeping the bundle's copy of ${name}`);
+      body = kept;
     }
 
-    const name = basename(path);
-    const bar = "=".repeat(Math.max(4, Math.floor((62 - name.length - 2) / 2)));
-    parts.push(`-- ${bar} ${name} ${bar}\n`);
+    parts.push(headerFor(name));
     parts.push(`${body.trimEnd()}\n\n`);
   }
 

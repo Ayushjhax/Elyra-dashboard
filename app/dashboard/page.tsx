@@ -3,6 +3,7 @@
 import { DashboardCards } from "@/components/dashboard/DashboardDrawer";
 import { RouteDrawer } from "@/components/shell/RouteDrawer";
 import { ElyraMark } from "@/components/ui/ElyraMark";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The Dashboard: the account at a glance.
@@ -14,12 +15,13 @@ import { ElyraMark } from "@/components/ui/ElyraMark";
 --------------------------------------------------------------------------- */
 
 export default function DashboardPage() {
+  const t = useT();
   return (
     <RouteDrawer
-      label="Dashboard"
+      label={t("Dashboard")}
       icon={<ElyraMark size={30} />}
-      title="Dashboard"
-      subtitle="Your account at a glance"
+      title={t("Dashboard")}
+      subtitle={t("Your account at a glance")}
     >
       <DashboardCards />
     </RouteDrawer>

@@ -9,6 +9,8 @@ import { WatchlistWidget } from "@/components/workspace/WatchlistWidget";
 import { useElyraStore } from "@/lib/store";
 import type { WidgetKey } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The left column: Watchlist, Live signals and Activity by default, in the
@@ -29,9 +31,9 @@ export interface WidgetProps {
 }
 
 const TITLES: Record<WidgetKey, string> = {
-  activity: "Activity",
-  watchlist: "Watchlist",
-  signals: "Live signals",
+  activity: msg("Activity"),
+  watchlist: msg("Watchlist"),
+  signals: msg("Live signals"),
 };
 
 const RENDER: Record<WidgetKey, (props: WidgetProps) => React.ReactNode> = {
@@ -41,13 +43,14 @@ const RENDER: Record<WidgetKey, (props: WidgetProps) => React.ReactNode> = {
 };
 
 function MoveControls({ widget, index, count }: { widget: WidgetKey; index: number; count: number }) {
+  const t = useT();
   const moveWidget = useElyraStore((state) => state.moveWidget);
-  const title = TITLES[widget];
+  const title = t(TITLES[widget]);
 
   return (
     <>
       <SectionControl
-        label={`Move ${title} up`}
+        label={t("Move {title} up", { title })}
         disabled={index === 0}
         onClick={() => moveWidget(widget, -1)}
         className="size-6"
@@ -55,7 +58,7 @@ function MoveControls({ widget, index, count }: { widget: WidgetKey; index: numb
         <ArrowUp size={14} strokeWidth={1.5} aria-hidden />
       </SectionControl>
       <SectionControl
-        label={`Move ${title} down`}
+        label={t("Move {title} down", { title })}
         disabled={index === count - 1}
         onClick={() => moveWidget(widget, 1)}
         className="size-6"
@@ -67,13 +70,14 @@ function MoveControls({ widget, index, count }: { widget: WidgetKey; index: numb
 }
 
 export function WidgetColumn({ className }: { className?: string }) {
+  const t = useT();
   const order = useElyraStore((state) => state.widgetOrder);
   const collapsed = useElyraStore((state) => state.collapsedWidgets);
   const toggle = useElyraStore((state) => state.toggleWidgetCollapsed);
 
   return (
     <aside
-      aria-label="Widgets"
+      aria-label={t("Widgets")}
       data-shell-column="widgets"
       className={cn("relative flex min-w-0 flex-col gap-[var(--gap-workspace)]", className)}
     >

@@ -15,6 +15,7 @@ import { SUI_TOKENS } from "@/lib/sui/tokens";
 import type { BuiltSuiStep } from "@/lib/sui/wire";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { runSuiTx, type SuiTxRun } from "@/lib/wallet/runSuiTx";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Sending and swapping on Sui.
@@ -32,16 +33,17 @@ import { runSuiTx, type SuiTxRun } from "@/lib/wallet/runSuiTx";
 --------------------------------------------------------------------------- */
 
 function useSuiSigner(): { address: string | null; publicKey: string | null; sign: (hash: `0x${string}`) => Promise<string> } {
+  const t = useT();
   const auth = useElyraAuth();
   const { signRawHash } = useSignRawHash();
   const address = isSuiAddress(auth.suiAddress) ? auth.suiAddress : null;
   const sign = useCallback(
     async (hash: `0x${string}`) => {
-      if (address === null) throw new Error("This account has no Sui wallet yet.");
+      if (address === null) throw new Error(t("This account has no Sui wallet yet."));
       const { signature } = await signRawHash({ address, chainType: "sui", hash });
       return signature;
     },
-    [address, signRawHash],
+    [address, signRawHash, t],
   );
   return { address, publicKey: auth.suiPublicKey, sign };
 }
@@ -106,6 +108,7 @@ interface BuiltSuiSend extends BuiltSuiStep {
 }
 
 export function SuiSendDialog({ initialCoin = "SUI", onClose }: { initialCoin?: string; onClose: () => void }) {
+  const t = useT();
   const signer = useSuiSigner();
   const feed = usePortfolio();
   const authedFetch = useAuthedFetch();
@@ -138,10 +141,10 @@ export function SuiSendDialog({ initialCoin = "SUI", onClose }: { initialCoin?: 
         body: JSON.stringify({ coin, to: trimmed, ...(sendMax ? { max: true } : { amount }) }),
       });
       const payload = (await response.json().catch(() => ({}))) as Partial<BuiltSuiSend> & { error?: string };
-      if (!response.ok || payload.tx === undefined) setError(payload.error ?? "That send could not be prepared.");
+      if (!response.ok || payload.tx === undefined) setError(payload.error ?? t("That send could not be prepared."));
       else setBuilt(payload as BuiltSuiSend);
     } catch {
-      setError("The server could not be reached.");
+      setError(t("The server could not be reached."));
     } finally {
       setBusy(null);
     }
@@ -165,55 +168,55 @@ export function SuiSendDialog({ initialCoin = "SUI", onClose }: { initialCoin?: 
 
   return (
     <Shell
-      title="Send on Sui"
-      description="Send SUI or a coin from your Sui wallet."
+      title={t("Send on Sui")}
+      description={t("Send SUI or a coin from your Sui wallet.")}
       onClose={onClose}
       footer={
         <>
           <Button size="sm" variant="quiet" onClick={built !== null && run === null && busy === null ? () => setBuilt(null) : onClose}>
-            {run?.ok === true ? "Done" : run !== null ? "Close" : built !== null ? "Back" : "Cancel"}
+            {run?.ok === true ? t("Done") : run !== null ? t("Close") : built !== null ? t("Back") : t("Cancel")}
           </Button>
           {signer.address !== null && run === null &&
             (built !== null ? (
               <Button size="sm" variant="accent" disabled={busy !== null} onClick={() => void confirm()}>
                 {busy === "sending" && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "sending" ? "Sending" : "Confirm send"}
+                {busy === "sending" ? t("Sending") : t("Confirm send")}
               </Button>
             ) : (
               <Button size="sm" variant="accent" disabled={!canReview} onClick={() => void review()}>
                 {busy === "building" && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "building" ? "Checking" : "Review"}
+                {busy === "building" ? t("Checking") : t("Review")}
               </Button>
             ))}
         </>
       }
     >
       {signer.address === null ? (
-        <p className="type-body-sm text-text-secondary">This account has no Sui wallet yet. Open the wallet to set one up.</p>
+        <p className="type-body-sm text-text-secondary">{t("This account has no Sui wallet yet. Open the wallet to set one up.")}</p>
       ) : run !== null ? (
-        <Done run={run} done={`Sent ${built?.amount ?? ""} ${built?.symbol ?? ""} on Sui.`} />
+        <Done run={run} done={t("Sent {amount} {symbol} on {network}.", { amount: built?.amount ?? "", symbol: built?.symbol ?? "", network: "Sui" })} />
       ) : built !== null ? (
         <>
           <p className="type-body-sm text-text-secondary">{built.summary}</p>
           <div className="rounded-card border border-border-subtle bg-surface-raised p-3">
-            <Eyebrow>To</Eyebrow>
+            <Eyebrow>{t("To")}</Eyebrow>
             <p className="type-mono-addr mt-1 break-all text-text-primary">{built.to}</p>
           </div>
-          {!built.verified && <p className="type-label text-text-muted">{built.symbol} is not on Elyra&rsquo;s verified list. Check the coin before sending it.</p>}
-          <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} SUI.</p>
+          {!built.verified && <p className="type-label text-text-muted">{t("{symbol} is not on Elyra’s verified list. Check the coin before sending it.", { symbol: built.symbol })}</p>}
+          <p className="type-label text-text-muted">{t("Network fee: up to {networkFeeMax} SUI.", { networkFeeMax: built.networkFeeMax })}</p>
           <div className="flex items-start gap-2 rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-negative" aria-hidden />
-            <p className="type-label text-text-secondary">Check the address. A send cannot be reversed, and funds sent on Sui arrive only on Sui.</p>
+            <p className="type-label text-text-secondary">{t("Check the address. A send cannot be reversed, and funds sent on Sui arrive only on Sui.")}</p>
           </div>
           <ErrorBox error={error} />
         </>
       ) : (
         <>
-          <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+          <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
             <div className="flex items-center gap-2">
               <input
                 inputMode="decimal"
-                value={sendMax ? "Everything" : amount}
+                value={sendMax ? t("Everything") : amount}
                 readOnly={sendMax}
                 onFocus={() => {
                   if (!sendMax) return;
@@ -225,7 +228,8 @@ export function SuiSendDialog({ initialCoin = "SUI", onClose }: { initialCoin?: 
                   setAmount(event.target.value);
                 }}
                 placeholder="0.00"
-                aria-label="Amount to send"
+                aria-label={t("Amount to send")}
+                data-amount-input
                 className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
               />
               <button
@@ -237,9 +241,9 @@ export function SuiSendDialog({ initialCoin = "SUI", onClose }: { initialCoin?: 
                 disabled={selected === null || selected.quantity <= 0}
                 className="type-label rounded-chip border border-border-subtle px-2 py-1 text-text-secondary hover:border-border-strong hover:text-text-primary disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
               >
-                Max
+                {t("Max")}
               </button>
-              <select value={selected?.value ?? coin} onChange={(event) => setCoin(event.target.value)} aria-label="Coin to send" className={SELECT}>
+              <select value={selected?.value ?? coin} onChange={(event) => setCoin(event.target.value)} aria-label={t("Coin to send")} className={SELECT}>
                 {options.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -248,21 +252,21 @@ export function SuiSendDialog({ initialCoin = "SUI", onClose }: { initialCoin?: 
               </select>
             </div>
             <span className="type-label text-text-muted">
-              {selected === null ? "No balance to send" : `Balance ${formatQty(selected.quantity, 6)} ${selected.label} on Sui`}
+              {selected === null ? t("No balance to send") : t("Balance {quantity} {label} on Sui", { quantity: formatQty(selected.quantity, 6), label: selected.label })}
             </span>
           </div>
-          <Eyebrow>Recipient address</Eyebrow>
+          <Eyebrow>{t("Recipient address")}</Eyebrow>
           <input
             value={recipient}
             onChange={(event) => setRecipient(event.target.value)}
-            placeholder="0x… (64 hex characters)"
-            aria-label="Recipient address"
+            placeholder={t("0x… (64 hex characters)")}
+            aria-label={t("Recipient address")}
             spellCheck={false}
             autoComplete="off"
             className={FIELD}
           />
           {trimmed.length > 0 && !isSuiAddress(trimmed) && (
-            <p className="type-label text-negative">That does not look like a Sui address (0x followed by 64 hex characters).</p>
+            <p className="type-label text-negative">{t("That does not look like a Sui address (0x followed by 64 hex characters).")}</p>
           )}
           <ErrorBox error={error} />
         </>
@@ -292,6 +296,7 @@ interface BuiltSuiSwap extends BuiltSuiStep {
 const OTHER = "__other";
 
 export function SuiSwapDialog({ initialFrom = "SUI", onClose }: { initialFrom?: string; onClose: () => void }) {
+  const t = useT();
   const signer = useSuiSigner();
   const feed = usePortfolio();
   const authedFetch = useAuthedFetch();
@@ -321,10 +326,10 @@ export function SuiSwapDialog({ initialFrom = "SUI", onClose }: { initialFrom?: 
         body: JSON.stringify({ from, to: target, amount, acknowledgeUnverified: to === OTHER && acknowledged }),
       });
       const payload = (await response.json().catch(() => ({}))) as Partial<BuiltSuiSwap> & { error?: string };
-      if (!response.ok || payload.tx === undefined) setError(payload.error ?? "That swap could not be quoted.");
+      if (!response.ok || payload.tx === undefined) setError(payload.error ?? t("That swap could not be quoted."));
       else setBuilt(payload as BuiltSuiSwap);
     } catch {
-      setError("The server could not be reached.");
+      setError(t("The server could not be reached."));
     } finally {
       setBusy(null);
     }
@@ -349,61 +354,62 @@ export function SuiSwapDialog({ initialFrom = "SUI", onClose }: { initialFrom?: 
 
   return (
     <Shell
-      title="Swap on Sui"
-      description="Swap between SUI and any coin on Sui."
+      title={t("Swap on Sui")}
+      description={t("Swap between SUI and any coin on Sui.")}
       onClose={onClose}
       footer={
         <>
           <Button size="sm" variant="quiet" onClick={built !== null && run === null && busy === null ? () => setBuilt(null) : onClose}>
-            {run?.ok === true ? "Done" : run !== null ? "Close" : built !== null ? "Back" : "Cancel"}
+            {run?.ok === true ? t("Done") : run !== null ? t("Close") : built !== null ? t("Back") : t("Cancel")}
           </Button>
           {signer.address !== null && run === null &&
             (built !== null ? (
               <Button size="sm" variant="accent" disabled={busy !== null} onClick={() => void confirm()}>
                 {busy === "signing" && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "signing" ? "Signing" : "Confirm swap"}
+                {busy === "signing" ? t("Signing") : t("Confirm swap")}
               </Button>
             ) : (
               <Button size="sm" variant="accent" disabled={!canReview} onClick={() => void review()}>
                 {busy === "quoting" && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "quoting" ? "Quoting" : "Review"}
+                {busy === "quoting" ? t("Quoting") : t("Review")}
               </Button>
             ))}
         </>
       }
     >
       {signer.address === null ? (
-        <p className="type-body-sm text-text-secondary">This account has no Sui wallet yet. Open the wallet to set one up.</p>
+        <p className="type-body-sm text-text-secondary">{t("This account has no Sui wallet yet. Open the wallet to set one up.")}</p>
       ) : run !== null ? (
-        <Done run={run} done={`Swapped ${built?.quote.sellAmount ?? ""} ${built?.quote.sellSymbol ?? ""} for ${built?.quote.buySymbol ?? ""} on Sui.`} />
+        <Done run={run} done={t("Swapped {sellAmount} {sellSymbol} for {buySymbol} on {network}.", { sellAmount: built?.quote.sellAmount ?? "", sellSymbol: built?.quote.sellSymbol ?? "", buySymbol: built?.quote.buySymbol ?? "", network: "Sui" })} />
       ) : built !== null ? (
         <>
           <dl className="flex flex-col gap-1.5 rounded-card border border-border-subtle bg-surface-raised p-3">
-            <Row label="You sell" value={`${built.quote.sellAmount} ${built.quote.sellSymbol}`} />
-            <Row label="You receive" value={`≈ ${built.quote.buyAmount} ${built.quote.buySymbol}`} />
-            <Row label="At least" value={`${built.quote.buyAmountMin} ${built.quote.buySymbol} (${built.quote.slippagePct}% slippage)`} />
-            <Row label="Route" value={`${built.quote.route} via LI.FI`} />
-            {built.quote.routeFeeUsd !== null && <Row label="Route fee" value={`${formatUsd(built.quote.routeFeeUsd)}, taken from the swap`} />}
+            <Row label={t("You sell")} value={`${built.quote.sellAmount} ${built.quote.sellSymbol}`} />
+            <Row label={t("You receive")} value={`≈ ${built.quote.buyAmount} ${built.quote.buySymbol}`} />
+            <Row label={t("At least")} value={t("{amount} {symbol} ({slippage}% slippage)", { amount: built.quote.buyAmountMin, symbol: built.quote.buySymbol, slippage: built.quote.slippagePct })} />
+            <Row label={t("Route")} value={t("{route} via LI.FI", { route: built.quote.route })} />
+            {built.quote.routeFeeUsd !== null && <Row label={t("Route fee")} value={t("{fee}, taken from the swap", { fee: formatUsd(built.quote.routeFeeUsd) })} />}
           </dl>
           {!built.quote.buyVerified && (
-            <p className="type-label text-caution">{built.quote.buySymbol} is not on Elyra&rsquo;s verified list. It will be shown in your wallet but never counted.</p>
+            <p className="type-label text-caution">{t("{buySymbol} is not on Elyra’s verified list. It will be shown in your wallet but never counted.", { buySymbol: built.quote.buySymbol })}</p>
           )}
-          <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} SUI. The swap was simulated and delivers at least the minimum above.</p>
+          <p className="type-label text-text-muted">{t("Network fee: up to {networkFeeMax} SUI. The swap was simulated and delivers at least the minimum above.", { networkFeeMax: built.networkFeeMax })}</p>
           <ErrorBox error={error} />
         </>
       ) : (
         <>
-          <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+          <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
             <div className="flex items-center gap-2">
               <input
                 inputMode="decimal"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
                 placeholder="0.00"
-                aria-label="Amount to sell"
+                aria-label={t("Amount to sell")}
+                data-amount-input
                 className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
               />
-              <select value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Coin to sell" className={SELECT}>
+              <select value={from} onChange={(event) => setFrom(event.target.value)} aria-label={t("Coin to sell")} className={SELECT}>
                 {SUI_TOKENS.map((token) => (
                   <option key={token.coinType} value={token.symbol}>
                     {token.symbol}
@@ -411,19 +417,19 @@ export function SuiSwapDialog({ initialFrom = "SUI", onClose }: { initialFrom?: 
                 ))}
               </select>
             </div>
-            <span className="type-label text-text-muted">{held === null ? "Reading balances…" : `Balance ${formatQty(held, 6)} ${from} on Sui`}</span>
+            <span className="type-label text-text-muted">{held === null ? t("Reading balances…") : t("Balance {held} {from} on Sui", { held: formatQty(held, 6), from })}</span>
           </div>
           <ArrowDown size={14} className="mx-auto text-text-muted" aria-hidden />
           <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="type-body-sm text-text-secondary">Receive</span>
-              <select value={to} onChange={(event) => setTo(event.target.value)} aria-label="Coin to buy" className={SELECT}>
+              <span className="type-body-sm text-text-secondary">{t("Receive")}</span>
+              <select value={to} onChange={(event) => setTo(event.target.value)} aria-label={t("Coin to buy")} className={SELECT}>
                 {SUI_TOKENS.map((token) => (
                   <option key={token.coinType} value={token.symbol}>
                     {token.symbol}
                   </option>
                 ))}
-                <option value={OTHER}>Other coin…</option>
+                <option value={OTHER}>{t("Other coin…")}</option>
               </select>
             </div>
             {to === OTHER && (
@@ -431,23 +437,23 @@ export function SuiSwapDialog({ initialFrom = "SUI", onClose }: { initialFrom?: 
                 <input
                   value={otherType}
                   onChange={(event) => setOtherType(event.target.value)}
-                  placeholder="0x…::module::NAME"
-                  aria-label="Coin type to buy"
+                  placeholder={t("0x…::module::NAME")}
+                  aria-label={t("Coin type to buy")}
                   spellCheck={false}
                   autoComplete="off"
                   className={FIELD}
                 />
                 {otherType.trim().length > 0 && !isCoinType(otherType) && (
-                  <p className="type-label text-negative">That is not a Sui coin type (0x…::module::NAME).</p>
+                  <p className="type-label text-negative">{t("That is not a Sui coin type (0x…::module::NAME).")}</p>
                 )}
                 <label className="type-label flex items-start gap-2 text-text-secondary">
                   <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-0.5" />
-                  I have checked this coin type. Anyone can create a coin under any name; Elyra has not verified this one and will not count it.
+                  {t("I have checked this coin type. Anyone can create a coin under any name; Elyra has not verified this one and will not count it.")}
                 </label>
               </>
             )}
           </div>
-          <p className="type-label text-text-muted">Quoted by LI.FI, which charges its own fee; the quote shows it.</p>
+          <p className="type-label text-text-muted">{t("Quoted by LI.FI, which charges its own fee; the quote shows it.")}</p>
           <ErrorBox error={error} />
         </>
       )}

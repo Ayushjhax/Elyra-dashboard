@@ -15,6 +15,8 @@ import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 import type { PerpPosition, SpotHolding } from "@/lib/portfolio/types";
 import type { WalletActivity } from "@/lib/wallet/types";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The workspace tables.
@@ -37,6 +39,7 @@ import type { WalletActivity } from "@/lib/wallet/types";
 
 /** A token on Ethereum or Robinhood Chain, linked to its contract's explorer page. */
 function EvmTokenLink({ row }: { row: SpotHolding }) {
+  const t = useT();
   const chain = evmChainOf(row);
   if (chain === null || row.address === null) return null;
   return (
@@ -44,8 +47,8 @@ function EvmTokenLink({ row }: { row: SpotHolding }) {
       href={evmTokenUrl(chain.key, row.address)}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`${row.symbol} on ${chain.explorer.name} (opens in a new tab)`}
-      title={`View on ${chain.explorer.name}`}
+      aria-label={t("{symbol} on {name} (opens in a new tab)", { symbol: row.symbol, name: chain.explorer.name })}
+      title={t("View on {name}", { name: chain.explorer.name })}
       className={cn(
         "relative ml-auto grid size-6 shrink-0 place-items-center rounded-control text-text-muted",
         "after:absolute after:-inset-1.5 hover:bg-surface-hover hover:text-text-primary",
@@ -64,6 +67,7 @@ export function BalancesTable({
   holdings: SpotHolding[];
   grouping: BalanceGrouping;
 }) {
+  const t = useT();
   const rows = useMemo(() => orderBalances(holdings, grouping), [holdings, grouping]);
   /* The Asset Passport opens for a wallet token with a mint — not native SOL,
      which has none, and not an exchange balance, which is the venue's ledger. */
@@ -74,7 +78,7 @@ export function BalancesTable({
   const columns: Column<SpotHolding>[] = [
     {
       key: "asset",
-      header: "Asset",
+      header: msg("Asset"),
       width: "24%",
       render: (row) => (
         <span className="flex min-w-0 items-center gap-1.5">
@@ -87,7 +91,7 @@ export function BalancesTable({
           </span>
           {!row.verified && (
             <span
-              title="Not in the verified token index — shown, never counted toward totals."
+              title={t("Not in the verified token index — shown, never counted toward totals.")}
               className="type-label shrink-0 rounded-chip border border-negative/40 px-1 text-negative"
             >
               !
@@ -100,8 +104,8 @@ export function BalancesTable({
             <button
               type="button"
               onClick={() => setPassport({ mint: passportMint(row) as string, symbol: row.symbol })}
-              aria-label={`Open the asset passport for ${row.symbol}`}
-              title="Asset passport"
+              aria-label={t("Open the asset passport for {symbol}", { symbol: row.symbol })}
+              title={t("Asset passport")}
               className={cn(
                 "relative ml-auto grid size-6 shrink-0 place-items-center rounded-control text-text-muted",
                 "after:absolute after:-inset-1.5 hover:bg-surface-hover hover:text-text-primary",
@@ -116,7 +120,7 @@ export function BalancesTable({
     },
     {
       key: "account",
-      header: "Account",
+      header: msg("Account"),
       width: "14%",
       className: "hidden @[38rem]:table-cell",
       render: (row) => {
@@ -133,7 +137,7 @@ export function BalancesTable({
     },
     {
       key: "balance",
-      header: "Balance",
+      header: msg("Balance"),
       align: "right",
       width: "14%",
       className: "hidden @[28rem]:table-cell",
@@ -141,13 +145,13 @@ export function BalancesTable({
     },
     {
       key: "price",
-      header: "Price",
+      header: msg("Price"),
       align: "right",
       width: "12%",
       className: "hidden @[52rem]:table-cell",
       render: (row) =>
         row.priceUsd === null ? (
-          <span className="text-text-muted" title="No market source prices this asset.">
+          <span className="text-text-muted" title={t("No market source prices this asset.")}>
             —
           </span>
         ) : (
@@ -156,17 +160,17 @@ export function BalancesTable({
     },
     {
       key: "change",
-      header: "24H",
+      header: msg("24h"),
       align: "right",
       width: "11%",
       className: "hidden @[44rem]:table-cell",
       render: (row) => (
-        <Delta pct={row.change24hPct} reason="No 24h price series for this asset." />
+        <Delta pct={row.change24hPct} reason={t("No 24h price series for this asset.")} />
       ),
     },
     {
       key: "value",
-      header: "Value",
+      header: msg("Value"),
       align: "right",
       width: "14%",
       render: (row) => (
@@ -174,8 +178,8 @@ export function BalancesTable({
           value={row.verified ? row.valueUsd : null}
           reason={
             row.verified
-              ? "No price source lists this asset."
-              : "Unverified token — shown but never counted."
+              ? t("No price source lists this asset.")
+              : t("Unverified token — shown but never counted.")
           }
           className="text-text-primary"
         />
@@ -183,7 +187,7 @@ export function BalancesTable({
     },
     {
       key: "allocation",
-      header: "Alloc",
+      header: msg("Alloc"),
       align: "right",
       width: "10%",
       className: "hidden @[58rem]:table-cell",
@@ -198,7 +202,7 @@ export function BalancesTable({
     },
     {
       key: "available",
-      header: "Available",
+      header: msg("Available"),
       align: "right",
       width: "13%",
       className: "hidden @[66rem]:table-cell",
@@ -213,7 +217,7 @@ export function BalancesTable({
   return (
     <>
       <DataTable
-        caption="Token balances across capital accounts"
+        caption={t("Token balances across capital accounts")}
         columns={columns}
         rows={rows}
         getRowKey={(row) => row.id}
@@ -230,6 +234,7 @@ export function BalancesTable({
 --------------------------------------------------------------------------- */
 
 export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
+  const t = useT();
   const rows = useMemo(
     () => [...positions].sort((a, b) => b.notionalUsd - a.notionalUsd),
     [positions],
@@ -238,18 +243,18 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
   const columns: Column<PerpPosition>[] = [
     {
       key: "position",
-      header: "Position",
+      header: msg("Position"),
       width: "22%",
       render: (row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-text-primary">{row.market}</span>
-          <span className="type-label truncate text-text-muted">Perpetual</span>
+          <span className="type-label truncate text-text-muted">{t("Perpetual")}</span>
         </span>
       ),
     },
     {
       key: "venue",
-      header: "Venue",
+      header: msg("Venue"),
       width: "14%",
       className: "hidden @[38rem]:table-cell",
       render: (row) => (
@@ -258,7 +263,7 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
     },
     {
       key: "side",
-      header: "Side",
+      header: msg("Side"),
       width: "14%",
       render: (row) => (
         /* Text, never colour alone — §36 and a screenshot both need it. */
@@ -270,14 +275,14 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
               : "border-negative/40 bg-negative-bg text-negative",
           )}
         >
-          {row.side === "long" ? "LONG" : "SHORT"}
+          {row.side === "long" ? t("LONG") : t("SHORT")}
           {row.leverage !== null && ` ${row.leverage.toFixed(0)}×`}
         </span>
       ),
     },
     {
       key: "size",
-      header: "Size",
+      header: msg("Size"),
       align: "right",
       width: "14%",
       className: "hidden @[30rem]:table-cell",
@@ -290,13 +295,13 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
     },
     {
       key: "entry",
-      header: "Entry",
+      header: msg("Entry"),
       align: "right",
       width: "12%",
       className: "hidden @[52rem]:table-cell",
       render: (row) =>
         row.entryPrice === null ? (
-          <span className="text-text-muted" title="This venue does not report an entry price.">
+          <span className="text-text-muted" title={t("This venue does not report an entry price.")}>
             —
           </span>
         ) : (
@@ -307,7 +312,7 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
     },
     {
       key: "mark",
-      header: "Current",
+      header: msg("Current"),
       align: "right",
       width: "12%",
       className: "hidden @[44rem]:table-cell",
@@ -322,14 +327,14 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
     },
     {
       key: "pnl",
-      header: "PnL",
+      header: msg("PnL"),
       align: "right",
       width: "16%",
       render: (row) => (
         <span className="flex flex-col items-end">
           <Money
             value={row.unrealizedPnlUsd}
-            reason="This venue does not report unrealized PnL."
+            reason={t("This venue does not report unrealized PnL.")}
             sign
             className={cn(
               row.unrealizedPnlUsd === null
@@ -346,8 +351,7 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
                 row.roePct >= 0 ? "text-positive" : "text-negative",
               )}
             >
-              {row.roePct >= 0 ? "+" : ""}
-              {row.roePct.toFixed(1)}% ROE
+              {t("{value}{roePct}% ROE", { value: row.roePct >= 0 ? "+" : "", roePct: row.roePct.toFixed(1) })}
             </span>
           )}
         </span>
@@ -355,7 +359,7 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
     },
     {
       key: "risk",
-      header: "Risk",
+      header: msg("Risk"),
       align: "right",
       width: "14%",
       className: "hidden @[60rem]:table-cell",
@@ -367,7 +371,7 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
           return (
             <span
               className="text-text-muted"
-              title="This venue did not report a liquidation price. It is never estimated."
+              title={t("This venue did not report a liquidation price. It is never estimated.")}
             >
               —
             </span>
@@ -385,9 +389,9 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
                   ? "text-accent"
                   : "text-text-secondary",
             )}
-            title={`Liquidation at $${formatPrice(row.liquidationPrice)}`}
+            title={t("Liquidation at ${liquidationPrice}", { liquidationPrice: formatPrice(row.liquidationPrice) })}
           >
-            {distance.toFixed(1)}% away
+            {t("{distance}% away", { distance: distance.toFixed(1) })}
           </span>
         );
       },
@@ -396,7 +400,7 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
 
   return (
     <DataTable
-      caption="Open positions across connected venues"
+      caption={t("Open positions across connected venues")}
       columns={columns}
       rows={rows}
       getRowKey={(row) => row.id}
@@ -415,12 +419,13 @@ export function PositionsTable({ positions }: { positions: PerpPosition[] }) {
 --------------------------------------------------------------------------- */
 
 export function HistoryTable({ items }: { items: WalletActivity[] }) {
+  const t = useT();
   const now = useMinute();
 
   const columns: Column<WalletActivity>[] = [
     {
       key: "time",
-      header: "Time",
+      header: msg("Time"),
       width: "16%",
       render: (row) => (
         <span className="tabular-nums text-text-secondary">
@@ -435,15 +440,15 @@ export function HistoryTable({ items }: { items: WalletActivity[] }) {
     },
     {
       key: "action",
-      header: "Action",
+      header: msg("Action"),
       width: "26%",
       render: (row) => (
-        <span className="min-w-0 truncate text-text-primary">{row.memo ?? "Transaction"}</span>
+        <span className="min-w-0 truncate text-text-primary">{row.memo ?? t("Transaction")}</span>
       ),
     },
     {
       key: "asset",
-      header: "Asset",
+      header: msg("Asset"),
       width: "14%",
       className: "hidden @[44rem]:table-cell",
       /* Decoding which mint moved needs a getTransaction per signature plus
@@ -452,7 +457,7 @@ export function HistoryTable({ items }: { items: WalletActivity[] }) {
       render: () => (
         <span
           className="text-text-muted"
-          title="Transfer contents are not decoded — open the transaction for detail."
+          title={t("Transfer contents are not decoded — open the transaction for detail.")}
         >
           —
         </span>
@@ -460,14 +465,14 @@ export function HistoryTable({ items }: { items: WalletActivity[] }) {
     },
     {
       key: "account",
-      header: "Account",
+      header: msg("Account"),
       width: "14%",
       className: "hidden @[38rem]:table-cell",
-      render: () => <span className="text-text-secondary">Spot</span>,
+      render: () => <span className="text-text-secondary">{t("Spot")}</span>,
     },
     {
       key: "amount",
-      header: "Amount",
+      header: msg("Amount"),
       align: "right",
       width: "14%",
       className: "hidden @[52rem]:table-cell",
@@ -475,7 +480,7 @@ export function HistoryTable({ items }: { items: WalletActivity[] }) {
     },
     {
       key: "status",
-      header: "Status",
+      header: msg("Status"),
       align: "right",
       width: "16%",
       render: (row) => (
@@ -495,7 +500,7 @@ export function HistoryTable({ items }: { items: WalletActivity[] }) {
     },
     {
       key: "link",
-      header: "Transaction",
+      header: msg("Transaction"),
       headerSrOnly: true,
       align: "right",
       width: "10%",
@@ -504,7 +509,7 @@ export function HistoryTable({ items }: { items: WalletActivity[] }) {
           href={row.href ?? txExplorerUrl(row.signature)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Open ${truncateMiddle(row.signature, 4, 4)} in the explorer`}
+          aria-label={t("Open {signature} in the explorer", { signature: truncateMiddle(row.signature, 4, 4) })}
           title={row.signature}
           className={cn(
             "inline-flex items-center gap-1 rounded-chip text-text-muted",
@@ -520,7 +525,7 @@ export function HistoryTable({ items }: { items: WalletActivity[] }) {
 
   return (
     <DataTable
-      caption="Recent account activity"
+      caption={t("Recent account activity")}
       columns={columns}
       rows={items}
       getRowKey={(row) => row.signature}

@@ -1,3 +1,5 @@
+import { msg } from "@/lib/i18n/translate";
+
 /* ---------------------------------------------------------------------------
    The health meter, as arithmetic rather than as a vibe.
 
@@ -86,19 +88,19 @@ export function toneFor(score: number | null): HealthTone {
 }
 
 function reasonFor(input: HealthInput, latency: number): string {
-  if (input.rpc === "unconfigured") return "Solana RPC is not configured";
-  if (input.rpc === "down") return "Solana RPC is not responding";
-  if (input.prices === "unconfigured") return "Pyth price feed is not configured";
-  if (input.prices === "down") return "Pyth price feed is not responding";
-  if (input.rpc === "degraded") return "Solana RPC is returning errors";
-  if (input.prices === "degraded") return "Pyth price feed is returning errors";
+  if (input.rpc === "unconfigured") return msg("Solana RPC is not configured");
+  if (input.rpc === "down") return msg("Solana RPC is not responding");
+  if (input.prices === "unconfigured") return msg("Pyth price feed is not configured");
+  if (input.prices === "down") return msg("Pyth price feed is not responding");
+  if (input.rpc === "degraded") return msg("Solana RPC is returning errors");
+  if (input.prices === "degraded") return msg("Pyth price feed is returning errors");
   if (latency < 1) {
-    return `Solana RPC is slow to answer${
+    return `${msg("Solana RPC is slow to answer")}${
       input.latencyMs === null ? "" : ` (${Math.round(input.latencyMs)}ms)`
     }`;
   }
-  if (input.rpc === "unknown" && input.prices === "unknown") return "Checking upstreams";
-  return "All upstreams responding";
+  if (input.rpc === "unknown" && input.prices === "unknown") return msg("Checking upstreams");
+  return msg("All upstreams responding");
 }
 
 export function health(input: HealthInput): Health {

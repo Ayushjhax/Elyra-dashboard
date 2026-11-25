@@ -319,6 +319,8 @@ export interface SwapPreview {
   unsignedTransaction?: string;
   /** Jupiter's handle for this order, required to submit the signed bytes. */
   quoteRef?: string;
+  /** What the order sells, for the swap guard to hold its simulation to. */
+  sell?: { mint: string; amount: string };
 }
 
 const fmt = (value: number, digits = 6): string =>
@@ -522,7 +524,18 @@ export async function previewSwap(input: {
       : "Nothing has been sent.",
     unsignedTransaction: signable ? unsignedTransaction : undefined,
     quoteRef: signable ? quote.data.quoteRef : undefined,
+    sell: { mint: from.mint, amount: baseUnits },
   };
+}
+
+/**
+ * The tokenized securities on the allowlist — every entry with an issuer
+ * (Backed's xStocks, Ondo's tokens) — for the tokenized-stocks page.
+ */
+export function tokenizedSecurities(): Array<TradableAsset & { symbol: string; issuer: Issuer }> {
+  return Object.entries(MINTS)
+    .filter((entry): entry is [string, TradableAsset & { issuer: Issuer }] => entry[1].issuer !== undefined)
+    .map(([symbol, asset]) => ({ ...asset, symbol }));
 }
 
 /** Resolves a symbol to a verified mint, for callers outside the swap path. */

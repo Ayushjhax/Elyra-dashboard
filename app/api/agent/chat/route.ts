@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { UsageLimitError, ensureConversation, runAgent } from "@/lib/agent";
+import { UsageLimitError, ensureConversation, runAgent, runTeam } from "@/lib/agent";
+import type { TeamTrace } from "@/lib/agent/events";
 import type { ChatStreamEvent } from "@/lib/agent/events";
 import { validateAttachments } from "@/lib/attachments";
 import { getSessionUser, hasProfile, profileUnavailable } from "@/lib/auth/session";
@@ -7,6 +8,9 @@ import { buildContext } from "@/lib/personalized/context";
 import { classifyIntent } from "@/lib/personalized/intent";
 import { planPreparedAction } from "@/lib/personalized/plan";
 import type { PreparedAction } from "@/lib/personalized/types";
+import { localeFromHeaders } from "@/lib/i18n/locales";
+import { personaById } from "@/lib/voice/personas";
+import { attachReply } from "@/lib/analysis/reports";
 
 /* ---------------------------------------------------------------------------
    The web surface.
@@ -36,6 +40,13 @@ import type { PreparedAction } from "@/lib/personalized/types";
    a stored action a review card can finish. It is read alongside the
    answer, and only for such a question — the context read is not paid for
    on every turn.
+
+   With `team: true` — which the website sends and the Android app does
+   not — the question is answered by the team (lib/agent/team): Research,
+   Strategy and Execution around one shared board, sized to the question.
+   The stream then also carries `team_plan`, `team_stage` and `team_review`
+   events, and Execution checks the same server-built preview before it is
+   sent. Everything else about the request is the same.
 --------------------------------------------------------------------------- */
 
 export type { ChatStreamEvent };
@@ -73,6 +84,10 @@ async function planFor(
 /* node:crypto and the exchange signing path need the Node runtime. */
 export const runtime = "nodejs";
 
+/* A team answer is several model calls (lib/agent/team holds them to 150s);
+   this leaves it room to finish and be saved. */
+export const maxDuration = 180;
+
 const MAX_MESSAGE_LENGTH = 4_000;
 
 export async function POST(request: Request) {
@@ -100,6 +115,12 @@ export async function POST(request: Request) {
       : "";
   const stream =
     typeof body === "object" && body !== null && (body as { stream?: unknown }).stream === true;
+  const team =
+    typeof body === "object" && body !== null && (body as { team?: unknown }).team === true;
+  /* A voice conversation names the persona that will say the reply. Only an
+     id on Elyra's list is taken; anything else is ignored, never quoted. */
+  const voice =
+    typeof body === "object" && body !== null ? (personaById((body as { voice?: unknown }).voice)?.id ?? undefined) : undefined;
 
   const checked = validateAttachments(
     typeof body === "object" && body !== null ? (body as { attachments?: unknown }).attachments : undefined,
@@ -134,21 +155,42 @@ export async function POST(request: Request) {
         };
         /* Read beside the answer, so the preview costs no extra wait. */
         const planning = planFor(trimmed, user);
+        /* A run that did deep research saved its facts (lib/analysis/reports.ts);
+           the reply the person reads is attached to that report once it is final. */
+        const startedAt = new Date().toISOString();
+        let researched = false;
+        const watch = (event: ChatStreamEvent) => {
+          if (
+            (event.type === "tools" && event.labels.some((label) => /deep research/i.test(label))) ||
+            (event.type === "team_stage" && typeof event.activity === "string" && /deep research/i.test(event.activity))
+          ) {
+            researched = true;
+          }
+          send(event);
+        };
         try {
           const conversationId = await ensureConversation({ userId, surface: "web" });
-          const { reply, runId, sources } = await runAgent({
+          const question = {
             userId,
             conversationId,
             message: trimmed,
-            surface: "web",
+            surface: "web" as const,
             sessionWallet: user.walletAddress,
             solanaAddress: user.solanaAddress,
             attachments,
-            onEvent: send,
-          });
+            /* The language the person reads the website in, from the same
+               cookie the pages use; it sets the reply's language only. */
+            locale: localeFromHeaders(request.headers.get("cookie"), request.headers.get("accept-language")),
+            voice,
+            onEvent: watch,
+          };
+          const { reply, runId, sources } = team
+            ? await runTeam({ ...question, planning })
+            : await runAgent(question);
           const planned = await planning;
           if (planned !== null) send({ type: "prepared_action", action: planned.action, id: planned.id });
           send({ type: "done", reply, runId, sources });
+          if (researched) await attachReply(userId, startedAt, reply).catch(() => undefined);
         } catch (error) {
           if (error instanceof UsageLimitError) {
             send({ type: "error", message: error.message });
@@ -183,15 +225,27 @@ export async function POST(request: Request) {
       surface: "web",
     });
 
-    const { reply, runId, sources } = await runAgent({
+    const question = {
       userId: user.userId,
       conversationId,
       message: trimmed,
-      surface: "web",
+      surface: "web" as const,
       sessionWallet: user.walletAddress,
       solanaAddress: user.solanaAddress,
       attachments,
-    });
+      locale: localeFromHeaders(request.headers.get("cookie"), request.headers.get("accept-language")),
+      voice,
+    };
+    let teamTrace: TeamTrace | null = null;
+    let answered: { reply: string; runId: string; sources: string[] };
+    if (team) {
+      const result = await runTeam({ ...question, planning });
+      teamTrace = result.team;
+      answered = result;
+    } else {
+      answered = await runAgent(question);
+    }
+    const { reply, runId, sources } = answered;
 
     const planned = await planning;
     return NextResponse.json({
@@ -199,6 +253,7 @@ export async function POST(request: Request) {
       runId,
       conversationId,
       sources,
+      ...(teamTrace === null ? {} : { team: teamTrace }),
       ...(planned === null ? {} : { preparedAction: planned.action, preparedActionId: planned.id }),
     });
   } catch (error) {

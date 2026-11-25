@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Layers } from "lucide-react";
 import { PortfolioView } from "@/components/invest/PortfolioView";
 import { RouteDrawer } from "@/components/shell/RouteDrawer";
+import { getTranslator } from "@/lib/i18n/server";
 import { PORTFOLIOS, portfolioById } from "@/lib/invest/catalog";
 
 /* ---------------------------------------------------------------------------
@@ -22,9 +23,10 @@ interface Props {
 export async function generateMetadata(props: Props) {
   const { id } = await props.params;
   const portfolio = portfolioById(id);
+  const t = await getTranslator();
   return portfolio === null
-    ? { title: "Intelligent Portfolios · Elyra" }
-    : { title: `${portfolio.name} · Elyra`, description: portfolio.summary };
+    ? { title: `${t("Intelligent Portfolios")} · Elyra` }
+    : { title: `${t(portfolio.name)} · Elyra`, description: t(portfolio.summary) };
 }
 
 export default async function InvestPortfolioPage(props: Props) {

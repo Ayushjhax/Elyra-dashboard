@@ -11,6 +11,7 @@ import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { RouteDrawer } from "@/components/shell/RouteDrawer";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Connections: what Elyra can read on the person's behalf.
@@ -31,31 +32,33 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 export function ConnectionsDrawer() {
+  const t = useT();
   return (
     <RouteDrawer
-      label="Connections"
+      label={t("Connections")}
       icon={<Link2 size={26} strokeWidth={1.5} />}
-      title="Connections"
-      subtitle="Bring your accounts into Elyra"
+      title={t("Connections")}
+      subtitle={t("Bring your accounts into Elyra")}
     >
       <ReadOnlyStrip />
       <ConnectionsBody />
       <p className="type-label flex items-center justify-center gap-1.5 pb-[env(safe-area-inset-bottom)] pt-1 text-text-muted">
         <Lock size={12} strokeWidth={1.5} aria-hidden />
-        Connection access stays read-only
+        {t("Connection access stays read-only")}
       </p>
     </RouteDrawer>
   );
 }
 
 function ReadOnlyStrip() {
+  const t = useT();
   return (
     <div className="flex items-start gap-3 rounded-card border border-border-subtle px-3 py-2.5">
       <ShieldCheck size={16} strokeWidth={1.5} aria-hidden className="mt-0.5 shrink-0 text-positive" />
       <p className="min-w-0">
-        <span className="type-body-sm block font-medium text-text-primary">Read-only access</span>
+        <span className="type-body-sm block font-medium text-text-primary">{t("Read-only access")}</span>
         <span className="type-label block text-text-secondary">
-          View balances and positions. Trading actions are unavailable here.
+          {t("View balances and positions. Trading actions are unavailable here.")}
         </span>
       </p>
     </div>
@@ -63,12 +66,13 @@ function ReadOnlyStrip() {
 }
 
 function ConnectionsBody() {
+  const t = useT();
   const auth = useElyraAuth();
 
   if (!auth.available) {
     return (
       <Notice>
-        <InlineNote>Sign-in is not configured on this deployment, so there is no account to connect anything to.</InlineNote>
+        <InlineNote>{t("Sign-in is not configured on this deployment, so there is no account to connect anything to.")}</InlineNote>
       </Notice>
     );
   }
@@ -77,7 +81,7 @@ function ConnectionsBody() {
     return (
       <Notice>
         <p role="status" className="type-body-sm text-text-muted">
-          Restoring your session…
+          {t("Restoring your session…")}
         </p>
       </Notice>
     );
@@ -87,11 +91,11 @@ function ConnectionsBody() {
     return (
       <Notice>
         <p className="type-body-sm text-text-secondary">
-          Sign in to connect Telegram, Polymarket and your exchanges.
+          {t("Sign in to connect Telegram, Polymarket and your exchanges.")}
         </p>
         <button type="button" onClick={auth.login} className={cn(primaryAction, "mt-3 w-full")}>
           <LogIn size={15} strokeWidth={1.5} aria-hidden />
-          Sign in
+          {t("Sign in")}
         </button>
       </Notice>
     );
@@ -146,6 +150,7 @@ function useConnectionRead<T>(url: string): [T | null | "failed", () => Promise<
 }
 
 function ConnectionCards() {
+  const t = useT();
   const feed = usePortfolio();
   const [prediction, reloadPrediction] = useConnectionRead<PredictionState>("/api/prediction/account");
   const [exchanges, reloadExchanges] = useConnectionRead<ExchangeState>("/api/exchanges");
@@ -172,7 +177,7 @@ function ConnectionCards() {
 
       <section aria-labelledby={exchangesId} className="flex flex-col gap-3 pt-2">
         <h2 id={exchangesId} className="type-eyebrow px-1 text-text-muted">
-          Exchanges
+          {t("Exchanges")}
         </h2>
         <HyperliquidCard state={exchanges} feed={feed} onChanged={exchangesChanged} />
         <BinanceCard state={exchanges} feed={feed} onChanged={exchangesChanged} />
@@ -180,7 +185,7 @@ function ConnectionCards() {
 
       <section aria-labelledby={agentsId} className="flex flex-col gap-3 pt-2">
         <h2 id={agentsId} className="type-eyebrow px-1 text-text-muted">
-          AI agents
+          {t("AI agents")}
         </h2>
         <AgentKeysCard />
       </section>

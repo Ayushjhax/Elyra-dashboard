@@ -14,6 +14,7 @@ import { WalletSync } from "@/components/wallet/WalletSync";
 import { useElyraStore } from "@/lib/store";
 import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The wallet drawer, opened from the rail's account menu, the header's wallet
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 export function WalletSheet() {
+  const t = useT();
   const open = useElyraStore((state) => state.walletSheetOpen);
   const setOpen = useElyraStore((state) => state.setWalletSheetOpen);
   const auth = useElyraAuth();
@@ -68,36 +70,36 @@ export function WalletSheet() {
       >
         <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-border-subtle pl-5 pr-3">
           <Wallet size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
-          <DialogTitle className="type-h2 min-w-0 flex-1 truncate font-sans">Wallet</DialogTitle>
+          <DialogTitle className="type-h2 min-w-0 flex-1 truncate font-sans">{t("Wallet")}</DialogTitle>
           {/* Radix requires a description or an explicit opt-out; this is the
               accessible summary of what the drawer holds. */}
           <DialogDescription className="sr-only">
-            Addresses, balances, assets and actions for your wallets on Solana, the EVM networks and Sui.
+            {t("Addresses, balances, assets and actions for your wallets on Solana, the EVM networks and Sui.")}
           </DialogDescription>
           {signedIn && (
             <IconButton
-              label={wallet.refreshing ? "Refreshing balances" : "Refresh balances"}
+              label={wallet.refreshing ? t("Refreshing balances") : t("Refresh balances")}
               onClick={wallet.refetch}
               disabled={wallet.refreshing}
             >
               <RefreshCw size={16} strokeWidth={1.5} aria-hidden className={cn(wallet.refreshing && "animate-spin")} />
             </IconButton>
           )}
-          <IconButton label="Close wallet" onClick={() => setOpen(false)}>
+          <IconButton label={t("Close wallet")} onClick={() => setOpen(false)}>
             <X size={17} strokeWidth={1.5} aria-hidden />
           </IconButton>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           {!auth.ready ? (
-            <div aria-busy="true" aria-label="Restoring your session" className="flex flex-col gap-3 p-5">
+            <div aria-busy="true" aria-label={t("Restoring your session")} className="flex flex-col gap-3 p-5">
               <span aria-hidden className="skeleton h-8 w-48" />
               <span aria-hidden className="skeleton h-9 w-40" />
               <span aria-hidden className="skeleton h-11 w-full rounded-control" />
             </div>
           ) : !signedIn ? (
             <div className="flex flex-col items-start gap-3 p-5">
-              <p className="type-body-sm text-text-secondary">Sign in to see your wallet, its balance and what it holds.</p>
+              <p className="type-body-sm text-text-secondary">{t("Sign in to see your wallet, its balance and what it holds.")}</p>
               {auth.available && (
                 <button
                   type="button"
@@ -107,7 +109,7 @@ export function WalletSheet() {
                   }}
                   className="type-body inline-flex h-10 items-center rounded-control bg-accent px-4 font-medium text-text-on-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover"
                 >
-                  Sign in
+                  {t("Sign in")}
                 </button>
               )}
             </div>

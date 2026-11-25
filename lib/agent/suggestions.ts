@@ -1,3 +1,5 @@
+import { englishTranslator, type Translator } from "@/lib/i18n/translate";
+
 /* ---------------------------------------------------------------------------
    Prompt text the interface offers to send to the agent.
 
@@ -11,12 +13,13 @@
  * seeds the first one only when it is a crypto asset, and SOL — the
  * terminal's home market — stands in otherwise.
  */
-export function suggestionChips(cryptoSymbol?: string | null): string[] {
+export function suggestionChips(cryptoSymbol?: string | null, t: Translator = englishTranslator): string[] {
   const symbol = cryptoSymbol?.trim() || "SOL";
+  /* Sent as the operator's own words, so they are in the operator's language. */
   return [
-    `Why is ${symbol} moving?`,
-    "What's moving in crypto today?",
-    "Explain how Solana staking works",
+    t("Why is {symbol} moving?", { symbol }),
+    t("What's moving in crypto today?"),
+    t("Explain how Solana staking works"),
   ];
 }
 

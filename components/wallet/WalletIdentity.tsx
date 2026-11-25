@@ -14,6 +14,7 @@ import { accountExplorerUrl } from "@/lib/solana/address";
 import { CLUSTER_LABEL, EXPECTED_CLUSTER } from "@/lib/solana/cluster";
 import type { WalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Who this wallet is, and which ledger it is on.
@@ -35,6 +36,7 @@ const ICON_LINK = cn(
 );
 
 export function WalletIdentity({ wallet }: { wallet: WalletDashboard }) {
+  const t = useT();
   const auth = useElyraAuth();
   const logos = useTickerLogos(SOL);
   const [receiving, setReceiving] = useState(false);
@@ -45,7 +47,7 @@ export function WalletIdentity({ wallet }: { wallet: WalletDashboard }) {
   const address = wallet.address;
 
   return (
-    <section aria-label="Wallet identity" className="px-5 pb-4 pt-4">
+    <section aria-label={t("Wallet identity")} className="px-5 pb-4 pt-4">
       <div className="flex items-center gap-3">
         <CoinMark symbol="SOL" {...logos("SOL")} size={32} className="border-0 bg-transparent" />
         <span className={cn("type-body-sm min-w-0 flex-1 truncate", wallet.wrongChain ? "text-negative" : "text-text-secondary")}>
@@ -61,7 +63,7 @@ export function WalletIdentity({ wallet }: { wallet: WalletDashboard }) {
 
       {address === null ? (
         <p className="type-body-sm mt-3 text-text-secondary">
-          {wallet.isLoading ? "Reading this account…" : "This account has no Solana wallet yet."}
+          {wallet.isLoading ? t("Reading this account…") : t("This account has no Solana wallet yet.")}
         </p>
       ) : (
         <div className="mt-2 flex items-center gap-0.5">
@@ -69,10 +71,10 @@ export function WalletIdentity({ wallet }: { wallet: WalletDashboard }) {
               copy button copies all of it. */}
           <span className="type-mono-addr mr-1.5 text-text-primary" title={address}>
             {truncateMiddle(address, 4, 4)}
-            <span className="sr-only"> (full address: {address})</span>
+            <span className="sr-only">{" "}{t("(full address: {address})", { address })}</span>
           </span>
-          <CopyButton value={address} label="wallet address" />
-          <IconButton label="Show QR code to receive" onClick={() => setReceiving(true)}>
+          <CopyButton value={address} label={t("wallet address")} />
+          <IconButton label={t("Show QR code to receive")} onClick={() => setReceiving(true)}>
             <QrCode size={15} strokeWidth={1.5} aria-hidden />
           </IconButton>
           <Tooltip>
@@ -81,13 +83,13 @@ export function WalletIdentity({ wallet }: { wallet: WalletDashboard }) {
                 href={accountExplorerUrl(address, wallet.cluster)}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="View on Solscan (opens in a new tab)"
+                aria-label={t("View on Solscan (opens in a new tab)")}
                 className={ICON_LINK}
               >
                 <ExternalLink size={15} strokeWidth={1.5} aria-hidden />
               </a>
             </TooltipTrigger>
-            <TooltipContent>View on Solscan</TooltipContent>
+            <TooltipContent>{t("View on Solscan")}</TooltipContent>
           </Tooltip>
         </div>
       )}
@@ -96,9 +98,7 @@ export function WalletIdentity({ wallet }: { wallet: WalletDashboard }) {
         <div role="alert" className="mt-3 flex items-start gap-2 rounded-control border border-negative/40 bg-negative-bg px-3 py-2">
           <AlertTriangle size={14} strokeWidth={1.5} aria-hidden className="mt-0.5 shrink-0 text-negative" />
           <p className="type-label text-text-secondary">
-            These are {CLUSTER_LABEL[wallet.cluster ?? "unknown"]} balances, not {CLUSTER_LABEL[EXPECTED_CLUSTER]} ones.
-            A Solana key is valid on every cluster, so the endpoint decides which ledger is read — point
-            SOLANA_RPC_URL at mainnet.
+            {t("These are {value} balances, not {value2} ones. A Solana key is valid on every cluster, so the endpoint decides which ledger is read — point SOLANA_RPC_URL at mainnet.", { value: t(CLUSTER_LABEL[wallet.cluster ?? "unknown"]), value2: t(CLUSTER_LABEL[EXPECTED_CLUSTER]) })}
           </p>
         </div>
       )}

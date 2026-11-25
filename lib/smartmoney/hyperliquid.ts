@@ -158,6 +158,11 @@ async function cohort(): Promise<Trader[]> {
   return cohortCache.value;
 }
 
+/** The cohort itself, for reads of what it just did (lib/scout/smartMoney.ts). */
+export function smartMoneyCohort(): Promise<Trader[]> {
+  return cohort();
+}
+
 /* --- consensus ------------------------------------------------------------ */
 
 export interface Holding {

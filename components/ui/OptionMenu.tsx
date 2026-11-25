@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    A single-choice menu, shared by the Portfolio drawer's and the Capital
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 export interface MenuOption {
   id: string;
+  /** English for a fixed choice (translated here); a name or address passes through. */
   label: string;
   /** A short second column — a truncated address. */
   detail?: string | null;
@@ -40,6 +42,7 @@ export function OptionMenu({
   align?: "start" | "end";
   className?: string;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -72,7 +75,7 @@ export function OptionMenu({
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`${label}: ${current.label}`}
+        aria-label={`${t(label)}: ${t(current.label)}`}
         onClick={() => setOpen((value) => !value)}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown" && !open) {
@@ -87,7 +90,7 @@ export function OptionMenu({
         )}
       >
         {Icon !== undefined && <Icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />}
-        <span className="min-w-0 truncate">{current.label}</span>
+        <span className="min-w-0 truncate">{t(current.label)}</span>
         <ChevronDown
           size={14}
           strokeWidth={1.5}
@@ -99,7 +102,7 @@ export function OptionMenu({
       {open && (
         <ul
           role="listbox"
-          aria-label={label}
+          aria-label={t(label)}
           onKeyDown={(event) => {
             const items = [...(root.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])];
             const at = items.indexOf(document.activeElement as HTMLElement);
@@ -143,7 +146,7 @@ export function OptionMenu({
                   )}
                 >
                   <Check size={13} strokeWidth={1.75} aria-hidden className={cn("shrink-0", selected ? "text-accent" : "opacity-0")} />
-                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{t(option.label)}</span>
                   {option.detail != null && <span className="type-mono-addr shrink-0 text-text-muted">{option.detail}</span>}
                 </button>
               </li>

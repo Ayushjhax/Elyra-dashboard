@@ -10,6 +10,7 @@ import { accountExplorerUrl } from "@/lib/solana/address";
 import type { Cluster } from "@/lib/solana/cluster";
 import type { WalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    What you can do with this wallet.
@@ -43,6 +44,7 @@ export const ROW = cn(
 
 /** The drawer's one primary action, on the wallet and network shown above it. */
 export function FundWallet({ address, cluster }: { address: string; cluster: Cluster | null }) {
+  const t = useT();
   const { fundWallet } = useFundWallet();
   const [busy, setBusy] = useState(false);
   const chain = cluster === null || cluster === "unknown" ? undefined : PRIVY_CHAIN[cluster];
@@ -67,7 +69,7 @@ export function FundWallet({ address, cluster }: { address: string; cluster: Clu
         )}
       >
         <Plus size={18} strokeWidth={1.75} aria-hidden />
-        {busy ? "Opening…" : "Fund wallet"}
+        {busy ? t("Opening…") : t("Fund wallet")}
       </button>
     </div>
   );
@@ -75,6 +77,7 @@ export function FundWallet({ address, cluster }: { address: string; cluster: Clu
 
 /** An embedded wallet's key, through Privy's export flow and nothing else. */
 function ExportRow({ address }: { address: string }) {
+  const t = useT();
   const { exportWallet } = useExportWallet();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,13 +94,13 @@ function ExportRow({ address }: { address: string }) {
           /* Resolves when the person closes Privy's window, whatever they did
              in it, so there is no success to report — only a row to re-enable. */
           exportWallet({ address })
-            .catch(() => setError("Privy couldn't open the export window. Try again."))
+            .catch(() => setError(t("Privy couldn't open the export window. Try again.")))
             .finally(() => setBusy(false));
         }}
         className={ROW}
       >
         <KeyRound size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
-        <span className="flex-1">{busy ? "Opening export…" : "Export wallet"}</span>
+        <span className="flex-1">{busy ? t("Opening export…") : t("Export wallet")}</span>
         <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
       </button>
       {error !== null && (
@@ -110,6 +113,7 @@ function ExportRow({ address }: { address: string }) {
 }
 
 export function WalletActions({ wallet, onSignedOut }: { wallet: WalletDashboard; onSignedOut: () => void }) {
+  const t = useT();
   const auth = useElyraAuth();
   const router = useRouter();
   const address = wallet.address;
@@ -134,7 +138,7 @@ export function WalletActions({ wallet, onSignedOut }: { wallet: WalletDashboard
       onSignedOut();
       router.push("/");
     } catch (failure: unknown) {
-      setError(failure instanceof Error ? failure.message : "Disconnecting failed. Try again.");
+      setError(failure instanceof Error ? failure.message : t("Disconnecting failed. Try again."));
     } finally {
       setBusy(false);
     }
@@ -143,18 +147,18 @@ export function WalletActions({ wallet, onSignedOut }: { wallet: WalletDashboard
   return (
     <>
       {address !== null && (
-        <section aria-label="Wallet actions" className="mx-5 border-t border-border-subtle py-2">
+        <section aria-label={t("Wallet actions")} className="mx-5 border-t border-border-subtle py-2">
           {auth.available && embedded ? (
             <ExportRow address={address} />
           ) : (
             <div className={cn(ROW, "cursor-default hover:bg-transparent")}>
               <KeyRound size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
               <span className="flex-1 text-text-secondary">
-                Export wallet
+                {t("Export wallet")}
                 <span className="type-label block text-text-muted">
                   {holder === null
-                    ? "This wallet's key isn't held by Elyra, so it is exported from the app that holds it."
-                    : `This key is held by ${holder} — export it from there.`}
+                    ? t("This wallet's key isn't held by Elyra, so it is exported from the app that holds it.")
+                    : t("This key is held by {holder} — export it from there.", { holder })}
                 </span>
               </span>
             </div>
@@ -162,15 +166,15 @@ export function WalletActions({ wallet, onSignedOut }: { wallet: WalletDashboard
           <a href={accountExplorerUrl(address, wallet.cluster)} target="_blank" rel="noopener noreferrer" className={ROW}>
             <ExternalLink size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
             <span className="flex-1">
-              View on explorer
-              <span className="sr-only"> (Solscan, opens in a new tab)</span>
+              {t("View on explorer")}
+              <span className="sr-only">{" "}{t("(Solscan, opens in a new tab)")}</span>
             </span>
             <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
           </a>
         </section>
       )}
 
-      <section aria-label="Disconnect" className="mx-5 border-t border-border-subtle py-2">
+      <section aria-label={t("Disconnect")} className="mx-5 border-t border-border-subtle py-2">
         <button
           type="button"
           onClick={() => void disconnect()}
@@ -180,9 +184,9 @@ export function WalletActions({ wallet, onSignedOut }: { wallet: WalletDashboard
         >
           <Power size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
           <span className="flex-1">
-            {busy ? "Disconnecting…" : "Disconnect"}
+            {busy ? t("Disconnecting…") : t("Disconnect")}
             <span id="wallet-disconnect-note" className="type-label block text-text-muted">
-              Signs you out of Elyra. Nothing is deleted.
+              {t("Signs you out of Elyra. Nothing is deleted.")}
             </span>
           </span>
           <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-negative/70" />

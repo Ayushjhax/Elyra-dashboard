@@ -26,6 +26,8 @@ import { hyperliquidIcon, useTickerLogos } from "@/lib/market/tickerLogos";
 import type { PortfolioFeed } from "@/lib/portfolio/usePortfolio";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Exchanges: where Elyra reads venue accounts from.
@@ -56,9 +58,9 @@ type Read = ExchangeState | null | "failed";
 
 function statusOf(feed: PortfolioFeed, venue: string): { badge: ConnectionStatus; label: string; reason: string | null } {
   const read = venueRead(feed, venue);
-  if (read.status === "synced") return { badge: "connected", label: "Synced", reason: null };
-  if (read.status === "checking") return { badge: "checking", label: "Checking", reason: null };
-  return { badge: "attention", label: "Needs attention", reason: read.reason };
+  if (read.status === "synced") return { badge: "connected", label: msg("Synced"), reason: null };
+  if (read.status === "checking") return { badge: "checking", label: msg("Checking"), reason: null };
+  return { badge: "attention", label: msg("Needs attention"), reason: read.reason };
 }
 
 /**
@@ -72,17 +74,18 @@ function useReadingAfterChange(feed: PortfolioFeed): [waiting: boolean, markChan
   return [changedAt !== null && (feed.fetchedAt ?? 0) < changedAt, markChanged];
 }
 
-const CHECKING = { badge: "checking" as const, label: "Checking", reason: null };
+const CHECKING = { badge: "checking" as const, label: msg("Checking"), reason: null };
 
 /** A failed venue read, with the way to ask again. */
 function ReadFailure({ reason, feed }: { reason: string; feed: PortfolioFeed }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
       <InlineNote tone="caution" className="min-w-0 flex-1">
-        Could not read the account: {reason}
+        {t("Could not read the account: {reason}", { reason })}
       </InlineNote>
       <button type="button" onClick={feed.refetch} disabled={feed.refreshing} className={textAction}>
-        {feed.refreshing ? "Reading…" : "Try again"}
+        {feed.refreshing ? t("Reading…") : t("Try again")}
       </button>
     </div>
   );
@@ -105,6 +108,7 @@ export function HyperliquidCard({
   /** Re-read the stored connections and the portfolio that reads through them. */
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const accountFetch = useAccountFetch();
   const [manualOpen, setManualOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -125,13 +129,13 @@ export function HyperliquidCard({
     try {
       const response = await accountFetch("/api/exchanges?exchange=hyperliquid", { method: "DELETE" });
       if (!response.ok) {
-        setError("Could not remove the saved address. It is still the one being read.");
+        setError(t("Could not remove the saved address. It is still the one being read."));
         return;
       }
       markChanged();
       await onChanged();
     } catch {
-      setError("Could not remove the saved address. It is still the one being read.");
+      setError(t("Could not remove the saved address. It is still the one being read."));
     } finally {
       setRemoving(false);
     }
@@ -145,11 +149,11 @@ export function HyperliquidCard({
   const read = address === null ? null : waiting ? CHECKING : statusOf(feed, "hyperliquid");
   const [badge, label]: [ConnectionStatus, string] =
     state === null
-      ? ["checking", "Checking"]
+      ? ["checking", t("Checking")]
       : state === "failed" && address === null
-        ? ["attention", "Couldn't check"]
+        ? ["attention", t("Couldn't check")]
         : read === null
-          ? ["not-connected", "Not connected"]
+          ? ["not-connected", t("Not connected")]
           : [read.badge, read.label];
 
   return (
@@ -161,33 +165,32 @@ export function HyperliquidCard({
         </MarkTile>
       }
       title="Hyperliquid"
-      subtitle="Wallet access · No API key needed"
+      subtitle={t("Wallet access · No API key needed")}
       status={<StatusBadge name="Hyperliquid" status={badge} label={label} />}
     >
       {state === null ? (
-        <p className="type-body-sm text-text-muted">Checking for a wallet…</p>
+        <p className="type-body-sm text-text-muted">{t("Checking for a wallet…")}</p>
       ) : (
         <>
           {address !== null ? (
             <>
               <div className="flex items-center gap-2 rounded-card border border-border-subtle bg-surface-base py-1 pl-3 pr-1">
                 <span className="type-label shrink-0 text-text-muted">
-                  {stored === null ? "Session wallet" : "Saved address"}
+                  {stored === null ? t("Session wallet") : t("Saved address")}
                 </span>
                 <span className="type-mono-addr min-w-0 flex-1 truncate text-right text-text-primary" title={address}>
                   <span aria-hidden>{truncateMiddle(address, 6, 4)}</span>
                   <span className="sr-only">{address}</span>
                 </span>
-                <CopyButton value={address} label="Hyperliquid address" />
+                <CopyButton value={address} label={t("Hyperliquid address")} />
               </div>
               {read?.reason !== null && read?.reason !== undefined && <ReadFailure reason={read.reason} feed={feed} />}
             </>
           ) : state === "failed" ? (
-            <InlineError>Could not check which address Hyperliquid is read from.</InlineError>
+            <InlineError>{t("Could not check which address Hyperliquid is read from.")}</InlineError>
           ) : (
             <InlineNote>
-              This account has no EVM wallet to read Hyperliquid from. Enter the address that holds your Hyperliquid
-              account instead.
+              {t("This account has no EVM wallet to read Hyperliquid from. Enter the address that holds your Hyperliquid account instead.")}
             </InlineNote>
           )}
 
@@ -199,7 +202,7 @@ export function HyperliquidCard({
                 disabled={removing}
                 className={cn(quietAction, "h-9 px-3")}
               >
-                {removing ? "Removing…" : session === null ? "Remove saved address" : "Use session wallet instead"}
+                {removing ? t("Removing…") : session === null ? t("Remove saved address") : t("Use session wallet instead")}
               </button>
             </div>
           ) : canSave && address === null ? (
@@ -207,7 +210,7 @@ export function HyperliquidCard({
           ) : canSave ? (
             <>
               <CardRule />
-              <Disclosure open={manualOpen} onOpenChange={setManualOpen} label="Read a different address">
+              <Disclosure open={manualOpen} onOpenChange={setManualOpen} label={t("Read a different address")}>
                 <HyperliquidAddressForm onSaved={saved} />
               </Disclosure>
             </>
@@ -238,6 +241,7 @@ type HyperliquidCheck =
  * saving is a second press, made after the person has seen what is there.
  */
 function HyperliquidAddressForm({ onSaved }: { onSaved: () => Promise<void> }) {
+  const t = useT();
   const accountFetch = useAccountFetch();
   const [draft, setDraft] = useState("");
   const [touched, setTouched] = useState(false);
@@ -268,10 +272,10 @@ function HyperliquidAddressForm({ onSaved }: { onSaved: () => Promise<void> }) {
       setCheck(
         response.ok && body.found !== undefined
           ? { phase: "found", found: body.found }
-          : { phase: "failed", error: body.error ?? "Could not read that address. Try again." },
+          : { phase: "failed", error: body.error ?? t("Could not read that address. Try again.") },
       );
     } catch {
-      setCheck({ phase: "failed", error: "Could not reach Elyra to read that address." });
+      setCheck({ phase: "failed", error: t("Could not reach Elyra to read that address.") });
     } finally {
       inFlight.current = false;
     }
@@ -289,12 +293,12 @@ function HyperliquidAddressForm({ onSaved }: { onSaved: () => Promise<void> }) {
       });
       if (!response.ok) {
         const body = await readJson<{ error: string }>(response);
-        setSaveError(body.error ?? "Could not save that address. Nothing was changed.");
+        setSaveError(body.error ?? t("Could not save that address. Nothing was changed."));
         return;
       }
       await onSaved();
     } catch {
-      setSaveError("Could not save that address. Nothing was changed.");
+      setSaveError(t("Could not save that address. Nothing was changed."));
     } finally {
       inFlight.current = false;
       setSaving(false);
@@ -311,7 +315,7 @@ function HyperliquidAddressForm({ onSaved }: { onSaved: () => Promise<void> }) {
         }}
       >
         <label htmlFor={inputId} className="type-label text-text-secondary">
-          Hyperliquid address
+          {t("Hyperliquid address")}
         </label>
         <div className="flex gap-2">
           <input
@@ -331,16 +335,16 @@ function HyperliquidAddressForm({ onSaved }: { onSaved: () => Promise<void> }) {
             className={cn(fieldInput, "type-mono-addr flex-1")}
           />
           <button type="submit" disabled={!valid || busy} className={cn(quietAction, "shrink-0 px-4")}>
-            {check.phase === "checking" ? "Checking…" : "Check"}
+            {check.phase === "checking" ? t("Checking…") : t("Check")}
           </button>
         </div>
         {invalid && (
           <p id={errorId} className="type-label text-negative">
-            An address starts 0x and is 42 characters long.
+            {t("An address starts 0x and is 42 characters long.")}
           </p>
         )}
         <p id={hintId} className="type-label text-text-muted">
-          The address you trade from on Hyperliquid. It is read, never traded from.
+          {t("The address you trade from on Hyperliquid. It is read, never traded from.")}
         </p>
       </form>
 
@@ -363,6 +367,7 @@ function HyperliquidFoundCard({
   saving: boolean;
   onSave: () => void;
 }) {
+  const t = useT();
   const empty = found.accountValueUsd === 0 && found.positionCount === 0 && found.spotBalanceCount === 0;
   return (
     <div role="status" className="rounded-card border border-border-subtle bg-surface-base p-3">
@@ -370,17 +375,16 @@ function HyperliquidFoundCard({
         {truncateMiddle(found.address, 6, 4)}
       </p>
       {empty ? (
-        <p className="type-body-sm mt-1 text-text-primary">Nothing held at this address</p>
+        <p className="type-body-sm mt-1 text-text-primary">{t("Nothing held at this address")}</p>
       ) : (
         <p className="type-body-sm mt-1 text-text-primary">
-          Account value <span className="tabular-nums">{formatUsd(found.accountValueUsd)}</span> ·{" "}
-          {found.positionCount} open position{found.positionCount === 1 ? "" : "s"}
+          {t("Account value")}{" "}<span className="tabular-nums">{formatUsd(found.accountValueUsd)}</span>{" "}{(found.positionCount === 1 ? t("· {positionCount} open position", { positionCount: found.positionCount }) : t("· {positionCount} open positions", { positionCount: found.positionCount }))}
           {found.spotBalanceCount > 0 &&
-            ` · ${found.spotBalanceCount} spot balance${found.spotBalanceCount === 1 ? "" : "s"}`}
+            (found.spotBalanceCount === 1 ? t(" · {spotBalanceCount} spot balance", { spotBalanceCount: found.spotBalanceCount }) : t(" · {spotBalanceCount} spot balances", { spotBalanceCount: found.spotBalanceCount }))}
         </p>
       )}
       {empty && (
-        <p className="type-label mt-1 text-text-muted">Use it anyway if the account is new. Otherwise, check the address.</p>
+        <p className="type-label mt-1 text-text-muted">{t("Use it anyway if the account is new. Otherwise, check the address.")}</p>
       )}
       <button
         type="button"
@@ -388,7 +392,7 @@ function HyperliquidFoundCard({
         disabled={saving}
         className={cn(empty ? quietAction : primaryAction, "mt-3 h-9 w-full")}
       >
-        {saving ? "Saving…" : empty ? "Use it anyway" : "This is mine — use it"}
+        {saving ? t("Saving…") : empty ? t("Use it anyway") : t("This is mine — use it")}
       </button>
     </div>
   );
@@ -408,6 +412,7 @@ export function BinanceCard({
   /** Re-read the stored connections and the portfolio that reads through them. */
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const accountFetch = useAccountFetch();
   const logos = useTickerLogos(BNB);
   const now = useMinute();
@@ -438,7 +443,7 @@ export function BinanceCard({
       });
       const body = await readJson<{ error: string; ipRestricted: boolean }>(response);
       if (!response.ok) {
-        setError(body.error ?? "Could not connect Binance. Nothing was saved.");
+        setError(body.error ?? t("Could not connect Binance. Nothing was saved."));
         return false;
       }
       setReplacing(false);
@@ -447,7 +452,7 @@ export function BinanceCard({
       await onChanged();
       return true;
     } catch {
-      setError("Could not reach Elyra to connect Binance. Nothing was saved.");
+      setError(t("Could not reach Elyra to connect Binance. Nothing was saved."));
       return false;
     } finally {
       inFlight.current = false;
@@ -463,13 +468,13 @@ export function BinanceCard({
     try {
       const response = await accountFetch("/api/exchanges?exchange=binance", { method: "DELETE" });
       if (!response.ok) {
-        setError("Could not disconnect Binance. The key is still stored.");
+        setError(t("Could not disconnect Binance. The key is still stored."));
         return;
       }
       setJustConnected(null);
       await onChanged();
     } catch {
-      setError("Could not disconnect Binance. The key is still stored.");
+      setError(t("Could not disconnect Binance. The key is still stored."));
     } finally {
       inFlight.current = false;
       setDisconnecting(false);
@@ -479,14 +484,14 @@ export function BinanceCard({
   const read = row === null ? null : waiting ? CHECKING : statusOf(feed, "binance");
   const [badge, label]: [ConnectionStatus, string] =
     state === null
-      ? ["checking", "Checking"]
+      ? ["checking", t("Checking")]
       : submitting
-        ? ["connecting", "Connecting"]
+        ? ["connecting", t("Connecting")]
         : read !== null
           ? [read.badge, read.label]
           : savedUnknown
-            ? ["attention", "Couldn't check"]
-            : ["not-connected", "Not connected"];
+            ? ["attention", t("Couldn't check")]
+            : ["not-connected", t("Not connected")];
 
   return (
     <ConnectionCard
@@ -497,16 +502,16 @@ export function BinanceCard({
         </MarkTile>
       }
       title="Binance"
-      subtitle="Read your positions and equity."
+      subtitle={t("Read your positions and equity.")}
       status={<StatusBadge name="Binance" status={badge} label={label} />}
     >
       {state === null ? (
-        <p className="type-body-sm text-text-muted">Checking for a stored key…</p>
+        <p className="type-body-sm text-text-muted">{t("Checking for a stored key…")}</p>
       ) : savedUnknown && row === null ? (
         <InlineError>
           {state !== "failed" && state.unavailable !== undefined
             ? state.unavailable
-            : "Could not check whether a Binance key is stored."}
+            : t("Could not check whether a Binance key is stored.")}
         </InlineError>
       ) : row !== null && !replacing ? (
         <>
@@ -514,10 +519,10 @@ export function BinanceCard({
             <KeyRound size={15} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
             <div className="min-w-0 flex-1">
               <p className="type-body-sm text-text-primary">
-                {row.keyLastFour === null ? "API key stored" : `Key ending ${row.keyLastFour}`}
+                {row.keyLastFour === null ? t("API key stored") : t("Key ending {keyLastFour}", { keyLastFour: row.keyLastFour })}
               </p>
               {now !== null && (
-                <p className="type-label text-text-muted">Connected {formatRelativeTime(row.connectedAt, now)}</p>
+                <p className="type-label text-text-muted">{t("Connected {connectedAt}", { connectedAt: formatRelativeTime(row.connectedAt, now, t.locale) })}</p>
               )}
             </div>
           </div>
@@ -525,15 +530,15 @@ export function BinanceCard({
           {read?.reason !== null && read?.reason !== undefined && <ReadFailure reason={read.reason} feed={feed} />}
           {justConnected !== null && !justConnected.ipRestricted && (
             <InlineNote tone="caution" icon={Info}>
-              This key has no IP allowlist. Adding one in Binance limits where the key can be used from.
+              {t("This key has no IP allowlist. Adding one in Binance limits where the key can be used from.")}
             </InlineNote>
           )}
 
           <ConfirmAction
-            trigger="Disconnect"
-            question="Remove the stored key?"
-            confirm="Disconnect"
-            pendingLabel="Removing…"
+            trigger={t("Disconnect")}
+            question={t("Remove the stored key?")}
+            confirm={t("Disconnect")}
+            pendingLabel={t("Removing…")}
             pending={disconnecting}
             onConfirm={() => void disconnect()}
             beside={
@@ -545,7 +550,7 @@ export function BinanceCard({
                 }}
                 className={cn(quietAction, "h-9 px-3")}
               >
-                Replace key
+                {t("Replace key")}
               </button>
             }
           />
@@ -581,6 +586,7 @@ function BinanceForm({
   onSubmit: (apiKey: string, apiSecret: string) => Promise<boolean>;
   onCancel?: () => void;
 }) {
+  const t = useT();
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
@@ -620,12 +626,12 @@ function BinanceForm({
     >
       <p className="type-label flex items-center gap-2 rounded-control border border-border-subtle bg-surface-base px-3 py-2 text-text-secondary">
         <Info size={14} strokeWidth={1.5} aria-hidden className="shrink-0" />
-        Read-only API access required
+        {t("Read-only API access required")}
       </p>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor={keyId} className="type-label text-text-secondary">
-          API key
+          {t("API key")}
         </label>
         <div className="relative">
           <KeyRound
@@ -644,7 +650,7 @@ function BinanceForm({
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="Paste your API key"
+            placeholder={t("Paste your API key")}
             aria-invalid={keyInvalid}
             aria-describedby={keyInvalid ? `${keyErrorId} ${noteId}` : noteId}
             className={cn(fieldInput, "type-mono-addr pl-9")}
@@ -652,14 +658,14 @@ function BinanceForm({
         </div>
         {keyInvalid && (
           <p id={keyErrorId} className="type-label text-negative">
-            Paste the whole key — letters and numbers only, no spaces.
+            {t("Paste the whole key — letters and numbers only, no spaces.")}
           </p>
         )}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor={secretId} className="type-label text-text-secondary">
-          API secret
+          {t("API secret")}
         </label>
         <div className="relative">
           <Lock
@@ -680,7 +686,7 @@ function BinanceForm({
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="Paste your API secret"
+            placeholder={t("Paste your API secret")}
             aria-invalid={secretInvalid}
             aria-describedby={secretInvalid ? `${secretErrorId} ${noteId}` : noteId}
             className={cn(fieldInput, "type-mono-addr pl-9 pr-11")}
@@ -688,7 +694,7 @@ function BinanceForm({
           <button
             type="button"
             onClick={() => setShowSecret(!showSecret)}
-            aria-label={showSecret ? "Hide API secret" : "Show API secret"}
+            aria-label={showSecret ? t("Hide API secret") : t("Show API secret")}
             aria-pressed={showSecret}
             aria-controls={secretId}
             className={cn(
@@ -705,25 +711,25 @@ function BinanceForm({
         </div>
         {secretInvalid && (
           <p id={secretErrorId} className="type-label text-negative">
-            Paste the whole secret — letters and numbers only, no spaces.
+            {t("Paste the whole secret — letters and numbers only, no spaces.")}
           </p>
         )}
       </div>
 
       <p id={noteId} className="type-label text-text-muted">
-        Disable trading permissions and configure an IP allowlist.
+        {t("Disable trading permissions and configure an IP allowlist.")}
       </p>
 
-      <Disclosure open={guideOpen} onOpenChange={setGuideOpen} icon={BookOpen} label="Setup guide">
+      <Disclosure open={guideOpen} onOpenChange={setGuideOpen} icon={BookOpen} label={t("Setup guide")}>
         <SetupGuide />
       </Disclosure>
 
       <button type="submit" disabled={!keyValid || !secretValid || submitting} className={cn(primaryAction, "w-full")}>
-        {submitting ? "Checking the key with Binance…" : "Connect Binance"}
+        {submitting ? t("Checking the key with Binance…") : t("Connect Binance")}
       </button>
       {onCancel !== undefined && (
         <button type="button" onClick={onCancel} disabled={submitting} className={cn(textAction, "self-center")}>
-          Keep the current key
+          {t("Keep the current key")}
         </button>
       )}
     </form>
@@ -732,19 +738,18 @@ function BinanceForm({
 
 /** How to make a key Elyra will accept. Every step is something the check below enforces or depends on. */
 function SetupGuide() {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3 rounded-card border border-border-subtle bg-surface-base p-3">
       <ol className="type-body-sm flex list-decimal flex-col gap-1.5 pl-5 text-text-secondary marker:text-text-muted">
-        <li>In Binance, open API Management and create a system-generated key.</li>
+        <li>{t("In Binance, open API Management and create a system-generated key.")}</li>
         <li>
-          Leave only <span className="text-text-primary">Enable Reading</span> on. Elyra checks the key&rsquo;s
-          permissions with Binance and refuses one that can trade, transfer or withdraw.
+          {t("Leave only")}{" "}<span className="text-text-primary">{t("Enable Reading")}</span>{" "}{t("on. Elyra checks the key’s permissions with Binance and refuses one that can trade, transfer or withdraw.")}
         </li>
         <li>
-          If you restrict the key to trusted IPs, the list has to include the address Elyra connects from, or Binance
-          will refuse the check.
+          {t("If you restrict the key to trusted IPs, the list has to include the address Elyra connects from, or Binance will refuse the check.")}
         </li>
-        <li>Paste the key and secret here. They are encrypted on arrival and never shown again.</li>
+        <li>{t("Paste the key and secret here. They are encrypted on arrival and never shown again.")}</li>
       </ol>
       <CardRule />
       <a
@@ -753,9 +758,9 @@ function SetupGuide() {
         rel="noopener noreferrer"
         className={cn(textAction, "self-start")}
       >
-        Open Binance API Management
+        {t("Open Binance API Management")}
         <ExternalLink size={12} strokeWidth={1.5} aria-hidden />
-        <span className="sr-only">(opens in a new tab)</span>
+        <span className="sr-only">{t("(opens in a new tab)")}</span>
       </a>
     </div>
   );

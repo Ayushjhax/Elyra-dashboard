@@ -36,6 +36,8 @@ import { CLUSTER_LABEL, EXPECTED_CLUSTER, type Cluster } from "@/lib/solana/clus
 import { useElyraStore } from "@/lib/store";
 import { useSecond } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Your context: what Elyra can see, beside the conversation that uses it.
@@ -57,10 +59,11 @@ const outlined = cn(
 );
 
 function CardHead({ icon: Icon, title, right }: { icon: LucideIcon; title: string; right?: React.ReactNode }) {
+  const t = useT();
   return (
     <header className="flex min-h-7 items-center gap-2.5">
       <Icon size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-accent" />
-      <h3 className="type-h2 min-w-0 flex-1 truncate text-text-primary">{title}</h3>
+      <h3 className="type-h2 min-w-0 flex-1 truncate text-text-primary">{t(title)}</h3>
       {right}
     </header>
   );
@@ -69,32 +72,33 @@ function CardHead({ icon: Icon, title, right }: { icon: LucideIcon; title: strin
 /* ---- Portfolio ---- */
 
 function PortfolioCard({ feed, view }: { feed: PortfolioFeed; view: DrawerView | null }) {
+  const t = useT();
   const now = useSecond();
   const positions =
     view === null ? 0 : view.perps.length + view.defi.length + (view.prediction?.activeMarkets ?? 0);
 
   const sync =
     feed.refreshing && feed.snapshot !== null ? (
-      <StatusDot tone="muted">Syncing…</StatusDot>
+      <StatusDot tone="muted">{t("Syncing…")}</StatusDot>
     ) : feed.stale ? (
-      <StatusDot tone="caution">Refresh failed</StatusDot>
+      <StatusDot tone="caution">{t("Refresh failed")}</StatusDot>
     ) : feed.snapshot === null ? (
-      feed.loading ? <StatusDot tone="muted">Reading…</StatusDot> : <StatusDot tone="negative">Unavailable</StatusDot>
+      feed.loading ? <StatusDot tone="muted">{t("Reading…")}</StatusDot> : <StatusDot tone="negative">{t("Unavailable")}</StatusDot>
     ) : feed.snapshot.partial ? (
-      <StatusDot tone="caution">Partial</StatusDot>
+      <StatusDot tone="caution">{t("Partial")}</StatusDot>
     ) : (
       <StatusDot tone="positive">
-        Synced {feed.fetchedAt === null || now === null ? "just now" : formatAge(feed.fetchedAt, now)}
+        {t("Synced")}{" "}{feed.fetchedAt === null || now === null ? t("just now") : formatAge(feed.fetchedAt, now, t.locale)}
       </StatusDot>
     );
 
   return (
-    <section aria-label="Portfolio" className={card}>
-      <CardHead icon={BarChart3} title="Portfolio" right={sync} />
+    <section aria-label={t("Portfolio")} className={card}>
+      <CardHead icon={BarChart3} title={t("Portfolio")} right={sync} />
 
       {view === null ? (
         feed.loading ? (
-          <div aria-busy="true" aria-label="Reading your portfolio" className="mt-3 flex flex-col gap-2">
+          <div aria-busy="true" aria-label={t("Reading your portfolio")} className="mt-3 flex flex-col gap-2">
             <span className="skeleton h-8 w-32 rounded-control" />
             <span className="skeleton h-3 w-20" />
             <span className="skeleton mt-2 h-4 w-full" />
@@ -103,12 +107,12 @@ function PortfolioCard({ feed, view }: { feed: PortfolioFeed; view: DrawerView |
         ) : (
           <div role="alert" className="mt-3 flex flex-col items-start gap-2">
             <p className="type-body-sm text-text-secondary">
-              {feed.unconfigured ? "The portfolio isn't configured on this deployment." : (feed.error ?? "Your portfolio couldn't be read.")}
+              {feed.unconfigured ? t("The portfolio isn't configured on this deployment.") : (feed.error ?? t("Your portfolio couldn't be read."))}
             </p>
             {!feed.unconfigured && (
               <button type="button" onClick={feed.refetch} disabled={feed.refreshing} className={cn(outlined, "h-8 px-3 disabled:opacity-60")}>
                 <RefreshCw size={13} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
-                Retry
+                {t("Retry")}
               </button>
             )}
           </div>
@@ -118,20 +122,20 @@ function PortfolioCard({ feed, view }: { feed: PortfolioFeed; view: DrawerView |
           <div className="mt-1.5">
             <Money
               value={view.totalUsd}
-              reason="No source returned a value that could be totalled."
+              reason={t("No source returned a value that could be totalled.")}
               className="type-display block truncate font-sans text-text-primary"
             />
-            <p className="type-body-sm text-text-secondary">Total equity</p>
+            <p className="type-body-sm text-text-secondary">{t("Total equity")}</p>
           </div>
           <dl className="mt-2.5 flex flex-col gap-1 border-b border-border-subtle pb-3">
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="type-body-sm text-text-secondary">Available</dt>
+              <dt className="type-body-sm text-text-secondary">{t("Available")}</dt>
               <dd className="type-body-sm tabular-nums text-text-primary">
-                <Money value={view.availableUsd} reason="No stablecoin balance or venue collateral was readable." />
+                <Money value={view.availableUsd} reason={t("No stablecoin balance or venue collateral was readable.")} />
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="type-body-sm text-text-secondary">Open positions</dt>
+              <dt className="type-body-sm text-text-secondary">{t("Open positions")}</dt>
               <dd className="type-body-sm tabular-nums text-text-primary">{positions}</dd>
             </div>
           </dl>
@@ -140,17 +144,17 @@ function PortfolioCard({ feed, view }: { feed: PortfolioFeed; view: DrawerView |
             <div className="mt-2.5 flex gap-3">
               <WalletCards size={20} strokeWidth={1.5} aria-hidden className="mt-0.5 shrink-0 text-text-secondary" />
               <div className="min-w-0">
-                <p className="type-body-sm text-text-primary">No assets yet.</p>
-                <p className="type-label text-text-secondary">Add funds to start building your portfolio.</p>
+                <p className="type-body-sm text-text-primary">{t("No assets yet.")}</p>
+                <p className="type-label text-text-secondary">{t("Add funds to start building your portfolio.")}</p>
                 <Link href="/portfolio" className={cn(outlined, "mt-2 h-8 px-3.5")}>
-                  Open portfolio
+                  {t("Open portfolio")}
                   <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden />
                 </Link>
               </div>
             </div>
           ) : (
             <Link href="/portfolio" className={cn(outlined, "mt-3 h-9 w-full px-3.5")}>
-              Open portfolio
+              {t("Open portfolio")}
               <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden />
             </Link>
           )}
@@ -163,38 +167,39 @@ function PortfolioCard({ feed, view }: { feed: PortfolioFeed; view: DrawerView |
 /* ---- Preferences ---- */
 
 const SUGGESTIONS: Array<{ label: string; intent: EditorIntent; covers: MemoryType[] }> = [
-  { label: "Risk tolerance", intent: { mode: "risk" }, covers: ["leverage_limit", "stablecoin_buffer"] },
-  { label: "Allocation limits", intent: { mode: "allocation" }, covers: ["concentration_limit"] },
+  { label: msg("Risk tolerance"), intent: { mode: "risk" }, covers: ["leverage_limit", "stablecoin_buffer"] },
+  { label: msg("Allocation limits"), intent: { mode: "allocation" }, covers: ["concentration_limit"] },
 ];
 
 function PreferencesCard({ memory, onEdit }: { memory: MemoryFeed; onEdit: (intent: EditorIntent) => void }) {
+  const t = useT();
   const saved = new Set(memory.memories.map((entry) => entry.type));
   /* A suggestion stays only while nothing it covers is saved — once it is,
      the saved row below is the place to change it. */
   const suggestions = SUGGESTIONS.filter((suggestion) => !suggestion.covers.some((type) => saved.has(type)));
 
   return (
-    <section aria-label="Preferences" className={card}>
+    <section aria-label={t("Preferences")} className={card}>
       <CardHead
         icon={Settings}
-        title="Preferences"
+        title={t("Preferences")}
         right={
           memory.loading ? (
             <span aria-hidden className="skeleton h-6 w-16 rounded-pill" />
           ) : memory.error !== null ? null : (
             <span className="type-label rounded-pill border border-border-subtle px-2.5 py-0.5 tabular-nums text-text-secondary">
-              {memory.memories.length} saved
+              {t("{count} saved", { count: memory.memories.length })}
             </span>
           )
         }
       />
-      <p className="type-body-sm mt-1 text-text-secondary">Make Elyra work your way.</p>
+      <p className="type-body-sm mt-1 text-text-secondary">{t("Make Elyra work your way.")}</p>
 
       {memory.error !== null && (
         <div role="alert" className="mt-2 flex flex-wrap items-center gap-2">
           <p className="type-label flex-1 text-negative">{memory.error}</p>
           <button type="button" onClick={memory.refetch} className={cn(outlined, "h-7 px-2.5")}>
-            Retry
+            {t("Retry")}
           </button>
         </div>
       )}
@@ -206,11 +211,11 @@ function PreferencesCard({ memory, onEdit }: { memory: MemoryFeed; onEdit: (inte
               <button
                 type="button"
                 onClick={() => onEdit({ mode: "edit", memory: entry })}
-                aria-label={`Edit preference: ${entry.label}`}
+                aria-label={t("Edit preference: {label}", { label: entry.label })}
                 className="group flex w-full items-center gap-2 rounded-control border border-border-subtle px-3 py-2 text-left transition-colors duration-[var(--dur-fast)] ease-brand hover:border-accent-quiet hover:bg-surface-hover"
               >
-                <span className="type-body-sm min-w-0 flex-1 truncate text-text-primary" title={entry.label}>
-                  {entry.label}
+                <span className="type-body-sm min-w-0 flex-1 truncate text-text-primary" title={t(entry.label)}>
+                  {t(entry.label)}
                 </span>
                 <Pencil size={13} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted group-hover:text-text-primary" />
               </button>
@@ -229,7 +234,7 @@ function PreferencesCard({ memory, onEdit }: { memory: MemoryFeed; onEdit: (inte
               className={cn(outlined, "h-9 border-border-subtle px-2.5 font-normal", suggestions.length === 1 && "col-span-2")}
             >
               <Plus size={14} strokeWidth={1.5} aria-hidden className="shrink-0" />
-              <span className="truncate">{suggestion.label}</span>
+              <span className="truncate">{t(suggestion.label)}</span>
             </button>
           ))}
         </div>
@@ -241,9 +246,9 @@ function PreferencesCard({ memory, onEdit }: { memory: MemoryFeed; onEdit: (inte
         className="type-body-sm mt-1 flex h-8 w-full items-center justify-center gap-1.5 rounded-control text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover"
       >
         <Plus size={14} strokeWidth={1.5} aria-hidden />
-        Add preference
+        {t("Add preference")}
       </button>
-      <p className="type-label mt-1 text-text-muted">Saved only when you choose.</p>
+      <p className="type-label mt-1 text-text-muted">{t("Saved only when you choose.")}</p>
     </section>
   );
 }
@@ -260,13 +265,14 @@ const DOT: Record<SourceState, "positive" | "accent" | "caution" | "negative" | 
 };
 
 const SOURCE_ROWS: Array<{ key: SourceKey; label: string; icon: LucideIcon }> = [
-  { key: "wallet", label: "Wallet", icon: Wallet },
-  { key: "positions", label: "Positions", icon: BriefcaseBusiness },
-  { key: "activity", label: "Activity", icon: Clock3 },
-  { key: "memory", label: "Memory", icon: BookOpen },
+  { key: "wallet", label: msg("Wallet"), icon: Wallet },
+  { key: "positions", label: msg("Positions"), icon: BriefcaseBusiness },
+  { key: "activity", label: msg("Activity"), icon: Clock3 },
+  { key: "memory", label: msg("Memory"), icon: BookOpen },
 ];
 
 function AccountSelector({ address, cluster }: { address: string | null; cluster: Cluster | null }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const id = useId();
   const logos = useTickerLogos(SOL);
@@ -276,7 +282,7 @@ function AccountSelector({ address, cluster }: { address: string | null; cluster
   if (address === null) {
     return (
       <p className="type-body-sm mt-3 rounded-control border border-border-subtle px-3 py-2.5 text-text-muted">
-        No wallet on this account yet.
+        {t("No wallet on this account yet.")}
       </p>
     );
   }
@@ -286,7 +292,7 @@ function AccountSelector({ address, cluster }: { address: string | null; cluster
       id={id}
       open={open}
       onOpenChange={setOpen}
-      label="Selected account"
+      label={t("Selected account")}
       side="top"
       align="start"
       className="w-[min(320px,calc(100vw-48px))]"
@@ -295,7 +301,7 @@ function AccountSelector({ address, cluster }: { address: string | null; cluster
           type="button"
           aria-expanded={open}
           aria-controls={id}
-          aria-label={`Selected account: ${network} wallet ${address}`}
+          aria-label={t("Selected account: {network} wallet {address}", { network, address })}
           onClick={() => setOpen((value) => !value)}
           className="mt-2.5 flex h-9 w-full items-center gap-2.5 rounded-control border border-border-subtle px-3 transition-colors duration-[var(--dur-fast)] ease-brand hover:border-accent-quiet hover:bg-surface-hover"
         >
@@ -306,13 +312,13 @@ function AccountSelector({ address, cluster }: { address: string | null; cluster
       }
     >
       <div className="flex flex-col gap-2 p-3">
-        <p className="type-label text-text-secondary">{network} · your Elyra wallet</p>
+        <p className="type-label text-text-secondary">{t("{network} · your Elyra wallet", { network })}</p>
         <div className="flex items-start gap-1 rounded-control border border-border-subtle bg-surface-base px-2.5 py-2">
           <p className="type-mono-addr min-w-0 flex-1 select-all break-all text-text-primary">{address}</p>
-          <CopyButton value={address} label="wallet address" className="-my-1 -mr-1.5" />
+          <CopyButton value={address} label={t("wallet address")} className="-my-1 -mr-1.5" />
         </div>
         <p className="type-label text-text-muted">
-          This account has one wallet, so there is nothing to switch to. Context and answers read this address.
+          {t("This account has one wallet, so there is nothing to switch to. Context and answers read this address.")}
         </p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -323,7 +329,7 @@ function AccountSelector({ address, cluster }: { address: string | null; cluster
             }}
             className={cn(outlined, "h-8 px-3")}
           >
-            Wallet details
+            {t("Wallet details")}
           </button>
           <a href={accountExplorerUrl(address, cluster)} target="_blank" rel="noopener noreferrer" className={cn(outlined, "h-8 px-3")}>
             Solscan
@@ -344,23 +350,24 @@ function DataSourcesCard({
   address: string | null;
   cluster: Cluster | null;
 }) {
+  const t = useT();
   return (
-    <section aria-label="Data sources" className={card}>
-      <CardHead icon={Link2} title="Data sources" />
+    <section aria-label={t("Data sources")} className={card}>
+      <CardHead icon={Link2} title={t("Data sources")} />
       <ul className="mt-1.5 flex list-none flex-col divide-y divide-border-subtle">
         {SOURCE_ROWS.map(({ key, label, icon: Icon }) => {
           const status = statuses[key];
           return (
             <li key={key} className="flex h-7 items-center gap-2.5">
               <Icon size={15} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
-              <span className="type-body-sm min-w-0 flex-1 truncate text-text-primary">{label}</span>
-              <StatusDot tone={DOT[status.state]}>{status.label}</StatusDot>
+              <span className="type-body-sm min-w-0 flex-1 truncate text-text-primary">{t(label)}</span>
+              <StatusDot tone={DOT[status.state]}>{t(status.template ?? status.label, status.values)}</StatusDot>
             </li>
           );
         })}
       </ul>
       <AccountSelector address={address} cluster={cluster} />
-      <p className="type-label mt-1.5 text-text-muted">Context follows your selected account.</p>
+      <p className="type-label mt-1.5 text-text-muted">{t("Context follows your selected account.")}</p>
     </section>
   );
 }

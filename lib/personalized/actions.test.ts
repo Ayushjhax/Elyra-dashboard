@@ -107,6 +107,29 @@ describe('"Sell half my SOL"', () => {
   });
 });
 
+describe("a swap sizes only from the wallet it runs on", () => {
+  it("never sizes a Solana swap from the same symbol on another chain or an exchange", () => {
+    const base = snapshot({
+      spot: [
+        holding({ id: "base:usdc", chain: "Base", symbol: "USDC", quantity: 5_000, priceUsd: 1, valueUsd: 5_000, scopeId: "base:0x1" }),
+        holding({ id: "binance:usdc", venue: "binance", chain: "—", symbol: "USDC", quantity: 9_000, priceUsd: 1, valueUsd: 9_000 }),
+        holding({ id: "wallet:usdc", chain: "Solana", symbol: "USDC", quantity: 200, priceUsd: 1, valueUsd: 200 }),
+      ],
+    });
+    const action = prepareAction({ kind: "swap", symbol: "USDC", toSymbol: "SOL", fraction: 0.5 }, base);
+    expect(action.params?.quantity).toBe(100);
+  });
+
+  it("refuses, saying where it looked, when only another chain holds it", () => {
+    const base = snapshot({
+      spot: [holding({ id: "base:usdc", chain: "Base", symbol: "USDC", quantity: 5_000, priceUsd: 1, valueUsd: 5_000, scopeId: "base:0x1" })],
+    });
+    const action = prepareAction({ kind: "swap", symbol: "USDC", fraction: 0.5 }, base);
+    expect(action.readiness).toBe("rejected");
+    expect(action.reason).toMatch(/Solana wallet/);
+  });
+});
+
 describe("prepareAction guards", () => {
   it("rejects an asset the account does not hold", () => {
     const action = prepareAction(

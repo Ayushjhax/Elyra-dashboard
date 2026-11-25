@@ -30,10 +30,25 @@ pistachio edge and the one `--shadow-pop`. Both are solid under
 not spread further — any other floating layer is a flat panel with
 `--shadow-pop`.
 
-Three deliberate deviations are documented in `README.md` and commented at the
+Four deliberate deviations are documented in `README.md` and commented at the
 point where they happen: the figures font in `app/layout.tsx`, the chart
-embed in `components/panels/ChartPanel.tsx`, and the glass (the search
-palette and the header menus).
+embed in `components/panels/ChartPanel.tsx`, the glass (the search
+palette and the header menus), and Chinese text falling to the system's CJK
+face (`--font-cjk` in `app/globals.css`).
+
+The website speaks English and Simplified Chinese (`lib/i18n/`, "Languages"
+in `README.md`). Every word a person reads goes through the translator:
+`const t = useT(); t("English text", { values })` in a component, `msg("…")`
+for text defined outside one and translated where it renders, and
+`translateNow` only outside render. The key is the English. Plurals are
+spelled out, and a value never carries an English word. Every new key gets
+its entry in `lib/i18n/messages/zh-CN/` in the same change:
+`lib/i18n/coverage.test.ts` fails on a literal key without one, and
+`lib/i18n/catalog.test.ts` on catalog text. Never compare against a
+translated string; compare the English or the id. The locale is a cookie,
+never a path segment. Dates and ages take `t.locale`. A module the Android
+app shares takes the translator as an optional last argument that defaults
+to English, so the app's text does not change.
 
 The shell's geometry has one authority: `lib/layout.ts`. Every column bound,
 the centre's floor and share, and the order columns give up width in are there
@@ -101,7 +116,56 @@ allowlist in `lib/trade.ts`; any other token is named by mint
 account (the Asset Passport's `readMint`), refused without
 `acknowledgeUnverified`, labelled by its claimed symbol and its address, and
 quoted with its live mint controls as warnings. The chat command resolves
-symbols only.
+symbols only. No bytes reach the wallet until `/api/swap/build` has
+simulated Jupiter's transaction with `guardSwap` (`lib/solana/swapGuard.ts`):
+it watches exactly the person's accounts the transaction declares (static
+keys and lookup-table entries) and refuses unless the sold token falls by no
+more than asked, nothing else falls, SOL leaves only for fees (or the amount
+sold), no account gains a delegate, owner or close authority, and the
+wallet still belongs to the System Program. It fails closed.
+
+Tokenized stocks listed by Sunrise (`lib/sunrise/`, docs.sunrise.xyz) trade
+through that same path, not beside it. They are issued through Backpack's
+tokenization service and Trek Nexus Markets' trust. A token is Sunrise-listed
+only by its mint on Sunrise's own list for `backpack_securities`
+(`sunriseEquities`), or by a symbol exactly one of them holds that the
+allowlist does not. Its decimals are held to the mint account
+(`checkedDecimals`). `/api/swap/build` quotes it across Sunrise's routes
+(`previewSunriseSwap`, best signable output) for the session's wallet, the
+swap guard simulates the result like any other, and `/api/swap/submit` hands
+the signed bytes unchanged to Sunrise's `/v1/execute` (a `sunrise:` quoteRef).
+Sunrise's terms exclude US persons, PRC residents and sanctioned
+jurisdictions, and its API cannot see where a server-side request comes from.
+So every such trade passes `eligibility` (`lib/sunrise/eligibility.ts`) at
+build and again at submit: the request's country (`x-vercel-ip-country`,
+unknown refused, `RESTRICTED_REGIONS` not a setting), then the person's
+confirmation for that trade (`confirmEligible`). They are deliberately not on
+the `lib/trade.ts` allowlist, so the chat command, Telegram and Intelligent
+Portfolios, which cannot ask that question, never reach them. The swap
+dialog lists them only with `?include=sunrise`, and the Android app's
+request does not ask for them. An execute whose outcome is unknown is resent
+once with the same bytes (`sunriseExecute`), never re-signed. The person is
+told to check their wallet, never to sign again. An RFQ route places an order
+a market maker fills later. The dialog follows it through `/api/swap/orders`,
+which reads only the session's wallet. Sunrise has no mint or redeem API: the
+primary market is Backpack Exchange's conversion flow, which Elyra links to
+and never claims to perform. Copy follows Sunrise's terms over its docs:
+these tokens are not the shares, and redemption is not guaranteed.
+`SUNRISE_API_KEY` is issued by Sunrise on request. Without it, the same
+issuer's tokens are listed from Jupiter's free verified index
+(`backpackStocks`, `lib/providers/jupiterStocks.ts`, chosen by
+`stockListing`): only tokens tagged `stocks` and `backpack` that carry the
+issuer's freeze authority (`BACKPACK_FREEZE_AUTHORITY`), which the mint
+account is held to again before any quote (`checkedDecimals`). They are
+quoted by Jupiter through `previewSwap` and the swap guard, ask the same
+eligibility question at build, and come back with a `backpack:` quoteRef
+so `/api/swap/submit` asks it again before Jupiter gets the bytes.
+
+Tokenized stocks (`/stocks`, `lib/equities/`) is every issuer's tokens in one
+list, grouped by the share behind them: Sunrise's, Backed's xStocks and Ondo's
+on Solana, and Robinhood's on Robinhood Chain, which are shown read-only.
+Each share is priced by Pyth's US equity feed and each Solana token at its
+on-chain price. The premium compares one token with one share and says so.
 
 Intelligent Portfolios (`/invest`) are published model portfolios, not
 tokens: `lib/invest/catalog.ts` holds the weights, every holding must be on
@@ -136,10 +200,30 @@ tick when paper; a fill becomes a position (`origin: "order"`). A person
 also trades by hand: a market order (`/api/automation/trade`,
 `validateMarketOrder`) goes through the same `openPosition` with its TP/SL,
 its row written as `opening` before it is sent, and any open position closes
-by hand (`DELETE /api/automation/positions/[id]`, `closePosition`,
-`exit_reason: "closed_by_hand"`, closed only while still `open`). Both hand
-paths and limit orders pass `accountGate` (`lib/autotrade/accountGate.ts`) —
-paused, the day's loss limit, the open count, one live position per coin.
+by hand (`DELETE /api/automation/positions/[id]`, `closeTrade`,
+`exit_reason: "closed_by_hand"`, closed only while still `open`). A hand
+close may take a part (`?fraction=` 0.25, 0.5 or 0.75, `validateFraction`):
+the rest stays open, the part is appended to `partial_closes` and its result
+to `realised_partial_usd`, and a remainder below `LIMITS.minSizeUsd` is
+taken whole before the order is sent. Live, the remainder's new reduce-only
+exits (`placeExits`) are placed before the old ones are cancelled, so a
+position is never without its TP/SL; if they cannot be placed, the old ones
+stand. Exits move by hand through `moveExits` (`PATCH` on the same route,
+`validateExits`): on the right side of a fresh mark, no further from the
+entry than `LIMITS` allows an entry, new before old the same way. A fund's
+position closes whole and its exits are its manager's. Each entry records
+the mid it was sent at (`expected_price`) so its fill is shown against it.
+Both hand paths and limit orders pass `accountGate`
+(`lib/autotrade/accountGate.ts`) — paused, the day's loss limit, the open
+count, one live position per coin.
+The chart's Trade button (`components/trade/TradePanel.tsx`) is these same
+routes, not another path: a market order, a limit order or the position
+controls, for the market on screen when `PERP_MARKETS` has it, and the swap
+otherwise. TradingView's embed cannot hand a price out of the chart, so a
+limit's price is offered from Hyperliquid's book (`/api/market/book`,
+`lib/market/book.ts`), the chart's pivots and the day's range. A backtest
+hands a strategy to a new paper rule only as a filled form
+(`lib/autotrade/handoff.ts`); nothing is created until the person adds it.
 Trade notices go through
 `send` in `lib/notifications/deliver.ts` to the inbox, push and Telegram,
 and are not subject to alert preferences. The limits in `lib/autotrade/rules.ts` (`LIMITS`, `decide`) bound
@@ -148,6 +232,137 @@ every rule and are not settings. Rules start on paper; live orders need
 The pass runs on the five-minute tick, before delivery, and writes each
 position row before its order is sent (`unique (rule_id, signal_at)`), so a
 bar never trades twice.
+
+Copy trading (`/automation/copy`, `lib/copy/`, `docs/COPY_TRADING.md`) is
+automation too, not another path. A person groups rules into sets
+(`trading_rule_sets`) and may share one, shown by Arena handle and never by
+wallet. A follow (`copy_follows`) copies a shared set's new entries:
+`runCopy` runs on the tick right after `runAutotrade`, sizes each entry with
+`copyOrderFor`, and sends it through `openMarketTrade`, so `accountGate`, the
+live switch and the follower's key all apply. A copy keeps the leader's
+take-profit and stop-loss as prices, is skipped once the price has moved past
+the follower's allowance, and is unique on (`copy_id`, `leader_position_id`).
+It closes through `closeTrade` when the leader's position closes
+(`exit_reason: "leader_closed"`). A set's record is exactly its tagged
+positions (`set_id`, written at entry), in returns on margin, never dollars.
+A backtest (`simulateRule`) is always labelled as one, never shown as a
+record. Elyra's own sets (`lib/copy/house.ts`) are real paper rules owned by
+a profile no Privy login can resolve to (`elyra:house`), written from code by
+`ensureHouse`. Their record is only what they have traded; never seed,
+backfill or invent one. Elyra holds no capital, so they never trade live.
+
+Live and Paper are two accounts side by side (`lib/paper/`,
+`components/paper/Paper.tsx`, migration 0032). The header's switch (in the
+account menu on a phone) sets `paper_accounts.active`, and every order
+surface follows it, never a mode of its own: the chart's ticket, Automation's
+Trade now and limit orders. A signal card's Paper trade opens the ticket on
+paper whatever the switch shows (`lib/trade/ticketRequest.ts`). A new rule
+still starts on paper and goes live only from its own switch, and a copy may
+be moved between the two. The paper balance is never stored. It is
+`starting_usd` plus the results of the account's paper positions since
+`started_at` (`paperFunds`), with AI funds' positions left out. Every paper
+order — by hand, a rule's entry, a copy — needs its margin from what is
+available (`paperGate` through `accountGate`, and in the engine). A paper
+trade without an account makes one with $100,000, and claiming never tops one
+up. A reset starts the balance again only while nothing is open on paper.
+Voice orders stay paper unless the person says "live".
+
+Market analysis is five read-only agent tools (`lib/agent/tools/analysis.ts`,
+arithmetic in `lib/analysis/`):
+- `token_overview`: a token's whole picture, or several side by side.
+- `token_safety`: a 0–100 score from the mint's on-chain controls and
+  Jupiter's audit, holders and liquidity, with Rugcheck's own reading kept
+  beside it, never folded in.
+- `market_sentiment`: Fear & Greed, perp positioning, relative strength and
+  on-chain flows.
+- `macro_snapshot`: SPY, QQQ, DIA, the VIX, gold, oil, DXY and the 10-year.
+- `deep_research`: gathers all of the above with technicals and saves it.
+
+Both scores travel with every deduction or reading that made them, and the
+prompt has the reply show them. Price of record stays Pyth's. CoinGecko
+supplies market cap, rank, FDV and supply; Jupiter's token index supplies a
+Solana token's holders, liquidity, flows and authorities; Yahoo supplies the
+macro series Pyth lacks. A mint not on Elyra's verified list reaches the
+model by address only: its claimed name, symbol and creator-set links are
+withheld (`withheld`). Deep research's facts are saved to `market_reports`
+(0033). The web chat route attaches the finished reply when the run used
+it, and the agent's Research tab lists them. The composer's slash commands
+work on the website through `webShortcut`, on top of the shared
+`lib/agent/shortcuts.ts`. Follow-up chips under an analysis reply come from
+the question (`lib/agent/followUps.ts`), never the reply. None of these
+tools is on the agent-API allowlist: `deep_research` writes to the owner's
+account.
+
+Elyra's agent reads a person's own trading record back through two tools,
+`trading_record` and `trading_what_if` (`lib/agent/tools/trading.ts`), both
+read-only. A record is a book (`lib/autotrade/books.ts`): a rule, every rule
+running a strategy, an AI fund, the hand-placed market or limit orders, or
+all of them. It is found by the name the person used, and a name that fits
+several books returns them as choices, never a guess. A rule holds no
+capital, so its capital is derived from its trades (`capitalRecord`): the
+margin open, less what closed trades had earned. The first day's peak is the
+initial capital, and each later new peak is an addition. An AI fund's capital
+is its real deposits (`fundCapital`). A what-if replays each closed trade on
+Hyperliquid's own candles (`replay`) with the exits asked for, and isolated
+liquidation is the backstop a missing stop leaves. When one candle spans two
+exits, the worse is taken. Live testnet trades are left out, and the replay
+reports how many recorded stops and take-profits it reproduces. Its
+assumptions travel with the result (`notes`) and the prompt has the reply
+state them: no capital limit, every later entry as it happened, fees
+counted, and funding over the extra time held estimated separately.
+`lib/autotrade/review.ts` holds the arithmetic and is pure.
+
+Strategies (`/strategies`, `lib/strategies/`) are trading rules as data: a
+`StrategyDesign` is entry and exit condition groups over a closed set of
+operands (prices, SMA, EMA, RSI, MACD, Bollinger, Donchian, ATR %, % change,
+stochastic, volume, numbers) and risk limits, checked by `validateDesign`
+whoever wrote it — the designer, the library (`lib/strategies/library.ts`) or
+the AI. One interpreter (`designStrategy`) runs every design through the
+backtest engine on Binance spot candles (`runDesigned`), with the catalogue's
+execution and costs; stops, targets and time limits are the engine's
+`config.risk`, checked inside each bar, stop first when a bar spans both, and
+absent for catalogue strategies, whose results they do not change. A design's
+rules are described by code (`describeDesign`), never by the model. The AI
+lab (`generateStrategies`) asks the model only through the
+`propose_strategies` tool whose schema is the vocabulary, claims one
+`claimAgentRun`, drops any proposal `validateDesign` refuses, keeps the
+model's summary only if it `staysOnFacts` against the design's own numbers,
+and backtests what survives before the person sees it. Nothing in it trades.
+
+Insider watch (Research's Insider watch tab, `lib/insider/`) flags fresh
+Hyperliquid wallets whose first trade is big, from Hyperliquid's public data
+only. `runInsiderScan` runs on the tick: its candidates are leaderboard
+accounts whose all-time volume sits inside the last day (then the last week,
+to catch up), each judged once by `assess` and recorded in `insider_wallets`
+by address — first activity at most `maxSetupHours` before the first perp
+trade, and a first-hour bet of at least `minBetUsd`. `INSIDER_RULES` are
+constants, not settings. Where the entry sat in the week before is read from
+Hyperliquid's hourly candles after any redenomination (`rangeTiming`) and
+shown, never scored, and how the bet has gone since is the live mid,
+whichever way it went. Every sentence is code's (`lib/insider/words.ts`); a
+flag is a pattern, never called proof or an accusation. Its notifications are
+the website's only: a watch (`insider_watches`) makes the bell show the
+wallets flagged after it was set, at or above its size and found within
+`notifyWithinHours` of the first trade, plus a browser notice while a tab is
+open if the person allows it (`lib/insider/desktop.ts`). Nothing reaches the
+inbox, push or Telegram, the app has none of it, and nothing in it trades.
+
+Research's Arbitrage and Sentiment tabs are observations, read live and
+never acted on. Arbitrage (`lib/research/arbitrage.ts`, `arbitrageMath.ts`)
+compares Hyperliquid's liquid perps with Binance's spot and perps net of
+base-tier taker fees; nothing in Elyra trades a gap or places an order on
+Binance. A shared ticker is not proof of a shared asset: a Binance price is
+compared only when its spot pair traded in the last day and it sits within
+`SAME_ASSET_MAX_GAP_PCT` of Hyperliquid's (`sameAsset`), so a different
+token under the same ticker or a delisted pair's last price is left out
+rather than shown as a gap. Sentiment (`lib/research/sentiment.ts`, `sentimentMath.ts`) shows the
+Fear & Greed Index, funding positioning and breadth side by side, with no
+blended score.
+
+Workspace layouts (`lib/workspaceLayouts.ts`) hold only what the operator
+could set by hand, and every width in one passes `clampColumn` when it is
+saved and again when it is applied — `lib/layout.ts` stays the one
+authority, and no layout sizes the chart.
 
 World markets (`/markets`, `lib/markets/`) prices every exchange from Pyth
 in its own currency, through its own symbol read (`worldCatalogue`), since
@@ -167,15 +382,82 @@ only when there is something — a new hack, an 8% move in BTC/ETH/SOL, an
 anniversary — each written from facts through `writeFromFacts`, once
 (`post_key` is unique).
 
+The Daily Briefing (`/briefing`, `lib/briefing/`) is ten developments a day,
+in English and Simplified Chinese. A development is only ever something a
+source published: a story from the newsrooms in `OUTLETS`, read live from
+their RSS; a vote in a DAO in `SNAPSHOT_SPACES`; or a hack in DefiLlama's
+record. The model chooses among those candidates and words them. It never
+adds a development, and every line is held to its own candidate's facts by
+the same guard as `writeFromFacts`. A line that fails is replaced by the
+source's own headline and standfirst. The Chinese is held to the same facts,
+with exact 万/亿 and month conversions derived by code
+(`lib/briefing/guard.ts`); a line that fails shows in English. A `$TICKER`
+leads an item only when the facts name the coin and Pyth lists it, and a
+source link is attached by code, never by the model. "And more" (movers,
+Kamino stablecoin yields, signals) is computed by code. The keycap emoji are
+in the copied text only; the page draws its numbers in the brand's figures.
+It is written once a day by `/api/briefing/run`, which `pg_cron` calls after
+00:00 UTC (`0027_daily_briefing.sql`). It is a job of its own, never a step of
+the five-minute tick, and `day` is unique, so a day is written once.
+
+The model thinks before it answers, and the thinking counts against
+`maxTokens`. A budget of a few hundred tokens can be spent before any text,
+which returns nothing and falls back. Give a model call room for both.
+
 Outside AI agents reach Elyra through agent keys (`lib/agentApi/`,
 `docs/AGENT_API.md`): MCP at `/api/mcp` (Streamable HTTP, stateless, tools
 only) and a REST mirror at `/api/v1/tools`. Exposure is an allowlist in
-`lib/agentApi/tools.ts`, never the whole registry, and nothing on it writes.
+`lib/agentApi/tools.ts`, never the whole registry, and nothing on it writes
+— except the rails below, which only ASK, and an AI fund's tools, which act
+only inside the fund's charter.
 Market tools run with no account; account tools only for a key created with
 that scope, reading the owner's addresses from their profile. A key is
 stored as a SHA-256 only, shown once, revocable, and held to a per-minute
 and a daily cap (`claim_agent_key_call`). These routes accept an agent key
 and nothing else — never a session.
+
+Agent rails (`/agents`, `lib/rails/`, `docs/AGENT_RAILS.md`) are the
+permissioned path between agents and money. A key's owner grants it a
+mandate (`agent_mandates`, `validateMandate`); the `rails_` tools are listed
+only to a key with a live one, and only the kinds it grants. Every ask is an
+intent, normalised (symbols through `lib/trade.ts`; a payment request's
+payee and amount from the request, never the agent), priced, its payee
+screened (`screenAddress`, OFAC SDN read live, fail closed), decided by
+`decideIntent` and recorded. A swap or a payment is always signed by the
+person in their own wallet — a payment's transfer is built from the intent
+(`buildPayment`) — and becomes `executed` only on the chain's proof
+(`confirmIntent`); a perp order runs through `openMarketTrade`
+(`lib/autotrade/trade.ts`, shared with the Automation page) on approval, or
+at once when the mandate sets `auto_perps`. Elyra holds no wallet key, and
+an agent's memo is text, never acted on or put in a notice. Every event —
+mandates, intents, decisions, settlements — goes through `appendLedger` into
+`rails_ledger`, a per-person SHA-256 chain (`lib/rails/ledger.ts`) the
+database cannot fork; never write to it any other way. Payment requests are
+Solana Pay requests with a reference key, settled from the chain by
+`checkRequest` (on read and on the tick, `runRails`), with a public pay page
+at `/pay/[id]` (a standalone route).
+
+AI funds (`/funds`, `lib/funds/`, `docs/AI_FUNDS.md`) are autonomous funds
+over the person's own capital: the person writes a charter (`validateCharter`,
+`FUND_LIMITS` in `lib/funds/policy.ts` — not settings), an agent key is the
+manager, and Elyra is the administrator and risk officer. A key manages one
+open fund and sees the `fund_` tools only while it does. Every order is held
+to the charter by `checkOrder` on a fresh mark, then goes out through
+`openMarketTrade` tagged with `fund_id` (so it also passes `accountGate`);
+every close through `closeTrade` (`lib/autotrade/close.ts`, the one close
+path). A fund's book is exactly its tagged positions plus its flows; returns
+are per unit (`lib/funds/accounting.ts`), so capital moving in or out never
+reads as performance. Every fund is born on paper; live is reached only by
+graduating (`graduationCheck`, then `liveRefusal` and the Hyperliquid account
+value, failing closed), which closes the paper fund and opens a live one, so
+a live record never holds paper results. Capital is an allocation, never a
+transfer: nothing is pooled and Elyra holds no key that can withdraw.
+`runFunds` runs on the tick right after the automation pass: it marks each
+fund, ledgers closes made elsewhere, seals each day's closing NAV, halts and
+flattens a fund at its drawdown limit, and closes out a wind-down. Every
+status change is a compare-and-set on the status it expects. Every event goes
+through `appendLedger`; a manager's note is sealed by hash, shown as its
+text, and never acted on or put in a notice.
 
 Arena (`/arena`, `lib/arena/`, `docs/ARENA.md`) is points and paper only:
 nothing in it moves money, and points cannot be bought or cashed out
@@ -188,6 +470,39 @@ statement and the server's time; it settles on Hyperliquid's one-minute
 close for its minute, or is void. `runArena` runs on the tick after the
 trading pass, capped per run (`REVIEW_CAP`, `SETTLE_CAP`, `CARD_CAP`). A
 person is shown by handle or not at all, never by wallet.
+
+Scout (`/scout`, `lib/scout/`, `lib/poly/`, `docs/SCOUT.md`) reads any
+YouTube video, post on X or article and grades every claim by evidence. It
+runs on free sources only: Gemini Flash's free tier and public data. A
+video is read by Gemini from its address, a post through X's public embed,
+and an article by `fetchPage`, which checks every resolved address and
+redirect hop and never fetches inside a network. A site that blocks servers
+is read through Gemini's URL context instead (`copyPage`, labelled
+`page_copy`).
+
+The model only lists claims, each with its quote. A claim is kept only when
+its quote is in the source (`quoteFound`), and every number must pass
+`staysOnFacts`. The grade is code's (`gradeOf`):
+
+- who speaks comes from the fetched host or the author X reports, never from
+  the text;
+- a hedged quote is speculation;
+- a listing claim is confirmed only by Bybit, OKX or Upbit's own feed, and
+  only by the exchange the claim names.
+
+The smart-money check reads the leaderboard cohort's public fills
+(`lib/scout/flows.ts`), counted by wallet.
+
+Auto-buys (`runScoutTick`, on the tick after insider watch) fire only on
+code-detected signals: a cohort flow, or an official listing. A read never
+triggers one. Each fire is written first, and a rule acts on a coin at
+most once per UTC day for each trigger (unique on rule and signal key). The
+order goes out through `openMarketTrade`. Rules are paper unless the person
+chooses live.
+
+Poly scan and Poly baskets read Polymarket's Data API v2 and Gamma. Baskets
+are paper only: entries walk the ask, values walk the bids. Elyra places no
+Polymarket orders.
 
 Wallets are read on seven networks: Solana; the account's one EVM address on
 Ethereum, Base, Arbitrum, BNB Chain and Robinhood Chain (`lib/evm/`,
@@ -244,6 +559,25 @@ Price alerts (`/api/alerts`) stay alerts: a price rule tells the person; it
 never trades. Where a crossing goes — Telegram, muted, or nowhere — is said
 where the rule is set.
 
+AI safety. Elyra's own model reads and writes words; it never moves money —
+outside agents act only through the rails and AI funds, each held to the
+person's mandate or charter, never through Elyra's model. No tool in its
+registry places an order or builds a transaction, and a prepared action is rebuilt by
+the server from live state (`lib/personalized/actions.ts`), never taken from
+model output. The only tools that change anything — creating and deleting a
+prediction alert — run only when the operator's own message this turn asks
+(`operatorAskedFor`, `ToolContext.operatorMessage`); an outside agent's key
+has no message, so nothing changes. Text Elyra did not write is data: both
+system prompts say so (pinned by `lib/agent/prompt.test.ts`), an unverified
+token reaches a model by address only, never by its claimed name, and a
+model-supplied ticker is held to `TICKER` in `lib/agent/tools/args.ts`. No
+reply links anywhere the operator did not give it: the web renders replies as
+text, Telegram links only `LINKABLE_HOSTS` and prints any other destination
+in full, and `writeFromFacts` — the Events feed, Arena cards, the markets
+brief — discards a reply carrying a link or a domain the facts do not hold.
+Every model run for a person claims `claimAgentRun` (`lib/agent/quota.ts`),
+one durable daily cap shared by the agent and Ask Elyra.
+
 The agent's conversation, its in-flight request and the composer draft live in
 the store, and `lib/agentChat.ts` sends and reads streamed replies outside any
 component. The panel is mounted as a column from 1280px and as a drawer below,
@@ -251,10 +585,47 @@ so nothing it needs may live in component state — staged attachments
 included (`composerAttachments`, never persisted). A reply's sources come from
 the tool results (`lib/agent/sources.ts`), never from the model's text.
 
+The website's chat is answered by a team (`runTeam`, `lib/agent/team/`):
+Research gathers figures with the tools, Strategy reviews Research's notes
+and may send one `FOLLOW_UP` back, Execution checks the server-built
+preview (`planPreparedAction`) for a request to move capital, and the
+orchestrator writes the one reply. Code allocates by `classifyIntent` — a
+lookup goes to Research alone — builds the shared board (saved rules from
+`listMemories`, outcomes from open actions and closed automation positions),
+and traces every figure in the reply to a tool result (`traceFigures`),
+reporting rather than removing what does not trace. A question claims one
+run however many members work it. Every role prompt is the standing prompt
+plus a role (pinned by `lib/agent/team/prompts.test.ts`); members' notes
+reach other members fenced as data; Strategy and Execution have no tools.
+Only a body with `team: true` gets the team — the web sends it; Telegram and
+the Android app stay on `runAgent`. Both share `toolLoop`
+(`lib/agent/loop.ts`) and the conversation's storage
+(`lib/agent/conversation.ts`).
+
 Attachments are checked by `validateAttachments` in `lib/attachments.ts`
 wherever a body carries them — type, leading bytes, count, size — and are
 never written to the database. Dictation only fills the composer; nothing
-spoken is sent or acted on without the person pressing send.
+it hears is sent without the person pressing send.
+
+A voice conversation (`components/agent/VoiceMode.tsx`, `lib/voice/`) is the
+one place speech is sent by itself: the person starts and ends it, the
+microphone is off while Elyra speaks, three silent turns pause it, and
+closing the panel ends it. Each finished utterance is first read by
+`parseVoiceCommand` (`lib/voice/command.ts`) — code, never the model. An order
+becomes a ticket, filled with the chart ticket's defaults where unsaid
+(`TICKET_DEFAULTS`), checked by `validateMarketOrder`, read back aloud, and
+placed only through the chart ticket's own routes after the person confirms:
+a spoken "confirm" may place paper only (`voiceMayConfirm`); live money needs
+a tap; a swap opens `SwapDialog` prefilled, to be signed there. Anything else
+is a question for the single agent (`team: false`, for a sooner reply) sent
+with the persona's id (`voice`), which adds `spokenReplyInstruction` to the
+run's context — an id from `VOICE_PERSONAS`, never text from the body. A
+persona is a voice and a manner, never different facts or powers. Replies
+are spoken through `/api/agent/speak` (Gemini's streamed TTS, raw PCM played
+as it arrives; signed in, a persona from the list, capped per piece and per
+minute) or the browser's own voice, after `toSpeakable` drops tables, code,
+links and addresses. `lib/voice/speaker.ts` is the one speaker on the page,
+so nothing talks over anything else.
 
 `formatRelativeTime` and `formatDayGroup` take `now` as a required argument —
 pass the shared clock from `lib/useClock.ts`, never `Date.now()` in render.

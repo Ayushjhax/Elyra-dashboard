@@ -125,8 +125,12 @@ export function isFullBleedRoute(pathname: string): boolean {
  * and keep its chrome. The Telegram Mini App runs in a webview roughly 380px
  * wide, inside an app that draws its own header and back button, and every
  * piece of Elyra's shell there is a second navigation fighting the first.
+ *
+ * A pay page (/pay/[id]) is opened by whoever is paying — usually not an
+ * Elyra user, often on a phone, often from a wallet's own browser — so it is
+ * one card and nothing else: no workspace to mount, no account to restore.
  */
-export const STANDALONE_ROUTES: readonly string[] = ["/telegram"];
+export const STANDALONE_ROUTES: readonly string[] = ["/telegram", "/pay"];
 
 export function isStandaloneRoute(pathname: string): boolean {
   return STANDALONE_ROUTES.some(

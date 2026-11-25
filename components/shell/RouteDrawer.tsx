@@ -8,6 +8,7 @@ import { Panel, PanelBody } from "@/components/ui/Panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCopy } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The utility drawer a route opens as, beside the chart.
@@ -40,18 +41,23 @@ function useCloseRoute(): () => void {
 }
 
 export function RouteDrawer({
-  label,
+  label: labelKey,
   icon,
-  title,
-  subtitle,
+  title: titleKey,
+  subtitle: subtitleKey,
   children,
 }: {
+  /** English, translated here: a server page passes its strings as keys. */
   label: string;
   icon: React.ReactNode;
   title: string;
   subtitle: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
+  const label = t(labelKey);
+  const title = t(titleKey);
+  const subtitle = t(subtitleKey);
   const ref = useRef<HTMLElement>(null);
   const close = useCloseRoute();
   const pathname = usePathname();
@@ -83,8 +89,8 @@ export function RouteDrawer({
             only moves focus back to the rail once the link has done its job. */}
         <Link
           href="/"
-          aria-label={`Close ${title.toLowerCase()} and return to the chart`}
-          title="Close (Esc)"
+          aria-label={t("Close {title} and return to the chart", { title: title.toLowerCase() })}
+          title={t("Close (Esc)")}
           onClick={() => {
             requestAnimationFrame(() => railLink(pathname)?.focus());
           }}
@@ -194,11 +200,12 @@ export function Tip({
  * reaches past the 12px glyph without moving anything around it.
  */
 export function InfoTip({ text }: { text: string }) {
+  const t = useT();
   return (
     <Tip label={text} openOnTap>
       <button
         type="button"
-        aria-label="What this means"
+        aria-label={t("What this means")}
         className="relative rounded-chip text-text-muted after:absolute after:-inset-2.5 hover:text-text-secondary"
       >
         <Info size={12} strokeWidth={1.5} aria-hidden />
@@ -254,16 +261,17 @@ export function CopyButton({
   text?: string;
   className?: string;
 }) {
+  const t = useT();
   const { state, copy: write } = useCopy();
   /* Hover and focus open the tooltip as usual; a result holds it open. */
   const [pointing, setPointing] = useState(false);
   const copy = () => void write(value);
 
-  const tip = state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy" : `Copy ${label}`;
+  const tip = state === "copied" ? t("Copied") : state === "failed" ? t("Couldn't copy") : t("Copy {label}", { label });
   const announce = (
     /* Said aloud as well as shown: neither a tooltip nor a label change is announced. */
     <span aria-live="polite" className="sr-only">
-      {state === "copied" ? `Copied the ${label}` : state === "failed" ? `Could not copy the ${label}` : ""}
+      {state === "copied" ? t("Copied the {label}", { label }) : state === "failed" ? t("Could not copy the {label}", { label }) : ""}
     </span>
   );
 
@@ -289,7 +297,7 @@ export function CopyButton({
           ) : (
             <Copy size={15} strokeWidth={1.5} aria-hidden />
           )}
-          {state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy — select the address instead" : text}
+          {state === "copied" ? t("Copied") : state === "failed" ? t("Couldn't copy — select the address instead") : text}
         </button>
         {announce}
       </>
@@ -302,7 +310,7 @@ export function CopyButton({
         <button
           type="button"
           onClick={copy}
-          aria-label={`Copy ${label}`}
+          aria-label={t("Copy {label}", { label })}
           className={cn(
             "grid size-8 shrink-0 place-items-center rounded-control",
             "transition-colors duration-[var(--dur-fast)] ease-brand",

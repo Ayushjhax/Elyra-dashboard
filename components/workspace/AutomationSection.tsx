@@ -22,6 +22,8 @@ import { useElyraStore } from "@/lib/store";
 import type { PriceAlert } from "@/lib/alerts/types";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Automation: the price rules Elyra watches for this account.
@@ -50,14 +52,14 @@ function statusOf(alert: PriceAlert, price: number | undefined): Status {
   return isPast(alert, price) ? "crossed" : "armed";
 }
 
-function statusLabel(status: Status, delivery: AlertsFeed["delivery"]): string {
-  if (status === "fired") return "Fired — off until re-armed";
+function statusLabel(status: Status, delivery: AlertsFeed["delivery"], t: Translator): string {
+  if (status === "fired") return t("Fired — off until re-armed");
   if (status === "crossed") {
     return delivery === "telegram" || delivery === "app" || delivery === "inbox"
-      ? "Crossed — sent on the next check"
-      : "Crossed — not sent anywhere";
+      ? t("Crossed — sent on the next check")
+      : t("Crossed — not sent anywhere");
   }
-  return "Armed";
+  return t("Armed");
 }
 
 function RuleRow({
@@ -71,6 +73,7 @@ function RuleRow({
   feed: AlertsFeed;
   now: number | null;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const detailId = useId();
@@ -121,10 +124,10 @@ function RuleRow({
               {name}
             </span>
             <span className="type-label block truncate text-text-muted">
-              {statusLabel(status, feed.delivery)}
-              {status === "armed" && distance !== null ? ` · ${Math.abs(distance).toFixed(2)}% away` : ""}
+              {statusLabel(status, feed.delivery, t)}
+              {status === "armed" && distance !== null ? t(" · {distance}% away", { distance: Math.abs(distance).toFixed(2) }) : ""}
               {status === "fired" && alert.triggeredAt && now !== null
-                ? ` · ${formatRelativeTime(alert.triggeredAt, now)}`
+                ? ` · ${formatRelativeTime(alert.triggeredAt, now, t.locale)}`
                 : ""}
             </span>
           </span>
@@ -133,15 +136,15 @@ function RuleRow({
           </span>
         </button>
         {status === "fired" && (
-          <Button size="xs" variant="quiet" onClick={() => void rearm()} disabled={busy} aria-label={`Re-arm ${name}`}>
+          <Button size="xs" variant="quiet" onClick={() => void rearm()} disabled={busy} aria-label={t("Re-arm {name}", { name })}>
             <RotateCcw size={12} strokeWidth={1.5} aria-hidden />
-            Re-arm
+            {t("Re-arm")}
           </Button>
         )}
         <button
           type="button"
           onClick={() => void feed.remove(alert.id)}
-          aria-label={`Remove ${name}`}
+          aria-label={t("Remove {name}", { name })}
           className="inline-flex size-7 shrink-0 items-center justify-center rounded-chip text-text-muted hover:bg-surface-hover hover:text-negative"
         >
           <Trash2 size={13} strokeWidth={1.5} aria-hidden />
@@ -151,35 +154,36 @@ function RuleRow({
       <div id={detailId} hidden={!open} className="pb-4 pl-[46px] pr-4">
         <dl className="grid gap-x-6 gap-y-3 compact:grid-cols-2">
           <div>
-            <dt className="type-eyebrow text-text-muted">When</dt>
+            <dt className="type-eyebrow text-text-muted">{t("When")}</dt>
             <dd className="type-body-sm mt-1 text-text-primary">
-              {alert.symbol} trades at or {alert.direction} {formatPriceUsd(alert.target)}
-              {price !== undefined ? ` (now ${formatPriceUsd(price)})` : ""}
+              {`${alert.direction === "above"
+              ? t("{symbol} trades at or above {target}", { symbol: alert.symbol, target: formatPriceUsd(alert.target) })
+              : t("{symbol} trades at or below {target}", { symbol: alert.symbol, target: formatPriceUsd(alert.target) })}${price !== undefined ? ` ${t("(now {price})", { price: formatPriceUsd(price) })}` : ""}`}
             </dd>
           </div>
           <div>
-            <dt className="type-eyebrow text-text-muted">Then</dt>
+            <dt className="type-eyebrow text-text-muted">{t("Then")}</dt>
             <dd className="type-body-sm mt-1 text-text-primary">
               {feed.delivery === "telegram"
-                ? "Message your linked Telegram chat, once"
-                : "Show the crossing here — nothing is sent until Telegram is set up"}
+                ? t("Message your linked Telegram chat, once")
+                : t("Show the crossing here — nothing is sent until Telegram is set up")}
             </dd>
           </div>
           <div>
-            <dt className="type-eyebrow text-text-muted">Set</dt>
+            <dt className="type-eyebrow text-text-muted">{t("Set")}</dt>
             <dd className="type-data mt-1 text-text-secondary">
-              {alert.createdAt ? `${formatTimestamp(alert.createdAt)} UTC` : "—"}
-              {alert.createdPrice !== null ? ` at ${formatPriceUsd(alert.createdPrice)}` : ""}
+              {alert.createdAt ? t("{createdAt} UTC", { createdAt: formatTimestamp(alert.createdAt, t.locale) }) : "—"}
+              {alert.createdPrice !== null ? t(" at {createdPrice}", { createdPrice: formatPriceUsd(alert.createdPrice) }) : ""}
             </dd>
           </div>
           <div>
-            <dt className="type-eyebrow text-text-muted">Last fired</dt>
+            <dt className="type-eyebrow text-text-muted">{t("Last fired")}</dt>
             <dd className="type-data mt-1 text-text-secondary">
               {alert.triggeredAt
-                ? `${formatTimestamp(alert.triggeredAt)} UTC${
-                    alert.triggeredPrice != null ? ` at ${formatPriceUsd(alert.triggeredPrice)}` : ""
-                  }`
-                : "Never"}
+                ? (alert.triggeredPrice != null
+              ? t("{triggeredAt} UTC at {price}", { triggeredAt: formatTimestamp(alert.triggeredAt, t.locale), price: formatPriceUsd(alert.triggeredPrice) })
+              : t("{triggeredAt} UTC", { triggeredAt: formatTimestamp(alert.triggeredAt, t.locale) }))
+                : t("Never")}
             </dd>
           </div>
         </dl>
@@ -201,6 +205,7 @@ function RuleBuilder({
   symbol: string;
   price: number | null;
 }) {
+  const t = useT();
   const [ticker, setTicker] = useState(symbol);
   const [direction, setDirection] = useState<"above" | "below">("above");
   const [target, setTarget] = useState("");
@@ -245,9 +250,9 @@ function RuleBuilder({
     >
       <DialogContent aria-describedby="new-rule-help">
         <DialogHeader>
-          <DialogTitle>New price rule</DialogTitle>
+          <DialogTitle>{t("New price rule")}</DialogTitle>
           <DialogDescription id="new-rule-help">
-            Elyra checks it every five minutes and tells you once when price crosses.
+            {t("Elyra checks it every five minutes and tells you once when price crosses.")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -260,7 +265,7 @@ function RuleBuilder({
         >
           <div className="flex flex-col gap-1">
             <label htmlFor={tickerId} className="type-label text-text-secondary">
-              Market
+              {t("Market")}
             </label>
             <input
               id={tickerId}
@@ -269,7 +274,7 @@ function RuleBuilder({
               className="type-data h-9 rounded-control border border-border-strong bg-surface-raised px-2.5 text-text-primary focus:border-accent-quiet focus:outline-none"
             />
           </div>
-          <div role="radiogroup" aria-label="When price" className="flex gap-1">
+          <div role="radiogroup" aria-label={t("When price")} className="flex gap-1">
             {(["above", "below"] as const).map((side) => (
               <button
                 key={side}
@@ -285,15 +290,15 @@ function RuleBuilder({
                   direction === side ? "bg-surface-active text-text-primary" : "text-text-secondary hover:bg-surface-hover",
                 )}
               >
-                {side === "above" ? "Rises above" : "Falls below"}
+                {side === "above" ? t("Rises above") : t("Falls below")}
               </button>
             ))}
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor={targetId} className="type-label text-text-secondary">
-              Price in USD
+              {t("Price in USD")}
               {onChartSymbol && price !== null ? (
-                <span className="text-text-muted"> · now {formatPriceUsd(price)}</span>
+                <span className="text-text-muted">{" "}{t("· now {price}", { price: formatPriceUsd(price) })}</span>
               ) : null}
             </label>
             <input
@@ -305,8 +310,7 @@ function RuleBuilder({
             />
           </div>
           <p className="type-label text-text-muted">
-            Then: a message to your linked Telegram chat. A rule never places a trade — exchange
-            connections in Elyra are read-only.
+            {t("Then: a message to your linked Telegram chat. A rule never places a trade — exchange connections in Elyra are read-only.")}
           </p>
           {error !== null && (
             <p role="alert" className="type-label text-negative">
@@ -317,7 +321,7 @@ function RuleBuilder({
         </form>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             type="submit"
@@ -325,7 +329,7 @@ function RuleBuilder({
             variant="accent"
             disabled={saving || ticker.length === 0 || !(Number(target) > 0)}
           >
-            {saving ? "Saving…" : "Save rule"}
+            {saving ? t("Saving…") : t("Save rule")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -343,6 +347,7 @@ function EmptyRules({ children }: { children: React.ReactNode }) {
 }
 
 export function AutomationSection() {
+  const t = useT();
   const open = useElyraStore((state) => state.automationOpen);
   const setOpen = useElyraStore((state) => state.setAutomationOpen);
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
@@ -369,7 +374,7 @@ export function AutomationSection() {
 
   return (
     <Section
-      title="Automation"
+      title={t("Automation")}
       icon={<Zap size={16} strokeWidth={1.5} />}
       meta={feed.signedIn ? `${armed} armed` : undefined}
       open={open}
@@ -378,22 +383,22 @@ export function AutomationSection() {
         feed.signedIn ? (
           <Button size="sm" variant="ghost" onClick={() => setBuilderOpen(true)} aria-haspopup="dialog">
             <Plus size={14} strokeWidth={1.5} aria-hidden />
-            New rule
+            {t("New rule")}
           </Button>
         ) : undefined
       }
     >
       {!auth.available ? (
-        <EmptyRules>Sign-in is not configured, so no rules can be saved.</EmptyRules>
+        <EmptyRules>{t("Sign-in is not configured, so no rules can be saved.")}</EmptyRules>
       ) : !feed.signedIn ? (
         <EmptyRules>
-          <p>Connect a wallet to set price rules. Elyra watches them and tells you on Telegram when one crosses.</p>
+          <p>{t("Connect a wallet to set price rules. Elyra watches them and tells you on Telegram when one crosses.")}</p>
           <Button className="mt-3" size="sm" variant="accent" onClick={auth.login}>
-            Connect wallet
+            {t("Connect wallet")}
           </Button>
         </EmptyRules>
       ) : feed.loading ? (
-        <div className="flex flex-col gap-2 px-4 py-4" aria-label="Loading rules">
+        <div className="flex flex-col gap-2 px-4 py-4" aria-label={t("Loading rules")}>
           <span className="skeleton block h-4 w-3/5" />
           <span className="skeleton block h-4 w-2/5" />
         </div>
@@ -402,7 +407,7 @@ export function AutomationSection() {
           {feed.writeError !== null || feed.error !== null ? (
             <p className="text-negative">{feed.writeError ?? feed.error}</p>
           ) : (
-            <p>No rules yet. Add one here, from the chart&rsquo;s Alerts, or with /alert in Telegram.</p>
+            <p>{t("No rules yet. Add one here, from the chart’s Alerts, or with /alert in Telegram.")}</p>
           )}
         </EmptyRules>
       ) : (

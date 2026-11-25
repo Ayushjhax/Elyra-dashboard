@@ -18,6 +18,12 @@ import { CANCELLED, signingFailure } from "@/lib/wallet/flows";
    Always quoted fresh. A quote goes stale in about twenty seconds, and an
    RFQ quote (Ondo's tokens, through JupiterZ) sooner, so the bytes signed
    are always the ones built a moment ago.
+
+   A tokenized stock Sunrise lists is quoted by Sunrise and submitted to it
+   (lib/sunrise/swap.ts) through these same three steps. Its best route may
+   be Sunrise's request-for-quote, which places an order a market maker
+   fills after the transaction lands; `order` says so, and the dialog
+   follows it through /api/swap/orders.
 --------------------------------------------------------------------------- */
 
 export interface SwapRequest {
@@ -30,6 +36,17 @@ export interface SwapRequest {
   toMint?: string;
   /** The person ticked that they checked an unlisted mint. Without it the server refuses one. */
   acknowledgeUnverified?: boolean;
+  /**
+   * The person confirmed, for this trade, that they may hold a tokenized
+   * stock Sunrise lists (lib/sunrise/eligibility.ts). Sent at build and at
+   * submit; without it the server refuses those tokens.
+   */
+  confirmEligible?: boolean;
+}
+
+/** An order a request-for-quote route placed, which a market maker fills after the transaction lands. */
+export interface PlacedOrder {
+  status: string;
 }
 
 export interface BuiltSwap {
@@ -39,10 +56,12 @@ export interface BuiltSwap {
   quoteRef?: string | null;
   signer?: string;
   error?: string;
+  /** Why a tokenized stock was refused: its region, or a confirmation not yet given (lib/sunrise/eligibility.ts). */
+  eligibility?: "region" | "unknown_region" | "unconfirmed";
 }
 
 export type SwapRun =
-  | { ok: true; signature: string; built: BuiltSwap }
+  | { ok: true; signature: string; built: BuiltSwap; order: PlacedOrder | null }
   | { ok: false; error: string; cancelled: boolean; built: BuiltSwap | null };
 
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
@@ -66,7 +85,7 @@ export async function buildSwap(fetcher: Fetcher, swap: SwapRequest): Promise<Bu
   try {
     const response = await fetcher("/api/swap/build", { method: "POST", body: JSON.stringify(swap) });
     const payload = (await response.json().catch(() => ({}))) as BuiltSwap;
-    if (!response.ok) return { error: payload.error ?? "That could not be quoted." };
+    if (!response.ok) return { error: payload.error ?? "That could not be quoted.", ...(payload.eligibility === undefined ? {} : { eligibility: payload.eligibility }) };
     return payload;
   } catch {
     return { error: "That could not be quoted — the network did not answer." };
@@ -113,13 +132,13 @@ export async function runSwap(
   try {
     const response = await fetcher("/api/swap/submit", {
       method: "POST",
-      body: JSON.stringify({ signedTransaction: encodeBase64(signed), quoteRef }),
+      body: JSON.stringify({ signedTransaction: encodeBase64(signed), quoteRef, ...(swap.confirmEligible === true ? { confirmEligible: true } : {}) }),
     });
-    const payload = (await response.json().catch(() => ({}))) as { signature?: string; error?: string };
+    const payload = (await response.json().catch(() => ({}))) as { signature?: string; error?: string; order?: PlacedOrder | null };
     if (!response.ok || typeof payload.signature !== "string") {
       return { ok: false, error: payload.error ?? "The swap did not land.", cancelled: false, built };
     }
-    return { ok: true, signature: payload.signature, built };
+    return { ok: true, signature: payload.signature, built, order: payload.order ?? null };
   } catch {
     /* The signed bytes may still have reached Jupiter. Said plainly, so the
        person checks their wallet before trying again. */

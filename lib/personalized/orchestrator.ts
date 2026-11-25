@@ -198,13 +198,12 @@ export async function runPersonalized(options: RunOptions): Promise<RunResult> {
 
   const firstText = first.result.text ?? "";
 
-  /* A policy refusal is surfaced as-is rather than dressed up. */
+  /* A policy refusal is surfaced plainly. Its reason is a category code
+     ("cyber", "content_policy") for the run log, not words for a person. */
   if (first.result.refused) {
     return {
       answer: {
-        message:
-          first.result.refusalReason ??
-          "I can't answer that one. Ask me about your positions, exposure or capital instead.",
+        message: "I can't answer that one. Ask me about your positions, exposure or capital instead.",
       },
       meta: {
         provider: first.result.provider,

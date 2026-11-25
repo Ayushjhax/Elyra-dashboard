@@ -12,6 +12,9 @@ import type { BenchmarkQuote, ExchangeView, Quote, RegionView } from "@/lib/mark
 import { useExchangeListings, useMarketsBrief, useMarketsOverview } from "@/lib/markets/useMarkets";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The world's stock markets, live: which exchanges are open, how their
@@ -25,11 +28,11 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 const SESSION_TEXT: Record<SessionStatus["kind"], string> = {
-  open: "Open",
-  pre: "Pre-market",
-  post: "After hours",
-  break: "Midday break",
-  closed: "Closed",
+  open: msg("Open"),
+  pre: msg("Pre-market"),
+  post: msg("After hours"),
+  break: msg("Midday break"),
+  closed: msg("Closed"),
 };
 
 const SESSION_TONE: Record<SessionStatus["kind"], string> = {
@@ -58,22 +61,31 @@ function Change({ value, className }: { value: number | null; className?: string
 }
 
 function SessionPill({ session }: { session: SessionStatus | null }) {
-  if (session === null) return <span className="type-label text-text-muted">Hours unknown</span>;
+  const t = useT();
+  if (session === null) return <span className="type-label text-text-muted">{t("Hours unknown")}</span>;
   return (
     <span className={cn("type-label inline-flex h-6 shrink-0 items-center rounded-pill border px-2", SESSION_TONE[session.kind])}>
-      {SESSION_TEXT[session.kind]}
+      {t(SESSION_TEXT[session.kind])}
     </span>
   );
 }
 
-function countdown(session: SessionStatus | null): string | null {
+/** "3h 05m", or "3小时05分" for a Chinese reader. */
+function duration(minutes: number, t: Translator): string {
+  const text = formatDuration(minutes);
+  if (t.locale !== "zh-CN") return text;
+  return text.replace(/(\d+)d/, "$1天").replace(/(\d+)h/, "$1小时").replace(/(\d+)m/, "$1分").replace(/ /g, "");
+}
+
+function countdown(session: SessionStatus | null, t: Translator): string | null {
   if (session === null) return null;
-  if (session.kind === "open" && session.closesInMin !== null) return `closes in ${formatDuration(session.closesInMin)}`;
-  if (session.opensInMin !== null) return `opens in ${formatDuration(session.opensInMin)}`;
+  if (session.kind === "open" && session.closesInMin !== null) return t("closes in {duration}", { duration: duration(session.closesInMin, t) });
+  if (session.opensInMin !== null) return t("opens in {duration}", { duration: duration(session.opensInMin, t) });
   return null;
 }
 
 function QuoteRow({ quote, label }: { quote: Quote; label?: string }) {
+  const t = useT();
   const setSelectedAssetId = useElyraStore((state) => state.setSelectedAssetId);
   return (
     <li className="flex min-w-0 items-center gap-3 py-2">
@@ -89,7 +101,7 @@ function QuoteRow({ quote, label }: { quote: Quote; label?: string }) {
         <button
           type="button"
           onClick={() => setSelectedAssetId(quote.feedId)}
-          aria-label={`Show ${quote.ticker} on the chart`}
+          aria-label={t("Show {ticker} on the chart", { ticker: quote.ticker })}
           className="grid size-9 shrink-0 place-items-center rounded-control text-text-muted transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary"
         >
           <LineChart size={15} strokeWidth={1.5} aria-hidden />
@@ -119,6 +131,7 @@ function QuoteList({ title, quotes, labels, tip }: { title: string; quotes: Quot
 }
 
 function Breadth({ up, down, flat }: { up: number; down: number; flat: number }) {
+  const t = useT();
   const total = up + down + flat;
   if (total === 0) return null;
   return (
@@ -129,13 +142,16 @@ function Breadth({ up, down, flat }: { up: number; down: number; flat: number })
         <span className="h-full bg-negative" style={{ width: `${(down / total) * 100}%` }} />
       </div>
       <p className="type-label text-text-secondary">
-        {up} up · {down} down{flat > 0 ? ` · ${flat} unchanged` : ""} on the previous close
+        {(flat > 0
+              ? t("{up} up · {down} down · {flat} unchanged on the previous close", { up, down, flat })
+              : t("{up} up · {down} down on the previous close", { up, down }))}
       </p>
     </div>
   );
 }
 
 function ExchangeDetail({ exchange }: { exchange: ExchangeView }) {
+  const t = useT();
   const feed = useExchangeListings(exchange.id);
   const labels = new Map(exchange.benchmarks.map((benchmark) => [benchmark.pythSymbol, benchmark.label]));
   const listings = feed.data?.listings ?? [];
@@ -143,18 +159,17 @@ function ExchangeDetail({ exchange }: { exchange: ExchangeView }) {
   return (
     <div className="flex flex-col gap-4 border-t border-border-subtle px-3 pb-3 pt-3">
       <QuoteList
-        title="Benchmarks"
+        title={t("Benchmarks")}
         quotes={exchange.benchmarks}
         labels={labels}
-        tip="An index is Pyth's price for the index itself. A fund tracks it: one on the market's own exchange in its currency, or one in New York in dollars, which also moves with the currency."
+        tip={t("An index is Pyth's price for the index itself. A fund tracks it: one on the market's own exchange in its currency, or one in New York in dollars, which also moves with the currency.")}
       />
       {exchange.holidays.length > 0 && (
         <p className="type-label text-text-secondary">
-          Upcoming:{" "}
-          {exchange.holidays
+          {t("Upcoming: {days}", { days: exchange.holidays
             .slice(0, 3)
-            .map((day) => `${day.date} ${day.closed ? "closed" : "shortened"}`)
-            .join(" · ")}
+            .map((day) => `${day.date} ${day.closed ? t("closed") : t("shortened")}`)
+            .join(" · ") })}
         </p>
       )}
       {feed.loading && feed.data === null ? (
@@ -169,23 +184,23 @@ function ExchangeDetail({ exchange }: { exchange: ExchangeView }) {
           {/* Leaders and laggards say something only among enough names; with a handful they repeat the list. */}
           {feed.data !== null && listings.length + viaNewYork.length >= 8 && (feed.data.gainers.length > 0 || feed.data.losers.length > 0) && (
             <div className="grid grid-cols-1 gap-3 @[28rem]:grid-cols-2">
-              <QuoteList title="Leading" quotes={feed.data.gainers} />
-              <QuoteList title="Lagging" quotes={feed.data.losers} />
+              <QuoteList title={t("Leading")} quotes={feed.data.gainers} />
+              <QuoteList title={t("Lagging")} quotes={feed.data.losers} />
             </div>
           )}
-          <QuoteList title={exchange.id === "us" ? "Largest companies" : "Live listings"} quotes={listings} />
+          <QuoteList title={exchange.id === "us" ? t("Largest companies") : t("Live listings")} quotes={listings} />
           <QuoteList
-            title={`${exchange.city} companies listed in New York`}
+            title={t("{city} companies listed in New York", { city: exchange.city })}
             quotes={viaNewYork}
-            tip="The same companies' shares in New York, priced in dollars. They trade in New York hours."
+            tip={t("The same companies' shares in New York, priced in dollars. They trade in New York hours.")}
           />
           {exchange.comingSoon > 0 && (
             <p className="type-label text-text-muted">
-              Pyth publishes {exchange.comingSoon} more {exchange.city} listings that are not live yet. They appear here when they are.
+              {t("Pyth publishes {comingSoon} more {city} listings that are not live yet. They appear here when they are.", { comingSoon: exchange.comingSoon, city: exchange.city })}
             </p>
           )}
           {listings.length === 0 && viaNewYork.length === 0 && exchange.comingSoon === 0 && (
-            <p className="type-label text-text-muted">This market is followed through its benchmarks above.</p>
+            <p className="type-label text-text-muted">{t("This market is followed through its benchmarks above.")}</p>
           )}
         </>
       )}
@@ -194,6 +209,7 @@ function ExchangeDetail({ exchange }: { exchange: ExchangeView }) {
 }
 
 function ExchangeRow({ exchange, open, onToggle }: { exchange: ExchangeView; open: boolean; onToggle: () => void }) {
+  const t = useT();
   const lead: BenchmarkQuote | undefined = exchange.benchmarks.find((benchmark) => benchmark.changePct !== null) ?? exchange.benchmarks[0];
   const regionId = `market-${exchange.id}`;
   return (
@@ -212,8 +228,8 @@ function ExchangeRow({ exchange, open, onToggle }: { exchange: ExchangeView; ope
           </div>
           <p className="type-label truncate text-text-muted">
             {exchange.venue}
-            {exchange.session !== null && ` · ${exchange.session.localTime} local`}
-            {countdown(exchange.session) !== null && ` · ${countdown(exchange.session)}`}
+            {exchange.session !== null && t(" · {localTime} local", { localTime: exchange.session.localTime })}
+            {countdown(exchange.session, t) !== null && ` · ${countdown(exchange.session, t)}`}
           </p>
         </div>
         {lead !== undefined && (
@@ -238,13 +254,14 @@ function ExchangeRow({ exchange, open, onToggle }: { exchange: ExchangeView; ope
 }
 
 function RegionSection({ region, exchanges, openId, setOpenId }: { region: RegionView; exchanges: ExchangeView[]; openId: string | null; setOpenId: (id: string | null) => void }) {
+  const t = useT();
   const labels = new Map(region.benchmarks.map((benchmark) => [benchmark.pythSymbol, benchmark.label]));
   return (
     <section aria-label={region.label} className="flex flex-col gap-2">
       <h3 className="type-eyebrow flex items-center justify-between px-1 text-text-muted">
         <span>{region.label}</span>
         <span className="normal-case tracking-normal">
-          {region.openCount} of {exchanges.length} open
+          {t("{openCount} of {count} open", { openCount: region.openCount, count: exchanges.length })}
         </span>
       </h3>
       <ul className="flex flex-col gap-2">
@@ -254,11 +271,11 @@ function RegionSection({ region, exchanges, openId, setOpenId }: { region: Regio
       </ul>
       {(region.benchmarks.length > 0 || region.viaNewYork.length > 0) && (
         <div className="flex flex-col gap-3 rounded-card border border-border-subtle bg-surface-base px-3 py-2">
-          <QuoteList title={`${region.label} funds`} quotes={region.benchmarks} labels={labels} />
+          <QuoteList title={t("{label} funds", { label: region.label })} quotes={region.benchmarks} labels={labels} />
           <QuoteList
-            title={`More ${region.label} companies in New York`}
+            title={t("More {label} companies in New York", { label: region.label })}
             quotes={region.viaNewYork}
-            tip="Companies from markets not shown above, through their New York listings, in dollars."
+            tip={t("Companies from markets not shown above, through their New York listings, in dollars.")}
           />
         </div>
       )}
@@ -267,20 +284,20 @@ function RegionSection({ region, exchanges, openId, setOpenId }: { region: Regio
 }
 
 function Brief() {
+  const t = useT();
   const brief = useMarketsBrief();
   return (
-    <section aria-label="Briefing" className="flex flex-col gap-2 rounded-panel border border-border-subtle bg-surface-raised p-4">
-      <h3 className="type-h2 text-text-primary">Right now</h3>
+    <section aria-label={t("Briefing")} className="flex flex-col gap-2 rounded-panel border border-border-subtle bg-surface-raised p-4">
+      <h3 className="type-h2 text-text-primary">{t("Right now")}</h3>
       {brief.loading && brief.data === null ? (
         <SkeletonRows rows={2} />
       ) : brief.data === null ? (
-        <p className="type-body-sm text-text-secondary">The briefing is unavailable; the markets below are live.</p>
+        <p className="type-body-sm text-text-secondary">{t("The briefing is unavailable; the markets below are live.")}</p>
       ) : (
         <>
           <p className="type-body-sm text-text-primary">{brief.data.text}</p>
           <p className="type-label text-text-muted">
-            {brief.data.model === "fallback" ? "Summarised by Elyra" : "Written by Elyra's AI"} from the prices below, at{" "}
-            {brief.data.generatedAt.slice(11, 16)} UTC. Not a recommendation.
+            {brief.data.model === "fallback" ? t("Summarised by Elyra") : t("Written by Elyra's AI")}{" "}{t("from the prices below, at {value2} UTC. Not a recommendation.", { value2: brief.data.generatedAt.slice(11, 16) })}
           </p>
         </>
       )}
@@ -289,12 +306,13 @@ function Brief() {
 }
 
 export function WorldMarketsView() {
+  const t = useT();
   const overview = useMarketsOverview();
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (overview.loading && overview.data === null) return <SkeletonRows rows={8} />;
   if (overview.data === null) {
-    return <EmptyState icon={Globe2} title="World markets are unavailable" body={overview.error ?? "Try again shortly."} />;
+    return <EmptyState icon={Globe2} title={t("World markets are unavailable")} body={overview.error ?? t("Try again shortly.")} />;
   }
   const data = overview.data;
   const fxLabels = new Map(data.fx.map((quote) => [quote.pythSymbol, quote.ticker]));
@@ -316,12 +334,12 @@ export function WorldMarketsView() {
           setOpenId={setOpenId}
         />
       ))}
-      <section aria-label="Global and currencies" className="flex flex-col gap-3 rounded-panel border border-border-subtle bg-surface-raised p-4">
-        <QuoteList title="Global" quotes={data.global} labels={new Map(data.global.map((benchmark) => [benchmark.pythSymbol, benchmark.label]))} />
-        <QuoteList title="Currencies" quotes={data.fx} labels={fxLabels} tip="Pyth's live rates. A move in the yen, won or euro changes what a market's move is worth in dollars." />
+      <section aria-label={t("Global and currencies")} className="flex flex-col gap-3 rounded-panel border border-border-subtle bg-surface-raised p-4">
+        <QuoteList title={t("Global")} quotes={data.global} labels={new Map(data.global.map((benchmark) => [benchmark.pythSymbol, benchmark.label]))} />
+        <QuoteList title={t("Currencies")} quotes={data.fx} labels={fxLabels} tip={t("Pyth's live rates. A move in the yen, won or euro changes what a market's move is worth in dollars.")} />
       </section>
       <p className="type-label text-center text-text-muted">
-        Prices from Pyth. Change against the previous close. London, Frankfurt, Paris and São Paulo are shown through funds and New York listings until Pyth&apos;s local feeds go live.
+        {t("Prices from Pyth. Change against the previous close. London, Frankfurt, Paris and São Paulo are shown through funds and New York listings until Pyth's local feeds go live.")}
       </p>
     </div>
   );

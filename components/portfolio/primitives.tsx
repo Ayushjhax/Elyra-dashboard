@@ -5,6 +5,7 @@ import { Info } from "lucide-react";
 import { formatPct, formatUsd } from "@/lib/format";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The pieces every portfolio surface is built from.
@@ -55,6 +56,7 @@ export function Money({
   decimals?: number;
   className?: string;
 }) {
+  const t = useT();
   const hidden = useBalancesHidden();
 
   if (value === null) {
@@ -62,7 +64,7 @@ export function Money({
       <span
         className={cn("text-text-muted", className)}
         title={reason}
-        aria-label={reason ? `Unavailable: ${reason}` : "Unavailable"}
+        aria-label={reason ? t("Unavailable: {reason}", { reason }) : t("Unavailable")}
       >
         —
       </span>
@@ -71,7 +73,7 @@ export function Money({
 
   if (hidden) {
     return (
-      <span className={cn("text-text-muted", className)} aria-label="Hidden">
+      <span className={cn("text-text-muted", className)} aria-label={t("Hidden")}>
         {MASK}
       </span>
     );
@@ -302,6 +304,7 @@ export function Unavailable({
   onRetry?: () => void;
   tone?: "neutral" | "warning";
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -327,7 +330,7 @@ export function Unavailable({
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
           )}
         >
-          Retry
+          {t("Retry")}
         </button>
       )}
     </div>
@@ -336,6 +339,7 @@ export function Unavailable({
 
 /** A keyboard-reachable definition for a metric label. */
 export function Hint({ text }: { text: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const id = useId();
 
@@ -343,7 +347,7 @@ export function Hint({ text }: { text: string }) {
     <span className="relative inline-flex">
       <button
         type="button"
-        aria-label="What this means"
+        aria-label={t("What this means")}
         aria-describedby={open ? id : undefined}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}

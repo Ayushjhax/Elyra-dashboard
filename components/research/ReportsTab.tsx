@@ -13,8 +13,10 @@ import {
   Timestamp,
   useResearchResource,
 } from "./shared";
+import { useT } from "@/lib/i18n/client";
 
 export function ReportsTab({ active }: { active: boolean }) {
+  const t = useT();
   const auth = useElyraAuth();
   const request = useAuthedFetch();
   const library = useResearchResource<{ reports: ReportRecord[] }>(
@@ -62,14 +64,14 @@ export function ReportsTab({ active }: { active: boolean }) {
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok)
-        throw new Error(body.error ?? "Could not start that report.");
+        throw new Error(body.error ?? t("Could not start that report."));
       if (!controller.signal.aborted) library.reload();
     } catch (failure) {
       if (!controller.signal.aborted)
         setError(
           failure instanceof Error
             ? failure.message
-            : "Could not start that report.",
+            : t("Could not start that report."),
         );
     } finally {
       operation.current = null;
@@ -85,7 +87,7 @@ export function ReportsTab({ active }: { active: boolean }) {
         `/api/research/reports/${report.id}/download`,
       );
       if (!response.ok)
-        throw new Error("The PDF could not be downloaded. Try again.");
+        throw new Error(t("The PDF could not be downloaded. Try again."));
       const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -93,13 +95,13 @@ export function ReportsTab({ active }: { active: boolean }) {
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Download failed.");
+      setError(failure instanceof Error ? failure.message : t("Download failed."));
     } finally {
       downloading.current = false;
     }
   };
   if (selected && !auth.authenticated)
-    return <SignIn>Connect your wallet to view this report.</SignIn>;
+    return <SignIn>{t("Connect your wallet to view this report.")}</SignIn>;
   if (selected)
     return (
       <div>
@@ -109,9 +111,9 @@ export function ReportsTab({ active }: { active: boolean }) {
           onClick={() => setSelected(null)}
         >
           <ArrowLeft size={16} aria-hidden />
-          Your reports
+          {t("Your reports")}
         </button>
-        {detail.loading && !detail.data && <Loading>Opening report…</Loading>}
+        {detail.loading && !detail.data && <Loading>{t("Opening report…")}</Loading>}
         {detail.error && (
           <Problem retry={detail.reload}>{detail.error}</Problem>
         )}
@@ -120,7 +122,7 @@ export function ReportsTab({ active }: { active: boolean }) {
             <div className="r-section-heading">
               <div>
                 <h2>{detail.data.subjectName ?? detail.data.query}</h2>
-                <Timestamp at={detail.data.createdAt} label="Created" />
+                <Timestamp at={detail.data.createdAt} label={t("Created")} />
               </div>
               {detail.data.hasPdf && (
                 <button
@@ -129,7 +131,7 @@ export function ReportsTab({ active }: { active: boolean }) {
                   onClick={() => void download(detail.data!)}
                 >
                   <Download size={16} aria-hidden />
-                  Download PDF
+                  {t("Download PDF")}
                 </button>
               )}
             </div>
@@ -156,7 +158,7 @@ export function ReportsTab({ active }: { active: boolean }) {
                               <div key={i}>
                                 <dt>
                                   {metric.label}
-                                  {metric.nonGaap ? " · non-GAAP" : ""}
+                                  {metric.nonGaap ? t(" · non-GAAP") : ""}
                                 </dt>
                                 <dd>
                                   {metric.value}
@@ -198,7 +200,7 @@ export function ReportsTab({ active }: { active: boolean }) {
                   </section>
                 ))}
                 <section className="r-section">
-                  <h3>Sources</h3>
+                  <h3>{t("Sources")}</h3>
                   {detail.data.document.sources.map((source) => (
                     <p key={source.id} className="r-source">
                       {source.url ? (
@@ -221,7 +223,7 @@ export function ReportsTab({ active }: { active: boolean }) {
               <Problem>
                 {detail.data.error ??
                   detail.data.statusDetail ??
-                  "The report document is not available yet."}
+                  t("The report document is not available yet.")}
               </Problem>
             )}
           </article>
@@ -239,7 +241,7 @@ export function ReportsTab({ active }: { active: boolean }) {
   return (
     <div>
       <section className="r-composer">
-        <h2>Create a report</h2>
+        <h2>{t("Create a report")}</h2>
         <form
           className="r-report-form"
           onSubmit={(event) => {
@@ -250,23 +252,23 @@ export function ReportsTab({ active }: { active: boolean }) {
           <label className="r-search">
             <Search size={20} aria-hidden />
             <span className="sr-only">
-              Company, ticker, or research question
+              {t("Company, ticker, or research question")}
             </span>
             <input
               value={query}
               maxLength={250}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Company, ticker, or research question…"
+              placeholder={t("Company, ticker, or research question…")}
             />
           </label>
           <label>
-            <span className="sr-only">Report type</span>
+            <span className="sr-only">{t("Report type")}</span>
             <select
               value={kind}
               onChange={(event) => setKind(event.target.value as ReportKind)}
             >
-              <option value="auto">Auto</option>
-              <option value="earnings">Earnings</option>
+              <option value="auto">{t("Auto")}</option>
+              <option value="earnings">{t("Earnings")}</option>
               <option value="10-Q">10-Q</option>
               <option value="10-K">10-K</option>
             </select>
@@ -277,11 +279,11 @@ export function ReportsTab({ active }: { active: boolean }) {
             disabled={busy || !query.trim()}
             aria-busy={busy}
           >
-            {busy ? "Starting…" : "Research"}
+            {busy ? t("Starting…") : t("Research")}
           </button>
         </form>
         <div className="r-suggestions">
-          {["NVDA latest earnings", "NVDA 10-Q", "MSFT 10-K"].map(
+          {[t("NVDA latest earnings"), "NVDA 10-Q", "MSFT 10-K"].map(
             (suggestion) => (
               <button
                 type="button"
@@ -298,39 +300,39 @@ export function ReportsTab({ active }: { active: boolean }) {
           )}
         </div>
         <p className="r-note">
-          Built from SEC filings · XBRL · Public companies only.
+          {t("Built from SEC filings · XBRL · Public companies only.")}
         </p>
         {error && <Problem>{error}</Problem>}
       </section>
       <section className="r-section r-library">
         <div className="r-section-heading">
           <h2>
-            Your reports{" "}
+            {t("Your reports ")}
             <span className="r-count">
               {library.data ? reports.length : "—"}
             </span>
           </h2>
           <label>
-            <span className="sr-only">Filter reports</span>
+            <span className="sr-only">{t("Filter reports")}</span>
             <select
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
             >
-              <option value="all">All reports</option>
-              <option value="complete">Completed</option>
-              <option value="running">Generating</option>
-              <option value="failed">Failed</option>
+              <option value="all">{t("All reports")}</option>
+              <option value="complete">{t("Completed")}</option>
+              <option value="running">{t("Generating")}</option>
+              <option value="failed">{t("Failed")}</option>
             </select>
           </label>
         </div>
         {!auth.authenticated ? (
           <SignIn>
-            Connect a wallet to generate and view your saved reports.
+            {t("Connect a wallet to generate and view your saved reports.")}
           </SignIn>
         ) : (
           <>
             {library.loading && !library.data && (
-              <Loading>Loading reports…</Loading>
+              <Loading>{t("Loading reports…")}</Loading>
             )}
             {library.error && (
               <Problem retry={library.reload}>{library.error}</Problem>
@@ -340,13 +342,13 @@ export function ReportsTab({ active }: { active: boolean }) {
                 <FileText size={36} strokeWidth={1.25} aria-hidden />
                 <h3>
                   {reports.length === 0
-                    ? "No reports yet"
-                    : "No matching reports"}
+                    ? t("No reports yet")
+                    : t("No matching reports")}
                 </h3>
                 <p>
                   {reports.length === 0
-                    ? "Choose a company above to start your research."
-                    : "Choose another filter to view your reports."}
+                    ? t("Choose a company above to start your research.")
+                    : t("Choose another filter to view your reports.")}
                 </p>
               </div>
             )}
@@ -365,15 +367,15 @@ export function ReportsTab({ active }: { active: boolean }) {
                   >
                     {report.status === "complete"
                       ? report.quality === "verified_with_warnings"
-                        ? "Saved · Verified with warnings"
+                        ? t("Saved · Verified with warnings")
                         : report.quality === "incomplete"
-                          ? "Saved · Incomplete"
-                          : "Saved · Complete"
+                          ? t("Saved · Incomplete")
+                          : t("Saved · Complete")
                       : report.status === "failed"
-                        ? (report.error ?? "Report failed")
+                        ? (report.error ?? t("Report failed"))
                         : (report.statusDetail ?? report.status)}
                   </p>
-                  <Timestamp at={report.createdAt} label="Created" />
+                  <Timestamp at={report.createdAt} label={t("Created")} />
                 </div>
                 <div className="r-actions">
                   {report.status === "complete" && (
@@ -382,7 +384,7 @@ export function ReportsTab({ active }: { active: boolean }) {
                       type="button"
                       onClick={() => setSelected(report.id)}
                     >
-                      View report
+                      {t("View report")}
                     </button>
                   )}
                   {report.status === "complete" && report.hasPdf && (
@@ -390,7 +392,7 @@ export function ReportsTab({ active }: { active: boolean }) {
                       className="r-button"
                       type="button"
                       onClick={() => void download(report)}
-                      aria-label={`Download ${report.subjectName ?? report.query}`}
+                      aria-label={t("Download {value}", { value: report.subjectName ?? report.query })}
                     >
                       <Download size={16} aria-hidden />
                       PDF
@@ -405,7 +407,7 @@ export function ReportsTab({ active }: { active: boolean }) {
                         setKind("auto");
                       }}
                     >
-                      Edit request
+                      {t("Edit request")}
                     </button>
                   )}
                 </div>

@@ -130,6 +130,45 @@ export async function jupiterTokenListing(mint: string): Promise<ToolResult<Toke
   );
 }
 
+/**
+ * Jupiter's full entries for a search — every field the index returns, for
+ * the token analysis to parse (lib/analysis/parse.ts) — cached like the
+ * listing. Raw on purpose: the parse checks each field it uses.
+ */
+export async function jupiterTokenSearch(query: string): Promise<ToolResult<unknown[]>> {
+  const result = await cached<unknown[]>(`jup:search:${query}`, LISTING_TTL_MS, () =>
+    providerFetch<unknown[]>({
+      provider: "jupiter",
+      url: `${GATEWAY}/tokens/v2/search?query=${encodeURIComponent(query)}`,
+      headers: headers(),
+      timeoutMs: 6_000,
+    }),
+  );
+  if (!result.ok || result.data === undefined) {
+    return fail<unknown[]>("jupiter", result.error?.code ?? "UPSTREAM_UNAVAILABLE", result.error?.message ?? "Jupiter's token index did not answer.");
+  }
+  return ok<unknown[]>(Array.isArray(result.data) ? result.data : [], "jupiter");
+}
+
+/**
+ * Every token Jupiter's index tags verified — several thousand entries,
+ * about 5 MB — for a caller that keeps the few it needs and caches those
+ * (the tokenized stocks, lib/providers/jupiterStocks.ts). Not put through
+ * `cached`: the shared cache is no place for a payload this size.
+ */
+export async function jupiterVerifiedTokens(): Promise<ToolResult<unknown[]>> {
+  const result = await providerFetch<unknown[]>({
+    provider: "jupiter",
+    url: `${GATEWAY}/tokens/v2/tag?query=verified`,
+    headers: headers(),
+    timeoutMs: 15_000,
+  });
+  if (!result.ok || result.data === undefined) {
+    return fail<unknown[]>("jupiter", result.error?.code ?? "UPSTREAM_UNAVAILABLE", result.error?.message ?? "Jupiter's token index did not answer.");
+  }
+  return ok<unknown[]>(Array.isArray(result.data) ? result.data : [], "jupiter");
+}
+
 /* ---------------------------------------------------------------------------
    Prices
 --------------------------------------------------------------------------- */

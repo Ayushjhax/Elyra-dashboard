@@ -10,6 +10,8 @@ import { useTickerLogos } from "@/lib/market/tickerLogos";
 import { useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    What the market is doing, for the Signals view.
@@ -28,6 +30,7 @@ const REFRESH_MS = 30_000;
 /* ---- Watchlist ---- */
 
 export function WatchlistPulse() {
+  const t = useT();
   const watchlist = useElyraStore((state) => state.watchlist);
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
   const setSelectedAssetId = useElyraStore((state) => state.setSelectedAssetId);
@@ -38,8 +41,8 @@ export function WatchlistPulse() {
   if (assets.length === 0) return null;
 
   return (
-    <section aria-label="Your watchlist, live" className="mt-5">
-      <p className="type-eyebrow text-text-muted">Your watchlist · live</p>
+    <section aria-label={t("Your watchlist, live")} className="mt-5">
+      <p className="type-eyebrow text-text-muted">{t("Your watchlist · live")}</p>
       <ul className="mt-2 list-none overflow-hidden rounded-card border border-border-subtle">
         {assets.map((asset) => {
           const row = feed.rows.get(asset.id);
@@ -69,7 +72,7 @@ export function WatchlistPulse() {
                   <span className="mt-1 flex items-center gap-2">
                     {/* Where the price sits between today's low and high. */}
                     <span
-                      aria-label={range === null ? "24h range unavailable" : `${Math.round(range * 100)}% up its 24h range`}
+                      aria-label={range === null ? t("24h range unavailable") : t("{value}% up its 24h range", { value: Math.round(range * 100) })}
                       className="relative h-1 flex-1 rounded-pill bg-surface-hover"
                     >
                       {range !== null && (
@@ -88,7 +91,9 @@ export function WatchlistPulse() {
                   </span>
                   {ema !== null && (
                     <span className="type-label mt-0.5 block text-text-muted">
-                      {formatPct(Math.abs(ema), { sign: false })} {ema >= 0 ? "above" : "below"} its EMA
+                      {(ema >= 0
+              ? t("{ema} above its EMA", { ema: formatPct(Math.abs(ema), { sign: false }) })
+              : t("{ema} below its EMA", { ema: formatPct(Math.abs(ema), { sign: false }) }))}
                     </span>
                   )}
                 </span>
@@ -106,11 +111,11 @@ export function WatchlistPulse() {
 type BoardView = "gainers" | "losers" | "funding" | "openInterest" | "volume";
 
 const VIEWS: Array<{ id: BoardView; label: string }> = [
-  { id: "gainers", label: "Gainers" },
-  { id: "losers", label: "Losers" },
-  { id: "funding", label: "Funding" },
-  { id: "openInterest", label: "Open interest" },
-  { id: "volume", label: "Volume" },
+  { id: "gainers", label: msg("Gainers") },
+  { id: "losers", label: msg("Losers") },
+  { id: "funding", label: msg("Funding") },
+  { id: "openInterest", label: msg("Open interest") },
+  { id: "volume", label: msg("Volume") },
 ];
 
 function metric(view: BoardView, row: PulseRow): number {
@@ -142,6 +147,7 @@ function metricText(view: BoardView, row: PulseRow): string {
 }
 
 export function PulseBoard({ onAsk }: { onAsk: (prompt: string) => void }) {
+  const t = useT();
   const [view, setView] = useState<BoardView>("gainers");
   const [state, setState] = useState<{ data: PulseResponse | null; failed: boolean }>({ data: null, failed: false });
   const setSelectedAssetId = useElyraStore((state) => state.setSelectedAssetId);
@@ -180,17 +186,17 @@ export function PulseBoard({ onAsk }: { onAsk: (prompt: string) => void }) {
   const firstShortPays = view === "funding" ? rows.findIndex((row) => (row.fundingAprPct ?? 0) < 0) : -1;
 
   return (
-    <section aria-label="Hyperliquid board" className="mt-5">
+    <section aria-label={t("Hyperliquid board")} className="mt-5">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="type-eyebrow text-text-muted">Hyperliquid board</p>
+        <p className="type-eyebrow text-text-muted">{t("Hyperliquid board")}</p>
         {pulse && (
           <span className="type-label truncate text-text-muted">
-            {pulse.markets} perps · {formatCompactUsd(pulse.totalOpenInterestUsd)} OI · {formatCompactUsd(pulse.totalVolumeUsd)} 24h
+            {t("{markets} perps · {totalOpenInterestUsd} OI · {totalVolumeUsd} 24h", { markets: pulse.markets, totalOpenInterestUsd: formatCompactUsd(pulse.totalOpenInterestUsd), totalVolumeUsd: formatCompactUsd(pulse.totalVolumeUsd) })}
           </span>
         )}
       </div>
 
-      <div role="radiogroup" aria-label="Rank by" className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 pb-1">
+      <div role="radiogroup" aria-label={t("Rank by")} className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 pb-1">
         {VIEWS.map((entry) => (
           <button
             key={entry.id}
@@ -206,23 +212,23 @@ export function PulseBoard({ onAsk }: { onAsk: (prompt: string) => void }) {
                 : "border-border-subtle text-text-secondary hover:bg-surface-hover hover:text-text-primary",
             )}
           >
-            {entry.label}
+            {t(entry.label)}
           </button>
         ))}
       </div>
 
       {pulse === null ? (
         state.failed ? (
-          <p className="type-body-sm mt-2 text-text-secondary">Hyperliquid could not be read just now.</p>
+          <p className="type-body-sm mt-2 text-text-secondary">{t("Hyperliquid could not be read just now.")}</p>
         ) : (
-          <div aria-busy="true" aria-label="Loading the board" className="mt-2 space-y-1.5">
+          <div aria-busy="true" aria-label={t("Loading the board")} className="mt-2 space-y-1.5">
             {[0, 1, 2, 3, 4].map((row) => (
               <div key={row} className="skeleton h-10 rounded-control" />
             ))}
           </div>
         )
       ) : rows.length === 0 ? (
-        <p className="type-body-sm mt-2 text-text-secondary">Nothing stretched right now — every liquid market is near the resting rate.</p>
+        <p className="type-body-sm mt-2 text-text-secondary">{t("Nothing stretched right now — every liquid market is near the resting rate.")}</p>
       ) : (
         <ol className="mt-1.5 list-none overflow-hidden rounded-card border border-border-subtle">
           {rows.map((row, index) => {
@@ -234,19 +240,19 @@ export function PulseBoard({ onAsk }: { onAsk: (prompt: string) => void }) {
             return (
               <li key={`${view}-${row.symbol}`} className="border-t border-border-subtle first:border-t-0">
                 {view === "funding" && index === 0 && (row.fundingAprPct ?? 0) > 0 && (
-                  <p className="type-label bg-surface-raised px-3 py-1 text-text-muted">Longs paying most</p>
+                  <p className="type-label bg-surface-raised px-3 py-1 text-text-muted">{t("Longs paying most")}</p>
                 )}
                 {index === firstShortPays && (
-                  <p className="type-label bg-surface-raised px-3 py-1 text-text-muted">Shorts paying most</p>
+                  <p className="type-label bg-surface-raised px-3 py-1 text-text-muted">{t("Shorts paying most")}</p>
                 )}
                 <button
                   type="button"
                   onClick={() =>
                     asset
                       ? setSelectedAssetId(asset.id)
-                      : onAsk(`What is driving ${row.symbol} on Hyperliquid right now?`)
+                      : onAsk(t("What is driving {symbol} on Hyperliquid right now?", { symbol: row.symbol }))
                   }
-                  title={asset ? `Show ${row.symbol} on the chart` : `Ask Elyra about ${row.symbol}`}
+                  title={asset ? t("Show {symbol} on the chart", { symbol: row.symbol }) : t("Ask Elyra about {symbol}", { symbol: row.symbol })}
                   className="relative flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover"
                 >
                   {/* The row's share of the list's largest value, as a fill. */}
@@ -285,7 +291,7 @@ export function PulseBoard({ onAsk }: { onAsk: (prompt: string) => void }) {
         </ol>
       )}
       <p className="type-label mt-1.5 text-text-muted">
-        Movers and funding rank markets with over $1M of 24h volume. Funding is annualised from Hyperliquid&rsquo;s hourly rate.
+        {t("Movers and funding rank markets with over $1M of 24h volume. Funding is annualised from Hyperliquid’s hourly rate.")}
       </p>
     </section>
   );

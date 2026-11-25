@@ -27,6 +27,7 @@ import {
   Timestamp,
   useResearchResource,
 } from "./shared";
+import { useT } from "@/lib/i18n/client";
 
 type SignalFeed = {
   signals: MarketSignal[];
@@ -35,6 +36,7 @@ type SignalFeed = {
   evaluation?: SignalEvaluation;
 };
 export function SignalsTab({ active }: { active: boolean }) {
+  const t = useT();
   const auth = useElyraAuth();
   const [symbol, setSymbol] = useState("SOL");
   const [criteria, setCriteria] = useState(false);
@@ -53,7 +55,7 @@ export function SignalsTab({ active }: { active: boolean }) {
     <div>
       <div className="r-toolbar">
         <Choices
-          label="Signal asset"
+          label={t("Signal asset")}
           value={symbol}
           options={["SOL", "BTC", "ETH"].map((value) => ({
             value,
@@ -68,12 +70,12 @@ export function SignalsTab({ active }: { active: boolean }) {
             onClick={() => setCriteria(true)}
           >
             <SlidersHorizontal size={16} aria-hidden />
-            Criteria
+            {t("Criteria")}
           </button>
           <button
             type="button"
             className="r-button"
-            aria-label="Refresh signals"
+            aria-label={t("Refresh signals")}
             onClick={feed.reload}
             disabled={feed.loading || !auth.authenticated}
           >
@@ -86,7 +88,7 @@ export function SignalsTab({ active }: { active: boolean }) {
       ) : (
         <>
           {feed.loading && !feed.data && (
-            <Loading>Evaluating price, funding and venue readings…</Loading>
+            <Loading>{t("Evaluating price, funding and venue readings…")}</Loading>
           )}
           {feed.error && <Problem retry={feed.reload}>{feed.error}</Problem>}
           {feed.data &&
@@ -98,13 +100,13 @@ export function SignalsTab({ active }: { active: boolean }) {
                 <div>
                   <h2>
                     {complete
-                      ? "A quiet market is a signal, too."
-                      : "Some market readings are unavailable."}
+                      ? t("A quiet market is a signal, too.")
+                      : t("Some market readings are unavailable.")}
                   </h2>
                   <p>
                     {complete
-                      ? `No price, funding, or venue divergence thresholds crossed for ${symbol}.`
-                      : `No triggers were returned for ${symbol}. Incomplete or stale data cannot confirm a quiet market.`}
+                      ? t("No price, funding, or venue divergence thresholds crossed for {symbol}.", { symbol })
+                      : t("No triggers were returned for {symbol}. Incomplete or stale data cannot confirm a quiet market.", { symbol })}
                   </p>
                 </div>
               </div>
@@ -117,8 +119,7 @@ export function SignalsTab({ active }: { active: boolean }) {
               <div className="r-section-heading">
                 <h3>{signal.title}</h3>
                 <span className="r-note">
-                  {signal.strength} strength · {signal.confirmationCount} venue
-                  {signal.confirmationCount === 1 ? "" : "s"}
+                  {(signal.confirmationCount === 1 ? t("{strength} strength · {confirmationCount} venue", { strength: t(signal.strength), confirmationCount: signal.confirmationCount }) : t("{strength} strength · {confirmationCount} venues", { strength: t(signal.strength), confirmationCount: signal.confirmationCount }))}
                 </span>
               </div>
               <p>{signal.summary}</p>
@@ -138,7 +139,7 @@ export function SignalsTab({ active }: { active: boolean }) {
                   {item}
                 </p>
               ))}
-              <Timestamp at={signal.dataFreshness} label="Oldest reading" />
+              <Timestamp at={signal.dataFreshness} label={t("Oldest reading")} />
             </article>
           ))}
           <div className="r-summaries">
@@ -146,7 +147,7 @@ export function SignalsTab({ active }: { active: boolean }) {
               [
                 [
                   "price",
-                  "Price movement",
+                  t("Price movement"),
                   TrendingUp,
                   [
                     "price_momentum",
@@ -154,10 +155,10 @@ export function SignalsTab({ active }: { active: boolean }) {
                     "volume_confirmation",
                   ],
                 ],
-                ["funding", "Funding", Layers, ["funding_dislocation"]],
+                ["funding", t("Funding"), Layers, ["funding_dislocation"]],
                 [
                   "divergence",
-                  "Venue divergence",
+                  t("Venue divergence"),
                   GitBranch,
                   ["cross_venue_divergence", "spot_perp_basis"],
                 ],
@@ -168,20 +169,20 @@ export function SignalsTab({ active }: { active: boolean }) {
                 (types as readonly string[]).includes(signal.type),
               );
               const status = feed.loading
-                ? "Evaluating…"
+                ? t("Evaluating…")
                 : feed.error
-                  ? "Evaluation unavailable"
+                  ? t("Evaluation unavailable")
                   : !feed.data
-                    ? "Not evaluated"
+                    ? t("Not evaluated")
                     : triggered
-                      ? "Threshold crossed"
+                      ? t("Threshold crossed")
                       : state === "evaluated"
-                        ? "Within thresholds"
+                        ? t("Within thresholds")
                         : state === "stale"
-                          ? "Stale reading"
+                          ? t("Stale reading")
                           : state === "unsupported"
-                            ? "Not supported for this asset"
-                            : "Feed unavailable";
+                            ? t("Not supported for this asset")
+                            : t("Feed unavailable");
               return (
                 <article key={key}>
                   <Icon size={22} strokeWidth={1.5} aria-hidden />
@@ -200,46 +201,38 @@ export function SignalsTab({ active }: { active: boolean }) {
           ))}
           <Timestamp
             at={evaluation?.generatedAt ?? feed.data?.asOf}
-            label="Evaluated"
+            label={t("Evaluated")}
           />
         </>
       )}
       <p className="r-footnote">
-        Strength reflects agreement across independent data.
+        {t("Strength reflects agreement across independent data.")}
         <br />
-        Observations, not recommendations.
+        {t("Observations, not recommendations.")}
       </p>
       <Dialog open={criteria} onOpenChange={setCriteria}>
         <DialogContent className="research-dialog">
           <DialogHeader>
-            <DialogTitle>Signal criteria</DialogTitle>
+            <DialogTitle>{t("Signal criteria")}</DialogTitle>
             <DialogDescription>
-              The thresholds used by Elyra’s existing observation engine.
+              {t("The thresholds used by Elyra’s existing observation engine.")}
             </DialogDescription>
           </DialogHeader>
           <div className="r-dialog-body">
             <dl className="r-definition">
-              <dt>Price movement</dt>
-              <dd>Absolute 24h change ≥ {SIGNAL_CRITERIA.priceChangePct}%.</dd>
-              <dt>Funding</dt>
+              <dt>{t("Price movement")}</dt>
+              <dd>{t("Absolute 24h change ≥ {priceChangePct}%.", { priceChangePct: SIGNAL_CRITERIA.priceChangePct })}</dd>
+              <dt>{t("Funding")}</dt>
               <dd>
-                Absolute annualised funding ≥ {SIGNAL_CRITERIA.fundingPct}%.
+                {t("Absolute annualised funding ≥ {fundingPct}%.", { fundingPct: SIGNAL_CRITERIA.fundingPct })}
               </dd>
-              <dt>Venue divergence</dt>
+              <dt>{t("Venue divergence")}</dt>
               <dd>
-                On-chain and centralised prices differ by ≥{" "}
-                {SIGNAL_CRITERIA.divergenceBps} bps. Requires both feeds;
-                supported on-chain assets only.
+                {t("On-chain and centralised prices differ by ≥ {divergenceBps} bps. Requires both feeds; supported on-chain assets only.", { divergenceBps: SIGNAL_CRITERIA.divergenceBps })}
               </dd>
-              <dt>Strength</dt>
+              <dt>{t("Strength")}</dt>
               <dd>
-                Price and divergence observations need at least two venue
-                readings for medium or high strength. Magnitude ≥ 5 without
-                contradictions can be high; ≥ 2 can be medium. Readings older
-                than five minutes cap strength at low. Funding dislocations are
-                medium when fresh. Crowded funding above{" "}
-                {SIGNAL_CRITERIA.crowdedFundingPct}% in the direction of a price
-                move is a contradiction.
+                {t("Price and divergence observations need at least two venue readings for medium or high strength. Magnitude ≥ 5 without contradictions can be high; ≥ 2 can be medium. Readings older than five minutes cap strength at low. Funding dislocations are medium when fresh. Crowded funding above {crowdedFundingPct}% in the direction of a price move is a contradiction.", { crowdedFundingPct: SIGNAL_CRITERIA.crowdedFundingPct })}
               </dd>
             </dl>
           </div>

@@ -34,6 +34,7 @@ class Query implements PromiseLike<Result<Row[]>> {
   private filters: Filter[] = [];
   private orderBy: { column: string; ascending: boolean } | null = null;
   private limitTo: number | null = null;
+  private offset = 0;
   private mode: "select" | "insert" | "update" | "delete" | "upsert" = "select";
   private payload: Row[] = [];
   private conflictKeys: string[] = [];
@@ -60,6 +61,11 @@ class Query implements PromiseLike<Result<Row[]>> {
 
   eq(column: string, value: unknown) {
     this.filters.push((row) => row[column] === value);
+    return this;
+  }
+
+  neq(column: string, value: unknown) {
+    this.filters.push((row) => row[column] !== value);
     return this;
   }
 
@@ -95,6 +101,13 @@ class Query implements PromiseLike<Result<Row[]>> {
 
   limit(count: number) {
     this.limitTo = count;
+    return this;
+  }
+
+  /** Rows `from` to `to` inclusive, after ordering — PostgREST's range. */
+  range(from: number, to: number) {
+    this.offset = from;
+    this.limitTo = to - from + 1;
     return this;
   }
 
@@ -181,6 +194,11 @@ class Query implements PromiseLike<Result<Row[]>> {
       if (this.orderBy !== null) {
         const { column, ascending } = this.orderBy;
         found = [...found].sort((a, b) => {
+          /* Numbers compare as numbers, as in Postgres: 10 comes after 9. */
+          if (typeof a[column] === "number" && typeof b[column] === "number") {
+            const delta = (a[column] as number) - (b[column] as number);
+            return ascending ? delta : -delta;
+          }
           const left = String(a[column] ?? "");
           const right = String(b[column] ?? "");
           return ascending ? left.localeCompare(right) : right.localeCompare(left);
@@ -190,6 +208,7 @@ class Query implements PromiseLike<Result<Row[]>> {
         /* { count: "exact" } counts every match, before any limit. */
         return { data: this.counting.head ? [] : found.slice(0, this.limitTo ?? found.length), error: null, count: found.length };
       }
+      if (this.offset > 0) found = found.slice(this.offset);
       if (this.limitTo !== null) found = found.slice(0, this.limitTo);
       return { data: found, error: null };
     }
@@ -312,6 +331,36 @@ function collides(a: Row, b: Row): boolean {
   if (a.call_id !== undefined && a.call_id === b.call_id && a.user_id === b.user_id) return true;
   /* arena_group_members: pk (group, user). */
   if (a.group_id !== undefined && a.group_id === b.group_id && a.user_id === b.user_id) return true;
+
+  /* rails_ledger (0024): one event per position, one successor per event, unique hashes. */
+  if (a.prev_hash !== undefined && a.seq !== undefined) {
+    if (a.user_id === b.user_id && (a.seq === b.seq || a.prev_hash === b.prev_hash)) return true;
+    if (a.hash === b.hash) return true;
+  }
+  /* payment_requests (0024): a reference names one request; a signature pays one. */
+  if (a.reference !== undefined && a.reference === b.reference) return true;
+  if (a.paid_signature !== undefined && a.paid_signature !== null && a.paid_signature === b.paid_signature) return true;
+
+  /* trading_positions (0025): one open position per coin per fund. */
+  if (
+    a.fund_id !== undefined &&
+    a.fund_id !== null &&
+    a.fund_id === b.fund_id &&
+    a.coin === b.coin &&
+    ["opening", "open"].includes(String(a.status)) &&
+    ["opening", "open"].includes(String(b.status))
+  ) {
+    return true;
+  }
+  /* ai_funds (0025): a key manages one open fund. */
+  if (a.objective !== undefined && a.key_id !== undefined && a.key_id !== null && a.key_id === b.key_id && a.status !== "closed" && b.status !== "closed") {
+    return true;
+  }
+  /* ai_fund_marks (0025): primary key (fund, hour). */
+  if (a.bucket !== undefined && a.fund_id === b.fund_id && a.bucket === b.bucket) return true;
+
+  /* scout_fires (0035): a rule acts on a signal once. */
+  if (a.signal_key !== undefined && a.rule_id !== undefined && a.rule_id === b.rule_id && a.signal_key === b.signal_key) return true;
 
   /* portfolio_fills (0017): one row per token a swap moved. */
   if (a.signature !== undefined && a.signature === b.signature && a.mint !== undefined && a.mint === b.mint) {

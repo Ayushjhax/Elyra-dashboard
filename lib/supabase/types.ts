@@ -127,6 +127,46 @@ export interface TradingRuleRow {
   last_note: string | null;
   created_at: string;
   updated_at: string;
+  /** 0029: the rule set it belongs to, if any. */
+  set_id?: string | null;
+}
+
+/* The paper account (0032). Its balance is derived from trading_positions, never stored. */
+export interface PaperAccountRow {
+  user_id: string;
+  starting_usd: string | number;
+  started_at: string;
+  active: boolean;
+  resets: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/* Copy trading (0029). */
+export interface TradingRuleSetRow {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  published: boolean;
+  house: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CopyFollowRow {
+  id: string;
+  user_id: string;
+  set_id: string;
+  size_usd: string | number;
+  max_leverage: number;
+  mode: "paper" | "live";
+  max_drift_pct: string | number;
+  enabled: boolean;
+  last_checked_at: string | null;
+  last_note: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TradingPositionRow {
@@ -156,8 +196,23 @@ export interface TradingPositionRow {
   closed_at: string | null;
   /** 0020: the leverage it was opened at; null for rows from before. */
   leverage: number | null;
-  /** 0020: a rule's entry or a limit order's fill. */
-  origin: "rule" | "order";
+  /** 0020: a rule's entry or a limit order's fill; 0025: a fund's order; 0029: a copy of a leader's entry. */
+  origin: "rule" | "order" | "fund" | "copy";
+  /** 0025: the AI fund this position belongs to; null for everything else. */
+  fund_id?: string | null;
+  /** 0028: the mid when the entry was sent; null for rows from before. */
+  expected_price?: string | number | null;
+  /** 0028: the size it opened at; `size` is what is still open. */
+  original_size?: string | number | null;
+  /** 0028: [{ at, size, price, pnlUsd, reason }], in order. */
+  partial_closes?: unknown;
+  /** 0028: the partial closes' result after fees, so far. */
+  realised_partial_usd?: string | number | null;
+  /** 0029: the rule set whose rule entered it, tagged at entry. */
+  set_id?: string | null;
+  /** 0029: the follow that copied it, and the leader's position it copies. */
+  copy_id?: string | null;
+  leader_position_id?: string | null;
 }
 
 /* Elyra Arena (0021). Numeric columns may come back as string or number. */
@@ -280,6 +335,23 @@ export interface EventMarkRow {
   created_at: string;
 }
 
+/**
+ * One day's Daily Briefing (0027). `day` is unique, so the tick writes each
+ * day once; a run claims the row as `writing` and publishes it.
+ */
+export interface DailyBriefingRow {
+  day: string;
+  status: "writing" | "published";
+  attempts: number;
+  claimed_at: string;
+  published_at: string | null;
+  items: unknown;
+  extras: unknown;
+  model: string | null;
+  notes: string[];
+  created_at: string;
+}
+
 /** A key an outside AI agent uses to read Elyra (0022). Only its hash is stored. */
 export interface AgentKeyRow {
   id: string;
@@ -291,6 +363,197 @@ export interface AgentKeyRow {
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+}
+
+/** An agent key's permissions (0024). */
+export interface AgentMandateRow {
+  id: string;
+  user_id: string;
+  key_id: string;
+  kinds: ("swap" | "payment" | "perp_order" | "payment_request")[];
+  assets: string[] | null;
+  per_intent_usd: number | string;
+  daily_usd: number | string;
+  payees: string[];
+  auto_perps: boolean;
+  live_perps: boolean;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  revoked_at: string | null;
+}
+
+/** A transaction an agent asked for (0024). */
+export interface AgentIntentRow {
+  id: string;
+  user_id: string;
+  key_id: string;
+  kind: "swap" | "payment" | "perp_order";
+  params: Record<string, unknown>;
+  usd_value: number | string | null;
+  status: "rejected" | "pending" | "approved" | "executed" | "declined" | "expired" | "failed";
+  reasons: string[];
+  memo: string | null;
+  screening: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+  signature: string | null;
+  receipt: string | null;
+  created_at: string;
+  expires_at: string;
+  decided_at: string | null;
+  settled_at: string | null;
+}
+
+/** One event in an account's agent ledger (0024). */
+export interface RailsLedgerRow {
+  id: number;
+  user_id: string;
+  seq: number;
+  occurred_at: string;
+  actor: string;
+  event: string;
+  subject_id: string | null;
+  body: Record<string, unknown>;
+  prev_hash: string;
+  hash: string;
+  created_at: string;
+}
+
+/** A Solana Pay request to be paid in a stablecoin (0024). */
+export interface PaymentRequestRow {
+  id: string;
+  user_id: string;
+  key_id: string | null;
+  recipient: string;
+  mint: string;
+  amount_base: string;
+  decimals: number;
+  label: string;
+  memo: string | null;
+  reference: string;
+  status: "open" | "paid" | "expired" | "cancelled";
+  paid_signature: string | null;
+  paid_by: string | null;
+  paid_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+/* Strategy designs (0030). `design` is a validated StrategyDesign (lib/strategies/spec.ts). */
+/* Market reports (0033): deep research the agent wrote, kept to come back to. */
+export interface MarketReportRow {
+  id: string;
+  user_id: string;
+  subject: string;
+  facts: Record<string, unknown>;
+  reply: string | null;
+  created_at: string;
+  replied_at: string | null;
+}
+
+export interface StrategyDesignRow {
+  id: string;
+  user_id: string;
+  name: string;
+  design: Record<string, unknown>;
+  source: "designer" | "library" | "ai";
+  result: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/* Insider watch (0031). Numeric columns may come back as string or number. */
+export interface InsiderWalletRow {
+  address: string;
+  status: "flagged" | "passed";
+  reason: string | null;
+  first_trade_at: string | null;
+  notional_usd: number | string | null;
+  window_open: boolean;
+  finding: Record<string, unknown> | null;
+  detected_at: string;
+  updated_at: string;
+}
+
+export interface InsiderWatchRow {
+  user_id: string;
+  min_usd: number | string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InsiderScanRow {
+  id: string;
+  at: string;
+  leaderboard_rows: number;
+  candidates: number;
+  checked: number;
+  flagged: number;
+  error: string | null;
+}
+
+/* Autonomous AI funds (0025). Numeric columns may come back as string or number. */
+export interface AiFundRow {
+  id: string;
+  user_id: string;
+  key_id: string | null;
+  name: string;
+  objective: string;
+  mode: "paper" | "live";
+  status: "active" | "paused" | "halted" | "winding_down" | "closed";
+  markets: string[];
+  allow_shorts: boolean;
+  max_position_pct: string | number;
+  max_gross_exposure: string | number;
+  max_leverage: number;
+  max_positions: number;
+  max_drawdown_pct: string | number;
+  daily_loss_pct: string | number;
+  hwm_npu: string | number;
+  day_start_npu: string | number;
+  day_start_on: string | null;
+  last_nav: string | number | null;
+  last_npu: string | number | null;
+  marked_at: string | null;
+  halt_reason: string | null;
+  predecessor_id: string | null;
+  closed_reason: "wound_down" | "graduated" | null;
+  final_report: Record<string, unknown> | null;
+  manager_seen_at: string | null;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+}
+
+export interface AiFundFlowRow {
+  id: string;
+  fund_id: string;
+  user_id: string;
+  kind: "subscribe" | "redeem";
+  amount_usd: string | number;
+  npu: string | number;
+  units: string | number;
+  created_at: string;
+}
+
+export interface AiFundMarkRow {
+  fund_id: string;
+  user_id: string;
+  bucket: string;
+  nav: string | number;
+  npu: string | number;
+  gross_usd: string | number;
+  positions: number;
+}
+
+export interface AiFundNoteRow {
+  id: string;
+  fund_id: string;
+  user_id: string;
+  key_id: string | null;
+  position_id: string | null;
+  body: string;
+  created_at: string;
 }
 
 /** A limit order (0020). */
@@ -413,6 +676,20 @@ export interface PortfolioSnapshotRow {
   user_id: string;
   at: string;
   total_value_usd: number;
+}
+
+/** One account's daily close, net of flows (0034_portfolio_tracking.sql). */
+export interface PortfolioDailyRow {
+  user_id: string;
+  /** "2026-11-24": the UTC day whose close this approximates. */
+  day: string;
+  recorded_at: string;
+  /** Null when the read was partial. numeric arrives as a string. */
+  equity_usd: number | string | null;
+  /** Net flow since the previous row; null when unknown. */
+  flow_usd: number | string | null;
+  flows_complete: boolean;
+  notes: string[];
 }
 
 /* ---------------------------------------------------------------------------
@@ -576,6 +853,93 @@ export interface SmartMoneyFindingRow {
   disclaimer: string;
   created_at: string;
   updated_at: string;
+}
+
+/* Scout (0035): link reads, auto-buys, Poly baskets. `claims` and `view` are lib/scout types. */
+export interface ScoutSourceRow {
+  key: string;
+  kind: "youtube" | "x" | "article";
+  url: string | null;
+  title: string | null;
+  author: string | null;
+  published_at: string | null;
+  tier: "primary" | "newsroom" | "unverified";
+  party: string | null;
+  text_origin: "page" | "page_copy" | "post" | "transcript";
+  attention: unknown;
+  summary: string | null;
+  claims: unknown;
+  dropped: number;
+  model: string | null;
+  read_at: string;
+}
+
+export interface ScoutReadRow {
+  id: string;
+  user_id: string;
+  source_key: string;
+  view: unknown;
+  created_at: string;
+}
+
+export interface ScoutRuleRow {
+  id: string;
+  user_id: string;
+  name: string;
+  trigger: "smart_money" | "listing";
+  side: "long" | "short" | "both";
+  coins: string[];
+  min_wallets: number;
+  size_usd: string | number;
+  leverage: number;
+  take_profit_pct: string | number;
+  stop_loss_pct: string | number;
+  max_per_day: number;
+  mode: "paper" | "live";
+  status: "active" | "paused";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScoutFireRow {
+  id: string;
+  rule_id: string;
+  user_id: string;
+  signal_key: string;
+  trigger: "smart_money" | "listing";
+  coin: string;
+  side: "long" | "short";
+  outcome: "pending" | "opened" | "refused";
+  reason: string;
+  position_id: string | null;
+  created_at: string;
+}
+
+export interface PolyBasketRow {
+  id: string;
+  user_id: string;
+  name: string;
+  stake_usd: string | number;
+  created_at: string;
+}
+
+export interface PolyBasketLegRow {
+  id: string;
+  basket_id: string;
+  user_id: string;
+  condition_id: string;
+  token_id: string;
+  outcome: string;
+  outcome_index: number;
+  question: string;
+  slug: string | null;
+  event_slug: string | null;
+  cost_usd: string | number;
+  shares: string | number;
+  entry_price: string | number;
+  settled: string | number | null;
+  settled_at: string | null;
+  created_at: string;
 }
 
 type Table<Row, HasDefault extends keyof Row> = {
@@ -799,9 +1163,18 @@ export interface Database {
       trading_agents: Table<TradingAgentRow, "created_at" | "approved_at">;
       trading_rules: Table<
         TradingRuleRow,
-        "id" | "side" | "params" | "mode" | "enabled" | "last_signal_at" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
+        "id" | "side" | "params" | "mode" | "enabled" | "last_signal_at" | "last_checked_at" | "last_note" | "created_at" | "updated_at" | "set_id"
       >;
-      trading_positions: Table<TradingPositionRow, "id" | "side" | "opened_at" | "leverage" | "origin">;
+      trading_positions: Table<
+        TradingPositionRow,
+        "id" | "side" | "opened_at" | "leverage" | "origin" | "fund_id" | "expected_price" | "original_size" | "partial_closes" | "realised_partial_usd" | "set_id" | "copy_id" | "leader_position_id"
+      >;
+      paper_accounts: Table<PaperAccountRow, "starting_usd" | "started_at" | "active" | "resets" | "created_at" | "updated_at">;
+      trading_rule_sets: Table<TradingRuleSetRow, "id" | "description" | "published" | "house" | "created_at" | "updated_at">;
+      copy_follows: Table<
+        CopyFollowRow,
+        "id" | "mode" | "max_drift_pct" | "enabled" | "last_checked_at" | "last_note" | "created_at" | "updated_at"
+      >;
       trade_reviews: Table<TradeReviewRow, "id" | "created_at">;
       arena_profiles: Table<ArenaProfileRow, "handle" | "public" | "created_at" | "updated_at">;
       arena_groups: Table<ArenaGroupRow, "id" | "created_at">;
@@ -831,6 +1204,7 @@ export interface Database {
       agent_runs: Table<AgentRun, "id" | "created_at" | "fell_back">;
       market_cache: Table<MarketCacheRow, "fetched_at">;
       portfolio_snapshots: Table<PortfolioSnapshotRow, "at">;
+      portfolio_daily: Table<PortfolioDailyRow, "recorded_at" | "notes" | "flows_complete">;
       points_ledger: Table<PointsLedgerRow, "id" | "created_at" | "metadata">;
       referrals: Table<
         ReferralRow,
@@ -975,6 +1349,49 @@ export interface Database {
       agent_key_usage: Table<{ key_id: string; day: string; calls: number }, "calls">;
       event_posts: Table<EventPostRow, "id" | "refers_to" | "facts" | "amount_usd" | "chains" | "source_url" | "created_at">;
       event_marks: Table<EventMarkRow, "created_at">;
+      daily_briefings: Table<
+        DailyBriefingRow,
+        "status" | "attempts" | "claimed_at" | "items" | "extras" | "notes" | "created_at"
+      >;
+      agent_mandates: Table<AgentMandateRow, "id" | "payees" | "auto_perps" | "live_perps" | "created_at" | "updated_at" | "revoked_at">;
+      agent_intents: Table<AgentIntentRow, "id" | "reasons" | "created_at">;
+      rails_ledger: Table<RailsLedgerRow, "id" | "body" | "created_at">;
+      payment_requests: Table<PaymentRequestRow, "id" | "status" | "created_at">;
+      ai_funds: Table<
+        AiFundRow,
+        | "id"
+        | "key_id"
+        | "status"
+        | "allow_shorts"
+        | "hwm_npu"
+        | "day_start_npu"
+        | "day_start_on"
+        | "last_nav"
+        | "last_npu"
+        | "marked_at"
+        | "halt_reason"
+        | "predecessor_id"
+        | "closed_reason"
+        | "final_report"
+        | "manager_seen_at"
+        | "created_at"
+        | "updated_at"
+        | "closed_at"
+      >;
+      ai_fund_flows: Table<AiFundFlowRow, "id" | "created_at">;
+      strategy_designs: Table<StrategyDesignRow, "id" | "result" | "created_at" | "updated_at">;
+      market_reports: Table<MarketReportRow, "id" | "reply" | "created_at" | "replied_at">;
+      insider_wallets: Table<InsiderWalletRow, "reason" | "first_trade_at" | "notional_usd" | "window_open" | "finding" | "detected_at" | "updated_at">;
+      insider_watches: Table<InsiderWatchRow, "created_at" | "updated_at">;
+      insider_scans: Table<InsiderScanRow, "leaderboard_rows" | "candidates" | "checked" | "flagged" | "error">;
+      ai_fund_marks: Table<AiFundMarkRow, "gross_usd" | "positions">;
+      ai_fund_notes: Table<AiFundNoteRow, "id" | "key_id" | "position_id" | "created_at">;
+      scout_sources: Table<ScoutSourceRow, "attention" | "claims" | "dropped" | "read_at">;
+      scout_reads: Table<ScoutReadRow, "id" | "created_at">;
+      scout_rules: Table<ScoutRuleRow, "id" | "coins" | "mode" | "status" | "created_at" | "updated_at">;
+      scout_fires: Table<ScoutFireRow, "id" | "reason" | "created_at">;
+      poly_baskets: Table<PolyBasketRow, "id" | "created_at">;
+      poly_basket_legs: Table<PolyBasketLegRow, "id" | "created_at">;
     };
     Views: Record<never, never>;
     Functions: {

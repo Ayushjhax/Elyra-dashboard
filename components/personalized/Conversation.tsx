@@ -22,6 +22,8 @@ import type { SourceStatus } from "@/lib/personalized/sources";
 import type { DrawerView } from "@/lib/portfolio/drawer";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The conversation panel.
@@ -39,44 +41,45 @@ import { cn } from "@/lib/utils";
 export type Starter = "portfolio" | "research" | "preferences" | "deposit";
 
 const STARTERS: Array<{ id: Starter; title: string; body: string; icon: LucideIcon }> = [
-  { id: "portfolio", title: "Review my portfolio", body: "Understand balances and allocation", icon: BarChart3 },
-  { id: "research", title: "Research an asset", body: "Explore a market before you act", icon: Search },
-  { id: "preferences", title: "Set my preferences", body: "Save the limits you choose", icon: Settings },
-  { id: "deposit", title: "Plan my first deposit", body: "See how to get started", icon: WalletCards },
+  { id: "portfolio", title: msg("Review my portfolio"), body: msg("Understand balances and allocation"), icon: BarChart3 },
+  { id: "research", title: msg("Research an asset"), body: msg("Explore a market before you act"), icon: Search },
+  { id: "preferences", title: msg("Set my preferences"), body: msg("Save the limits you choose"), icon: Settings },
+  { id: "deposit", title: msg("Plan my first deposit"), body: msg("See how to get started"), icon: WalletCards },
 ];
 
 function greeting(now: number): string {
   const hour = new Date(now).getHours();
-  return hour < 5 ? "Good evening." : hour < 12 ? "Good morning." : hour < 18 ? "Good afternoon." : "Good evening.";
+  return hour < 5 ? msg("Good evening.") : hour < 12 ? msg("Good morning.") : hour < 18 ? msg("Good afternoon.") : msg("Good evening.");
 }
 
 /** One line on the wallet, saying only what the loaded data says. */
 function WalletLine({ wallet, view, portfolioLoading }: { wallet: SourceStatus; view: DrawerView | null; portfolioLoading: boolean }) {
+  const t = useT();
   let detail: React.ReactNode = null;
   if (view !== null) {
-    if (view.unfunded) detail = "No assets yet";
+    if (view.unfunded) detail = t("No assets yet");
     else if (view.totalUsd !== null) {
       const assets = view.holdings.filter((holding) => holding.verified).length;
       detail = (
         <>
-          <Money value={view.totalUsd} className="text-text-primary" /> across {assets} {assets === 1 ? "asset" : "assets"}
+          <Money value={view.totalUsd} className="text-text-primary" />{" "}{(assets === 1 ? t("across 1 asset") : t("across {count} assets", { count: assets }))}
         </>
       );
     }
   } else if (portfolioLoading) {
-    detail = "Reading balances…";
+    detail = t("Reading balances…");
   }
 
   const label =
     wallet.state === "connected"
-      ? "Wallet connected"
+      ? t("Wallet connected")
       : wallet.state === "loading"
-        ? "Checking your wallet…"
+        ? t("Checking your wallet…")
         : wallet.state === "failed"
-          ? "Wallet unreachable"
+          ? t("Wallet unreachable")
           : wallet.label === "No wallet"
-            ? "No wallet linked"
-            : "Wallet unavailable";
+            ? t("No wallet linked")
+            : t("Wallet unavailable");
 
   return (
     <div className="type-body-sm flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-text-secondary">
@@ -92,7 +95,7 @@ function WalletLine({ wallet, view, portfolioLoading }: { wallet: SourceStatus; 
       </span>
       <span aria-hidden className="hidden h-4 w-px bg-border-subtle compact:block" />
       <Link href="/portfolio" className="relative inline-flex items-center gap-1 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand after:absolute after:-inset-x-1 after:-inset-y-2 hover:text-accent-hover">
-        View portfolio
+        {t("View portfolio")}
         <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden />
       </Link>
     </div>
@@ -110,15 +113,16 @@ function Welcome({
   view: DrawerView | null;
   portfolioLoading: boolean;
 }) {
+  const t = useT();
   const now = useMinute();
   return (
     <div className="mx-auto flex w-full max-w-[860px] flex-col items-center px-4 py-8 text-center compact:px-6">
       <ElyraMark size={56} className="rounded-pill" />
       {/* The clock is null until hydration; the line keeps its height. */}
-      <p className="type-h2 mt-3 min-h-[22px] font-normal text-text-secondary">{now === null ? "" : greeting(now)}</p>
-      <h2 className="type-display mt-1 text-balance text-text-primary">What&rsquo;s your next move?</h2>
+      <p className="type-h2 mt-3 min-h-[22px] font-normal text-text-secondary">{now === null ? "" : t(greeting(now))}</p>
+      <h2 className="type-display mt-1 text-balance text-text-primary">{t("What’s your next move?")}</h2>
       <p className="type-h2 mt-2 max-w-xl text-balance font-normal text-text-secondary">
-        Understand your capital, explore a market, or think through a decision.
+        {t("Understand your capital, explore a market, or think through a decision.")}
       </p>
 
       <ul className="mt-7 grid w-full list-none grid-cols-1 gap-3 @[34rem]:grid-cols-2">
@@ -137,8 +141,8 @@ function Welcome({
                 <Icon size={20} strokeWidth={1.5} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="type-h2 block font-sans text-text-primary">{title}</span>
-                <span className="type-body-sm block text-text-secondary">{body}</span>
+                <span className="type-h2 block font-sans text-text-primary">{t(title)}</span>
+                <span className="type-body-sm block text-text-secondary">{t(body)}</span>
               </span>
               <ArrowRight
                 size={18}
@@ -199,6 +203,7 @@ export function ConversationPanel({
   portfolioLoading: boolean;
   composer: React.ReactNode;
 }) {
+  const t = useT();
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const [showJump, setShowJump] = useState(false);
@@ -222,10 +227,10 @@ export function ConversationPanel({
     following.current = true;
   }, [chat.conversationId]);
 
-  const title = chat.title ?? "New conversation";
+  const title = chat.title ?? t("New conversation");
 
   return (
-    <section aria-label="Conversation" className="flex min-h-0 min-w-0 flex-col rounded-panel border border-border-subtle bg-surface-panel">
+    <section aria-label={t("Conversation")} className="flex min-h-0 min-w-0 flex-col rounded-panel border border-border-subtle bg-surface-panel">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle px-4 compact:px-5">
         <MessageSquare size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
         <h2 className="type-body min-w-0 flex-1 truncate font-medium text-text-primary" title={title}>
@@ -233,12 +238,12 @@ export function ConversationPanel({
         </h2>
         <span
           className={cn("type-label inline-flex shrink-0 items-center gap-2", contextOn ? "text-text-secondary" : "text-text-muted")}
-          title={contextOn ? "Questions read the sources switched on in the composer" : "No account sources are switched on"}
+          title={contextOn ? t("Questions read the sources switched on in the composer") : t("No account sources are switched on")}
         >
           <Database size={15} strokeWidth={1.5} aria-hidden className="text-text-muted" />
           <span aria-hidden className={cn("size-2 rounded-pill", contextOn ? "bg-sage" : "bg-text-muted")} />
-          <span className="hidden compact:inline">{contextOn ? "Account context on" : "Account context off"}</span>
-          <span className="sr-only compact:hidden">{contextOn ? "Account context on" : "Account context off"}</span>
+          <span className="hidden compact:inline">{contextOn ? t("Account context on") : t("Account context off")}</span>
+          <span className="sr-only compact:hidden">{contextOn ? t("Account context on") : t("Account context off")}</span>
         </span>
       </header>
 
@@ -258,7 +263,7 @@ export function ConversationPanel({
           ) : (
             <div className="mx-auto flex w-full max-w-[760px] flex-col gap-6 px-4 py-6 compact:px-6">
               {chat.opening && (
-                <div aria-busy="true" aria-label="Opening conversation" className="flex flex-col gap-4">
+                <div aria-busy="true" aria-label={t("Opening conversation")} className="flex flex-col gap-4">
                   <span className="skeleton ml-auto h-10 w-2/3 rounded-panel" />
                   <span className="skeleton h-4 w-full" />
                   <span className="skeleton h-4 w-5/6" />
@@ -301,7 +306,7 @@ export function ConversationPanel({
             )}
           >
             <ArrowDown size={13} strokeWidth={1.75} aria-hidden />
-            Jump to latest
+            {t("Jump to latest")}
           </button>
         )}
       </div>

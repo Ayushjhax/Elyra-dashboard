@@ -8,6 +8,7 @@ import {
   ChevronRight,
   CircleAlert,
   ClipboardCheck,
+  Radar,
   RefreshCw,
   Settings,
   SlidersHorizontal,
@@ -24,10 +25,14 @@ import {
   type NotificationItem,
 } from "@/lib/activity/notifications";
 import { useAccountEvents, type AccountFeed } from "@/lib/activity/useAccountEvents";
+import { useInsiderNotifications } from "@/lib/insider/useInsider";
 import { formatRelativeTime } from "@/lib/format";
 import { useElyraStore } from "@/lib/store";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { intlLocale, type Locale } from "@/lib/i18n/locales";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Notifications.
@@ -46,14 +51,15 @@ import { cn } from "@/lib/utils";
 const SETTINGS_HREF = "/agent";
 
 const CATEGORY: Record<NotificationCategory, { icon: LucideIcon; tone: string; label: string }> = {
-  alert: { icon: BellRing, tone: "text-accent", label: "Price alert" },
-  action: { icon: ClipboardCheck, tone: "text-accent", label: "Action" },
-  failed: { icon: CircleAlert, tone: "text-negative", label: "Failure" },
+  alert: { icon: BellRing, tone: "text-accent", label: msg("Price alert") },
+  action: { icon: ClipboardCheck, tone: "text-accent", label: msg("Action") },
+  failed: { icon: CircleAlert, tone: "text-negative", label: msg("Failure") },
   agent: { icon: Sparkles, tone: "text-agent-accent", label: "Elyra" },
+  insider: { icon: Radar, tone: "text-caution", label: msg("Insider watch") },
 };
 
-function absolute(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+function absolute(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleString(intlLocale(locale), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function CaughtUp({ title, body }: { title: string; body: string }) {
@@ -88,22 +94,23 @@ function Row({
   now: number | null;
   onOpen: (item: NotificationItem) => void;
 }) {
+  const t = useT();
   const meta = CATEGORY[item.category];
   const Icon = meta.icon;
   const hasDestination = item.target !== null;
 
   const body = (
     <>
-      <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-[10px] border">
+      <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-card border">
         <Icon size={18} strokeWidth={1.5} className={cn(meta.tone, !unread && "opacity-80")} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
           <span className={cn("type-body-sm min-w-0 flex-1 truncate font-medium", unread ? "text-text-primary" : "text-text-secondary")}>
-            {item.title}
+            {t(item.title)}
           </span>
-          <time dateTime={item.at} title={absolute(item.at)} className="type-label shrink-0 tabular-nums text-text-muted">
-            {now === null ? "" : formatRelativeTime(item.at, now)}
+          <time dateTime={item.at} title={absolute(item.at, t.locale)} className="type-label shrink-0 tabular-nums text-text-muted">
+            {now === null ? "" : formatRelativeTime(item.at, now, t.locale)}
           </time>
         </span>
         <span className={cn("type-label mt-0.5 line-clamp-2 break-words", unread ? "text-text-secondary" : "text-text-muted")}>
@@ -119,13 +126,13 @@ function Row({
         )}
       </span>
       <span className="sr-only">
-        {unread ? ", unread" : ", read"}
-        {item.target?.kind === "link" && item.target.external ? ", opens in a new tab" : ""}
+        {unread ? t(", unread") : t(", read")}
+        {item.target?.kind === "link" && item.target.external ? t(", opens in a new tab") : ""}
       </span>
     </>
   );
 
-  const rowClass = "glass-row flex w-full items-start gap-3 rounded-[12px] px-3 py-3 text-left";
+  const rowClass = "glass-row flex w-full items-start gap-3 rounded-panel px-3 py-3 text-left";
   const open = () => onOpen(item);
 
   if (item.target?.kind === "link") {
@@ -154,11 +161,15 @@ function Row({
 }
 
 export function NotificationsMenu() {
-  return <NotificationsMenuView feed={useAccountEvents()} />;
+  /* Insider watch is merged in here, on the website only (lib/insider). */
+  return <NotificationsMenuView feed={useAccountEvents()} extra={useInsiderNotifications()} />;
 }
 
+const NO_EXTRA: NotificationItem[] = [];
+
 /** The menu with its feed passed in, so every state renders from fixtures too. */
-export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
+export function NotificationsMenuView({ feed, extra = NO_EXTRA }: { feed: AccountFeed; extra?: NotificationItem[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"all" | "unread">("all");
   const seenAt = useElyraStore((state) => state.notificationsSeenAt);
@@ -168,11 +179,11 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
   const reviewPendingActions = useElyraStore((state) => state.reviewPendingActions);
   const now = useMinute();
 
-  const items = useMemo(() => notificationsFrom(feed.events), [feed.events]);
+  const items = useMemo(() => notificationsFrom(feed.events, extra), [feed.events, extra]);
   const unreadItems = items.filter((item) => isUnread(item, seenAt, readIds));
   const unread = unreadItems.length;
   const shown = tab === "unread" ? unreadItems : items;
-  const groups = now === null ? [{ label: "", items: shown }] : groupByDay(shown, now);
+  const groups = now === null ? [{ label: "", items: shown }] : groupByDay(shown, now, t.locale);
 
   const onOpen = (item: NotificationItem) => {
     markRead(item.id);
@@ -182,13 +193,13 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
 
   let body: React.ReactNode;
   if (!feed.signedIn && !feed.loading) {
-    body = <CaughtUp title="Nothing to show yet" body="Connect a wallet to hear when an alert fires or an action needs review." />;
+    body = <CaughtUp title={t("Nothing to show yet")} body={t("Connect a wallet to hear when an alert fires or an action needs review.")} />;
   } else if (feed.loading && items.length === 0) {
     body = (
-      <ul aria-busy="true" aria-label="Loading notifications" className="flex list-none flex-col gap-1 p-2">
+      <ul aria-busy="true" aria-label={t("Loading notifications")} className="flex list-none flex-col gap-1 p-2">
         {[0, 1, 2].map((index) => (
           <li key={index} aria-hidden className="flex items-start gap-3 px-3 py-3">
-            <span className="skeleton size-10 rounded-[10px]" />
+            <span className="skeleton size-10 rounded-card" />
             <span className="flex flex-1 flex-col gap-2">
               <span className="skeleton h-3.5 w-2/3" />
               <span className="skeleton h-3 w-full" />
@@ -201,28 +212,28 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
     body = (
       <div role="alert" className="flex flex-col items-center gap-2 px-6 py-8 text-center">
         <CircleAlert size={22} strokeWidth={1.5} aria-hidden className="text-negative" />
-        <p className="type-h2 font-sans text-text-primary">Notifications couldn&rsquo;t load</p>
+        <p className="type-h2 font-sans text-text-primary">{t("Notifications couldn’t load")}</p>
         <p className="type-body-sm text-text-secondary">{feed.error}</p>
         <button
           type="button"
           onClick={() => void feed.refetch()}
           disabled={feed.refreshing}
-          className="glass-outline type-body-sm mt-1 inline-flex h-9 items-center gap-2 rounded-[10px] border px-3.5 text-text-primary disabled:opacity-60"
+          className="glass-outline type-body-sm mt-1 inline-flex h-9 items-center gap-2 rounded-card border px-3.5 text-text-primary disabled:opacity-60"
         >
           <RefreshCw size={14} strokeWidth={1.5} aria-hidden className={cn(feed.refreshing && "motion-safe:animate-spin")} />
-          Try again
+          {t("Try again")}
         </button>
       </div>
     );
   } else if (items.length === 0) {
-    body = <CaughtUp title="You’re all caught up" body="New alerts and updates will appear here." />;
+    body = <CaughtUp title={t("You’re all caught up")} body={t("New alerts and updates will appear here.")} />;
   } else if (shown.length === 0) {
-    body = <CaughtUp title="No unread notifications" body="You’re up to date." />;
+    body = <CaughtUp title={t("No unread notifications")} body={t("You’re up to date.")} />;
   } else {
     body = (
       <div className="flex flex-col gap-1 px-2 pb-2">
         {groups.map((group) => (
-          <section key={group.label || "all"} aria-label={group.label || "Notifications"}>
+          <section key={group.label || "all"} aria-label={group.label || t("Notifications")}>
             {group.label !== "" && (
               <h3 className="type-eyebrow px-3 pb-1.5 pt-3 uppercase text-text-muted">{group.label}</h3>
             )}
@@ -242,7 +253,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
   return (
     <Popover
       id="notifications"
-      label="Notifications"
+      label={t("Notifications")}
       open={open}
       onOpenChange={setOpen}
       surface="glass"
@@ -254,7 +265,7 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
           aria-expanded={open}
           aria-controls="notifications"
           aria-haspopup="dialog"
-          aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+          aria-label={unread > 0 ? t("Notifications, {unread} unread", { unread }) : t("Notifications")}
           onClick={() => setOpen((value) => !value)}
           className={cn(
             "relative inline-flex size-9 items-center justify-center rounded-control",
@@ -271,19 +282,19 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
       }
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-4 py-3.5">
-        <span aria-hidden className="glass-inset grid size-9 shrink-0 place-items-center rounded-[10px] border text-text-primary">
+        <span aria-hidden className="glass-inset grid size-9 shrink-0 place-items-center rounded-card border text-text-primary">
           <Bell size={18} strokeWidth={1.5} />
         </span>
-        <h2 className="type-h2 font-sans text-text-primary">Notifications</h2>
+        <h2 className="type-h2 font-sans text-text-primary">{t("Notifications")}</h2>
         <span className="glass-inset type-label rounded-pill border px-2.5 py-0.5 tabular-nums text-text-secondary">
-          {unread} unread
+          {t("{unread} unread", { unread })}
         </span>
         <Link
           href={SETTINGS_HREF}
           onClick={() => setOpen(false)}
-          aria-label="Notification settings"
-          title="Notification settings"
-          className="glass-row glass-outline ml-auto grid size-9 shrink-0 place-items-center rounded-[10px] border text-text-secondary hover:text-text-primary"
+          aria-label={t("Notification settings")}
+          title={t("Notification settings")}
+          className="glass-row glass-outline ml-auto grid size-9 shrink-0 place-items-center rounded-card border text-text-secondary hover:text-text-primary"
         >
           <Settings size={17} strokeWidth={1.5} aria-hidden />
         </Link>
@@ -291,14 +302,14 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
 
       <Tabs value={tab} onValueChange={(value) => setTab(value as "all" | "unread")} className="shrink-0">
         <div className="flex items-center gap-2 border-b border-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-4">
-          <TabsList aria-label="Which notifications" className="-mb-px gap-3">
+          <TabsList aria-label={t("Which notifications")} className="-mb-px gap-3">
             <TabsTrigger value="all" data-autofocus className="type-body-sm h-11 px-1.5">
-              All
+              {t("All")}
             </TabsTrigger>
             <TabsTrigger value="unread" className="type-body-sm h-11 gap-2 px-1.5">
-              Unread
+              {t("Unread")}
               {unread > 0 && (
-                <span className="glass-inset type-label min-w-5 rounded-[6px] border px-1.5 text-center tabular-nums text-accent">{unread}</span>
+                <span className="glass-inset type-label min-w-5 rounded-chip border px-1.5 text-center tabular-nums text-accent">{unread}</span>
               )}
             </TabsTrigger>
           </TabsList>
@@ -308,9 +319,9 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
               onClick={() => {
                 if (items[0] !== undefined) markAllRead(items[0].at);
               }}
-              className="type-body-sm ml-auto rounded-[8px] px-2 py-1 font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
+              className="type-body-sm ml-auto rounded-control px-2 py-1 font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
             >
-              Mark all read
+              {t("Mark all read")}
             </button>
           )}
         </div>
@@ -323,12 +334,12 @@ export function NotificationsMenuView({ feed }: { feed: AccountFeed }) {
         onClick={() => setOpen(false)}
         className="glass-row flex shrink-0 items-center gap-3 border-t border-[color-mix(in_srgb,var(--accent)_12%,transparent)] px-4 py-3"
       >
-        <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-[10px] border text-text-secondary">
+        <span aria-hidden className="glass-inset grid size-10 shrink-0 place-items-center rounded-card border text-text-secondary">
           <SlidersHorizontal size={18} strokeWidth={1.5} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="type-body-sm block font-medium text-text-primary">Delivery settings</span>
-          <span className="type-label block text-text-secondary">Choose where you get updates</span>
+          <span className="type-body-sm block font-medium text-text-primary">{t("Delivery settings")}</span>
+          <span className="type-label block text-text-secondary">{t("Choose where you get updates")}</span>
         </span>
         <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
       </Link>

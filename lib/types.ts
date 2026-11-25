@@ -6,6 +6,7 @@
    lib/portfolio/types.ts; market data in lib/market/.
 --------------------------------------------------------------------------- */
 
+import type { TeamTrace } from "@/lib/agent/events";
 import type { SentAttachment } from "@/lib/attachments";
 import type { PreparedAction } from "@/lib/personalized/types";
 
@@ -75,4 +76,6 @@ export interface ChatMessage {
   preparedActionId?: string | null;
   /** A research report this message started, followed to completion. */
   report?: { id: string; query: string };
+  /** The team that answered: who worked on it, what each found, the check. */
+  team?: TeamTrace;
 }

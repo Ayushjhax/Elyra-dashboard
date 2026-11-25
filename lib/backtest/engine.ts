@@ -60,6 +60,27 @@ export interface BacktestConfig {
   /** Fraction of equity committed per trade, 0–1. */
   positionFraction: number;
   execution: ExecutionConfig;
+  /**
+   * Protective exits a designed strategy carries (lib/strategies). Absent
+   * for the catalogue's strategies, whose results are unchanged by it.
+   */
+  risk?: RiskLimits;
+}
+
+/**
+ * Exits that are not signals: a stop-loss and a take-profit as percentages
+ * from the fill, checked against each bar's own range from the entry bar on,
+ * and a time limit in bars.
+ *
+ * A bar that touches both is assumed to have hit the stop first — a candle
+ * cannot say which came first, and assuming the kinder order is how a
+ * backtest flatters a strategy. A bar that opens beyond a level fills at the
+ * open, which is where a resting order would have filled.
+ */
+export interface RiskLimits {
+  stopLossPct?: number | null;
+  takeProfitPct?: number | null;
+  maxBarsHeld?: number | null;
 }
 
 export interface Trade {
@@ -131,10 +152,12 @@ export function runBacktest(input: {
   candles: Candle[];
   config: BacktestConfig;
   warmupBars: number;
+  /** A strategy given directly — a designed one — instead of looked up in the catalogue by id. */
+  strategy?: StrategyDefinition;
 }): BacktestRun {
   const { candles, config, warmupBars } = input;
 
-  const strategy: StrategyDefinition | null = getStrategy(config.strategyId);
+  const strategy: StrategyDefinition | null = input.strategy ?? getStrategy(config.strategyId);
   if (strategy === null) {
     throw new BacktestError(`Unknown strategy "${config.strategyId}".`);
   }
@@ -209,6 +232,43 @@ export function runBacktest(input: {
      state only. */
   const firstTradableIndex = Math.max(warmupBars, 1);
 
+  /* ---- Exits that are not signals (`config.risk`) ----
+
+     Recorded exactly as a signal exit is: the fill slipped against the
+     trader, the fee on the proceeds, the trade's own reason. */
+  const risk = config.risk;
+  const exitAt = (reference: number, reason: string, index: number) => {
+    if (position === null) return;
+    const bar = candles[index];
+    const fillPrice = slip(reference, config.execution.slippageBps, "sell");
+    const proceeds = position.quantity * fillPrice;
+    const fee = feeOn(proceeds, config.execution.feeBps);
+    const slippageCost = position.quantity * Math.abs(reference - fillPrice);
+    cash += proceeds - fee;
+    totalFees += fee;
+    totalSlippage += slippageCost;
+    const gross = (fillPrice - position.entryPrice) * position.quantity;
+    const fees = position.entryFees + fee;
+    trades.push({
+      direction: "long",
+      entryTime: position.entryTime,
+      exitTime: bar.openTime,
+      entryPrice: position.entryPrice,
+      exitPrice: fillPrice,
+      quantity: position.quantity,
+      grossPnl: gross,
+      fees,
+      slippage: position.entrySlippage + slippageCost,
+      funding: 0,
+      netPnl: gross - fees,
+      returnPct: position.entryPrice === 0 ? 0 : ((fillPrice - position.entryPrice) / position.entryPrice) * 100,
+      barsHeld: index - position.entryIndex,
+      entryReason: position.entryReason,
+      exitReason: reason,
+    });
+    position = null;
+  };
+
   for (let i = firstTradableIndex; i < candles.length; i += 1) {
     const bar = candles[i];
 
@@ -220,7 +280,15 @@ export function runBacktest(input: {
     const signalIndex = i - SIGNAL_INDEX_OFFSET;
     const signal = signals[signalIndex];
 
-    if (signal !== undefined && position === null && signal.enterLong) {
+    /* A time limit is known before the bar opens: out at its open, and not
+       straight back in on the same bar. */
+    let timedOut = false;
+    if (position !== null && risk?.maxBarsHeld != null && i - position.entryIndex >= risk.maxBarsHeld) {
+      exitAt(bar.open, `Time limit: held ${risk.maxBarsHeld} bars`, i);
+      timedOut = true;
+    }
+
+    if (signal !== undefined && position === null && signal.enterLong && !timedOut) {
       const reference =
         config.execution.entryExecution === "next_bar_open" ? bar.open : bar.close;
       const fillPrice = slip(reference, config.execution.slippageBps, "buy");
@@ -302,6 +370,19 @@ export function runBacktest(input: {
       });
 
       position = null;
+    }
+
+    /* A stop or a target touched inside this bar — the entry bar included,
+       as the price can travel after the open fill. The stop first when a bar
+       spans both; a gap through a level fills at the open. */
+    if (position !== null && risk !== undefined) {
+      const stop = risk.stopLossPct != null ? position.entryPrice * (1 - risk.stopLossPct / 100) : null;
+      const target = risk.takeProfitPct != null ? position.entryPrice * (1 + risk.takeProfitPct / 100) : null;
+      if (stop !== null && bar.low <= stop) {
+        exitAt(Math.min(bar.open, stop), `Stop-loss: ${risk.stopLossPct}% below the entry`, i);
+      } else if (target !== null && bar.high >= target) {
+        exitAt(Math.max(bar.open, target), `Take-profit: ${risk.takeProfitPct}% above the entry`, i);
+      }
     }
 
     /* Equity is marked at this bar's close, including any open position. */

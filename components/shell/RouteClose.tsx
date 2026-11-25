@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * The way out of a route column, back to the chart alone.
@@ -16,10 +17,11 @@ import { cn } from "@/lib/utils";
  * right end, and a second bar above it would just be a second bar.
  */
 export function RouteClose({ className }: { className?: string }) {
+  const t = useT();
   return (
     <Link
       href="/"
-      aria-label="Close this section and return to the chart"
+      aria-label={t("Close this section and return to the chart")}
       className={cn(
         "inline-flex size-6 shrink-0 items-center justify-center rounded-chip",
         "text-text-muted transition-colors duration-[var(--dur-fast)] ease-brand",

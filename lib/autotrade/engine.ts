@@ -17,7 +17,9 @@ import {
 import { liveEnabled, num, readSettings, tablesMissing, toPosition, toRule, tradingNetwork } from "@/lib/autotrade/store";
 import type { Candle } from "@/lib/backtest/intervals";
 import { getStrategy } from "@/lib/backtest/strategies";
+import { HOUSE_USER_ID } from "@/lib/copy/house";
 import { decryptSecret } from "@/lib/crypto/credentials";
+import { paperGate } from "@/lib/paper/store";
 import { recipientFor, send, type DeliveryReport, type Recipient } from "@/lib/notifications/deliver";
 import { serviceClient } from "@/lib/supabase/server";
 import type { TradingAgentRow, TradingOrderRow, TradingPositionRow } from "@/lib/supabase/types";
@@ -75,7 +77,8 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
     return report;
   }
 
-  const rules = (rulesRead.data ?? []).map((row) => ({ userId: row.user_id, ...toRule(row) }));
+  /* A rule in a set (0029) tags its entries with the set, so the set's record is exactly its tagged positions. */
+  const rules = (rulesRead.data ?? []).map((row) => ({ userId: row.user_id, setId: row.set_id ?? null, ...toRule(row) }));
   const open = openRead.data ?? [];
   /* Missing before migration 0020: limit orders then simply do not exist. */
   const orders: TradingOrderRow[] = ordersRead.error === null ? (ordersRead.data ?? []) : [];
@@ -102,6 +105,8 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
   const recipients = new Map<string, Promise<Recipient>>();
   const delivery: DeliveryReport = { scanned: 0, sent: 0, skipped: 0, errors: 0 };
   const notify = async (userId: string, title: string, lines: string[]) => {
+    /* Elyra's own rules (lib/copy/house.ts) have nobody to tell. */
+    if (userId === HOUSE_USER_ID) return;
     try {
       if (!recipients.has(userId)) recipients.set(userId, recipientFor(userId));
       const recipient = await (recipients.get(userId) as Promise<Recipient>);
@@ -136,16 +141,22 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
 
   const sideOf = (row: TradingPositionRow): Side => (row.side === "short" ? "short" : "long");
 
-  const close = async (row: TradingPositionRow, exitPrice: number, reason: string, pnl: number) => {
+  /**
+   * `pnl` is the result of what was still open; a partial close's is added
+   * (0028) — unless `fromFills`, whose every closing fill since opening, the
+   * partial ones included, is already counted.
+   */
+  const close = async (row: TradingPositionRow, exitPrice: number, reason: string, pnl: number, fromFills = false) => {
+    const total = fromFills ? pnl : pnl + (Number(row.realised_partial_usd ?? 0) || 0);
     await db
       .from("trading_positions")
-      .update({ status: "closed", exit_price: exitPrice, exit_reason: reason, realised_pnl_usd: pnl, closed_at: new Date(now).toISOString() })
+      .update({ status: "closed", exit_price: exitPrice, exit_reason: reason, realised_pnl_usd: Number(total.toFixed(4)), closed_at: new Date(now).toISOString() })
       .eq("id", row.id);
     report.exited += 1;
     const label = reason === "take_profit" ? "Take-profit hit" : reason === "stop_loss" ? "Stop-loss hit" : "Position closed";
     await notify(row.user_id, `${label} · ${row.coin}`, [
       `${row.rule_name} (${row.mode}, ${sideOf(row)}): closed at ${px(exitPrice)}.`,
-      `Result ${usd(pnl)} after fees.`,
+      `Result ${usd(fromFills ? pnl : pnl + (Number(row.realised_partial_usd ?? 0) || 0))} after fees.`,
     ]);
   };
 
@@ -169,7 +180,10 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
             side,
             coin: order.coin,
             size: Number(fill.size.toPrecision(8)),
+            original_size: Number(fill.size.toPrecision(8)),
             entry_price: fill.entry,
+            /* A limit order's fill is measured against its own price. */
+            expected_price: price,
             take_profit: num(order.take_profit),
             stop_loss: num(order.stop_loss),
             signal_at: fill.signalAt,
@@ -278,7 +292,7 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
       const pnl = fills.reduce((sum, fill) => sum + Number(fill.closedPnl) - Number(fill.fee), 0);
       const reason =
         traded === 0 ? "closed_outside_elyra" : Math.abs(exitPrice - view.takeProfit) < Math.abs(exitPrice - view.stopLoss) ? "take_profit" : "stop_loss";
-      await close(row, Number(exitPrice.toPrecision(6)), reason, pnl);
+      await close(row, Number(exitPrice.toPrecision(6)), reason, pnl, true);
     } catch (error) {
       report.notes.push(`position ${row.id}: ${error instanceof Error ? error.message : "check failed"}`);
     }
@@ -401,6 +415,16 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
         }
       }
 
+      /* A paper entry needs its margin from the paper account (lib/paper/store.ts), as a paper order by hand does.
+         Elyra's own rules (lib/copy/house.ts) have no account to draw on. */
+      if (rule.mode === "paper" && rule.userId !== HOUSE_USER_ID) {
+        const refusal = await paperGate(rule.userId, rule.sizeUsd / Math.max(1, rule.leverage)).catch(() => null);
+        if (refusal !== null) {
+          await note(`Signal on the latest bar, but nothing was entered. ${refusal}`);
+          continue;
+        }
+      }
+
       const mid = (await midPrice("mainnet", rule.coin)) ?? bars[bars.length - 1].close;
       const price = rule.mode === "paper" ? paperFill(rule.side, "entry", mid) : mid;
       const planned = exitPrices(rule.side, price, rule.takeProfitPct, rule.stopLossPct);
@@ -415,7 +439,9 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
           side: rule.side,
           coin: rule.coin,
           size: Number((rule.sizeUsd / price).toPrecision(8)),
+          original_size: Number((rule.sizeUsd / price).toPrecision(8)),
           entry_price: Number(price.toPrecision(8)),
+          expected_price: Number(mid.toPrecision(8)),
           take_profit: Number(planned.takeProfit.toPrecision(8)),
           stop_loss: Number(planned.stopLoss.toPrecision(8)),
           signal_at: decision.barCloseAt,
@@ -424,6 +450,8 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
           opened_at: new Date(now).toISOString(),
           leverage: rule.leverage,
           origin: "rule",
+          /* Only when the rule is in a set, so an entry before migration 0029 never names it. */
+          ...(rule.setId === null ? {} : { set_id: rule.setId }),
         })
         .select("*")
         .single();
@@ -462,6 +490,7 @@ export async function runAutotrade(now: number = Date.now()): Promise<AutotradeR
           .update({
             status: "open",
             size: result.size,
+            original_size: result.size,
             entry_price: result.entryPrice,
             take_profit: result.takeProfit,
             stop_loss: result.stopLoss,

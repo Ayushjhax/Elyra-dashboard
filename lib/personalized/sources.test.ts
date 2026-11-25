@@ -14,7 +14,13 @@ describe("sourceStatuses", () => {
       portfolio: { ...READ.portfolio, positions: 2, positionsFailed: true },
       activity: { ...READ.activity, count: 4, error: "Refresh failed" },
     });
-    expect(statuses.positions).toEqual({ state: "failed", label: "2 open · partly unread" });
+    expect(statuses.positions).toEqual({
+      state: "failed",
+      label: "2 open · partly unread",
+      /* The website translates the template; the app shows the label. */
+      template: "{count} open · partly unread",
+      values: { count: 2 },
+    });
     expect(statuses.activity).toEqual({ state: "failed", label: "Last read failed" });
   });
   it("reads a connected, empty account the way the reference shows it", () => {

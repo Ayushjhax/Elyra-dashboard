@@ -5,6 +5,8 @@ import { usePrices } from "@/lib/market/usePrices";
 import { health, priceStateOf, rpcStateOf, type HealthTone } from "@/lib/wallet/health";
 import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Whether the terminal's two upstreams are answering, in words.
@@ -16,13 +18,14 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 const STATE: Record<HealthTone, { label: string; dot: string }> = {
-  positive: { label: "Systems connected", dot: "bg-positive" },
-  warning: { label: "Partially connected", dot: "bg-accent" },
-  negative: { label: "Connection issues", dot: "bg-negative" },
-  unknown: { label: "Connecting", dot: "bg-text-muted" },
+  positive: { label: msg("Systems connected"), dot: "bg-positive" },
+  warning: { label: msg("Partially connected"), dot: "bg-accent" },
+  negative: { label: msg("Connection issues"), dot: "bg-negative" },
+  unknown: { label: msg("Connecting"), dot: "bg-text-muted" },
 };
 
 export function ConnectionStatus({ className }: { className?: string }) {
+  const t = useT();
   const wallet = useWalletDashboard();
   /* An empty id list adds no subscription; it reads the shared feed's status,
      which the chart keeps alive for the life of the session. */
@@ -40,23 +43,26 @@ export function ConnectionStatus({ className }: { className?: string }) {
     latencyMs: wallet.latencyMs,
   });
   const state = STATE[score.tone];
+  /* The slow-RPC reason carries its latency after the words: translate the words. */
+  const slow = msg("Solana RPC is slow to answer");
+  const reason = score.reason.startsWith(slow) ? t(slow) + score.reason.slice(slow.length) : t(score.reason);
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
           role="status"
-          aria-label={`${state.label}. ${score.reason}`}
+          aria-label={`${t(state.label)}. ${reason}`}
           className={cn("flex items-center gap-2 rounded-control px-2 py-1", className)}
         >
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-pill", state.dot)} />
-          <span className="type-label whitespace-nowrap text-text-secondary">{state.label}</span>
+          <span className="type-label whitespace-nowrap text-text-secondary">{t(state.label)}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent side="bottom">
-        <span className="block">{score.reason}</span>
+        <span className="block">{reason}</span>
         {score.score !== null && (
-          <span className="type-data-sm block text-text-muted">Health {score.score}%</span>
+          <span className="type-data-sm block text-text-muted">{t("Health {score}%", { score: score.score })}</span>
         )}
       </TooltipContent>
     </Tooltip>

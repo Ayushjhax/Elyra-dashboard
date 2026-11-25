@@ -9,6 +9,9 @@ import { useMinute } from "@/lib/useClock";
 import type { FilingsFeed } from "@/lib/smartmoney/filings";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { translateNow, useT } from "@/lib/i18n/client";
+import { intlLocale } from "@/lib/i18n/locales";
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The latest SEC filings, live from EDGAR.
@@ -25,20 +28,20 @@ type State = { feed: FilingsFeed | null; error: string | null; loading: boolean 
 
 /** "Today", "3d ago", or the date — against the shared clock, so it rolls
     over at midnight; the plain date until that clock has hydrated. */
-function filedLabel(date: string, now: number | null): string {
+function filedLabel(date: string, now: number | null, t: Translator): string {
   const filed = Date.parse(`${date}T00:00:00Z`);
   if (!Number.isFinite(filed)) return date;
-  if (now === null) {
-    return new Date(filed).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
-  }
+  const day = () => new Date(filed).toLocaleDateString(intlLocale(t.locale), { day: "2-digit", month: "short", timeZone: "UTC" });
+  if (now === null) return day();
   const days = Math.floor((now - filed) / 86_400_000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
-  return new Date(filed).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+  if (days <= 0) return t("Today");
+  if (days === 1) return t("Yesterday");
+  if (days < 7) return t("{days}d ago", { days });
+  return day();
 }
 
 export function LiveFilings() {
+  const t = useT();
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
   const { byId } = useAssets([selectedAssetId]);
   const asset = byId.get(selectedAssetId);
@@ -55,7 +58,7 @@ export function LiveFilings() {
     } catch (error: unknown) {
       return {
         feed: null,
-        error: error instanceof Error ? error.message : "EDGAR could not be reached.",
+        error: error instanceof Error ? error.message : translateNow("EDGAR could not be reached."),
         loading: false,
       };
     }
@@ -78,11 +81,11 @@ export function LiveFilings() {
   const feed = state.feed;
 
   return (
-    <section aria-label="Latest SEC filings">
+    <section aria-label={t("Latest SEC filings")}>
       <div className="flex flex-col gap-2 px-4 pb-3 pt-3">
-        <p className="type-eyebrow text-text-muted">Latest filings · SEC EDGAR</p>
+        <p className="type-eyebrow text-text-muted">{t("Latest filings · SEC EDGAR")}</p>
         {feed && feed.companies.length > 0 && (
-          <ul aria-label="Companies in this feed" className="flex list-none flex-wrap gap-1.5">
+          <ul aria-label={t("Companies in this feed")} className="flex list-none flex-wrap gap-1.5">
             {feed.companies.map((company) => (
               <li key={company} className="flex items-center gap-1.5 rounded-pill border border-border-subtle bg-surface-raised py-1 pl-1 pr-2">
                 <CompanyMark ticker={company} size={18} />
@@ -94,22 +97,22 @@ export function LiveFilings() {
       </div>
 
       {state.loading ? (
-        <ul aria-busy="true" aria-label="Loading filings" className="list-none space-y-2 px-4 py-2">
+        <ul aria-busy="true" aria-label={t("Loading filings")} className="list-none space-y-2 px-4 py-2">
           {[0, 1, 2, 3].map((row) => (
             <li key={row} className="skeleton h-12 rounded-control" />
           ))}
         </ul>
       ) : state.error !== null || feed === null ? (
         <div className="px-4 py-6 text-center">
-          <p className="type-body-sm text-text-secondary">EDGAR could not be reached.</p>
+          <p className="type-body-sm text-text-secondary">{t("EDGAR could not be reached.")}</p>
           <p className="type-label mt-1 text-text-muted">{state.error}</p>
           <Button className="mt-3" size="sm" variant="quiet" onClick={() => void load().then(setState)}>
-            Try again
+            {t("Try again")}
           </Button>
         </div>
       ) : feed.filings.length === 0 ? (
         <p className="type-body-sm px-4 py-6 text-center text-text-secondary">
-          {feed.configured ? "No recent filings from these companies." : feed.errors[0]}
+          {feed.configured ? t("No recent filings from these companies.") : feed.errors[0]}
         </p>
       ) : (
         <ul className="list-none">
@@ -142,7 +145,7 @@ export function LiveFilings() {
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   <time dateTime={filing.filedAt} className="type-data-sm text-text-muted">
-                    {filedLabel(filing.filedAt, now)}
+                    {filedLabel(filing.filedAt, now, t)}
                   </time>
                   <ExternalLink
                     size={13}
@@ -160,7 +163,7 @@ export function LiveFilings() {
       {feed && feed.errors.length > 0 && feed.configured && (
         <p className="type-label flex items-center gap-1.5 px-4 py-2 text-text-muted">
           <FileText size={12} strokeWidth={1.5} aria-hidden />
-          Not read: {feed.errors.join(" · ")}
+          {t("Not read: {value}", { value: feed.errors.join(" · ") })}
         </p>
       )}
     </section>

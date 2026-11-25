@@ -100,6 +100,17 @@
   --dur-base: 180ms;
   --dur-slow: 280ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* 5. Chinese. Neither brand face draws a CJK glyph, so Chinese text falls
+     to the reader's own system face — PingFang on Apple, YaHei on Windows,
+     Noto or Source Han on Android and Linux — named so every platform picks
+     its best rather than whatever system-ui resolves to. The stacks below put
+     it after the brand faces, so Latin letters and figures in a Chinese
+     sentence are still Fustat and General Sans. The fourth deviation in
+     README.md. Declared here, not in @theme, so it exists whether or not a
+     utility names it. */
+  --font-cjk: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC";
 }
 
 /* Radii + the one permitted shadow. Declared in @theme so Tailwind emits the
@@ -119,6 +130,14 @@
 
   --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
+
+/* A screen too short for the nav rail at its full pitch: fifteen routes, the
+   rail's controls and the logo come to 969px with 44px rows. Under 1000px, a
+   mouse-driven rail tightens to --row-h (36px) rows, which hold them on a
+   13-inch laptop (about 830px of viewport) with room to spare; anything
+   shorter scrolls the route list, and NavRail keeps the lit route in view.
+   Touch keeps its 44px targets. */
+@custom-variant short (@media (height < 1000px) and (pointer: fine));
 
 /* Colors, fonts and easing alias the semantic tokens above. `inline` keeps the
    :root declarations as the single source of truth. */
@@ -156,11 +175,12 @@
   --color-agent-accent: var(--agent-accent);
   --color-agent-rail: var(--agent-rail);
 
-  --font-display: var(--font-fustat), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fustat), var(--font-cjk), ui-sans-serif, system-ui,
+    sans-serif;
   /* Figures first: it only claims digits and numeric punctuation, so General
      Sans still draws every letter. See app/layout.tsx for why. */
-  --font-sans: var(--font-figures), var(--font-general-sans), ui-sans-serif,
-    system-ui, sans-serif;
+  --font-sans: var(--font-figures), var(--font-general-sans), var(--font-cjk),
+    ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Menlo", monospace;
 
   --ease-brand: var(--ease);
@@ -466,6 +486,15 @@ td {
   font-variant-numeric: tabular-nums;
 }
 
+/* Fustat's tnum feature also swaps its word space for a figure-width one —
+   12px instead of 4.7px at 20px — so a heading set in it inside a button or
+   a table ("Trading activity", a section's toggle) read as double-spaced.
+   Fustat's text roles hold words; a figure in one of them switches to the
+   figures stack (font-sans) or asks for tabular-nums, and keeps it. */
+:is(.type-display, .type-h1, .type-h2, .type-panel-title):not(.font-sans, .tabular-nums) {
+  font-variant-numeric: normal;
+}
+
 /* Keyboard focus is always visible, 2px, --focus-ring. */
 :focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -483,6 +512,18 @@ td {
 /* The search frame owns focus, so the input never clips a second outline. */
 [data-command-input]:focus-visible {
   outline: none;
+}
+
+/* A dialog's amount card is the field: the bare input inside it has no
+   padding, so a ring of its own would hug the figure. The card takes the
+   same 2px ring instead. */
+[data-amount-input]:focus-visible {
+  outline: none;
+}
+
+[data-amount-field]:has([data-amount-input]:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------------------

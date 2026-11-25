@@ -15,6 +15,8 @@ import { useElyraStore } from "@/lib/store";
 import { parseTrackerSignalList, type TrackerSignal } from "@/lib/tracker/types";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { translateNow, useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Elyra's signals, in the agent panel.
@@ -38,19 +40,20 @@ const MAX_SYMBOLS = 6;
 const CONSENSUS_SHOWN = 12;
 
 const STRENGTH: Record<MarketSignal["strength"], { label: string; tone: string }> = {
-  high: { label: "High", tone: "border-accent-quiet bg-surface-active text-text-primary" },
-  medium: { label: "Medium", tone: "border-border-strong bg-surface-raised text-text-secondary" },
-  low: { label: "Low", tone: "border-border-subtle text-text-muted" },
+  high: { label: msg("High"), tone: "border-accent-quiet bg-surface-active text-text-primary" },
+  medium: { label: msg("Medium"), tone: "border-border-strong bg-surface-raised text-text-secondary" },
+  low: { label: msg("Low"), tone: "border-border-subtle text-text-muted" },
 };
 
 function DirectionIcon({ direction }: { direction: MarketSignal["direction"] }) {
+  const t = useT();
   if (direction === "positive") {
-    return <ArrowUpRight size={14} strokeWidth={1.5} aria-label="Up" className="text-positive" />;
+    return <ArrowUpRight size={14} strokeWidth={1.5} aria-label={t("Up")} className="text-positive" />;
   }
   if (direction === "negative") {
-    return <ArrowDownRight size={14} strokeWidth={1.5} aria-label="Down" className="text-negative" />;
+    return <ArrowDownRight size={14} strokeWidth={1.5} aria-label={t("Down")} className="text-negative" />;
   }
-  return <Minus size={14} strokeWidth={1.5} aria-label="Flat" className="text-neutral-flat" />;
+  return <Minus size={14} strokeWidth={1.5} aria-label={t("Flat")} className="text-neutral-flat" />;
 }
 
 function SignalCard({
@@ -64,6 +67,7 @@ function SignalCard({
   onAsk: (prompt: string) => void;
   mark: TickerLogo;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const strength = STRENGTH[signal.strength];
 
@@ -74,10 +78,10 @@ function SignalCard({
         <span className="type-data text-text-primary">{signal.symbol}</span>
         <DirectionIcon direction={signal.direction} />
         <span className={cn("type-label rounded-chip border px-1.5", strength.tone)}>
-          {strength.label}
+          {t(strength.label)}
         </span>
         <span className="type-data-sm ml-auto text-text-muted">
-          {now === null ? "" : formatRelativeTime(signal.generatedAt, now)}
+          {now === null ? "" : formatRelativeTime(signal.generatedAt, now, t.locale)}
         </span>
       </div>
 
@@ -86,7 +90,7 @@ function SignalCard({
 
       {signal.contradictions.length > 0 && (
         <p className="type-label mt-1.5 text-text-muted">
-          Against: {signal.contradictions.join(" · ")}
+          {t("Against: {value}", { value: signal.contradictions.join(" · ") })}
         </p>
       )}
 
@@ -103,17 +107,17 @@ function SignalCard({
             aria-hidden
             className={cn("transition-transform duration-[var(--dur-base)] ease-brand", open && "rotate-90")}
           />
-          {signal.evidence.length} readings · {signal.confirmationCount} confirming
+          {t("{count} readings · {confirmationCount} confirming", { count: signal.evidence.length, confirmationCount: signal.confirmationCount })}
         </button>
         <button
           type="button"
           onClick={() =>
-            onAsk(`About ${signal.symbol}: "${signal.title}". What is behind it, and what would change it?`)
+            onAsk(t("About {symbol}: \"{title}\". What is behind it, and what would change it?", { symbol: signal.symbol, title: t(signal.title) }))
           }
           className="type-label ml-auto flex items-center gap-1 rounded-control px-2 py-1 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
         >
           <Sparkles size={12} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
-          Ask Elyra
+          {t("Ask Elyra")}
         </button>
       </div>
 
@@ -122,7 +126,7 @@ function SignalCard({
           {signal.evidence.map((reading) => (
             <div key={`${reading.source}-${reading.label}`} className="flex items-baseline gap-2">
               <dt className="type-label min-w-0 flex-1 truncate text-text-muted">
-                {reading.label} · {reading.source}
+                {t(reading.label)} · {reading.source}
               </dt>
               <dd className="type-data-sm shrink-0 text-text-primary">{reading.value}</dd>
             </div>
@@ -142,6 +146,7 @@ function ConsensusRow({
   mark: TickerLogo;
   onAsk: (prompt: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const long = signal.side === "LONG";
   const price = Number(signal.currentPxUsd);
@@ -164,10 +169,10 @@ function ConsensusRow({
           long ? "bg-positive-bg text-positive" : "bg-negative-bg text-negative",
         )}
       >
-        {long ? "Long" : "Short"}
+        {long ? t("Long") : t("Short")}
       </span>
       <span className="type-label min-w-0 flex-1 truncate text-text-secondary">{signal.status}</span>
-      <span className="type-data-sm shrink-0 text-text-muted">{signal.weightedScore}% of value</span>
+      <span className="type-data-sm shrink-0 text-text-muted">{t("{weightedScore}% of value", { weightedScore: signal.weightedScore })}</span>
       <ChevronRight
         size={13}
         strokeWidth={1.5}
@@ -179,21 +184,21 @@ function ConsensusRow({
         <div className="pb-3 pl-9 pr-1">
           <dl className="grid grid-cols-3 gap-2 rounded-control border border-border-subtle bg-surface-raised p-2">
             <div>
-              <dt className="type-label text-text-muted">Mark</dt>
+              <dt className="type-label text-text-muted">{t("Mark")}</dt>
               <dd className="type-data-sm text-text-primary">{Number.isFinite(price) ? formatPriceUsd(price) : "—"}</dd>
             </div>
             <div>
-              <dt className="type-label text-text-muted">Their avg. entry</dt>
+              <dt className="type-label text-text-muted">{t("Their avg. entry")}</dt>
               <dd className="type-data-sm text-text-primary">{Number.isFinite(entry) ? formatPriceUsd(entry) : "—"}</dd>
             </div>
             <div>
-              <dt className="type-label text-text-muted">Since entry</dt>
+              <dt className="type-label text-text-muted">{t("Since entry")}</dt>
               <dd className="type-data-sm">
                 {fromEntry === null ? <span className="text-text-muted">—</span> : <DeltaText value={fromEntry} decimals={1} />}
               </dd>
             </div>
           </dl>
-          <ul className="mt-2 list-none space-y-1" aria-label={`${signal.symbol} wallets`}>
+          <ul className="mt-2 list-none space-y-1" aria-label={t("{symbol} wallets", { symbol: signal.symbol })}>
             {signal.participants.slice(0, 5).map((participant) => (
               <li key={participant.wallet} className="type-label flex items-baseline gap-2">
                 <span className="type-mono-addr min-w-0 flex-1 truncate text-text-secondary">{participant.wallet}</span>
@@ -206,12 +211,16 @@ function ConsensusRow({
           <button
             type="button"
             onClick={() =>
-              onAsk(`${signal.walletCount} top Hyperliquid wallets are ${long ? "long" : "short"} ${signal.symbol}. What is the case for and against following them?`)
+              onAsk(
+                long
+                  ? t("{count} top Hyperliquid wallets are long {symbol}. What is the case for and against following them?", { count: signal.walletCount, symbol: signal.symbol })
+                  : t("{count} top Hyperliquid wallets are short {symbol}. What is the case for and against following them?", { count: signal.walletCount, symbol: signal.symbol }),
+              )
             }
             className="type-label mt-2 inline-flex items-center gap-1 rounded-control px-1 py-1 text-text-secondary hover:text-text-primary"
           >
             <Sparkles size={12} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
-            Ask Elyra about this
+            {t("Ask Elyra about this")}
           </button>
         </div>
       )}
@@ -223,6 +232,7 @@ type MarketState = { data: MarketSignalsResponse | null; error: string | null; l
 type ConsensusState = { signals: TrackerSignal[]; note: string | null; error: string | null; loading: boolean };
 
 export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
+  const t = useT();
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
   const watchlist = useElyraStore((state) => state.watchlist);
   const ids = useMemo(() => [selectedAssetId, ...watchlist], [selectedAssetId, watchlist]);
@@ -258,7 +268,7 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
       const response = await fetch(`/api/market/signals?symbols=${encodeURIComponent(key)}`);
       return { data: (await response.json()) as MarketSignalsResponse, error: null, loading: false };
     } catch (error: unknown) {
-      return { data: null, error: error instanceof Error ? error.message : "Signals could not be read.", loading: false };
+      return { data: null, error: error instanceof Error ? error.message : translateNow("Signals could not be read."), loading: false };
     }
   }, [key]);
 
@@ -268,12 +278,12 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
       const list = parseTrackerSignalList((await response.json()) as unknown);
       return {
         signals: list.signals.slice(0, CONSENSUS_SHOWN),
-        note: list.origin === "hyperliquid" ? "Elyra's read of top Hyperliquid wallets" : "Smart-money tracker",
+        note: list.origin === "hyperliquid" ? msg("Elyra's read of top Hyperliquid wallets") : msg("Smart-money tracker"),
         error: list.error ?? null,
         loading: false,
       };
     } catch (error: unknown) {
-      return { signals: [], note: null, error: error instanceof Error ? error.message : "Unavailable", loading: false };
+      return { signals: [], note: null, error: error instanceof Error ? error.message : translateNow("Unavailable"), loading: false };
     }
   }, []);
 
@@ -314,11 +324,11 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="type-eyebrow text-text-muted">Market signals</p>
+        <p className="type-eyebrow text-text-muted">{t("Market signals")}</p>
         <button
           type="button"
           onClick={refresh}
-          aria-label="Refresh signals"
+          aria-label={t("Refresh signals")}
           className="inline-flex size-7 items-center justify-center rounded-control text-text-muted hover:bg-surface-hover hover:text-text-primary"
         >
           <RefreshCw size={13} strokeWidth={1.5} aria-hidden className={cn(market.loading && "animate-spin")} />
@@ -326,16 +336,16 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
       </div>
 
       {market.loading ? (
-        <ul aria-busy="true" aria-label="Loading signals" className="mt-2 list-none space-y-2">
+        <ul aria-busy="true" aria-label={t("Loading signals")} className="mt-2 list-none space-y-2">
           <li className="skeleton h-24 rounded-card" />
           <li className="skeleton h-24 rounded-card" />
         </ul>
       ) : market.error !== null ? (
         <div className="mt-2 rounded-card border border-border-subtle px-3 py-4 text-center">
-          <p className="type-body-sm text-text-secondary">Signals could not be read.</p>
+          <p className="type-body-sm text-text-secondary">{t("Signals could not be read.")}</p>
           <p className="type-label mt-1 text-text-muted">{market.error}</p>
           <Button className="mt-3" size="sm" variant="quiet" onClick={refresh}>
-            Try again
+            {t("Try again")}
           </Button>
         </div>
       ) : (
@@ -355,13 +365,13 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
           )}
           {quiet.length > 0 && (
             <p className="type-body-sm mt-2 rounded-card border border-border-subtle px-3 py-2.5 text-text-secondary">
-              Nothing notable on {quiet.join(", ")} right now
-              <span className="text-text-muted"> — no move, funding or venue gap past its threshold.</span>
+              {t("Nothing notable on {value} right now", { value: quiet.join(", ") })}
+              <span className="text-text-muted">{" "}{t("— no move, funding or venue gap past its threshold.")}</span>
             </p>
           )}
           {unread.length > 0 && (
             <p className="type-label mt-2 text-text-muted">
-              Not read: {unread.map((result) => result.symbol).join(", ")}
+              {t("Not read: {value}", { value: unread.map((result) => result.symbol).join(", ") })}
             </p>
           )}
         </>
@@ -371,11 +381,11 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
       <PulseBoard onAsk={onAsk} />
 
       <div className="mt-5 flex items-center justify-between gap-2">
-        <p className="type-eyebrow text-text-muted">Smart-money consensus</p>
-        {consensus.note && <span className="type-label truncate text-text-muted">{consensus.note}</span>}
+        <p className="type-eyebrow text-text-muted">{t("Smart-money consensus")}</p>
+        {consensus.note && <span className="type-label truncate text-text-muted">{t(consensus.note)}</span>}
       </div>
       {consensus.loading ? (
-        <div aria-busy="true" aria-label="Loading consensus" className="skeleton mt-2 h-28 rounded-card" />
+        <div aria-busy="true" aria-label={t("Loading consensus")} className="skeleton mt-2 h-28 rounded-card" />
       ) : consensus.signals.length > 0 ? (
         <ul className="mt-1 list-none">
           {consensus.signals.map((signal) => (
@@ -384,12 +394,12 @@ export function ElyraSignals({ onAsk }: { onAsk: (prompt: string) => void }) {
         </ul>
       ) : (
         <p className="type-body-sm mt-2 text-text-secondary">
-          {consensus.error ?? "No market where top wallets agree right now."}
+          {consensus.error ?? t("No market where top wallets agree right now.")}
         </p>
       )}
 
       <p className="type-label mt-4 text-text-muted">
-        Observations from live data, not recommendations. Elyra never places orders.
+        {t("Observations from live data, not recommendations. Elyra never places orders.")}
       </p>
     </div>
   );

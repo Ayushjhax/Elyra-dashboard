@@ -16,6 +16,8 @@ import { useAssetSearch } from "@/lib/market/useAssetSearch";
 import type { PythAsset, PythAssetType } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The asset picker.
@@ -27,13 +29,13 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 const TYPE_FILTERS: Array<{ value: PythAssetType | null; label: string }> = [
-  { value: null, label: "All" },
-  { value: "crypto", label: "Crypto" },
-  { value: "equity", label: "Stocks" },
-  { value: "metal", label: "Metals" },
-  { value: "commodity", label: "Commodities" },
-  { value: "fx", label: "FX" },
-  { value: "crypto-index", label: "Indices" },
+  { value: null, label: msg("All") },
+  { value: "crypto", label: msg("Crypto") },
+  { value: "equity", label: msg("Stocks") },
+  { value: "metal", label: msg("Metals") },
+  { value: "commodity", label: msg("Commodities") },
+  { value: "fx", label: msg("FX") },
+  { value: "crypto-index", label: msg("Indices") },
 ];
 
 /** Class shown on the row, shortened where the catalogue name is unwieldy. */
@@ -50,6 +52,7 @@ export function AssetSelectDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const watchlist = useElyraStore((state) => state.watchlist);
   const addToWatchlist = useElyraStore((state) => state.addToWatchlist);
   const removeFromWatchlist = useElyraStore((state) => state.removeFromWatchlist);
@@ -78,10 +81,9 @@ export function AssetSelectDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby="asset-picker-help">
         <DialogHeader>
-          <DialogTitle>Select an asset</DialogTitle>
+          <DialogTitle>{t("Select an asset")}</DialogTitle>
           <DialogDescription id="asset-picker-help">
-            Everything with a live Pyth price feed — crypto, stocks, metals,
-            commodities, FX and indices. Search by ticker, name or class.
+            {t("Everything with a live Pyth price feed — crypto, stocks, metals, commodities, FX and indices. Search by ticker, name or class.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -98,8 +100,8 @@ export function AssetSelectDialog({
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="SOL, Bitcoin, Gold, Tesla…"
-              aria-label="Search assets"
+              placeholder={t("SOL, Bitcoin, Gold, Tesla…")}
+              aria-label={t("Search assets")}
               className={cn(
                 "type-label h-8 w-full rounded-control border border-border-strong bg-surface-raised",
                 "pl-7 pr-2 text-text-primary placeholder:text-text-muted",
@@ -108,7 +110,7 @@ export function AssetSelectDialog({
             />
           </div>
 
-          <div role="group" aria-label="Asset class" className="flex flex-wrap gap-1">
+          <div role="group" aria-label={t("Asset class")} className="flex flex-wrap gap-1">
             {TYPE_FILTERS.map((filter) => {
               const active = filter.value === type;
               return (
@@ -125,7 +127,7 @@ export function AssetSelectDialog({
                       : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
                   )}
                 >
-                  {filter.label}
+                  {t(filter.label)}
                 </button>
               );
             })}
@@ -142,14 +144,14 @@ export function AssetSelectDialog({
           {status === "error" ? (
             <EmptyState
               icon={SearchX}
-              title="Asset list unavailable"
-              body={error ?? "Pyth could not be reached. Check PYTH_API_KEY and retry."}
+              title={t("Asset list unavailable")}
+              body={error ?? t("Pyth could not be reached. Check PYTH_API_KEY and retry.")}
             />
           ) : assets.length === 0 && status === "ready" ? (
             <EmptyState
               icon={SearchX}
-              title="Nothing matches that"
-              body={`No Pyth feed matches "${query.trim()}". Try a ticker, a company name, or a class like "metals".`}
+              title={t("Nothing matches that")}
+              body={t("No Pyth feed matches \"{query}\". Try a ticker, a company name, or a class like \"metals\".", { query: query.trim() })}
             />
           ) : (
             <ul className="list-none">
@@ -187,7 +189,7 @@ export function AssetSelectDialog({
                       {/* Says up front that this asset has a price but no chart. */}
                       {asset.tradingViewSymbol === null && (
                         <span className="type-data-sm shrink-0 text-text-muted">
-                          no chart
+                          {t("no chart")}
                         </span>
                       )}
                     </button>
@@ -201,11 +203,11 @@ export function AssetSelectDialog({
                         }
                         aria-label={
                           onList
-                            ? `Remove ${asset.symbol} from the watchlist`
-                            : `Add ${asset.symbol} to the watchlist`
+                            ? t("Remove {symbol} from the watchlist", { symbol: asset.symbol })
+                            : t("Add {symbol} to the watchlist", { symbol: asset.symbol })
                         }
                       >
-                        {onList ? "Remove" : "Add"}
+                        {onList ? t("Remove") : t("Add")}
                       </Button>
                     </span>
                   </li>

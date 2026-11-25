@@ -15,6 +15,7 @@ import type { PriceRow, PythAsset } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
 import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The watchlist: live Pyth prices for the markets the operator follows.
@@ -38,6 +39,7 @@ function WatchRow({
   seq: number;
   previous: number | undefined;
 }) {
+  const t = useT();
   const selected = useElyraStore((state) => state.selectedAssetId === asset.id);
   const favorite = useElyraStore((state) => state.favorites.includes(asset.id));
   const setSelectedAssetId = useElyraStore((state) => state.setSelectedAssetId);
@@ -99,7 +101,7 @@ function WatchRow({
         type="button"
         role="switch"
         aria-checked={favorite}
-        aria-label={favorite ? `Remove ${asset.symbol} from favourites` : `Add ${asset.symbol} to favourites`}
+        aria-label={favorite ? t("Remove {symbol} from favourites", { symbol: asset.symbol }) : t("Add {symbol} to favourites", { symbol: asset.symbol })}
         onClick={() => toggleFavorite(asset.id)}
         className={cn(
           "mr-1 inline-flex size-9 shrink-0 items-center justify-center rounded-chip",
@@ -114,6 +116,7 @@ function WatchRow({
 }
 
 export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
+  const t = useT();
   const watchlist = useElyraStore((state) => state.watchlist);
   const favorites = useElyraStore((state) => state.favorites);
   const [query, setQuery] = useState("");
@@ -159,14 +162,14 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
 
   return (
     <Section
-      title="Watchlist"
+      title={t("Watchlist")}
       icon={<Eye size={16} strokeWidth={1.5} />}
       open={open}
       onOpenChange={onOpenChange}
       actions={
         <>
           <SectionControl
-            label="Add a market"
+            label={t("Add a market")}
             aria-haspopup="dialog"
             onClick={() => setPickerOpen(true)}
             className="size-6"
@@ -190,8 +193,8 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find a market…"
-            aria-label="Search the watchlist"
+            placeholder={t("Find a market…")}
+            aria-label={t("Search the watchlist")}
             aria-keyshortcuts="/"
             className={cn(
               "type-body-sm h-10 w-full rounded-card border border-border-strong bg-surface-raised",
@@ -207,11 +210,11 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
           </kbd>
         </div>
 
-        <div role="radiogroup" aria-label="Show" className="flex gap-1 border-b border-border-subtle">
+        <div role="radiogroup" aria-label={t("Show")} className="flex gap-1 border-b border-border-subtle">
           {(
             [
-              ["all", "All markets"],
-              ["favorites", "Favorites"],
+              ["all", t("All markets")],
+              ["favorites", t("Favorites")],
             ] as const
           ).map(([value, label]) => {
             const active = filter === value;
@@ -250,19 +253,19 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
       </div>
 
       <div aria-hidden="true" className="watch-columns type-eyebrow mx-3 mt-3 grid grid-cols-[minmax(0,1fr)_auto_36px] gap-2 border-b border-border-subtle px-2 pb-2 text-text-secondary">
-        <span>Market</span>
-        <span className="text-right">Price / 24h</span>
+        <span>{t("Market")}</span>
+        <span className="text-right">{t("Price / 24h")}</span>
         <Star size={12} className="justify-self-center" />
       </div>
       <div className="max-h-[360px] overflow-y-auto px-2 py-2">
         {watchlist.length === 0 ? (
           <EmptyState
             icon={Search}
-            title="Nothing on the watchlist"
-            body="Add a market to follow its live Pyth price here."
+            title={t("Nothing on the watchlist")}
+            body={t("Add a market to follow its live Pyth price here.")}
           />
         ) : resolving ? (
-          <ul aria-busy="true" aria-label="Loading the watchlist" className="list-none space-y-1">
+          <ul aria-busy="true" aria-label={t("Loading the watchlist")} className="list-none space-y-1">
             {watchlist.slice(0, 5).map((id) => (
               <li key={id} className="flex h-14 items-center gap-3 px-2.5">
                 <span className="skeleton size-[30px] rounded-pill" />
@@ -286,11 +289,11 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
         ) : (
           <EmptyState
             icon={SearchX}
-            title={filter === "favorites" && query.trim() === "" ? "No favourites yet" : "Nothing matches that"}
+            title={filter === "favorites" && query.trim() === "" ? t("No favourites yet") : t("Nothing matches that")}
             body={
               filter === "favorites" && query.trim() === ""
-                ? "Star a market to keep it here."
-                : `No watchlist market matches "${query.trim()}". Clear the search, or add it from the picker.`
+                ? t("Star a market to keep it here.")
+                : t("No watchlist market matches \"{query}\". Clear the search, or add it from the picker.", { query: query.trim() })
             }
           />
         )}
@@ -304,7 +307,7 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
             feed.status === "live" ? "bg-positive" : feed.status === "error" ? "bg-negative" : "bg-text-muted",
           )}
         />
-        {feed.status === "live" ? "Pyth live" : feed.status === "error" ? "Prices delayed" : "Connecting"} · USD
+        {feed.status === "live" ? t("Pyth live") : feed.status === "error" ? t("Prices delayed") : t("Connecting")}{" "}{t("· USD")}
       </p>
 
       <AssetSelectDialog open={pickerOpen} onOpenChange={setPickerOpen} />

@@ -203,6 +203,40 @@ describe("the draft", () => {
     expect(seen.draft.onClock?.handle).toBe(second);
   });
 
+  it("keeps a drafted market on its manager's roster: the pick and the slot are written together", async () => {
+    const { id, first } = await draftingLeague();
+    await act(first, id, { action: "pick", market: "BTC" });
+    expect(state.db.rows("arena_league_picks")).toHaveLength(1);
+    expect(state.db.rows("arena_league_slots")).toEqual([expect.objectContaining({ user_id: USERS[first], market: "BTC", via: "draft", to_round: null })]);
+  });
+
+  it("carries on when a manager's account is deleted mid-draft, and finishes with full rosters", async () => {
+    const id = await create("ana");
+    const code = leagueOf((await view("ana", id)).body).inviteCode;
+    for (const who of ["ben", "cy"] as const) {
+      as(who);
+      expect((await leagues.POST(post({ action: "join", code }))).status).toBe(201);
+    }
+    expect((await act("ana", id, { action: "start" })).status).toBe(200);
+    const pickNext = async () => {
+      const seen = leagueOf((await view("ana", id)).body);
+      const who = seen.draft.onClock?.handle as Who;
+      expect((await act(who, id, { action: "pick", market: seen.draft.board[0] })).status).toBe(200);
+      return who;
+    };
+    await pickNext();
+    await pickNext();
+    /* A manager who has picked deletes their account: the database takes their rows with them. */
+    const gone = (await pickNext()) === "cy" ? "ben" : "cy";
+    for (const table of ["arena_league_managers", "arena_league_picks", "arena_league_slots"]) {
+      state.db.tables.set(table, state.db.rows(table).filter((row) => row.user_id !== USERS[gone]));
+    }
+    for (let guard = 0; guard < 10 && leagueOf((await view("ana", id)).body).status === "drafting"; guard += 1) await pickNext();
+    const done = leagueOf((await view("ana", id)).body);
+    expect(done.status).toBe("active");
+    expect(done.rosters.map((roster) => roster.lineup.length)).toEqual([3, 3]);
+  });
+
   it("goes active at the last pick, with a schedule and a season from the next midnight", async () => {
     const { id, first, second } = await draftingLeague();
     await draftAll(id, first, second);
@@ -245,8 +279,8 @@ describe("the tick", () => {
       notices.push({ userId, title, lines });
     };
 
-    /* Draft done: everyone hears once. */
-    await runLeagues(START + 60_000, notify);
+    /* Draft done: everyone hears once, even from two runs at the same moment. */
+    await Promise.all([runLeagues(START + 60_000, notify), runLeagues(START + 60_000, notify)]);
     await runLeagues(START + 120_000, notify);
     expect(notices.filter((n) => /draft is done/.test(n.title))).toHaveLength(2);
 

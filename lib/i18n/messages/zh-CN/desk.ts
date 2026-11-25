@@ -53,8 +53,8 @@ export const desk: Messages = {
     "Brier {brier}",
   "{market}, {horizon}":
     "{market}，{horizon}",
-  "Will it be true? {statement}.":
-    "这会成立吗？{statement}。",
+  "Will it be true? {market} closes above {price} at {time} UTC.":
+    "这会成立吗？{market} 在 UTC {time} 的收盘价高于 {price}。",
   "Your note: {note}":
     "你的备注：{note}",
   "answered":
@@ -189,4 +189,96 @@ export const desk: Messages = {
     "通才",
   "A generalist's read: the plainest explanation of the facts.":
     "通才的解读：对事实最直白的解释。",
+  "The desk's summary":
+    "委员会摘要",
+  "The desk puts {p}% on this.":
+    "委员会给出的概率为 {p}%。",
+  "1 member voted, at {p}%.":
+    "1 位成员投票，给出 {p}%。",
+  "{count} members voted, from {low}% to {high}%.":
+    "{count} 位成员投票，区间为 {low}% 至 {high}%。",
+  "The dissent came from the {title} at {p}%.":
+    "异议来自{title}，给出 {p}%。",
+  "Withheld: it cited a figure that is not on the fact sheet.":
+    "已隐藏：它引用了事实表之外的数字。",
+  "No answer (rate limited).":
+    "未作答（请求受限）。",
+  "No answer (server error).":
+    "未作答（服务器错误）。",
+  "No answer (network).":
+    "未作答（网络问题）。",
+  "No answer (timeout).":
+    "未作答（超时）。",
+  "No answer (bad request).":
+    "未作答（请求无效）。",
+  "No answer (auth).":
+    "未作答（认证失败）。",
+  "No answer (malformed response).":
+    "未作答（返回格式有误）。",
+  "No answer (failed).":
+    "未作答（失败）。",
+  "Declined to answer.":
+    "拒绝作答。",
+  "Its answer could not be read.":
+    "无法读取其回答。",
+  "Its answer was cut off before it finished.":
+    "其回答在完成前被截断。",
+  "Too few members answered to hold a vote.":
+    "作答的成员太少，无法投票。",
+  "The desk stopped partway. Nothing was lost but this run.":
+    "委员会中途停止了。除本次会议外，没有任何损失。",
+  "The desk ran out of time on this one.":
+    "委员会这次超时了。",
+  "Market: {label}, a Hyperliquid perpetual":
+    "市场：{label}，Hyperliquid 永续合约",
+  "Price now (mid): {price}":
+    "当前价格（中间价）：{price}",
+  "Change over the last 24 hours: {change}":
+    "过去 24 小时涨跌：{change}",
+  "Change over the last 7 days: {change}":
+    "过去 7 天涨跌：{change}",
+  "Change over the last {days} days: {change}":
+    "过去 {days} 天涨跌：{change}",
+  "7-day range: low {low}, high {high}":
+    "7 天区间：最低 {low}，最高 {high}",
+  "Where the price sits in that range: {share}% of the way from low to high":
+    "价格在该区间中的位置：从最低到最高的 {share}% 处",
+  "20-day average close: {average}; the price is {change} from it":
+    "20 日平均收盘价：{average}；当前价格相对其 {change}",
+  "Daily volatility (standard deviation of daily moves, last {days} days): {volatility}%":
+    "日波动率（过去 {days} 天每日涨跌的标准差）：{volatility}%",
+  "A typical move over the question's horizon (one standard deviation): {move}%":
+    "问题时间范围内的典型波动（一个标准差）：{move}%",
+  "Days that closed higher than they opened, last {days} days: {up} of {days}":
+    "过去 {days} 天中收盘高于开盘的天数：{days} 天中有 {up} 天",
+  "Hours that closed higher than they opened, last 24 hours: {up} of 24":
+    "过去 24 小时中收盘高于开盘的小时数：24 小时中有 {up} 小时",
+  "Bitcoin: {day} over 24 hours, {week} over 7 days":
+    "比特币：24 小时 {day}，7 天 {week}",
+  "Bitcoin: {day} over 24 hours":
+    "比特币：24 小时 {day}",
+  "Bitcoin: {week} over 7 days":
+    "比特币：7 天 {week}",
+  "Ether: {day} over 24 hours, {week} over 7 days":
+    "以太坊：24 小时 {day}，7 天 {week}",
+  "Ether: {day} over 24 hours":
+    "以太坊：24 小时 {day}",
+  "Ether: {week} over 7 days":
+    "以太坊：7 天 {week}",
+  "Hyperliquid's bars could not be read just now; the sheet has no history.":
+    "暂时无法读取 Hyperliquid 的 K 线；事实表没有历史数据。",
+  "Funding: {hourly}% an hour, about {annual}% a year; longs pay shorts":
+    "资金费率：每小时 {hourly}%，约合每年 {annual}%；多头向空头支付",
+  "Funding: {hourly}% an hour, about {annual}% a year; shorts pay longs":
+    "资金费率：每小时 {hourly}%，约合每年 {annual}%；空头向多头支付",
+  "Funding: {hourly}% an hour, about {annual}% a year; nobody pays":
+    "资金费率：每小时 {hourly}%，约合每年 {annual}%；双方均不支付",
+  "Open interest: ${millions} million":
+    "未平仓量：{millions} 百万美元",
+  "Volume over 24 hours: ${millions} million":
+    "24 小时成交量：{millions} 百万美元",
+  "Funding and open interest could not be read just now.":
+    "暂时无法读取资金费率和未平仓量。",
+  "Funding and open interest are not on the sheet: this market trades on trade[XYZ], a builder exchange on Hyperliquid.":
+    "事实表不含资金费率和未平仓量：该市场在 trade[XYZ] 上交易，这是 Hyperliquid 上的一个构建者交易所。",
 };

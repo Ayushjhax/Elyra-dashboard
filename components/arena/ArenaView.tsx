@@ -47,9 +47,11 @@ const TABS: readonly { value: ArenaTab; label: string }[] = [
 /* Links written before the launch layout still land in the right place. */
 const LEGACY: Record<string, ArenaTab> = { reviews: "trades", groups: "ladder" };
 
-function tabFrom(value: string | null, trade: string | null): ArenaTab {
+function tabFrom(value: string | null, trade: string | null, league: string | null): ArenaTab {
   if (value !== null && TABS.some((tab) => tab.value === value)) return value as ArenaTab;
   if (value !== null && value in LEGACY) return LEGACY[value];
+  /* `?league=<id>` opens that league (docs/ARENA.md). */
+  if (league !== null) return "league";
   return trade !== null ? "trades" : "today";
 }
 
@@ -58,7 +60,7 @@ export function ArenaView({ initialTab, trade, league }: { initialTab: string | 
   const auth = useElyraAuth();
   const feed = useArena();
   const now = useMinute();
-  const [tab, setTab] = useState<ArenaTab>(tabFrom(initialTab, trade));
+  const [tab, setTab] = useState<ArenaTab>(tabFrom(initialTab, trade, league ?? null));
   const [focus, setFocus] = useState<string | null>(league ?? null);
 
   if (!auth.ready || (feed.signedIn && feed.loading && feed.data === null)) return <SkeletonRows rows={6} />;

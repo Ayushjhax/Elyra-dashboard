@@ -298,6 +298,7 @@ export function geminiProvider(chosen?: string): Provider {
           output: payload.usageMetadata?.candidatesTokenCount ?? 0,
         },
         rawContent: candidate?.content?.parts ?? [],
+        truncated: candidate?.finishReason === "MAX_TOKENS",
         refused: blocked,
         refusalReason: blocked
           ? (payload.promptFeedback?.blockReason ??

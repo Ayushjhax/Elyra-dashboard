@@ -18,9 +18,12 @@ more often, with more size or with more leverage.
   score, and the puzzle rating is an Elo-style update on 1 − Brier. Neither
   pays for trading more, sizing up or adding leverage. The only streak is
   the daily puzzle's.
-- **Privacy by default.** Calls are private unless the owner shares each
-  one, either with their groups or publicly under a handle. A person is
-  shown only by handle, never by wallet.
+- **Privacy by default.** What a call says is private unless the owner
+  shares it, with their groups or publicly under a handle. Every settled
+  call counts toward the calls ladder, so groupmates (and everyone, for a
+  public profile) see how many calls a person has settled and their Brier
+  score — the profile says so. A person is shown only by handle, never by
+  wallet.
 - **No emoji, sentence case, brand tokens only.**
 
 ## Built (web) — the launch layout
@@ -135,17 +138,25 @@ The rules are pure, in `lib/arena/league.ts`; the writes and the read are in
   needs a handle. A league holds as many managers as the board can fill —
   `capacity` = min(10, ⌊33 ÷ roster size⌋) — and a person can be in 5
   unfinished leagues. Before the draft a manager may leave; the owner's
-  leaving closes the league.
+  leaving closes the league. Joining is one database function under the
+  league's row lock (`arena_league_join`), so nobody joins mid-deal or past
+  capacity.
 - **The draft.** The owner starts it with two managers or more. Slots are
-  dealt at random (`randomInt`), the order snakes, and the league closes to
-  new managers. The pool is `PERP_MARKETS` — crypto, memecoins and Nasdaq
+  dealt at random (`randomInt`) by `arena_league_start`, which refuses if
+  anyone joined or left since the order was drawn; the order snakes, and
+  the league closes to new managers. A pick and its roster slot are written
+  together (`arena_league_pick`). If a manager's account is deleted
+  mid-draft, their picks go with it and the snake carries on over who is
+  left (`managerOnClock`), nobody drafting more than a roster. The pool is `PERP_MARKETS` — crypto, memecoins and Nasdaq
   stock perps — and once a market is picked nobody else in the league can
   hold it (`arena_league_picks` unique on (league, market)). When a clock
   runs out, the first market still on the board is picked for that manager,
   stamped at the moment the clock ran out so the next clock starts there.
   Run-out picks happen lazily on any read or write, and on the tick, so a
   slow draft moves even when nobody has the page open. A slow draft (1 hour
-  or more) tells the manager on the clock once per pick.
+  or more) tells the manager on the clock once per pick. Every notice is a
+  compare-and-set on `notified_pick`, so overlapping ticks send it once,
+  and the tick reads every live league, in batches, oldest first.
 - **The season.** It starts at the first 00:00 UTC after the last pick.
   Round k runs `round days` from `season start + (k − 1) × round days`. The
   schedule is a round-robin by the circle method, cycled for longer
@@ -165,8 +176,9 @@ The rules are pure, in `lib/arena/league.ts`; the writes and the read are in
   last round it counts for, so any round's lineup is read without a
   snapshot. No moves once the last round is under way.
 - **The table.** A win is 1, a tie ½. Level teams split on points for (the
-  sum of round scores), then on fewer rounds played, then by handle. When
-  the last round settles, the top of the table is champion.
+  sum of round scores, at the two decimals shown), then on fewer rounds
+  played, then by handle; teams level on all three share a rank. When the
+  last round settles, the top of the table is champion.
 - **The commentator.** After each round, the model writes a short recap
   from `recapFacts` — who beat whom, at what score, the best and worst
   market started — through `writeFromFacts`, which discards a reply with a

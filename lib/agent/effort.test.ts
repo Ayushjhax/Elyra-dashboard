@@ -19,7 +19,8 @@ describe("effortFor", () => {
     expect(effortFor("research", undefined)).toBe("medium");
     expect(effortFor("answer", undefined)).toBe("medium");
     expect(effortFor("write", undefined)).toBe("medium");
-    expect(Object.keys(FAST).sort()).toEqual(["answer", "research", "review", "voice", "write"]);
+    expect(effortFor("desk", undefined)).toBe("low");
+    expect(Object.keys(FAST).sort()).toEqual(["answer", "desk", "research", "review", "voice", "write"]);
   });
 
   it("goes back to the model's own default with ANTHROPIC_EFFORT=model", () => {

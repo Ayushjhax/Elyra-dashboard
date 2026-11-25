@@ -3048,7 +3048,8 @@ create table if not exists public.arena_leagues (
   draft_started_at timestamptz,
   -- The first 00:00 UTC after the last pick.
   season_starts_at timestamptz,
-  -- The last pick whose manager was told they are on the clock (slow drafts).
+  -- The last pick whose manager was told they are on the clock (slow drafts);
+  -- -1 once every manager has been told the draft is done.
   notified_pick    integer,
   champion_id      uuid references public.profiles(id) on delete set null,
   created_at       timestamptz not null default now()
@@ -3135,6 +3136,114 @@ create table if not exists public.arena_market_opens (
   primary key (market, day)
 );
 alter table public.arena_market_opens enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- Three writes that must each happen whole, so they are functions.
+--
+-- Joining and dealing the draft both lock the league's row: a join cannot
+-- land while the slots are being dealt, nor take a league past capacity.
+-- A pick is written with its roster slot or not at all, so a drafted market
+-- is never missing from its manager's roster. Service role only.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.arena_league_join(p_league uuid, p_user uuid, p_capacity int)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+begin
+  select status into v_status from public.arena_leagues where id = p_league for update;
+  if not found then
+    return 'missing';
+  end if;
+  if exists (select 1 from public.arena_league_managers where league_id = p_league and user_id = p_user) then
+    return 'member';
+  end if;
+  if v_status <> 'forming' then
+    return 'closed';
+  end if;
+  if (select count(*) from public.arena_league_managers where league_id = p_league) >= p_capacity then
+    return 'full';
+  end if;
+  insert into public.arena_league_managers (league_id, user_id, draft_slot, joined_at)
+  values (p_league, p_user, null, now());
+  return 'joined';
+end;
+$$;
+
+revoke all on function public.arena_league_join(uuid, uuid, int) from public, anon, authenticated;
+grant execute on function public.arena_league_join(uuid, uuid, int) to service_role;
+
+-- Deals the draft slots in the order given and starts the clock. The order
+-- must name exactly the managers there are now, each once; if someone joined
+-- or left since it was drawn, nothing changes and the caller draws again.
+create or replace function public.arena_league_start(p_league uuid, p_owner uuid, p_order uuid[], p_at timestamptz)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_league public.arena_leagues%rowtype;
+  v_size   int := coalesce(array_length(p_order, 1), 0);
+begin
+  select * into v_league from public.arena_leagues where id = p_league for update;
+  if not found then
+    return 'missing';
+  end if;
+  if v_league.owner_id <> p_owner then
+    return 'not_owner';
+  end if;
+  if v_league.status <> 'forming' then
+    return 'started';
+  end if;
+  if (select count(*) from public.arena_league_managers where league_id = p_league) <> v_size
+     or (select count(distinct entry) from unnest(p_order) as entry) <> v_size
+     or exists (select 1 from public.arena_league_managers m where m.league_id = p_league and not (m.user_id = any (p_order))) then
+    return 'changed';
+  end if;
+  update public.arena_league_managers set draft_slot = null where league_id = p_league;
+  update public.arena_league_managers m set draft_slot = array_position(p_order, m.user_id) - 1 where m.league_id = p_league;
+  update public.arena_leagues set status = 'drafting', draft_started_at = p_at where id = p_league;
+  return 'ok';
+end;
+$$;
+
+revoke all on function public.arena_league_start(uuid, uuid, uuid[], timestamptz) from public, anon, authenticated;
+grant execute on function public.arena_league_start(uuid, uuid, uuid[], timestamptz) to service_role;
+
+-- One pick and the roster slot it fills, together. Returns the slot's id, or
+-- null when the draft is not under way or someone made this pick, or took
+-- this market, first — in which case neither row is kept.
+create or replace function public.arena_league_pick(p_league uuid, p_pick int, p_user uuid, p_market text, p_auto boolean, p_at timestamptz)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_slot uuid;
+begin
+  perform 1 from public.arena_leagues where id = p_league and status = 'drafting' for share;
+  if not found then
+    return null;
+  end if;
+  insert into public.arena_league_picks (league_id, pick, user_id, market, auto, picked_at)
+  values (p_league, p_pick, p_user, p_market, p_auto, p_at);
+  insert into public.arena_league_slots (league_id, user_id, market, from_round, to_round, via)
+  values (p_league, p_user, p_market, 1, null, 'draft')
+  returning id into v_slot;
+  return v_slot;
+exception when unique_violation then
+  return null;
+end;
+$$;
+
+revoke all on function public.arena_league_pick(uuid, int, uuid, text, boolean, timestamptz) from public, anon, authenticated;
+grant execute on function public.arena_league_pick(uuid, int, uuid, text, boolean, timestamptz) to service_role;
 
 -- ======================= 0037_desk.sql =======================
 -- ---------------------------------------------------------------------------

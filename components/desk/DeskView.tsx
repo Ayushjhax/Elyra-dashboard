@@ -9,7 +9,7 @@ import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { InfoTip } from "@/components/shell/RouteDrawer";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { HORIZONS, NOTE_LIMIT, type HorizonId, type Stage } from "@/lib/desk/protocol";
+import { HORIZONS, NOTE_LIMIT, WITHHELD, statementTime, type HorizonId, type Stage } from "@/lib/desk/protocol";
 import type { DeskResponse, DeskRunView, DeskTurnView } from "@/lib/desk/types";
 import { useDesk, type DeskFeed } from "@/lib/desk/useDesk";
 import { marketFor } from "@/lib/autotrade/rules";
@@ -174,23 +174,48 @@ function MemberRow({ turns }: { turns: DeskTurnView[] }) {
           <span className={pctTone(head.p)}>{head.p === null ? "—" : `${head.p}%`}</span>
         </span>
       </div>
-      {first?.thesis && <p className={cn("type-body-sm", first.flagged ? "text-caution" : "text-text-secondary")}>{first.thesis}</p>}
+      {first?.thesis && <p className={cn("type-body-sm", first.flagged ? "text-caution" : "text-text-secondary")}>{first.flagged ? t(WITHHELD) : first.thesis}</p>}
       {review?.thesis && review.thesis.length > 0 && (
         <p className={cn("type-label", review.flagged ? "text-caution" : "text-text-muted")}>
-          {t("After review: {thesis}", { thesis: review.thesis })}
+          {t("After review: {thesis}", { thesis: review.flagged ? t(WITHHELD) : review.thesis })}
         </p>
       )}
       <span className="type-label text-text-muted">
-        {head.error ??
-          (review?.weight !== null && review?.weight !== undefined
+        {/* The server writes one of a fixed set of sentences (lib/desk/protocol.ts), each with its Chinese. */}
+        {head.error !== null
+          ? t(head.error)
+          : review?.weight !== null && review?.weight !== undefined
             ? t("Weight {weight}", { weight: review.weight.toFixed(2) })
             : first !== undefined && review === undefined
               ? t("Waiting for review")
-              : "")}
+              : ""}
         {review?.brier !== null && review?.brier !== undefined && <> · {t("Brier {brier}", { brier: review.brier.toFixed(3) })}</>}
       </span>
     </li>
   );
+}
+
+/**
+ * The memo code writes when there is no chair, or the chair's strayed from
+ * the facts — built here from the run's own numbers so it reads in the
+ * reader's language. Each member's final vote is its review, or its
+ * independent view when the review could not be read.
+ */
+function CodeMemo({ run }: { run: DeskRunView }) {
+  const t = useT();
+  const votes = [...new Set(run.turns.map((turn) => turn.seat))]
+    .map((seat) => {
+      const first = run.turns.find((turn) => turn.seat === seat && turn.round === "independent");
+      const review = run.turns.find((turn) => turn.seat === seat && turn.round === "review");
+      return review?.p ?? first?.p ?? null;
+    })
+    .filter((p): p is number => p !== null);
+  const parts = [t("The desk puts {p}% on this.", { p: run.pFinal ?? 0 })];
+  if (votes.length === 1) parts.push(t("1 member voted, at {p}%.", { p: votes[0] }));
+  if (votes.length > 1) parts.push(t("{count} members voted, from {low}% to {high}%.", { count: votes.length, low: Math.min(...votes), high: Math.max(...votes) }));
+  if (run.dissent !== null) parts.push(t("The dissent came from the {title} at {p}%.", { title: t(run.dissent.title), p: run.dissent.p }));
+  /* Chinese sentences run on without a space. */
+  return <>{parts.join(t.locale === "zh-CN" ? "" : " ")}</>;
 }
 
 function RunCard({ run, data }: { run: DeskRunView; data: DeskResponse }) {
@@ -206,7 +231,13 @@ function RunCard({ run, data }: { run: DeskRunView; data: DeskResponse }) {
       title={t("{market}, {horizon}", { market: marketLabel(run.market), horizon: horizonText(t, run.horizon) })}
       right={<span className="type-label shrink-0 text-text-muted">{now !== null && formatRelativeTime(run.createdAt, now, t.locale)}</span>}
     >
-      <p className="type-data-sm text-text-primary">{t("Will it be true? {statement}.", { statement: run.statement })}</p>
+      <p className="type-data-sm text-text-primary">
+        {t("Will it be true? {market} closes above {price} at {time} UTC.", {
+          market: marketLabel(run.market),
+          price: formatPriceUsd(run.startPrice),
+          time: statementTime(Date.parse(run.resolvesAt)),
+        })}
+      </p>
       {run.note !== null && <p className="type-label text-text-muted">{t("Your note: {note}", { note: run.note })}</p>}
       <Stepper run={run} />
 
@@ -220,7 +251,7 @@ function RunCard({ run, data }: { run: DeskRunView; data: DeskResponse }) {
           ))}
         </ul>
       )}
-      {run.stage === "failed" && <Problem text={run.error ?? t("The desk stopped partway.")} />}
+      {run.stage === "failed" && <Problem text={run.error === null ? t("The desk stopped partway.") : t(run.error)} />}
 
       {run.pFinal !== null && (
         <div className="flex flex-col gap-1 rounded-card border border-border-subtle bg-surface-base p-3">
@@ -241,8 +272,8 @@ function RunCard({ run, data }: { run: DeskRunView; data: DeskResponse }) {
 
       {run.memo !== null && (
         <div className="flex flex-col gap-1">
-          <h3 className="type-eyebrow text-text-muted">{t("The chair's memo")}</h3>
-          <p className="type-body-sm text-text-secondary">{run.memo}</p>
+          <h3 className="type-eyebrow text-text-muted">{run.memoBy === "code" ? t("The desk's summary") : t("The chair's memo")}</h3>
+          <p className="type-body-sm text-text-secondary">{run.memoBy === "code" ? <CodeMemo run={run} /> : run.memo}</p>
         </div>
       )}
 
@@ -275,8 +306,8 @@ function RunCard({ run, data }: { run: DeskRunView; data: DeskResponse }) {
         <details className="border-t border-border-subtle pt-3">
           <summary className="type-label cursor-pointer text-text-secondary hover:text-text-primary">{t("The fact sheet every member read")}</summary>
           <ul className="type-label mt-2 flex list-disc flex-col gap-0.5 pl-5 text-text-muted">
-            {run.facts.map((line) => (
-              <li key={line}>{line}</li>
+            {run.facts.map((line, index) => (
+              <li key={index}>{t(line.template, line.values)}</li>
             ))}
           </ul>
         </details>

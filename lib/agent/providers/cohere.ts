@@ -58,6 +58,7 @@ export function cohereProvider(model: string, apiKey: string): Provider {
         usage: { input: payload.usage?.tokens?.input_tokens ?? 0, output: payload.usage?.tokens?.output_tokens ?? 0 },
         refused: false,
         refusalReason: null,
+        truncated: finish === "MAX_TOKENS",
       };
     },
   };

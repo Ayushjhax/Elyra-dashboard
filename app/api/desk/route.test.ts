@@ -19,7 +19,8 @@ const state = vi.hoisted(() => ({
   user: null as null | { userId: string; profileStore: string },
   seated: [] as string[],
   scripts: {} as Record<string, Script>,
-  prompts: [] as { seat: string; system: string; prompt: string }[],
+  prompts: [] as { seat: string; system: string; prompt: string; maxTokens?: number; effort?: string }[],
+  mid: 64_610,
   claims: 0,
   claimAllowed: true,
   pending: [] as (() => Promise<unknown> | unknown)[],
@@ -44,9 +45,9 @@ vi.mock("@/lib/agent/quota", () => {
     },
   };
 });
-vi.mock("@/lib/desk/facts", () => ({ factSheet: async () => FACTS }));
+vi.mock("@/lib/desk/facts", () => ({ factSheet: async () => FACTS.map((template) => ({ template, values: {} })) }));
 vi.mock("@/lib/autotrade/hyperliquid", () => ({
-  midPrice: async () => 64_610,
+  midPrice: async () => state.mid,
   hyperliquidCandles: async (_coin: string, _interval: string, start: number, end: number) =>
     Array.from({ length: Math.floor((end - start) / 60_000) }, (_, index) => {
       const openTime = start + index * 60_000;
@@ -63,12 +64,14 @@ vi.mock("@/lib/desk/seats", async () => {
     providerFor: (seat: { id: string; defaultModel: string }) => ({
       id: "anthropic",
       model: seat.defaultModel,
-      complete: async (request: { system: { stable: string }; messages: { content: string }[] }) => {
+      complete: async (request: { system: { stable: string }; messages: { content: string }[]; maxTokens?: number; effort?: string }) => {
         const prompt = request.messages[0].content;
-        state.prompts.push({ seat: seat.id, system: request.system.stable, prompt });
+        state.prompts.push({ seat: seat.id, system: request.system.stable, prompt, maxTokens: request.maxTokens, effort: request.effort });
         const out = state.scripts[seat.id]?.(prompt, request.system.stable) ?? "";
         if (out instanceof Error) throw new ProviderError("rate_limited", "anthropic", out.message, 429);
-        return { text: out, toolCalls: [], provider: "anthropic", model: seat.defaultModel, usage: { input: 100, output: 50 }, refused: false, refusalReason: null };
+        /* A script starting with CUT stands for an answer that hit the cap mid-way. */
+        const truncated = out.startsWith("CUT");
+        return { text: out, toolCalls: [], provider: "anthropic", model: seat.defaultModel, usage: { input: 100, output: 50 }, refused: false, refusalReason: null, truncated };
       },
     }),
   };
@@ -122,6 +125,7 @@ beforeEach(() => {
   state.db = new FakeSupabase();
   state.seated = ["chair", "structure", "risk", "quant"];
   state.prompts = [];
+  state.mid = 64_610;
   state.claims = 0;
   state.claimAllowed = true;
   state.pending = [];
@@ -223,8 +227,60 @@ describe("a desk session", () => {
     await convene();
     await runPending();
     const [run] = state.db.rows("desk_runs");
-    expect(run).toMatchObject({ stage: "failed", error: "Only 1 member answered; the desk needs 2." });
+    expect(run).toMatchObject({ stage: "failed", error: "Too few members answered to hold a vote." });
     expect(run.p_final ?? null).toBeNull();
+  });
+
+  it("gives every call room to think before it answers, at low effort", async () => {
+    await convene();
+    await runPending();
+    expect(state.prompts.length).toBeGreaterThan(0);
+    for (const entry of state.prompts) {
+      expect(entry.maxTokens).toBeGreaterThanOrEqual(3_000);
+      expect(entry.effort).toBe("low");
+    }
+  });
+
+  it("uses no memo cut off at the cap, and salvages a member's vote from a cut-off reply", async () => {
+    const chair = state.scripts.chair;
+    state.scripts.chair = (prompt, system) => (isBrief(prompt) ? chair(prompt, system) : "CUT The desk leans higher on the trend and");
+    state.scripts.structure = (prompt) =>
+      isReview(prompt) ? 'CUT {"p_up": 64, "why": "Fair' : '{"p_up": 70, "thesis": "Price is +2.10% from its 20-day average.", "would_change_my_mind": "A close under it."}';
+    state.scripts.risk = (prompt) => (isReview(prompt) ? 'CUT {"wh' : '{"p_up": 40, "thesis": "Funding is positive.", "would_change_my_mind": "Funding resetting."}');
+    await convene();
+    await runPending();
+    const [run] = state.db.rows("desk_runs");
+    expect(run.memo_model).toBe("fallback");
+    const turns = state.db.rows("desk_turns");
+    /* The vote came before the cap: kept. */
+    expect(turns.find((row) => row.seat === "structure" && row.round === "review")).toMatchObject({ p: 64, error: null });
+    /* Nothing readable before the cap: the independent view stands, and the turn says why. */
+    expect(turns.find((row) => row.seat === "risk" && row.round === "review")).toMatchObject({ p: 40, error: "Its answer was cut off before it finished." });
+  });
+
+  it("books a review that failed under the model the seat answered with, not 'unknown'", async () => {
+    state.scripts.structure = (prompt) => (isReview(prompt) ? new Error("down") : '{"p_up": 70, "thesis": "Holding above its average.", "would_change_my_mind": "A close under it."}');
+    await convene();
+    await runPending();
+    const review = state.db.rows("desk_turns").find((row) => row.seat === "structure" && row.round === "review");
+    expect(review).toMatchObject({ p: 70, error: "No answer (rate limited)." });
+    expect(review?.model).not.toBe("unknown");
+    expect(review?.model).toBe(state.db.rows("desk_turns").find((row) => row.seat === "structure" && row.round === "independent")?.model);
+  });
+
+  it("holds the start price at the precision the statement shows, so it settles against the price it names", async () => {
+    state.mid = 64_610.123456;
+    await convene();
+    const [run] = state.db.rows("desk_runs");
+    expect(run).toMatchObject({ start_price: 64_610.12, statement: "BTC closes above $64,610.12 at 2026-11-18 09:41 UTC" });
+  });
+
+  it("sends the fact sheet to the page as templates it can translate", async () => {
+    await convene();
+    await runPending();
+    const seen = await read("user-a");
+    expect(seen.runs[0].facts[0]).toEqual({ template: "Market: BTC, a Hyperliquid perpetual", values: {} });
+    expect(seen.runs[0].memoBy).toBe("chair");
   });
 });
 

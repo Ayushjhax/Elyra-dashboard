@@ -104,9 +104,13 @@ function reset(): void {
   for (const listener of listeners) listener();
 }
 
-/** Reads the Arena again now — after a write made elsewhere, such as a league action. */
-export function refreshArena(): Promise<void> {
-  if (inFlight !== null) return inFlight;
+/**
+ * Reads the Arena again now — after a write made elsewhere, such as a league
+ * action. A read already in flight may have started before the write, so it
+ * is waited out and a fresh one made, as `write` does.
+ */
+export async function refreshArena(): Promise<void> {
+  if (inFlight !== null) await inFlight;
   return poll();
 }
 

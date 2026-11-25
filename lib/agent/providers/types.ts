@@ -109,6 +109,12 @@ export interface ProviderResult {
    */
   refused: boolean;
   refusalReason: string | null;
+  /**
+   * The answer stopped at `maxTokens` rather than finishing. Thinking counts
+   * against that cap, so a short one can end mid-sentence or before any text.
+   * Set by every adapter the Desk seats; absent means it finished.
+   */
+  truncated?: boolean;
   /** The provider's own content blocks, for `providerContent` on a continuation. */
   rawContent?: unknown[];
   /** Text reached the caller as it was generated, through `onText`. */

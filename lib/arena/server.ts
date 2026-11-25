@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import {
+  MIN_RATED,
   WEEKLY_POINTS,
   brierScore,
   calibration,
@@ -25,7 +26,7 @@ import {
   type UpDown,
 } from "@/lib/arena/puzzle";
 import { ArenaError, inviteCode } from "@/lib/arena/errors";
-import { rankLadder, type LadderEntrant } from "@/lib/arena/ladder";
+import { MIN_PUZZLES_RANKED, rankLadder, type LadderEntrant } from "@/lib/arena/ladder";
 import { leagueSummaries } from "@/lib/arena/leagues";
 import { REVIEW_LABELS, type ReviewFacts, type ReviewLabel } from "@/lib/arena/review";
 import type { ArenaCallView, ArenaResponse, GroupView, LadderView, PuzzleView, ReviewView } from "@/lib/arena/types";
@@ -370,9 +371,26 @@ function entrant(row: ArenaProfileRow): LadderEntrant {
 async function ladders(userId: string, groups: GroupView[], members: { group_id: string; user_id: string }[]): Promise<LadderView[]> {
   const db = serviceClient();
   const people = [...new Set([userId, ...members.map((member) => member.user_id)])];
+  /* Only people who would rank are read, so a crowd of the unqualified can never push a qualified player past the limit. */
   const [byRating, byBrier, ours] = await Promise.all([
-    db.from("arena_profiles").select("*").eq("public", true).order("puzzle_rating", { ascending: false, nullsFirst: false }).limit(300),
-    db.from("arena_profiles").select("*").eq("public", true).order("calls_brier", { ascending: true, nullsFirst: false }).limit(300),
+    db
+      .from("arena_profiles")
+      .select("*")
+      .eq("public", true)
+      .not("handle", "is", null)
+      .not("puzzle_rating", "is", null)
+      .gte("puzzle_played", MIN_PUZZLES_RANKED)
+      .order("puzzle_rating", { ascending: false, nullsFirst: false })
+      .limit(300),
+    db
+      .from("arena_profiles")
+      .select("*")
+      .eq("public", true)
+      .not("handle", "is", null)
+      .not("calls_brier", "is", null)
+      .gte("calls_settled", MIN_RATED)
+      .order("calls_brier", { ascending: true, nullsFirst: false })
+      .limit(300),
     db.from("arena_profiles").select("*").in("user_id", people),
   ]);
   if (byRating.error !== null) return [];

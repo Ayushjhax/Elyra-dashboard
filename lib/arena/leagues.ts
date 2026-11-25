@@ -14,7 +14,9 @@ import {
   draftFits,
   draftRoundOf,
   heldBy,
+  levelOnTable,
   lineupFor,
+  managerOnClock,
   matchupShare,
   nextUtcMidnight,
   outcomeFor,
@@ -23,7 +25,6 @@ import {
   roundAt,
   roundWindow,
   schedule,
-  slotOnClock,
   standings,
   teamScore,
   totalPicks,
@@ -58,6 +59,11 @@ import type { ArenaLeagueManagerRow, ArenaLeagueMatchupRow, ArenaLeaguePickRow, 
    Both are guarded by the database — a pick is unique by number and by
    market, and the league moves on only from 'drafting' — so two requests
    racing each other cannot make a pick twice.
+
+   Joining, dealing the draft and making a pick are each one database
+   function (0036): a join cannot land while the slots are dealt or take a
+   league past capacity, and a pick is never written without its roster
+   slot.
 
    Settling a round is the tick's alone (lib/arena/leagueEngine.ts), so each
    result is written, and announced, once.
@@ -195,8 +201,12 @@ export async function joinLeague(userId: string, code: unknown): Promise<string>
   if ((await handleFor(userId)) === null) throw new ArenaError(NEEDS_HANDLE);
   if ((members.data ?? []).length >= capacity(league.roster_size)) throw new ArenaError("That league is full.");
   if ((await leaguesInPlay(userId)) >= MAX_LEAGUES) throw new ArenaError(`You can be in ${MAX_LEAGUES} leagues at once.`);
-  const inserted = await db.from("arena_league_managers").insert({ league_id: league.id, user_id: userId, draft_slot: null, joined_at: new Date().toISOString() });
-  if (inserted.error !== null && inserted.error.code !== "23505") throw new ArenaError("You could not join that league just now.", 503);
+  /* The checks above answer the usual case kindly; the function decides under the league's lock. */
+  const joined = await db.rpc("arena_league_join", { p_league: league.id, p_user: userId, p_capacity: capacity(league.roster_size) });
+  if (joined.error !== null) throw new ArenaError("You could not join that league just now.", 503);
+  if (joined.data === "closed") throw new ArenaError("That league's draft has started, so it is closed to new managers.");
+  if (joined.data === "full") throw new ArenaError("That league is full.");
+  if (joined.data !== "joined" && joined.data !== "member") throw new ArenaError("No league has that invite code.", 404);
   return league.id;
 }
 
@@ -213,44 +223,46 @@ export async function leaveLeague(userId: string, leagueId: string): Promise<"le
 }
 
 export async function startDraft(userId: string, leagueId: string, now: number): Promise<void> {
-  const bundle = await memberBundle(userId, leagueId);
-  const { league } = bundle;
-  if (league.owner_id !== userId) throw new ArenaError("Only the league's owner can start the draft.", 403);
-  if (league.status !== "forming") throw new ArenaError("The draft has already started.");
-  const ids = bundle.managers.map((manager) => manager.user_id);
-  if (ids.length < MIN_MANAGERS) throw new ArenaError("A league needs at least two managers to draft. Send the code to a friend.");
-  if (!draftFits(ids.length, league.roster_size)) throw new ArenaError("Too many managers for this roster size.");
-  /* Fisher–Yates with the platform's randomness: nobody can predict or choose a slot. */
-  for (let index = ids.length - 1; index > 0; index -= 1) {
-    const other = randomInt(index + 1);
-    [ids[index], ids[other]] = [ids[other], ids[index]];
+  /* Someone joining or leaving between the read and the deal makes the function refuse; read again and redraw. */
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const bundle = await memberBundle(userId, leagueId);
+    const { league } = bundle;
+    if (league.owner_id !== userId) throw new ArenaError("Only the league's owner can start the draft.", 403);
+    if (league.status !== "forming") throw new ArenaError("The draft has already started.");
+    const ids = bundle.managers.map((manager) => manager.user_id);
+    if (ids.length < MIN_MANAGERS) throw new ArenaError("A league needs at least two managers to draft. Send the code to a friend.");
+    if (!draftFits(ids.length, league.roster_size)) throw new ArenaError("Too many managers for this roster size.");
+    /* Fisher–Yates with the platform's randomness: nobody can predict or choose a slot. */
+    for (let index = ids.length - 1; index > 0; index -= 1) {
+      const other = randomInt(index + 1);
+      [ids[index], ids[other]] = [ids[other], ids[index]];
+    }
+    const started = await serviceClient().rpc("arena_league_start", { p_league: leagueId, p_owner: userId, p_order: ids, p_at: new Date(now).toISOString() });
+    if (started.error !== null) throw new ArenaError("The draft could not be started just now.", 503);
+    if (started.data === "ok") return;
+    if (started.data === "started") throw new ArenaError("The draft has already started.");
+    if (started.data === "not_owner") throw new ArenaError("Only the league's owner can start the draft.", 403);
+    if (started.data === "missing") throw new ArenaError("No such league.", 404);
   }
-  const db = serviceClient();
-  await db.from("arena_league_managers").update({ draft_slot: null }).eq("league_id", leagueId);
-  for (const [slot, id] of ids.entries()) {
-    await db.from("arena_league_managers").update({ draft_slot: slot }).eq("league_id", leagueId).eq("user_id", id);
-  }
-  await db
-    .from("arena_leagues")
-    .update({ status: "drafting", draft_started_at: new Date(now).toISOString() })
-    .eq("id", leagueId)
-    .eq("status", "forming");
+  throw new ArenaError("Managers are joining or leaving right now. Start the draft again in a moment.", 409);
 }
 
 /* ---- the draft ---- */
 
+/** Writes a pick and its roster slot together; false when the draft is not under way or someone made this pick first. */
 async function recordPick(bundle: LeagueBundle, pick: number, userId: string, market: string, auto: boolean, at: number): Promise<boolean> {
-  const db = serviceClient();
-  const row = { league_id: bundle.league.id, pick, user_id: userId, market, auto, picked_at: new Date(at).toISOString() };
-  const inserted = await db.from("arena_league_picks").insert(row);
-  if (inserted.error !== null) return false;
-  const slot = await db
-    .from("arena_league_slots")
-    .insert({ league_id: bundle.league.id, user_id: userId, market, from_round: 1, to_round: null, via: "draft" })
-    .select("*")
-    .single();
-  bundle.picks.push(row as ArenaLeaguePickRow);
-  if (slot.error === null && slot.data !== null) bundle.slots.push(slot.data);
+  const pickedAt = new Date(at).toISOString();
+  const { data: slotId, error } = await serviceClient().rpc("arena_league_pick", {
+    p_league: bundle.league.id,
+    p_pick: pick,
+    p_user: userId,
+    p_market: market,
+    p_auto: auto,
+    p_at: pickedAt,
+  });
+  if (error !== null || typeof slotId !== "string") return false;
+  bundle.picks.push({ league_id: bundle.league.id, pick, user_id: userId, market, auto, picked_at: pickedAt });
+  bundle.slots.push({ id: slotId, league_id: bundle.league.id, user_id: userId, market, from_round: 1, to_round: null, via: "draft", created_at: pickedAt });
   return true;
 }
 
@@ -293,15 +305,36 @@ export async function ensureSchedule(bundle: LeagueBundle): Promise<void> {
   bundle.matchups = written.data ?? [];
 }
 
-/** The clock for the pick under way, or null once the draft is done or not started. */
-export function clockFor(bundle: LeagueBundle): { pick: number; userId: string; deadline: number } | null {
+/** Picks made so far by each manager still in the league. */
+function picksByManager(bundle: LeagueBundle): Map<string, number> {
+  const made = new Map(bundle.managers.map((manager) => [manager.user_id, 0]));
+  for (const pick of bundle.picks) {
+    const count = made.get(pick.user_id);
+    if (count !== undefined) made.set(pick.user_id, count + 1);
+  }
+  return made;
+}
+
+/** Every manager still in the league has a full roster. */
+const draftComplete = (bundle: LeagueBundle): boolean => managerOnClock(draftOrder(bundle), picksByManager(bundle), bundle.league.roster_size) === null;
+
+/**
+ * The clock for the pick under way, or null once the draft is done or not
+ * started. `pick` is the number the next pick is written under — one past
+ * the last, so it never collides with a pick already made even when a
+ * departed manager's picks have gone — and `made` how many picks have been
+ * made, which is what the page counts.
+ */
+export function clockFor(bundle: LeagueBundle): { pick: number; made: number; userId: string; deadline: number } | null {
   const { league } = bundle;
   if (league.status !== "drafting" || league.draft_started_at === null) return null;
-  const order = draftOrder(bundle);
-  const made = bundle.picks.length;
-  if (made >= totalPicks(order.length, league.roster_size)) return null;
-  const started = made === 0 ? Date.parse(league.draft_started_at) : Date.parse(bundle.picks[made - 1].picked_at);
-  return { pick: made, userId: order[slotOnClock(made, order.length)], deadline: pickDeadline(started, league.pick_seconds) };
+  const counts = picksByManager(bundle);
+  const userId = managerOnClock(draftOrder(bundle), counts, league.roster_size);
+  if (userId === null) return null;
+  const last = bundle.picks.at(-1);
+  const started = last === undefined ? Date.parse(league.draft_started_at) : Date.parse(last.picked_at);
+  const made = [...counts.values()].reduce((sum, count) => sum + count, 0);
+  return { pick: last === undefined ? 0 : last.pick + 1, made, userId, deadline: pickDeadline(started, league.pick_seconds) };
 }
 
 /**
@@ -313,7 +346,7 @@ export async function advanceDraft(bundle: LeagueBundle, now: number): Promise<b
   const order = draftOrder(bundle);
   const total = totalPicks(order.length, bundle.league.roster_size);
   for (let guard = 0; guard <= total && bundle.league.status === "drafting"; guard += 1) {
-    if (bundle.picks.length >= total) {
+    if (draftComplete(bundle)) {
       await finishDraft(bundle);
       return true;
     }
@@ -342,7 +375,7 @@ export async function makePick(userId: string, leagueId: string, input: Record<s
   const checked = validatePick(input, new Set(bundle.picks.map((pick) => pick.market)));
   if ("error" in checked) throw new ArenaError(checked.error);
   if (!(await recordPick(bundle, clock.pick, userId, checked.market, false, now))) throw new ArenaError("That pick was just made. Look at the board again.", 409);
-  if (bundle.picks.length >= totalPicks(bundle.managers.length, bundle.league.roster_size)) await finishDraft(bundle);
+  if (draftComplete(bundle)) await finishDraft(bundle);
 }
 
 /* ---- the season ---- */
@@ -565,12 +598,11 @@ async function buildView(bundle: LeagueBundle, viewer: string, now: number): Pro
           };
         });
 
-  const table = standings(order, bundle.matchups.map(settledOf));
+  const table = standings(order, bundle.matchups.map(settledOf), (id) => handleOf(bundle, id));
   let rank = 0;
   const standingsView = table.map((row, index) => {
     const previous = table[index - 1];
-    const tied = previous !== undefined && previous.wins + previous.ties / 2 === row.wins + row.ties / 2 && Math.round(previous.pointsFor * 100) === Math.round(row.pointsFor * 100);
-    if (!tied) rank = index + 1;
+    if (previous === undefined || !levelOnTable(previous, row)) rank = index + 1;
     /* By handle only: the manager's id stays on the server. */
     return { rank, handle: handleOf(bundle, row.manager), me: row.manager === viewer, wins: row.wins, losses: row.losses, ties: row.ties, played: row.played, pointsFor: row.pointsFor };
   });
@@ -609,15 +641,16 @@ async function buildView(bundle: LeagueBundle, viewer: string, now: number): Pro
     managers: order.map((id) => ({ handle: handleOf(bundle, id), me: id === viewer, owner: id === league.owner_id })),
     draft: {
       total: totalPicks(order.length, league.roster_size),
-      picks: bundle.picks.map((pick) => ({
-        pick: pick.pick,
-        round: draftRoundOf(pick.pick, order.length),
+      /* Counted in order, not by stored number: a departed manager's picks leave gaps in the numbers. */
+      picks: bundle.picks.map((pick, index) => ({
+        pick: index,
+        round: draftRoundOf(index, order.length),
         handle: handleOf(bundle, pick.user_id),
         me: pick.user_id === viewer,
         market: pick.market,
         auto: pick.auto,
       })),
-      onClock: clock === null ? null : { handle: handleOf(bundle, clock.userId), me: clock.userId === viewer, deadline: new Date(clock.deadline).toISOString(), pick: clock.pick },
+      onClock: clock === null ? null : { handle: handleOf(bundle, clock.userId), me: clock.userId === viewer, deadline: new Date(clock.deadline).toISOString(), pick: clock.made },
       board: LEAGUE_POOL.filter((market) => !drafted.has(market)),
     },
     season: seasonStart === null ? null : { startsAt: new Date(seasonStart).toISOString(), round },

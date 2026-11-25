@@ -312,6 +312,28 @@ describe("the ladders", () => {
     expect(JSON.stringify(seen.ladders)).not.toMatch(/user-[abc]/);
   });
 
+  it("is not crowded out by people who have not played enough to rank", async () => {
+    as("user-a");
+    await profile.POST(post({ handle: "ana", public: true }));
+    await playFiveDays("user-a", 70);
+    /* 400 public profiles with one lucky answer each, all rated above ana and with a near-perfect Brier score. */
+    state.db.seed(
+      "arena_profiles",
+      Array.from({ length: 400 }, (_, index) => ({
+        user_id: `lucky-${index}`,
+        handle: `lucky${index}`,
+        public: true,
+        puzzle_rating: 3000,
+        puzzle_played: 1,
+        calls_brier: 0.01,
+        calls_settled: 1,
+      })),
+    );
+    const everyone = (await read("user-a")).ladders.find((ladder) => ladder.scope === "everyone");
+    expect(everyone?.puzzle.map((row) => row.handle)).toEqual(["ana"]);
+    expect(everyone?.calls).toEqual([]);
+  });
+
   it("keeps the profile's stats in step with the answers, including for someone who chooses a handle later", async () => {
     await playFiveDays("user-a", 70);
     as("user-a");

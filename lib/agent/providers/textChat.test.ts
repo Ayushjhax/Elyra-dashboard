@@ -87,6 +87,21 @@ describe("OpenAI-compatible hosts", () => {
     expect(result).toMatchObject({ text: '{"p_up": 44}', model: "nvidia/nemotron-3-ultra-550b-a55b:free", provider: "openai_compatible", usage: { input: 300, output: 20 } });
   });
 
+  it("asks OpenAI's own API for max_completion_tokens and its default temperature, and names a cut-off answer", async () => {
+    const fetchMock = answer(200, { model: "gpt-5", choices: [{ finish_reason: "length", message: { content: '{"p_up": 5' } }] });
+    const result = await openAICompatibleProvider({ baseUrl: "https://api.openai.com/v1", apiKey: "k", model: "gpt-5", reasoning: true }).complete(request());
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body).toMatchObject({ model: "gpt-5", max_completion_tokens: 600 });
+    expect(body).not.toHaveProperty("max_tokens");
+    expect(body).not.toHaveProperty("temperature");
+    expect(result.truncated).toBe(true);
+
+    const classic = answer(200, { choices: [{ finish_reason: "stop", message: { content: "ok" } }] });
+    const finished = await openAICompatibleProvider({ baseUrl: "https://api.groq.com/openai/v1", apiKey: "k", model: "m" }).complete(request());
+    expect(JSON.parse((classic.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toMatchObject({ max_tokens: 600, temperature: 0.3 });
+    expect(finished.truncated).toBe(false);
+  });
+
   it("surfaces a content filter or a refusal as a refusal", async () => {
     answer(200, { choices: [{ finish_reason: "content_filter", message: { content: null } }] });
     const filtered = await openAICompatibleProvider({ baseUrl: "https://api.groq.com/openai/v1", apiKey: "k", model: "m" }).complete(request());

@@ -399,7 +399,8 @@ export interface DeskRunRow {
   statement: string;
   note: string | null;
   stage: "facts" | "brief" | "independent" | "review" | "vote" | "memo" | "done" | "failed";
-  facts: string[];
+  /** The fact sheet, one `DeskFact` (lib/desk/protocol.ts) a line. */
+  facts: unknown[];
   assignments: Record<string, string>;
   weights: Record<string, number>;
   p_independent: string | number | null;
@@ -1571,6 +1572,21 @@ export interface Database {
       claim_agent_key_call: {
         Args: { p_key_id: string; p_limit: number };
         Returns: { allowed: boolean; calls: number }[];
+      };
+      /** Joins a league under its row lock (0036). */
+      arena_league_join: {
+        Args: { p_league: string; p_user: string; p_capacity: number };
+        Returns: "joined" | "member" | "closed" | "full" | "missing";
+      };
+      /** Deals the draft slots in the order given and starts the clock (0036). */
+      arena_league_start: {
+        Args: { p_league: string; p_owner: string; p_order: string[]; p_at: string };
+        Returns: "ok" | "not_owner" | "started" | "changed" | "missing";
+      };
+      /** A pick and its roster slot together; the slot's id, or null when it was not made (0036). */
+      arena_league_pick: {
+        Args: { p_league: string; p_pick: number; p_user: string; p_market: string; p_auto: boolean; p_at: string };
+        Returns: string | null;
       };
     };
     Enums: Record<never, never>;

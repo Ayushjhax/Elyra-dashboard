@@ -37,12 +37,21 @@ import { serviceClient } from "@/lib/supabase/server";
    A settlement waits while Hyperliquid cannot be reached, for up to a day;
    after that a market with no price is left out of its team's score, and a
    team with no price at all makes its matchup void. Never guessed.
+
+   Every live league is looked at on every run, in batches of `LOAD_BATCH`
+   oldest first, so none is left out however many there are. Each notice is
+   a compare-and-set on `notified_pick`, so two overlapping runs send it
+   once.
 --------------------------------------------------------------------------- */
 
 export const LEAGUE_SETTLE_CAP = 4;
-const DRAFT_CAP = 40;
+/** Leagues read together; small enough that the id list stays a short request. */
+const LOAD_BATCH = 40;
+const ID_PAGE = 1_000;
 /** A pick clock this long or longer is a slow draft: its managers are told when they are up. */
 const SLOW_DRAFT_SECONDS = 3_600;
+/** `notified_pick` once everyone has been told the draft is done. */
+const DRAFT_DONE = -1;
 
 export type Notify = (userId: string, title: string, lines: string[]) => Promise<void>;
 
@@ -58,12 +67,48 @@ const handle = (bundle: LeagueBundle, userId: string) => `@${bundle.handles.get(
 
 const clockText = (deadline: number) => `${new Date(deadline).toISOString().slice(11, 16)} UTC on ${new Date(deadline).toISOString().slice(0, 10)}`;
 
+/** Every league drafting or under way, oldest first; null when they cannot be read. */
+async function liveLeagueIds(): Promise<string[] | null> {
+  const db = serviceClient();
+  const ids: string[] = [];
+  for (let from = 0; ; from += ID_PAGE) {
+    const page = await db
+      .from("arena_leagues")
+      .select("id")
+      .in("status", ["drafting", "active"])
+      .order("created_at", { ascending: true })
+      .range(from, from + ID_PAGE - 1);
+    if (page.error !== null) return from === 0 ? null : ids;
+    const rows = page.data ?? [];
+    ids.push(...rows.map((row) => row.id));
+    if (rows.length < ID_PAGE) return ids;
+  }
+}
+
+/** Claims a notice by moving `notified_pick` from the value read to `to`; only one run gets the row back. */
+async function claimNotice(bundle: LeagueBundle, to: number, status: "drafting" | "active"): Promise<boolean> {
+  const from = bundle.league.notified_pick;
+  const update = serviceClient().from("arena_leagues").update({ notified_pick: to }).eq("id", bundle.league.id).eq("status", status);
+  const claimed = await (from === null ? update.is("notified_pick", null) : update.eq("notified_pick", from)).select("id");
+  if ((claimed.data ?? []).length === 0) return false;
+  bundle.league.notified_pick = to;
+  return true;
+}
+
 export async function runLeagues(now: number, notify: Notify): Promise<LeagueReport> {
   const report: LeagueReport = { autoPicks: 0, roundsSettled: 0, recaps: 0, finished: 0, notes: [] };
+  const ids = await liveLeagueIds();
+  if (ids === null) return report;
+  const settled = { count: 0 };
+  for (let start = 0; start < ids.length; start += LOAD_BATCH) {
+    const bundles = await loadLeagues(ids.slice(start, start + LOAD_BATCH));
+    await runBatch(bundles, now, notify, report, settled);
+  }
+  return report;
+}
+
+async function runBatch(bundles: Map<string, LeagueBundle>, now: number, notify: Notify, report: LeagueReport, settled: { count: number }): Promise<void> {
   const db = serviceClient();
-  const live = await db.from("arena_leagues").select("id, status").in("status", ["drafting", "active"]).limit(DRAFT_CAP * 2);
-  if (live.error !== null) return report;
-  const bundles = await loadLeagues((live.data ?? []).map((row) => row.id));
 
   /* ---- 1. drafts ---- */
   for (const bundle of bundles.values()) {
@@ -73,20 +118,11 @@ export async function runLeagues(now: number, notify: Notify): Promise<LeagueRep
       await advanceDraft(bundle, now);
       report.autoPicks += bundle.picks.filter((pick) => pick.auto).length - autoBefore;
       const clock = clockFor(bundle);
-      if (clock !== null && bundle.league.pick_seconds >= SLOW_DRAFT_SECONDS && bundle.league.notified_pick !== clock.pick) {
-        const claimed = await db
-          .from("arena_leagues")
-          .update({ notified_pick: clock.pick })
-          .eq("id", bundle.league.id)
-          .eq("status", "drafting")
-          .select("id");
-        if ((claimed.data ?? []).length > 0) {
-          await notify(clock.userId, `Your pick in ${bundle.league.name}`, [
-            `Pick ${clock.pick + 1} of ${totalPicks(bundle.managers.length, bundle.league.roster_size)} is yours.`,
-            `The clock runs out at ${clockText(clock.deadline)}; then the first market on the board is picked for you.`,
-          ]);
-          bundle.league.notified_pick = clock.pick;
-        }
+      if (clock !== null && bundle.league.pick_seconds >= SLOW_DRAFT_SECONDS && bundle.league.notified_pick !== clock.pick && (await claimNotice(bundle, clock.pick, "drafting"))) {
+        await notify(clock.userId, `Your pick in ${bundle.league.name}`, [
+          `Pick ${clock.made + 1} of ${totalPicks(bundle.managers.length, bundle.league.roster_size)} is yours.`,
+          `The clock runs out at ${clockText(clock.deadline)}; then the first market on the board is picked for you.`,
+        ]);
       }
     } catch (error) {
       report.notes.push(`draft ${bundle.league.id}: ${error instanceof Error ? error.message : "failed"}`);
@@ -96,11 +132,9 @@ export async function runLeagues(now: number, notify: Notify): Promise<LeagueRep
   /* ---- 1b. drafts that finished (here, or on someone's last pick): tell everyone once ---- */
   for (const bundle of bundles.values()) {
     if (bundle.league.status !== "active" || bundle.league.season_starts_at === null) continue;
-    const total = totalPicks(bundle.managers.length, bundle.league.roster_size);
-    if (bundle.league.notified_pick === total) continue;
-    const claimed = await db.from("arena_leagues").update({ notified_pick: total }).eq("id", bundle.league.id).select("id");
-    if ((claimed.data ?? []).length === 0) continue;
-    bundle.league.notified_pick = total;
+    /* "Done" is written as -1: a pick number is never negative, so it cannot be mistaken for one. */
+    if (bundle.league.notified_pick === DRAFT_DONE) continue;
+    if (!(await claimNotice(bundle, DRAFT_DONE, "active"))) continue;
     const starts = Date.parse(bundle.league.season_starts_at);
     if (now >= starts + DAY_MS) continue;
     for (const manager of bundle.managers) {
@@ -113,9 +147,8 @@ export async function runLeagues(now: number, notify: Notify): Promise<LeagueRep
   }
 
   /* ---- 2. rounds ---- */
-  let settled = 0;
   for (const bundle of bundles.values()) {
-    if (settled >= LEAGUE_SETTLE_CAP) break;
+    if (settled.count >= LEAGUE_SETTLE_CAP) break;
     const { league } = bundle;
     if (league.status !== "active" || league.season_starts_at === null) continue;
     const seasonStart = Date.parse(league.season_starts_at);
@@ -134,7 +167,7 @@ export async function runLeagues(now: number, notify: Notify): Promise<LeagueRep
         report.notes.push(`league ${league.id} round ${round}: waiting on ${[...failed].join(", ")}`);
         continue;
       }
-      settled += 1;
+      settled.count += 1;
       const recap: RecapInput = { league: league.name, round, rounds: league.rounds, matchups: [], markets: [] };
       for (const row of bundle.matchups.filter((matchup) => matchup.round === round)) {
         const home = scores.get(row.home_id) ?? { pct: null, markets: [] };
@@ -190,7 +223,6 @@ export async function runLeagues(now: number, notify: Notify): Promise<LeagueRep
       report.notes.push(`league ${league.id} round ${round}: ${error instanceof Error ? error.message : "failed"}`);
     }
   }
-  return report;
 }
 
 async function tellResult(
@@ -234,6 +266,7 @@ async function finish(bundle: LeagueBundle, notify: Notify, report: LeagueReport
       awayPct: row.away_pct === null ? null : num(row.away_pct),
       result: row.result,
     })),
+    (id) => bundle.handles.get(id) ?? id,
   );
   const champion = table[0]?.manager ?? null;
   const done = await serviceClient()

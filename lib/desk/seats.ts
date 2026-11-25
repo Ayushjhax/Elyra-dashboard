@@ -65,6 +65,8 @@ export function providerFor(seat: SeatDef): Provider {
         model,
         /* OpenRouter's optional attribution; names the app, nothing about anyone in it. */
         headers: seat.baseUrl?.includes("openrouter.ai") ? { "X-Title": "Elyra" } : undefined,
+        /* OpenAI's current models refuse `max_tokens` and a set temperature. */
+        reasoning: seat.baseUrl?.includes("api.openai.com") === true,
       });
   }
 }

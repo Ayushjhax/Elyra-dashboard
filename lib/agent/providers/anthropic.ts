@@ -289,6 +289,7 @@ function toResult(
     usage: meta.usage,
     refused,
     refusalReason: refused ? (meta.stopDetails?.category ?? "content_policy") : null,
+    truncated: meta.stopReason === "max_tokens",
     rawContent: blocks,
     streamed: meta.streamed,
   };

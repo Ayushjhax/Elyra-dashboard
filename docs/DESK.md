@@ -83,7 +83,9 @@ mid now} at {now + 4 hours, 24 hours or 7 days}".
    - `thesis`, at most 60 words;
    - `would_change_my_mind`.
 
-   A reply cut off by its token limit is salvaged field by field.
+   A reply cut off by its token limit is salvaged field by field: the vote
+   comes first, so it is usually kept. A turn with nothing readable before
+   the cut says so.
 4. **Review.** One round on anonymised views; letters are dealt at random. A
    member may keep or change its probability and says why. No readable
    review means its independent view stands.
@@ -98,7 +100,10 @@ mid now} at {now + 4 hours, 24 hours or 7 days}".
 6. **Memo.** The chair writes four to six sentences. It leads with the
    probability, gives the case for and against, gives the dissent (the vote
    furthest from the desk, at least 5 points away) in its strongest form, and
-   says what would change the view.
+   says what would change the view. A memo that strays from the facts, or
+   was cut off by its token limit, is replaced by the code's own, which the
+   page writes in the reader's language. A brief cut off the same way is not
+   used; each member keeps its own lens.
 7. **Settlement.** The tick settles a run on Hyperliquid's one-minute close
    for its minute. Strictly higher is up. With no bar after 3 days, the run is
    void. Every forecast gets a Brier score, and `desk_seat_stats` adds to each
@@ -109,6 +114,18 @@ A run is written after every stage. The page polls every 2.5 seconds while a
 run is in session. A run that has not moved for 6 minutes was cut off by the
 platform's time limit and is marked failed. `POST /api/desk` sets
 `maxDuration = 300`; each model call is capped at 30 seconds.
+
+Each call has room to think before it answers — 3,000 to 4,000 output
+tokens by step (`BUDGET` in `engine.ts`) — because Claude's, Gemini's,
+gpt-oss's and Command A's reasoning counts against the cap. Claude runs at
+low effort (`effortFor("desk")`), so it thinks briefly. OpenAI's own API is
+sent `max_completion_tokens` and its default temperature, which its
+reasoning models require.
+
+The start price is held at the precision the statement shows, so a run
+settles against the price it names. A member's failure is one of a fixed set
+of sentences, and the fact sheet is templates and values (`DeskFact`): the
+models read the English, and the page shows both in the reader's language.
 
 ## Tables (migration `0037_desk.sql`)
 

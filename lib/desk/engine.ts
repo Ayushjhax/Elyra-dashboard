@@ -1,19 +1,29 @@
 import "server-only";
 
 import { randomInt } from "node:crypto";
+import { effortFor } from "@/lib/agent/effort";
 import { claimAgentRun, UsageLimitError } from "@/lib/agent/quota";
 import { staysOnFacts } from "@/lib/arena/writer";
 import { hyperliquidCandles, midPrice } from "@/lib/autotrade/hyperliquid";
 import { num } from "@/lib/autotrade/store";
 import { factSheet } from "@/lib/desk/facts";
 import {
+  CUT_OFF,
+  DECLINED,
   DESK_RUNS_PER_DAY,
   HORIZONS,
+  NO_ANSWER,
+  OUT_OF_TIME,
+  STOPPED,
+  TOO_FEW,
+  UNREADABLE,
+  WITHHELD,
   brier,
   briefPrompt,
   chairSystem,
   defaultAssignment,
   dissent,
+  factText,
   fallbackMemo,
   horizonOf,
   independentPrompt,
@@ -32,6 +42,7 @@ import {
   spreadOf,
   statementFor,
   validateAsk,
+  type DeskFact,
   type MemberAnswer,
   type QuestionContext,
   type Round,
@@ -42,6 +53,7 @@ import { MIN_VOTERS, SEATS, seatById, type SeatDef } from "@/lib/desk/roster";
 import { providerFor, seatViews, seatedSeats } from "@/lib/desk/seats";
 import type { DeskResponse, DeskRunView, DeskTurnView } from "@/lib/desk/types";
 import { formatPriceUsd } from "@/lib/format";
+import { priceDecimals } from "@/lib/market/precision";
 import { serviceClient } from "@/lib/supabase/server";
 import type { DeskRunRow, DeskTurnRow } from "@/lib/supabase/types";
 
@@ -82,6 +94,14 @@ const MIGRATION = "The desk needs database migration 0037, which has not been ap
 /** A run whose stage has not moved for this long was cut off. */
 const STALE_MS = 6 * 60_000;
 const CALL_TIMEOUT_MS = 30_000;
+/**
+ * Output caps for each step, with room for thinking and the answer: Claude's
+ * adaptive thinking, Gemini's, gpt-oss's reasoning and Command A's all count
+ * against the cap, and a cap of a few hundred can be spent before any text.
+ * They are ceilings, not spend; Claude also runs at low effort here
+ * (`effortFor("desk")`), so it thinks briefly.
+ */
+const BUDGET = { brief: 3_000, independent: 4_000, review: 3_500, memo: 3_000 } as const;
 const SETTLE_CAP = 30;
 const SETTLE_DELAY_MS = 2 * 60_000;
 const VOID_AFTER_MS = 3 * 86_400_000;
@@ -110,14 +130,17 @@ export async function convene(userId: string, input: Record<string, unknown>, no
   if ((await runsToday(userId, now)) >= DESK_RUNS_PER_DAY) {
     throw new DeskError(`The desk convenes ${DESK_RUNS_PER_DAY} times a day for each person. It resets at 00:00 UTC.`, 429);
   }
+  /* The price first, so a market with none costs nobody a run. */
+  const mid = await midPrice("mainnet", ask.market).catch(() => null);
+  if (mid === null) throw new DeskError("Hyperliquid has no price for that market right now.", 503);
+  /* Held at the precision the statement shows it, so the run settles against the price it names. */
+  const price = Number(mid.toFixed(priceDecimals(mid)));
   try {
     await claimAgentRun(userId);
   } catch (error) {
     if (error instanceof UsageLimitError) throw new DeskError(error.message, 429);
     throw new DeskError("The desk could not be convened just now.", 503);
   }
-  const price = await midPrice("mainnet", ask.market).catch(() => null);
-  if (price === null) throw new DeskError("Hyperliquid has no price for that market right now.", 503);
   const at = resolvesAt(now, ask.horizon);
   const { data, error } = await serviceClient()
     .from("desk_runs")
@@ -147,6 +170,8 @@ export async function convene(userId: string, input: Record<string, unknown>, no
 
 interface Asked {
   text: string | null;
+  /** It stopped at the output cap. A member's vote is still salvaged from it; a brief or a memo is not used. */
+  truncated: boolean;
   model: string;
   provider: string;
   latencyMs: number;
@@ -165,26 +190,31 @@ async function ask(seat: SeatDef, system: string, prompt: string, maxTokens: num
       tools: [],
       maxTokens,
       timeoutMs: CALL_TIMEOUT_MS,
+      effort: effortFor("desk"),
     });
     return {
       text: result.refused ? null : result.text,
+      truncated: result.truncated === true,
       model: result.model,
       provider: result.provider,
       latencyMs: Date.now() - started,
       tokensIn: result.usage.input,
       tokensOut: result.usage.output,
-      error: result.refused ? "Declined to answer." : null,
+      error: result.refused ? DECLINED : null,
     };
   } catch (error) {
     /* Only the kind of failure is kept: a provider's message can carry anything. */
     const kind = typeof error === "object" && error !== null && "kind" in error ? String((error as { kind: unknown }).kind) : "failed";
-    return { text: null, model: "", provider: seat.provider, latencyMs: Date.now() - started, tokensIn: 0, tokensOut: 0, error: `No answer (${kind.replace("_", " ")}).` };
+    return { text: null, truncated: false, model: "", provider: seat.provider, latencyMs: Date.now() - started, tokensIn: 0, tokensOut: 0, error: NO_ANSWER[kind] ?? NO_ANSWER.failed };
   }
 }
 
-const WITHHELD = "Withheld: it cited a figure that is not on the fact sheet.";
-
-async function saveTurn(runId: string, seat: SeatDef, round: Round, asked: Asked, answer: MemberAnswer | null, flagged: boolean, fallbackP: number | null): Promise<void> {
+/**
+ * Records a member's turn. `knownModel` is the model the seat answered with
+ * earlier in the run: a turn whose call failed reports no model, and its
+ * score must still go to the seat's real record, not to "unknown".
+ */
+async function saveTurn(runId: string, seat: SeatDef, round: Round, asked: Asked, answer: MemberAnswer | null, flagged: boolean, fallbackP: number | null, knownModel = ""): Promise<void> {
   await serviceClient()
     .from("desk_turns")
     .upsert(
@@ -193,13 +223,13 @@ async function saveTurn(runId: string, seat: SeatDef, round: Round, asked: Asked
         seat: seat.id,
         round,
         provider: asked.provider,
-        model: asked.model.length > 0 ? asked.model : "unknown",
+        model: asked.model.length > 0 ? asked.model : knownModel.length > 0 ? knownModel : "unknown",
         p: answer?.p ?? fallbackP,
         thesis: answer === null ? "" : flagged ? WITHHELD : answer.thesis,
         note: answer === null || flagged ? "" : answer.note,
         changed: answer?.changed ?? null,
         flagged,
-        error: asked.error ?? (answer === null && fallbackP === null ? "Its answer could not be read." : null),
+        error: asked.error ?? (answer === null ? (asked.truncated ? CUT_OFF : fallbackP === null ? UNREADABLE : null) : null),
         latency_ms: asked.latencyMs,
         tokens_in: asked.tokensIn,
         tokens_out: asked.tokensOut,
@@ -247,16 +277,18 @@ export async function runDesk(runId: string): Promise<void> {
     const horizon = horizonOf(run.horizon);
 
     /* 1. The fact sheet. */
-    const facts = await factSheet(run.market, num(run.start_price), horizon.minutes, Date.parse(run.created_at));
-    if (!(await advance(runId, "facts", { facts, stage: "brief" }))) return;
+    const sheet: DeskFact[] = await factSheet(run.market, num(run.start_price), horizon.minutes, Date.parse(run.created_at));
+    if (!(await advance(runId, "facts", { facts: sheet, stage: "brief" }))) return;
+    const facts = sheet.map(factText);
     const context: QuestionContext = { statement: run.statement, horizonLabel: horizon.label, facts, note: run.note };
     const allowed = [...facts, run.statement, horizon.label, "50"];
 
     /* 2. The chair's assignments. */
     let assignments: Record<string, string> = Object.fromEntries(voters.map((seat) => [seat.id, defaultAssignment(seat)]));
     if (chair !== null) {
-      const brief = await ask(chair, chairSystem(), briefPrompt(context, voters), 700);
-      const parsed = parseBrief(brief.text, voters);
+      const brief = await ask(chair, chairSystem(), briefPrompt(context, voters), BUDGET.brief);
+      /* A brief cut off at the cap may have lost a member's assignment mid-sentence: every member keeps its own lens instead. */
+      const parsed = parseBrief(brief.truncated ? null : brief.text, voters);
       /* An assignment is the chair's words reaching members: held to the sheet like everything else. */
       assignments = Object.fromEntries(Object.entries(parsed).map(([id, text]) => [id, staysOnFacts(text, allowed) ? text : defaultAssignment(seatById(id) as SeatDef)]));
     }
@@ -265,7 +297,7 @@ export async function runDesk(runId: string): Promise<void> {
     /* 3. Independent views, in parallel, nobody seeing anyone. */
     const firsts = await Promise.all(
       voters.map(async (seat) => {
-        const asked = await ask(seat, memberSystem(seat), independentPrompt(context, assignments[seat.id] ?? defaultAssignment(seat)), 1_000);
+        const asked = await ask(seat, memberSystem(seat), independentPrompt(context, assignments[seat.id] ?? defaultAssignment(seat)), BUDGET.independent);
         const answer = parseIndependent(asked.text);
         const flagged = answer !== null && !staysOnFacts(`${answer.thesis} ${answer.note}`, allowed);
         await saveTurn(runId, seat, "independent", asked, answer, flagged, null);
@@ -274,7 +306,7 @@ export async function runDesk(runId: string): Promise<void> {
     );
     const answered = firsts.filter((entry): entry is typeof entry & { answer: MemberAnswer } => entry.answer !== null);
     if (answered.length < MIN_VOTERS) {
-      await advance(runId, "independent", { stage: "failed", error: `Only ${answered.length} member${answered.length === 1 ? "" : "s"} answered; the desk needs ${MIN_VOTERS}.` });
+      await advance(runId, "independent", { stage: "failed", error: TOO_FEW });
       return;
     }
     if (!(await advance(runId, "independent", { stage: "review" }))) return;
@@ -287,11 +319,11 @@ export async function runDesk(runId: string): Promise<void> {
         const others = answered
           .filter((other) => other.seat.id !== entry.seat.id)
           .map((other) => ({ label: letters.get(other.seat.id) as string, p: other.answer.p, thesis: other.flagged ? WITHHELD : other.answer.thesis }));
-        const asked = await ask(entry.seat, memberSystem(entry.seat), reviewPrompt(context, { p: entry.answer.p, thesis: entry.answer.thesis }, others), 700);
+        const asked = await ask(entry.seat, memberSystem(entry.seat), reviewPrompt(context, { p: entry.answer.p, thesis: entry.answer.thesis }, others), BUDGET.review);
         const review = parseReview(asked.text, entry.answer.p);
         const flagged = review !== null && !staysOnFacts(review.thesis, allowedInReview);
         /* No readable review: the independent view stands as the member's vote. */
-        await saveTurn(runId, entry.seat, "review", asked, review, flagged, review === null ? entry.answer.p : null);
+        await saveTurn(runId, entry.seat, "review", asked, review, flagged, review === null ? entry.answer.p : null, entry.asked.model);
         return { seat: entry.seat, model: asked.model.length > 0 ? asked.model : entry.asked.model, first: entry.answer, final: review?.p ?? entry.answer.p, thesis: entry.flagged ? WITHHELD : entry.answer.thesis };
       }),
     );
@@ -326,18 +358,19 @@ export async function runDesk(runId: string): Promise<void> {
     let memo = fallbackMemo(run.statement, pFinal, votes, minority);
     let memoModel = "fallback";
     if (chair !== null) {
-      const written = await ask(chair, chairSystem(), `${memoPrompt()}\n\nFacts and votes (data):\n${lines.map((line) => `- ${line}`).join("\n")}`, 500);
+      const written = await ask(chair, chairSystem(), `${memoPrompt()}\n\nFacts and votes (data):\n${lines.map((line) => `- ${line}`).join("\n")}`, BUDGET.memo);
       const text = written.text?.trim() ?? "";
-      if (text.length > 0 && text.length <= 1400 && staysOnFacts(text, lines)) {
+      /* A memo cut off at the cap ends mid-sentence; the code's own is used instead. */
+      if (!written.truncated && text.length > 0 && text.length <= 1400 && staysOnFacts(text, lines)) {
         memo = text;
         memoModel = written.model;
       }
     }
     await advance(runId, "memo", { memo, memo_model: memoModel, stage: "done" });
-  } catch (error) {
+  } catch {
     await db
       .from("desk_runs")
-      .update({ stage: "failed", error: error instanceof DeskError ? error.message : "The desk stopped partway. Nothing was lost but this run.", updated_at: new Date().toISOString() })
+      .update({ stage: "failed", error: STOPPED, updated_at: new Date().toISOString() })
       .eq("id", runId)
       .in("stage", ["facts", "brief", "independent", "review", "vote", "memo"]);
   }
@@ -452,6 +485,14 @@ function turnView(turn: DeskTurnRow, weights: Record<string, number>): DeskTurnV
   };
 }
 
+/** A stored fact-sheet line; a plain string (written before lines were templates) is shown as it is. */
+const factOf = (line: unknown): DeskFact =>
+  typeof line === "string"
+    ? { template: line, values: {} }
+    : typeof line === "object" && line !== null && typeof (line as DeskFact).template === "string"
+      ? { template: (line as DeskFact).template, values: ((line as DeskFact).values ?? {}) as DeskFact["values"] }
+      : { template: "", values: {} };
+
 function runView(run: DeskRunRow, turns: DeskTurnRow[]): DeskRunView {
   const weights = (run.weights ?? {}) as Record<string, number>;
   const order = (seat: string) => SEATS.findIndex((entry) => entry.id === seat);
@@ -465,12 +506,13 @@ function runView(run: DeskRunRow, turns: DeskTurnRow[]): DeskRunView {
     createdAt: run.created_at,
     resolvesAt: run.resolves_at,
     startPrice: num(run.start_price),
-    facts: Array.isArray(run.facts) ? (run.facts as string[]) : [],
+    facts: Array.isArray(run.facts) ? run.facts.map(factOf) : [],
     assignments: (run.assignments ?? {}) as Record<string, string>,
     pIndependent: run.p_independent === null ? null : num(run.p_independent),
     pFinal: run.p_final === null ? null : num(run.p_final),
     spread: run.spread === null ? null : num(run.spread),
     memo: run.memo,
+    memoBy: run.memo === null ? null : run.memo_model === "fallback" ? "code" : "chair",
     dissent: (run.dissent ?? null) as DeskRunView["dissent"],
     status: run.status,
     settledPrice: run.settled_price === null ? null : num(run.settled_price),
@@ -494,11 +536,11 @@ export async function deskState(userId: string, now: number): Promise<DeskRespon
     if (run.stage !== "done" && run.stage !== "failed" && now - Date.parse(run.updated_at) > STALE_MS) {
       await db
         .from("desk_runs")
-        .update({ stage: "failed", error: "The desk ran out of time on this one." })
+        .update({ stage: "failed", error: OUT_OF_TIME })
         .eq("id", run.id)
         .eq("stage", run.stage);
       run.stage = "failed";
-      run.error = "The desk ran out of time on this one.";
+      run.error = OUT_OF_TIME;
     }
   }
   const ids = runs.map((run) => run.id);

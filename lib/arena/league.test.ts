@@ -10,7 +10,9 @@ import {
   draftRoundOf,
   fallbackRecap,
   heldBy,
+  levelOnTable,
   lineupFor,
+  managerOnClock,
   matchupResult,
   matchupShare,
   movePct,
@@ -200,6 +202,58 @@ describe("standings", () => {
     ]);
     /* c and b are level on the table; c has the bigger points for (8 to 6). */
     expect(table[1].pointsFor).toBe(8);
+  });
+
+  it("breaks a full tie by handle, never by id, and ranks the two level", () => {
+    const matchups = [
+      { round: 1, home: "id-1", away: "id-2", homePct: 1, awayPct: 1, result: "tie" as const },
+      { round: 2, home: "id-2", away: "id-1", homePct: 2, awayPct: 2, result: "tie" as const },
+    ];
+    const handles: Record<string, string> = { "id-1": "zed", "id-2": "amy" };
+    const table = standings(["id-1", "id-2"], matchups, (id) => handles[id]);
+    expect(table.map((row) => handles[row.manager])).toEqual(["amy", "zed"]);
+    expect(levelOnTable(table[0], table[1])).toBe(true);
+  });
+
+  it("compares points for at the two decimals the table shows, and counts rounds played", () => {
+    const table = standings(
+      ["a", "b"],
+      [{ round: 1, home: "a", away: "b", homePct: 1.004, awayPct: 1.001, result: "tie" }],
+      (id) => (id === "a" ? "zoe" : "abe"),
+    );
+    /* 1.004 and 1.001 both show as 1.00: the handle decides, not the hidden third decimal. */
+    expect(table.map((row) => row.manager)).toEqual(["b", "a"]);
+    expect(levelOnTable(table[0], table[1])).toBe(true);
+    expect(levelOnTable({ ...table[0], played: 1 }, { ...table[1], played: 2 })).toBe(false);
+  });
+});
+
+describe("who is on the clock", () => {
+  const counts = (entries: Record<string, number>) => new Map(Object.entries(entries));
+
+  it("follows the snake", () => {
+    expect(managerOnClock(["a", "b", "c"], counts({ a: 0, b: 0, c: 0 }), 2)).toBe("a");
+    expect(managerOnClock(["a", "b", "c"], counts({ a: 1, b: 1, c: 1 }), 2)).toBe("c");
+    expect(managerOnClock(["a", "b", "c"], counts({ a: 2, b: 2, c: 2 }), 2)).toBeNull();
+  });
+
+  it("carries on over who is left when a manager leaves mid-draft, and nobody drafts more than a roster", () => {
+    /* a, b, c, c, b picked; then a's account went, with a's pick. */
+    const order = ["b", "c"];
+    const made = counts({ b: 2, c: 2 });
+    expect(managerOnClock(order, made, 3)).toBe("b");
+    /* Every remaining manager ends with exactly a roster. */
+    const tally = new Map(made);
+    for (let next = managerOnClock(order, tally, 3); next !== null; next = managerOnClock(order, tally, 3)) {
+      tally.set(next, (tally.get(next) ?? 0) + 1);
+    }
+    expect([...tally.values()]).toEqual([3, 3]);
+  });
+
+  it("skips a manager whose roster is already full", () => {
+    /* Two picks made: the snake's third pick is b's, but b already holds a roster of two. */
+    expect(slotOnClock(2, 2)).toBe(1);
+    expect(managerOnClock(["a", "b"], counts({ a: 0, b: 2 }), 2)).toBe("a");
   });
 });
 

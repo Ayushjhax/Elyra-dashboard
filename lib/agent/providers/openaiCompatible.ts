@@ -19,6 +19,11 @@ import { ProviderError, type Provider, type ProviderRequest, type ProviderResult
    - No `response_format`: free routed models do not all support it, and a
      400 for asking would cost the seat its vote. JSON is asked for in the
      prompt and parsed leniently by the Desk.
+   - OpenAI itself refuses `max_tokens` and any temperature but the default
+     for its reasoning models (the o-series and GPT-5), so a host can ask for
+     `max_completion_tokens` and no temperature (`reasoning`). Every other
+     host here takes the classic fields.
+   - `finish_reason: "length"` is an answer cut off at the cap: `truncated`.
 --------------------------------------------------------------------------- */
 
 interface CompletionResponse {
@@ -33,6 +38,8 @@ export interface CompatibleHost {
   model: string;
   /** Extra headers a host asks for, e.g. OpenRouter's attribution. */
   headers?: Record<string, string>;
+  /** OpenAI's own API: `max_completion_tokens`, and the model's default temperature. */
+  reasoning?: boolean;
 }
 
 export function openAICompatibleProvider(host: CompatibleHost): Provider {
@@ -44,8 +51,7 @@ export function openAICompatibleProvider(host: CompatibleHost): Provider {
       const body = {
         model: host.model,
         messages: textMessages("openai_compatible", request),
-        max_tokens: maxTokensOf(request),
-        temperature: 0.3,
+        ...(host.reasoning === true ? { max_completion_tokens: maxTokensOf(request) } : { max_tokens: maxTokensOf(request), temperature: 0.3 }),
         stream: false,
       };
       const payload = (await postJson("openai_compatible", url, { authorization: `Bearer ${host.apiKey}`, ...host.headers }, body, request)) as CompletionResponse;
@@ -62,6 +68,7 @@ export function openAICompatibleProvider(host: CompatibleHost): Provider {
         usage: { input: payload.usage?.prompt_tokens ?? 0, output: payload.usage?.completion_tokens ?? 0 },
         refused: refusal !== null || filtered,
         refusalReason: refusal ?? (filtered ? "content_filter" : null),
+        truncated: choice.finish_reason === "length",
       };
     },
   };

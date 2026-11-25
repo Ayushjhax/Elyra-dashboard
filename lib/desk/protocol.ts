@@ -1,5 +1,6 @@
 import { marketFor } from "@/lib/autotrade/rules";
 import type { SeatDef } from "@/lib/desk/roster";
+import { englishTranslator, msg, type TranslationValues } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The Desk's protocol: how a committee of models from different labs works
@@ -91,8 +92,51 @@ export function resolvesAt(now: number, horizon: HorizonId): number {
 
 /** What the vote is about, in words. `price` is already written for people (formatPriceUsd). */
 export function statementFor(market: string, price: string, at: number): string {
-  return `${marketFor(market)?.label ?? market} closes above ${price} at ${new Date(at).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+  return `${marketFor(market)?.label ?? market} closes above ${price} at ${statementTime(at)} UTC`;
 }
+
+/** The statement's time, as it is written: "2026-11-26 14:00", always UTC. */
+export const statementTime = (at: number): string => new Date(at).toISOString().slice(0, 16).replace("T", " ");
+
+/* ---- the words the page translates ---- */
+
+/**
+ * A line of the fact sheet. The models read its English, filled from the
+ * same template the page translates, so a Chinese reader sees the sheet the
+ * members read and the fact guard checks exactly the text the models saw.
+ */
+export interface DeskFact {
+  template: string;
+  values: TranslationValues;
+}
+
+export const fact = (template: string, values: TranslationValues = {}): DeskFact => ({ template, values });
+
+/** The English a member reads. */
+export const factText = (line: DeskFact): string => englishTranslator(line.template, line.values);
+
+/** What replaces a member's reasoning when it cites a figure that is not on the sheet. */
+export const WITHHELD = msg("Withheld: it cited a figure that is not on the fact sheet.");
+
+/** Why a member has no answer: one sentence per kind of provider failure, never the provider's own words. */
+export const NO_ANSWER: Readonly<Record<string, string>> = {
+  rate_limited: msg("No answer (rate limited)."),
+  server_error: msg("No answer (server error)."),
+  network: msg("No answer (network)."),
+  timeout: msg("No answer (timeout)."),
+  bad_request: msg("No answer (bad request)."),
+  auth: msg("No answer (auth)."),
+  malformed_response: msg("No answer (malformed response)."),
+  failed: msg("No answer (failed)."),
+};
+export const DECLINED = msg("Declined to answer.");
+export const UNREADABLE = msg("Its answer could not be read.");
+export const CUT_OFF = msg("Its answer was cut off before it finished.");
+
+/** Why a run stopped. */
+export const TOO_FEW = msg("Too few members answered to hold a vote.");
+export const STOPPED = msg("The desk stopped partway. Nothing was lost but this run.");
+export const OUT_OF_TIME = msg("The desk ran out of time on this one.");
 
 /* ---- the arithmetic ---- */
 

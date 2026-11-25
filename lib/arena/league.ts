@@ -50,8 +50,9 @@ import { PERP_MARKETS, marketFor } from "@/lib/autotrade/rules";
    ── The table ─────────────────────────────────────────────────────────
 
    A win is worth 1, a tie ½, a loss 0. Ties on the table break on the sum
-   of round scores ("points for"), then on fewer rounds played (a bye week
-   should not cost a place), then by handle so the order is stable.
+   of round scores ("points for", at the two decimals shown), then on fewer
+   rounds played (a bye week should not cost a place), then by handle so the
+   order is stable. Rows level on all three share a rank.
 --------------------------------------------------------------------------- */
 
 export const DAY_MS = 86_400_000;
@@ -120,6 +121,26 @@ export function slotOnClock(pick: number, managers: number): number {
   const round = Math.floor(pick / managers);
   const within = pick % managers;
   return round % 2 === 0 ? within : managers - 1 - within;
+}
+
+/**
+ * Who is on the clock: the snake, from the number of picks made, skipping
+ * anyone whose roster is already full. Null once every roster is full.
+ *
+ * The skip matters only after a manager has left mid-draft — a deleted
+ * account takes its picks with it — when the snake carries on over the
+ * managers who are left and nobody drafts more than a roster.
+ */
+export function managerOnClock(order: readonly string[], made: ReadonlyMap<string, number>, rosterSize: number): string | null {
+  const count = (id: string) => made.get(id) ?? 0;
+  const total = order.reduce((sum, id) => sum + count(id), 0);
+  if (total >= totalPicks(order.length, rosterSize)) return null;
+  /* Two laps of the snake from here pass every manager at least twice. */
+  for (let step = 0; step < order.length * 2; step += 1) {
+    const id = order[slotOnClock(total + step, order.length)];
+    if (count(id) < rosterSize) return id;
+  }
+  return null;
 }
 
 /** When pick `pick` runs out of time: the clock starts at the previous pick, or at the draft's start. */
@@ -255,7 +276,8 @@ export interface StandingRow {
   pointsFor: number;
 }
 
-export function standings(managers: readonly string[], matchups: readonly SettledMatchup[]): StandingRow[] {
+/** The table. `nameOf` gives each manager's handle, the last tie-break; the id breaks a tie only between equal handles. */
+export function standings(managers: readonly string[], matchups: readonly SettledMatchup[], nameOf: (manager: string) => string = (manager) => manager): StandingRow[] {
   const rows = new Map(managers.map((manager) => [manager, { manager, wins: 0, losses: 0, ties: 0, played: 0, pointsFor: 0 }]));
   for (const matchup of matchups) {
     if (matchup.away === null || matchup.result === null || matchup.result === "void") continue;
@@ -277,11 +299,23 @@ export function standings(managers: readonly string[], matchups: readonly Settle
       home.losses += 1;
     }
   }
-  const score = (row: StandingRow) => row.wins + row.ties / 2;
   return [...rows.values()].sort(
-    (a, b) => score(b) - score(a) || b.pointsFor - a.pointsFor || a.played - b.played || a.manager.localeCompare(b.manager),
+    (a, b) =>
+      tableScore(b) - tableScore(a) ||
+      tablePoints(b) - tablePoints(a) ||
+      a.played - b.played ||
+      nameOf(a.manager).localeCompare(nameOf(b.manager)) ||
+      a.manager.localeCompare(b.manager),
   );
 }
+
+const tableScore = (row: StandingRow) => row.wins + row.ties / 2;
+/* Points for, at the two decimals the table shows: a place is never decided by a difference nobody can see. */
+const tablePoints = (row: StandingRow) => Math.round(row.pointsFor * 100);
+
+/** Two rows level on everything but the handle: they share a rank. */
+export const levelOnTable = (a: StandingRow, b: StandingRow): boolean =>
+  tableScore(a) === tableScore(b) && tablePoints(a) === tablePoints(b) && a.played === b.played;
 
 export const recordText = (row: Pick<StandingRow, "wins" | "losses" | "ties">): string =>
   row.ties > 0 ? `${row.wins}–${row.losses}–${row.ties}` : `${row.wins}–${row.losses}`;

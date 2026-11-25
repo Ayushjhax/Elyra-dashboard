@@ -115,7 +115,7 @@ export function ProfileAndGroups({ data, feed }: { data: ArenaResponse; feed: Ar
           <input type="checkbox" className="size-4 shrink-0 accent-[var(--accent)]" checked={isPublic} onChange={(event) => setPublic(event.target.checked)} />
           {t("Public — show my public calls to everyone under this handle")}
         </label>
-        <p className="type-label text-text-muted">{t("Others only ever see your handle, never your wallet. Calls stay private unless you share each one.")}</p>
+        <p className="type-label text-text-muted">{t("Others only ever see your handle, never your wallet. What a call says stays private unless you share it, but every settled call counts toward your calls ladder score: your groups see how many you have settled and their Brier score, and so does everyone if you are public.")}</p>
         <div>
           <Button size="sm" variant="quiet" onClick={() => run("/api/arena/profile", { handle, public: isPublic })}>
             {t("Save profile")}

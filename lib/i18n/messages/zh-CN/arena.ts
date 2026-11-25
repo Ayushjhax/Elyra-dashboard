@@ -153,8 +153,8 @@ export const arena: Messages = {
     "预测一经发布便无法编辑或删除。它会按 Hyperliquid 该分钟的一分钟收盘价结算。",
   "Only me":
     "仅自己",
-  "Others only ever see your handle, never your wallet. Calls stay private unless you share each one.":
-    "其他人只能看到你的昵称，永远看不到你的钱包。除非你逐条分享，否则预测保持私密。",
+  "Others only ever see your handle, never your wallet. What a call says stays private unless you share it, but every settled call counts toward your calls ladder score: your groups see how many you have settled and their Brier score, and so does everyone if you are public.":
+    "其他人只能看到你的昵称，永远看不到你的钱包。除非你分享，否则每条预测的内容保持私密；但每条已结算的预测都会计入你在预测榜上的分数：你所在的群组能看到你已结算的预测数量及其 Brier 分数，如果你设为公开，所有人都能看到。",
   "Play to get a rating to compare.":
     "参与后即可获得可比较的评分。",
   "Played":

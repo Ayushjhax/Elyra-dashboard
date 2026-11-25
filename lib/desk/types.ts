@@ -1,4 +1,4 @@
-import type { DeskStatus, HorizonId, Round, ScoreRow, Stage } from "@/lib/desk/protocol";
+import type { DeskFact, DeskStatus, HorizonId, Round, ScoreRow, Stage } from "@/lib/desk/protocol";
 
 /* /api/desk, as the website reads it (and the app can, later). Pure. */
 
@@ -44,7 +44,8 @@ export interface DeskRunView {
   createdAt: string;
   resolvesAt: string;
   startPrice: number;
-  facts: string[];
+  /** The sheet every member read, as templates the page translates. */
+  facts: DeskFact[];
   assignments: Record<string, string>;
   /** The pooled independent views, percent. */
   pIndependent: number | null;
@@ -52,6 +53,8 @@ export interface DeskRunView {
   pFinal: number | null;
   spread: number | null;
   memo: string | null;
+  /** Who wrote the memo: the chair, or code when there was no chair or its memo strayed from the facts. */
+  memoBy: "chair" | "code" | null;
   dissent: { title: string; p: number } | null;
   status: DeskStatus;
   settledPrice: number | null;

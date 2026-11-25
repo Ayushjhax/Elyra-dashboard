@@ -11,7 +11,8 @@ import { robinhoodStockTokens } from "@/lib/evm/stockTokens";
 import { pythConfigured, usEquityAssets } from "@/lib/market/pyth/catalog";
 import { pricesForIds } from "@/lib/market/pyth/client";
 import { routePrices } from "@/lib/providers/router";
-import { sunriseConfigured, sunriseEquities, sunriseStock } from "@/lib/providers/sunrise";
+import { sunriseStock } from "@/lib/providers/sunrise";
+import { stockListing, type StockSource } from "@/lib/sunrise/listing";
 import { knownSymbols, tokenizedSecurities } from "@/lib/trade";
 
 /* ---------------------------------------------------------------------------
@@ -30,8 +31,10 @@ const TICKER_CONCURRENCY = 4;
 export interface EquitiesCatalogue {
   groups: EquityGroup[];
   counts: Record<EquityIssuer, number>;
-  /** Whether Sunrise's listing is part of this deployment at all. */
+  /** Whether the Backpack Securities listing could be read for this page. */
   sunrise: boolean;
+  /** Where that listing came from: Sunrise's API, or Jupiter's index without Sunrise's key. */
+  stockSource: StockSource;
   notes: string[];
   asOf: string;
 }
@@ -81,32 +84,38 @@ async function build(): Promise<EquitiesCatalogue> {
     swap: { symbol: asset.symbol },
   }));
 
-  /* Sunrise: its listing, and each token's ticker from Sunrise itself. A
-     symbol the swap could not resolve uniquely is listed but not offered. */
-  const sunrise = sunriseConfigured();
-  if (sunrise) {
-    const listed = await sunriseEquities();
-    if (!listed.ok) {
-      notes.push("Sunrise's listing could not be read just now.");
-    } else {
-      const allowlisted = new Set(knownSymbols());
-      const counts = new Map<string, number>();
-      for (const token of listed.data) counts.set(token.symbol.toUpperCase(), (counts.get(token.symbol.toUpperCase()) ?? 0) + 1);
-      const stocks = await pooled(listed.data, TICKER_CONCURRENCY, (token) => sunriseStock(token.address).catch(() => null));
-      listed.data.forEach((token, index) => {
-        const symbol = token.symbol.toUpperCase();
-        tokens.push({
-          issuer: "sunrise",
-          symbol: token.symbol,
-          name: token.name,
-          chain: "solana",
-          address: token.address,
-          ticker: stocks[index]?.ticker ?? tickerOf("sunrise", token.symbol),
-          priceUsd: null,
-          swap: !allowlisted.has(symbol) && counts.get(symbol) === 1 ? { symbol: token.symbol } : null,
-        });
+  /* Backpack Securities' tokens: Sunrise's listing with each ticker from
+     Sunrise itself, or — without Sunrise's key — the same issuer's tokens
+     from Jupiter's index, whose symbol is the ticker (each of the 83 that
+     have a Pyth feed was checked to name the same company, 25 November
+     2026). A symbol the swap could not resolve uniquely is listed but not
+     offered. */
+  const listed = await stockListing();
+  const stockSource = listed.source;
+  const sunrise = listed.ok;
+  if (!listed.ok) {
+    notes.push(stockSource === "sunrise" ? "Sunrise's listing could not be read just now." : "Backpack Securities' listing could not be read from Jupiter just now.");
+  } else {
+    const allowlisted = new Set(knownSymbols());
+    const counts = new Map<string, number>();
+    for (const token of listed.data) counts.set(token.symbol.toUpperCase(), (counts.get(token.symbol.toUpperCase()) ?? 0) + 1);
+    const stocks =
+      stockSource === "sunrise"
+        ? await pooled(listed.data, TICKER_CONCURRENCY, (token) => sunriseStock(token.address).catch(() => null))
+        : listed.data.map(() => null);
+    listed.data.forEach((token, index) => {
+      const symbol = token.symbol.toUpperCase();
+      tokens.push({
+        issuer: "sunrise",
+        symbol: token.symbol,
+        name: token.name,
+        chain: "solana",
+        address: token.address,
+        ticker: stocks[index]?.ticker ?? tickerOf("sunrise", token.symbol),
+        priceUsd: null,
+        swap: !allowlisted.has(symbol) && counts.get(symbol) === 1 ? { symbol: token.symbol } : null,
       });
-    }
+    });
   }
 
   const robinhood = await robinhoodStockTokens().catch(() => null);
@@ -159,5 +168,5 @@ async function build(): Promise<EquitiesCatalogue> {
 
   const counts: Record<EquityIssuer, number> = { sunrise: 0, backed: 0, ondo: 0, robinhood: 0 };
   for (const token of tokens) counts[token.issuer] += 1;
-  return { groups: groupEquities(tokens, shares), counts, sunrise, notes, asOf: new Date().toISOString() };
+  return { groups: groupEquities(tokens, shares), counts, sunrise, stockSource, notes, asOf: new Date().toISOString() };
 }

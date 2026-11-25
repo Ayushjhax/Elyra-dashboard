@@ -3,8 +3,9 @@ import { PassportError, assetPassport, readMint } from "@/lib/passport/server";
 import { resolve } from "@/lib/personalized/session";
 import { guardSwap } from "@/lib/solana/swapGuard";
 import { isSolanaAddress, truncateAddress } from "@/lib/solana/address";
-import type { SunriseToken } from "@/lib/sunrise/api";
+import { markStockRef, type SunriseToken } from "@/lib/sunrise/api";
 import { eligibility, requestCountry } from "@/lib/sunrise/eligibility";
+import type { StockSource } from "@/lib/sunrise/listing";
 import { checkedDecimals, previewSunriseSwap, sunriseSide, type Leg } from "@/lib/sunrise/swap";
 import { assetByMint, assetFor, parseSwapCommand, previewSwap, type SwapPreview, type UnlistedMint } from "@/lib/trade";
 
@@ -46,6 +47,12 @@ import { assetByMint, assetFor, parseSwapCommand, previewSwap, type SwapPreview,
    US persons, PRC residents or sanctioned jurisdictions, and Sunrise cannot
    see where a request made from this server comes from. Its transaction
    then meets the same swap guard as any other.
+
+   Without Sunrise's key the list is the same issuer's tokens from Jupiter's
+   free index (lib/sunrise/listing.ts). Those ask the same eligibility
+   question, have their mint account held to the issuer's freeze authority
+   (`checkedDecimals`), and are quoted by Jupiter like any swap; the quote's
+   ref comes back marked (`markStockRef`) so /api/swap/submit asks again.
 --------------------------------------------------------------------------- */
 
 export const runtime = "nodejs";
@@ -114,18 +121,36 @@ export async function POST(request: Request) {
     const failed = legs.find((leg): leg is { error: string } => "error" in leg);
     if (failed !== undefined) return NextResponse.json({ error: failed.error }, { status: 400 });
     const [fromLeg, toLeg] = legs as [Leg, Leg];
-    preview = await previewSunriseSwap({
-      from: fromLeg,
-      to: toLeg,
-      amountText: swap.amountText,
-      amount: swap.amount,
-      owner: session.solanaAddress,
-      notices: [
-        ...[from.sunrise, to.sunrise].filter((token): token is SunriseToken => token !== null).map(stockNotice),
-        ...(from.unlisted?.warnings ?? []),
-        ...(to.unlisted?.warnings ?? []),
-      ],
-    });
+    const source: StockSource = from.stockSource ?? to.stockSource ?? "sunrise";
+    const stockNotices = [from.sunrise, to.sunrise].filter((token): token is SunriseToken => token !== null).map((token) => stockNotice(token, source));
+    if (source === "sunrise") {
+      preview = await previewSunriseSwap({
+        from: fromLeg,
+        to: toLeg,
+        amountText: swap.amountText,
+        amount: swap.amount,
+        owner: session.solanaAddress,
+        notices: [...stockNotices, ...(from.unlisted?.warnings ?? []), ...(to.unlisted?.warnings ?? [])],
+      });
+    } else {
+      /* Jupiter's index listed it: quoted by Jupiter as a token named by
+         mint, with the issuer's notice in place of the unverified warning.
+         `previewSwap` adds each side's own warnings, so a stock side carries
+         only the stock notices, once. */
+      const stockLeg = (side: Side, leg: Leg, own: string[]): UnlistedMint | null =>
+        side.sunrise !== null ? { mint: leg.mint, decimals: leg.decimals, warnings: own } : side.unlisted;
+      const fromUnlisted = stockLeg(from, fromLeg, stockNotices);
+      const toUnlisted = stockLeg(to, toLeg, from.sunrise !== null ? [] : stockNotices);
+      const quoted = await previewSwap({
+        request: swap,
+        solanaAddress: session.solanaAddress,
+        unlisted: {
+          ...(fromUnlisted === null ? {} : { from: fromUnlisted }),
+          ...(toUnlisted === null ? {} : { to: toUnlisted }),
+        },
+      });
+      preview = "error" in quoted || quoted.quoteRef === undefined ? quoted : { ...quoted, quoteRef: markStockRef(quoted.quoteRef) };
+    }
   } else {
     preview = await previewSwap({
       request: swap,
@@ -185,23 +210,26 @@ interface Side {
   /** The listed symbol, or the label an unlisted token is shown under. */
   symbol: string;
   unlisted: UnlistedMint | null;
-  /** A tokenized stock on Sunrise's list, by its mint. */
+  /** A listed tokenized stock, by its mint. */
   sunrise: SunriseToken | null;
+  /** Which list named it: Sunrise's, or Jupiter's index without Sunrise's key. */
+  stockSource: StockSource | null;
 }
 
-/** What a person is told about a Sunrise-listed stock token before they sign. */
-function stockNotice(token: SunriseToken): string {
+/** What a person is told about a listed stock token before they sign. */
+function stockNotice(token: SunriseToken, source: StockSource): string {
   return (
     `${token.symbol} (${token.name}) is a tokenized stock issued through Backpack's tokenization service and Trek Nexus Markets' trust structure, ` +
-    "listed on Solana by Sunrise. It is not the share itself and gives no ownership in the company; the issuer gives no guarantee of a market or of redemption. " +
+    (source === "sunrise" ? "listed on Solana by Sunrise. " : "found in Jupiter's token index and held to its issuer's freeze authority on Solana. ") +
+    "It is not the share itself and gives no ownership in the company; the issuer gives no guarantee of a market or of redemption. " +
     "It is not available to US persons, PRC residents or sanctioned jurisdictions."
   );
 }
 
-/** A side as a mint and its decimals, for a Sunrise quote. */
+/** A side as a mint and its decimals, for a stock quote. */
 async function legOf(side: Side, symbol: string): Promise<Leg | { error: string }> {
   if (side.sunrise !== null) {
-    const decimals = await checkedDecimals(side.sunrise);
+    const decimals = await checkedDecimals(side.sunrise, side.stockSource ?? "sunrise");
     return typeof decimals === "number" ? { mint: side.sunrise.address, decimals, symbol: side.sunrise.symbol } : decimals;
   }
   if (side.unlisted !== null) return { mint: side.unlisted.mint, decimals: side.unlisted.decimals, symbol };
@@ -221,18 +249,18 @@ async function sideOf(mint: unknown, symbol: unknown, acknowledged: boolean): Pr
     /* The allowlist first: a Sunrise symbol never shadows a verified one. */
     if (named.length > 0 && assetFor(named) === null) {
       const stock = await sunriseSide(null, named);
-      if (stock !== null) return { symbol: stock.token.symbol, unlisted: null, sunrise: stock.token };
+      if (stock !== null) return { symbol: stock.token.symbol, unlisted: null, sunrise: stock.token, stockSource: stock.source };
     }
-    return { symbol: named, unlisted: null, sunrise: null };
+    return { symbol: named, unlisted: null, sunrise: null, stockSource: null };
   }
   const address = mint.trim();
   if (!isSolanaAddress(address)) throw new Error("That is not a Solana token mint address.");
 
   const listed = assetByMint(address);
-  if (listed !== null) return { symbol: listed.symbol, unlisted: null, sunrise: null };
+  if (listed !== null) return { symbol: listed.symbol, unlisted: null, sunrise: null, stockSource: null };
 
   const stock = await sunriseSide(address, null);
-  if (stock !== null) return { symbol: stock.token.symbol, unlisted: null, sunrise: stock.token };
+  if (stock !== null) return { symbol: stock.token.symbol, unlisted: null, sunrise: stock.token, stockSource: stock.source };
 
   if (!acknowledged) {
     throw new Error(
@@ -248,6 +276,7 @@ async function sideOf(mint: unknown, symbol: unknown, acknowledged: boolean): Pr
   return {
     symbol: label,
     sunrise: null,
+    stockSource: null,
     unlisted: {
       mint: address,
       decimals: account.decimals,

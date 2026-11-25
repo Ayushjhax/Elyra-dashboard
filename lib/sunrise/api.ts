@@ -134,6 +134,59 @@ export function parseToken(raw: unknown): SunriseToken | null {
   };
 }
 
+/**
+ * The freeze authority on every Backpack Securities stock token: the one
+ * authority all 94 tokens Jupiter's index tagged `stocks` and `backpack`
+ * carried when this was read, on 25 November 2026. It is how a token is
+ * told to be the issuer's without Sunrise's list (lib/providers/jupiterStocks.ts),
+ * and it is checked again on the mint account before any trade.
+ */
+export const BACKPACK_FREEZE_AUTHORITY = "2cVYpagTt7ZGc3mmTXBa7fAznUtx5DUu6aCq8uVDaf4a";
+
+/** The issuer's suffix on each token's name in Jupiter's index. */
+const BACKPACK_SUFFIX = /\s*-\s*Backpack Securities\s*$/i;
+
+/**
+ * Backpack Securities' stock tokens from Jupiter's index (`tokens/v2`
+ * entries), as the same shape Sunrise lists them in. A token counts only when
+ * the index marks it verified, tags it both `stocks` and `backpack`, names the
+ * issuer, and reports the issuer's freeze authority; one symbol two tokens
+ * share is dropped, never picked between.
+ */
+export function parseBackpackIndex(entries: unknown): SunriseToken[] {
+  if (!Array.isArray(entries)) return [];
+  const tokens: SunriseToken[] = [];
+  for (const raw of entries) {
+    const entry = record(raw);
+    if (entry === null || entry.isVerified !== true) continue;
+    const tags = Array.isArray(entry.tags) ? entry.tags : [];
+    if (!tags.includes("stocks") || !tags.includes("backpack")) continue;
+    if (entry.freezeAuthority !== BACKPACK_FREEZE_AUTHORITY || !isMint(entry.id)) continue;
+    const symbol = text(entry.symbol, 16);
+    const fullName = text(entry.name, 160);
+    const decimals = entry.decimals;
+    if (symbol === null || !SYMBOL.test(symbol) || fullName === null || !BACKPACK_SUFFIX.test(fullName)) continue;
+    if (typeof decimals !== "number" || !Number.isInteger(decimals) || decimals < 0 || decimals > 18) continue;
+    const name = fullName.replace(BACKPACK_SUFFIX, "").trim();
+    if (name.length === 0) continue;
+    const icon = text(entry.icon, 500);
+    tokens.push({
+      address: entry.id,
+      symbol,
+      name,
+      decimals,
+      assetClass: "stock",
+      issuer: EQUITY_ISSUER,
+      icon: icon !== null && icon.startsWith("https://") ? icon : null,
+      tokenProgram: isMint(entry.tokenProgram) ? entry.tokenProgram : null,
+    });
+  }
+  const counts = new Map<string, number>();
+  for (const token of tokens) counts.set(token.symbol.toUpperCase(), (counts.get(token.symbol.toUpperCase()) ?? 0) + 1);
+  const unique = new Map(tokens.filter((token) => counts.get(token.symbol.toUpperCase()) === 1).map((token) => [token.address, token]));
+  return [...unique.values()].sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
 /** One page of `GET /v1/tokens`. */
 export function parseTokenPage(body: unknown): { tokens: SunriseToken[]; nextCursor: string | null } | null {
   const data = dataOf(body);
@@ -306,6 +359,23 @@ export function decodeRef(ref: string): SunriseRef | null {
   } catch {
     return null;
   }
+}
+
+/* A stock token quoted by Jupiter rather than Sunrise (a deployment without
+   Sunrise's key, lib/providers/jupiterStocks.ts) keeps Jupiter's own ref,
+   marked so /api/swap/submit asks the eligibility question again before it
+   hands the signed bytes to Jupiter. */
+const BACKPACK_PREFIX = "backpack:";
+
+export const markStockRef = (jupiterRef: string): string => BACKPACK_PREFIX + jupiterRef;
+
+export const isStockRef = (ref: string): boolean => ref.startsWith(BACKPACK_PREFIX);
+
+/** Jupiter's ref inside a marked one; null when there is none. */
+export function unmarkStockRef(ref: string): string | null {
+  if (!isStockRef(ref)) return null;
+  const inner = ref.slice(BACKPACK_PREFIX.length);
+  return inner.length > 0 && inner.length <= 1_024 && PRINTABLE.test(inner) ? inner : null;
 }
 
 /* ---------------------------------------------------------------------------

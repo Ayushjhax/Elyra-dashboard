@@ -151,8 +151,15 @@ which reads only the session's wallet. Sunrise has no mint or redeem API: the
 primary market is Backpack Exchange's conversion flow, which Elyra links to
 and never claims to perform. Copy follows Sunrise's terms over its docs:
 these tokens are not the shares, and redemption is not guaranteed.
-`SUNRISE_API_KEY` is issued by Sunrise on request. Without it, none of this
-appears.
+`SUNRISE_API_KEY` is issued by Sunrise on request. Without it, the same
+issuer's tokens are listed from Jupiter's free verified index
+(`backpackStocks`, `lib/providers/jupiterStocks.ts`, chosen by
+`stockListing`): only tokens tagged `stocks` and `backpack` that carry the
+issuer's freeze authority (`BACKPACK_FREEZE_AUTHORITY`), which the mint
+account is held to again before any quote (`checkedDecimals`). They are
+quoted by Jupiter through `previewSwap` and the swap guard, ask the same
+eligibility question at build, and come back with a `backpack:` quoteRef
+so `/api/swap/submit` asks it again before Jupiter gets the bytes.
 
 Tokenized stocks (`/stocks`, `lib/equities/`) is every issuer's tokens in one
 list, grouped by the share behind them: Sunrise's, Backed's xStocks and Ondo's

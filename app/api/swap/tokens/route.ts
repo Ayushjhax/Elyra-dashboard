@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sunriseConfigured, sunriseEquities } from "@/lib/providers/sunrise";
+import { stockListing } from "@/lib/sunrise/listing";
 import { catalogue } from "@/lib/trade";
 
 /* ---------------------------------------------------------------------------
@@ -20,7 +20,9 @@ import { catalogue } from "@/lib/trade";
    that can ask that question requests them: the website's swap dialog. The
    Android app's request is unchanged. A Sunrise symbol that is also on the
    allowlist, or that two of its tokens share, is left out — the quote step
-   could not tell which one was meant.
+   could not tell which one was meant. Without Sunrise's key the group is
+   the same issuer's tokens from Jupiter's index (lib/sunrise/listing.ts),
+   under the same eligibility marker.
 --------------------------------------------------------------------------- */
 
 export const runtime = "nodejs";
@@ -33,8 +35,8 @@ interface Group {
 
 export async function GET(request: Request) {
   const groups: Group[] = catalogue();
-  if (new URL(request.url).searchParams.get("include") === "sunrise" && sunriseConfigured()) {
-    const listed = await sunriseEquities();
+  if (new URL(request.url).searchParams.get("include") === "sunrise") {
+    const listed = await stockListing();
     if (listed.ok) {
       const taken = new Set(groups.flatMap((group) => group.symbols.map((symbol) => symbol.toUpperCase())));
       const counts = new Map<string, number>();
@@ -43,7 +45,8 @@ export async function GET(request: Request) {
         .map((token) => token.symbol)
         .filter((symbol) => !taken.has(symbol.toUpperCase()) && counts.get(symbol.toUpperCase()) === 1)
         .sort((a, b) => a.localeCompare(b));
-      if (symbols.length > 0) groups.push({ label: "Tokenized stocks (Sunrise)", symbols, eligibility: "sunrise" });
+      const label = listed.source === "sunrise" ? "Tokenized stocks (Sunrise)" : "Tokenized stocks (Backpack)";
+      if (symbols.length > 0) groups.push({ label, symbols, eligibility: "sunrise" });
     }
   }
   return NextResponse.json({ groups });

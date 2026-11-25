@@ -1,9 +1,10 @@
 import "server-only";
 
 import { readMint } from "@/lib/passport/server";
-import { sunriseConfigured, sunriseEquities, sunriseQuotes } from "@/lib/providers/sunrise";
+import { sunriseQuotes } from "@/lib/providers/sunrise";
 import { toBaseUnits } from "@/lib/solana/amount";
-import { bestQuote, encodeRef, isOrderRoute, routeLabel, sunriseTokenId, unavailableReason, type SunriseToken } from "@/lib/sunrise/api";
+import { BACKPACK_FREEZE_AUTHORITY, bestQuote, encodeRef, isOrderRoute, routeLabel, sunriseTokenId, unavailableReason, type SunriseToken } from "@/lib/sunrise/api";
+import { stockListing, type StockSource } from "@/lib/sunrise/listing";
 import type { SwapPreview } from "@/lib/trade";
 import type { PreparedAction } from "@/lib/personalized/types";
 
@@ -24,34 +25,44 @@ import type { PreparedAction } from "@/lib/personalized/types";
    command, Telegram and Intelligent Portfolios resolve through that list
    and none of them can ask the eligibility question these tokens need
    (lib/sunrise/eligibility.ts). They are traded only where it is asked.
+
+   Without Sunrise's key the list is the same issuer's tokens from Jupiter's
+   index (lib/sunrise/listing.ts), and the route quotes them through Jupiter
+   (`previewSwap`) under the same eligibility question; the mint account is
+   then also held to the issuer's freeze authority, since the list is
+   Jupiter's claim rather than the issuer's.
 --------------------------------------------------------------------------- */
 
 export interface SunriseSide {
   token: SunriseToken;
+  source: StockSource;
 }
 
-/** The Sunrise-listed stock token a mint or a symbol names, if it names one. */
+/** The listed stock token a mint or a symbol names, if it names one. */
 export async function sunriseSide(mint: string | null, symbol: string | null): Promise<SunriseSide | null> {
-  if (!sunriseConfigured()) return null;
-  const listed = await sunriseEquities();
+  const listed = await stockListing();
   if (!listed.ok) return null;
   if (mint !== null) {
     const token = listed.data.find((entry) => entry.address === mint);
-    return token === undefined ? null : { token };
+    return token === undefined ? null : { token, source: listed.source };
   }
   if (symbol === null) return null;
   const wanted = symbol.trim().toUpperCase();
   const matches = listed.data.filter((entry) => entry.symbol.toUpperCase() === wanted);
   /* A symbol two tokens share names neither: it is refused, not picked between. */
-  return matches.length === 1 ? { token: matches[0] } : null;
+  return matches.length === 1 ? { token: matches[0], source: listed.source } : null;
 }
 
-/** Sunrise's decimals, held to the mint account's own. */
-export async function checkedDecimals(token: SunriseToken): Promise<number | { error: string }> {
+/** The list's decimals, held to the mint account's own — and, for Jupiter's list, the issuer's freeze authority too. */
+export async function checkedDecimals(token: SunriseToken, source: StockSource = "sunrise"): Promise<number | { error: string }> {
   const account = await readMint(token.address).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "The mint could not be read." }));
   if ("error" in account) return { error: `${token.symbol}: ${account.error}` };
+  const lister = source === "sunrise" ? "Sunrise" : "Jupiter's index";
+  if (source === "jupiter" && account.freezeAuthority !== BACKPACK_FREEZE_AUTHORITY) {
+    return { error: `${token.symbol} could not be quoted: its mint on Solana is not frozen by Backpack Securities' authority, so it is not taken to be the issuer's token.` };
+  }
   if (account.decimals !== token.decimals) {
-    return { error: `${token.symbol} could not be quoted: Sunrise lists ${token.decimals} decimals and the mint on Solana has ${account.decimals}.` };
+    return { error: `${token.symbol} could not be quoted: ${lister} lists ${token.decimals} decimals and the mint on Solana has ${account.decimals}.` };
   }
   return account.decimals;
 }

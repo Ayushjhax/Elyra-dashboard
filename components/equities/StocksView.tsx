@@ -48,6 +48,27 @@ const SECONDARY: Record<EquityIssuer, string> = {
   robinhood: msg("Shown, not traded: Robinhood says they may not be sold to US persons, and Elyra cannot check that."),
 };
 
+/* Without Sunrise's key the same issuer's tokens are listed from Jupiter's
+   index (lib/sunrise/listing.ts): named for their issuer rather than a lister
+   they did not come through, and swapped through Jupiter. */
+const JUPITER_LISTED = {
+  label: msg("Backpack Securities"),
+  primary: msg(
+    "Issued through Backpack's tokenization service and Trek Nexus Markets' trust, listed here from Jupiter's token index and held to the issuer's freeze authority on Solana. Shares are converted to tokens and back on Backpack Exchange, with a Backpack account and its eligibility checks.",
+  ),
+  secondary: msg("Swapped in your wallet through Jupiter, once you confirm you are eligible."),
+};
+
+/** The words for each issuer, given where this deployment's Backpack list came from. */
+function issuerWords(source: EquitiesCatalogue["stockSource"] | undefined) {
+  const jupiter = source === "jupiter";
+  return {
+    label: (entry: EquityIssuer) => (jupiter && entry === "sunrise" ? JUPITER_LISTED.label : ISSUER_LABEL[entry]),
+    primary: (entry: EquityIssuer) => (jupiter && entry === "sunrise" ? JUPITER_LISTED.primary : PRIMARY[entry]),
+    secondary: (entry: EquityIssuer) => (jupiter && entry === "sunrise" ? JUPITER_LISTED.secondary : SECONDARY[entry]),
+  };
+}
+
 /** Backpack's own page on converting shares to tokens and back, as Sunrise's docs link it. */
 const BACKPACK_CONVERSION = "https://support.backpack.exchange/exchange/backpack-securities/tokenized-securities/conversion-flow";
 const PAGE = 30;
@@ -85,7 +106,7 @@ function Premium({ value }: { value: number | null }) {
   );
 }
 
-function GroupCard({ group, onTrade }: { group: EquityGroup; onTrade: (symbol: string) => void }) {
+function GroupCard({ group, onTrade, issuerLabel }: { group: EquityGroup; onTrade: (symbol: string) => void; issuerLabel: (issuer: EquityIssuer) => string }) {
   const t = useT();
   return (
     <li className="rounded-card border border-border-subtle bg-surface-raised p-3">
@@ -106,7 +127,7 @@ function GroupCard({ group, onTrade }: { group: EquityGroup; onTrade: (symbol: s
           <li key={`${token.chain}:${token.address}`} className="flex items-center gap-3 py-2">
             <div className="min-w-0 flex-1">
               <p className="type-body-sm truncate text-text-primary">
-                {token.symbol} <span className="type-label text-text-muted">· {t(ISSUER_LABEL[token.issuer])}</span>
+                {token.symbol} <span className="type-label text-text-muted">· {t(issuerLabel(token.issuer))}</span>
               </p>
               <p className="type-mono-addr truncate text-text-muted">
                 {token.chain === "solana" ? t("Solana") : t("Robinhood Chain")} · {truncateMiddle(token.address, 4, 4)}
@@ -135,6 +156,7 @@ export function StocksView() {
   const t = useT();
   const auth = useElyraAuth();
   const { data, loading, failed, reload } = useEquities();
+  const words = issuerWords(data?.stockSource);
   const [query, setQuery] = useState("");
   const [issuer, setIssuer] = useState<EquityIssuer | "all">("all");
   const [shown, setShown] = useState(PAGE);
@@ -162,12 +184,12 @@ export function StocksView() {
           {ISSUER_ORDER.filter((entry) => entry !== "sunrise" || data?.sunrise !== false).map((entry) => (
             <li key={entry} className="flex flex-col gap-0.5">
               <p className="type-body-sm text-text-primary">
-                {t(ISSUER_LABEL[entry])}
+                {t(words.label(entry))}
                 {data !== null && <span className="type-label text-text-muted"> · {t("{count} tokens", { count: data.counts[entry] })}</span>}
               </p>
               <p className="type-label text-text-secondary">
                 <span className="text-text-muted">{t("Primary market")}: </span>
-                {t(PRIMARY[entry])}
+                {t(words.primary(entry))}
                 {entry === "sunrise" && (
                   <>
                     {" "}
@@ -180,15 +202,19 @@ export function StocksView() {
               </p>
               <p className="type-label text-text-secondary">
                 <span className="text-text-muted">{t("Secondary market")}: </span>
-                {t(SECONDARY[entry])}
+                {t(words.secondary(entry))}
               </p>
             </li>
           ))}
         </ul>
         <p className="type-label mt-3 text-text-muted">
-          {t(
-            "A tokenized stock is not the share: it gives no ownership in the company, and its issuer gives no guarantee of a market or of redemption. These tokens are not offered to US persons; Sunrise's are not offered to PRC residents either. The premium compares one token with one share, before any multiplier an issuer applies for dividends or corporate actions.",
-          )}
+          {data?.stockSource === "jupiter"
+            ? t(
+                "A tokenized stock is not the share: it gives no ownership in the company, and its issuer gives no guarantee of a market or of redemption. These tokens are not offered to US persons; Elyra does not offer Backpack Securities' tokens to PRC residents either. The premium compares one token with one share, before any multiplier an issuer applies for dividends or corporate actions.",
+              )
+            : t(
+                "A tokenized stock is not the share: it gives no ownership in the company, and its issuer gives no guarantee of a market or of redemption. These tokens are not offered to US persons; Sunrise's are not offered to PRC residents either. The premium compares one token with one share, before any multiplier an issuer applies for dividends or corporate actions.",
+              )}
         </p>
       </DrawerCard>
 
@@ -223,7 +249,7 @@ export function StocksView() {
                   issuer === entry ? "border-accent bg-accent text-text-on-accent" : "border-border-subtle text-text-secondary hover:text-text-primary",
                 )}
               >
-                {entry === "all" ? t("All issuers") : t(ISSUER_LABEL[entry])}
+                {entry === "all" ? t("All issuers") : t(words.label(entry))}
               </button>
             ))}
           <button type="button" onClick={reload} disabled={loading} aria-label={t("Refresh")} className="ml-auto grid size-8 place-items-center rounded-control text-text-muted hover:text-text-primary">
@@ -257,7 +283,7 @@ export function StocksView() {
           <p className="type-label text-text-muted">{t("{count} shares, each with its tokens", { count: groups.length })}</p>
           <ul className="flex flex-col gap-2">
             {groups.slice(0, shown).map((group) => (
-              <GroupCard key={group.ticker} group={group} onTrade={trade} />
+              <GroupCard key={group.ticker} group={group} onTrade={trade} issuerLabel={words.label} />
             ))}
           </ul>
           {groups.length > shown && (

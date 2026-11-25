@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { jupiterSwapExecute } from "@/lib/providers/jupiter";
 import { sunriseExecute } from "@/lib/providers/sunrise";
 import { resolve } from "@/lib/personalized/session";
-import { decodeRef, isOrderRoute, isSunriseRef } from "@/lib/sunrise/api";
+import { decodeRef, isOrderRoute, isStockRef, isSunriseRef, unmarkStockRef } from "@/lib/sunrise/api";
 import { eligibility, requestCountry } from "@/lib/sunrise/eligibility";
 
 /* ---------------------------------------------------------------------------
@@ -30,6 +30,10 @@ import { eligibility, requestCountry } from "@/lib/sunrise/eligibility";
    turned into "sign again": the same bytes are resent once by the client
    in lib/providers/sunrise.ts, and past that the person is told to check
    their wallet, since the trade may have gone through.
+
+   A stock token Jupiter quoted (a `backpack:` quoteRef, a deployment without
+   Sunrise's key) meets the same country and confirmation check, then goes to
+   Jupiter with Jupiter's own ref, unmarked.
 --------------------------------------------------------------------------- */
 
 /** Sunrise accepts a signed transaction of at most this many base64 characters. */
@@ -109,7 +113,16 @@ export async function POST(request: Request) {
     });
   }
 
-  const executed = await jupiterSwapExecute({ signedTransaction, quoteRef });
+  let jupiterRef = quoteRef;
+  if (isStockRef(quoteRef)) {
+    const inner = unmarkStockRef(quoteRef);
+    if (inner === null) return NextResponse.json({ error: "That quote reference could not be read; quote again." }, { status: 400 });
+    const allowed = eligibility(requestCountry(request.headers), body.confirmEligible === true);
+    if (!allowed.ok) return NextResponse.json({ executed: false, error: allowed.reason, eligibility: allowed.code }, { status: 403 });
+    jupiterRef = inner;
+  }
+
+  const executed = await jupiterSwapExecute({ signedTransaction, quoteRef: jupiterRef });
 
   if (!executed.ok || executed.data === undefined) {
     /* 502, not 500: the request was well formed and this server did its part.

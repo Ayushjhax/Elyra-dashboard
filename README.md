@@ -375,7 +375,7 @@ without it. In summary:
 | `SOLANA_RPC_URL` | Wallet balances and history say the RPC is unconfigured. Use a paid endpoint; there is deliberately no fallback to the public one |
 | `NEXT_PUBLIC_SOLANA_RPC_URL` | Signing fails in Privy's confirm modal. A **separate**, browser-safe key restricted to your domains. Treat it as required |
 | `JUPITER_API_KEY` | Pricing falls back to Jupiter's keyless tier and drops prices under load |
-| `SUNRISE_API_KEY` | Sunrise's tokenized stocks are not listed or tradable. Issued by Sunrise on request (contact@sunrise.xyz) |
+| `SUNRISE_API_KEY` | Backpack Securities' tokenized stocks come from Jupiter's free token index and are quoted by Jupiter instead of across Sunrise's routes. Issued by Sunrise on request (contact@sunrise.xyz) |
 | `BIRDEYE_API_KEY` | No price fallback for mints Jupiter cannot price, and no history |
 | `GEMINI_API_KEY` (`GEMINI_MODEL`, `GEMINI_TRANSCRIBE_MODEL`, `GEMINI_TTS_MODEL`) | No model fallback, no dictation in Firefox and Brave, and Elyra's voices fall back to the browser's own |
 | `SEC_USER_AGENT` (`SEC_MAX_RPS`) | No filings-backed research. Format: `Company Name contact@domain` |

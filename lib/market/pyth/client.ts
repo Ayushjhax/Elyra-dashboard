@@ -1,7 +1,7 @@
 import "server-only";
 
 import { TTL, cached } from "@/lib/market/cache";
-import { catalogue, pythApiKey, pythBaseUrl } from "@/lib/market/pyth/catalog";
+import { catalogue, pythApiKey } from "@/lib/market/pyth/catalog";
 import {
   PythError,
   decodePrice,
@@ -12,28 +12,52 @@ import {
 /* ---------------------------------------------------------------------------
    Batched price reads.
 
-   `/v1/latest_price` takes a repeated `price_feed_ids` parameter and answers
-   for all of them in one round trip, so the unit of work here is a list of
-   feeds, never a single one. Every caller goes through `pricesForIds`, and
-   concurrent callers asking for the same feeds within the cache window share
-   one upstream request — see `inflight` below.
+   `POST /v1/latest_price` on Pyth Pro's price host takes a list of feed ids
+   and answers for all of them in one round trip, so the unit of work here is
+   a list of feeds, never a single one. Every caller goes through
+   `pricesForIds`, and concurrent callers asking for the same feeds within the
+   cache window share one upstream request — see `inflight` below.
+
+   Until November 2026 this was `GET /v1/latest_price?price_feed_ids=…` on the
+   catalogue's host (`pythBaseUrl`). That now answers every client with a
+   Cloudflare block page, while the catalogue (`/v1/symbols`) and history
+   stay there; the price read moved to `PRICE_URL`, asked for the same
+   fields, its answer wrapped in `parsed`.
 --------------------------------------------------------------------------- */
 
-/** Feeds per upstream request. Keeps the query string well inside limits. */
+/** Feeds per upstream request. */
 const BATCH_SIZE = 100;
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
+export const PRICE_URL = "https://pyth-lazer.dourolabs.app/v1/latest_price";
+
+/** Every field `decodeWith` reads, and the channel a Pyth Pro key is granted. */
+export function latestPriceBody(ids: number[]) {
+  return {
+    priceFeedIds: ids,
+    properties: ["price", "bestBidPrice", "bestAskPrice", "publisherCount", "exponent", "confidence", "feedUpdateTimestamp", "marketSession", "emaPrice"],
+    chains: [],
+    channel: "fixed_rate@200ms",
+    parsed: true,
+  };
+}
+
+/** The refusal's own words, when Pyth gives any: "Not entitled: feed 1 (…)" says the plan, not the key, is short. */
+async function refusalReason(response: Response): Promise<string | null> {
+  const text = await response.text().catch(() => "");
+  if (text.trimStart().startsWith("<")) return null;
+  const reason = text.replace(/\s+/g, " ").trim().slice(0, 160);
+  return reason.length > 0 ? reason : null;
+}
+
 async function fetchBatch(ids: number[]): Promise<RawLatestPriceResponse> {
-  const params = new URLSearchParams();
-  for (const id of ids) params.append("price_feed_ids", String(id));
-
-  const url = `${pythBaseUrl()}/v1/latest_price?${params.toString()}`;
-
   let response: Response;
   try {
-    response = await fetch(url, {
-      headers: { authorization: `Bearer ${pythApiKey()}` },
+    response = await fetch(PRICE_URL, {
+      method: "POST",
+      headers: { authorization: `Bearer ${pythApiKey()}`, "content-type": "application/json" },
+      body: JSON.stringify(latestPriceBody(ids)),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       cache: "no-store",
     });
@@ -48,9 +72,12 @@ async function fetchBatch(ids: number[]): Promise<RawLatestPriceResponse> {
   }
 
   if (response.status === 401 || response.status === 403) {
+    const reason = await refusalReason(response);
     throw new PythError(
       "unauthorized",
-      "Pyth rejected the API key. Check PYTH_API_KEY.",
+      reason !== null && /not entitled/i.test(reason)
+        ? `Pyth's plan for PYTH_API_KEY does not cover these feeds (${reason}).`
+        : "Pyth rejected the API key. Check PYTH_API_KEY.",
       response.status,
     );
   }
@@ -58,11 +85,16 @@ async function fetchBatch(ids: number[]): Promise<RawLatestPriceResponse> {
     throw new PythError("upstream", `Pyth returned ${response.status}`, response.status);
   }
 
-  const body = (await response.json()) as RawLatestPriceResponse;
-  if (!body || !Array.isArray(body.priceFeeds)) {
+  return unwrapLatest(await response.json().catch(() => null));
+}
+
+/** The `parsed` answer of `POST /v1/latest_price`, as the decoder reads it. */
+export function unwrapLatest(body: unknown): RawLatestPriceResponse {
+  const parsed = (body as { parsed?: RawLatestPriceResponse } | null)?.parsed;
+  if (!parsed || !Array.isArray(parsed.priceFeeds)) {
     throw new PythError("malformed", "Pyth response had no priceFeeds array");
   }
-  return body;
+  return parsed;
 }
 
 /** Decode one raw feed, resolving its ticker through the catalogue. */
@@ -147,19 +179,78 @@ async function loadBatch(ids: number[]): Promise<PythPrice[]> {
   return work;
 }
 
+/* ---------------------------------------------------------------------------
+   A key's plan.
+
+   A Pyth Pro key is granted feeds by asset class and market, and Pyth refuses
+   a whole request when any one feed in it is not granted ("Not entitled:
+   feed 922 …"). So feeds are batched by the grant they fall under — the
+   asset class, and for equities the market (`Equity.US`, `Equity.HK`,
+   `Equity.Index`) — and a refused group cannot blank the others. A single
+   refused feed is dropped and its batch asked again once; a batch refused
+   twice is a group the plan does not cover, and its feeds are not asked for
+   again for a while.
+--------------------------------------------------------------------------- */
+
+const NOT_ENTITLED_MS = 15 * 60_000;
+const notEntitled = new Map<number, number>();
+
+/** The feed a refusal names, from "Not entitled: feed 922 (…)". */
+export function refusedFeed(error: unknown): number | null {
+  if (!(error instanceof PythError) || error.kind !== "unauthorized") return null;
+  const match = /not entitled: feed (\d+)/i.exec(error.message);
+  return match === null ? null : Number(match[1]);
+}
+
+/** The grant a feed falls under: its asset class, and for equities its market. */
+export function grantGroup(asset: { assetType: string; pythSymbol: string } | undefined): string {
+  if (asset === undefined) return "unknown";
+  return asset.assetType === "equity" ? asset.pythSymbol.split(".").slice(0, 2).join(".") : asset.assetType;
+}
+
+/** One batch, with a single refused feed dropped and the rest asked again. */
+async function loadGranted(ids: number[]): Promise<PythPrice[]> {
+  try {
+    return await loadBatch(ids);
+  } catch (error) {
+    const refused = refusedFeed(error);
+    if (refused === null) throw error;
+    notEntitled.set(refused, Date.now() + NOT_ENTITLED_MS);
+    const rest = ids.filter((id) => id !== refused);
+    if (rest.length === 0) throw error;
+    try {
+      return await loadBatch(rest);
+    } catch (again) {
+      if (refusedFeed(again) !== null) for (const id of rest) notEntitled.set(id, Date.now() + NOT_ENTITLED_MS);
+      throw again;
+    }
+  }
+}
+
 /** Current prices for a list of feed ids, batched and deduplicated. */
 export async function pricesForIds(ids: number[]): Promise<PythPrice[]> {
+  const now = Date.now();
   const unique = [...new Set(ids)].filter((id) => Number.isInteger(id) && id > 0);
   if (unique.length === 0) return [];
+  const asked = unique.filter((id) => (notEntitled.get(id) ?? 0) <= now);
+  if (asked.length === 0) {
+    throw new PythError("unauthorized", "Pyth's plan for PYTH_API_KEY does not cover these feeds.", 403);
+  }
 
+  const { byId } = await catalogue();
+  const groups = new Map<string, number[]>();
+  for (const id of asked) {
+    const group = grantGroup(byId.get(id));
+    groups.set(group, [...(groups.get(group) ?? []), id]);
+  }
   const batches: number[][] = [];
-  for (let i = 0; i < unique.length; i += BATCH_SIZE) {
-    batches.push(unique.slice(i, i + BATCH_SIZE));
+  for (const group of groups.values()) {
+    for (let i = 0; i < group.length; i += BATCH_SIZE) batches.push(group.slice(i, i + BATCH_SIZE));
   }
 
   /* One failing batch must not lose the others — a watchlist of 40 assets
      should still render 20 of them if one upstream call fails. */
-  const settled = await Promise.allSettled(batches.map(loadBatch));
+  const settled = await Promise.allSettled(batches.map(loadGranted));
 
   const prices: PythPrice[] = [];
   let firstError: unknown = null;

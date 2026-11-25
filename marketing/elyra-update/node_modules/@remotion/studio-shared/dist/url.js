@@ -1,0 +1,28 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.normalizeHttpUrl = exports.isUrl = void 0;
+const isUrl = (value) => {
+    try {
+        const parsed = new URL(value);
+        return parsed.href.length > 0;
+    }
+    catch (_a) {
+        return false;
+    }
+};
+exports.isUrl = isUrl;
+const normalizeHttpUrl = (value) => {
+    if (typeof value !== 'string') {
+        return null;
+    }
+    try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+            ? parsed.href
+            : null;
+    }
+    catch (_a) {
+        return null;
+    }
+};
+exports.normalizeHttpUrl = normalizeHttpUrl;

@@ -1,0 +1,25 @@
+import type { EitherApiKeyOrLicenseKey } from './register-usage-event';
+export type EventCount = {
+    billable: number;
+    failed: number;
+    development: number;
+};
+export type GetUsageApiResponse = {
+    success: true;
+    cloudRenders: EventCount;
+    webcodecConversions: EventCount;
+} | {
+    success: false;
+    error: string;
+};
+export type GetUsageResponse = {
+    cloudRenders: EventCount;
+    webRenders: EventCount;
+    /**
+     * @deprecated Use `webRenders` instead
+     */
+    webcodecConversions: EventCount;
+};
+export declare const getUsage: ({ since, ...apiOrLicenseKey }: {
+    since?: number | null;
+} & EitherApiKeyOrLicenseKey) => Promise<GetUsageResponse>;

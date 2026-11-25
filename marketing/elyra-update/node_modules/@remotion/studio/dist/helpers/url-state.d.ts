@@ -1,0 +1,8 @@
+export declare const closedAllCanvasTabsStorageKey = "remotion.closedAllCanvasTabs";
+export declare const getNavigationWindow: () => Window;
+export declare const getUrlForRoute: (route: string) => string;
+export declare const pushUrl: (url: string) => void;
+export declare const replaceUrl: (url: string) => void;
+export declare const clearUrl: () => void;
+export declare const reloadUrl: () => void;
+export declare const getRoute: () => string;

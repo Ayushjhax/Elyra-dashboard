@@ -1,0 +1,21 @@
+export declare const imageSequencePatternOption: {
+    name: string;
+    addedIn: string;
+    cliFlag: "image-sequence-pattern";
+    ssrName: string;
+    description: () => import("react").JSX.Element;
+    docLink: string;
+    type: string | null;
+    getValue: ({ commandLine }: {
+        commandLine: Record<string, unknown>;
+    }) => {
+        value: string;
+        source: string;
+    } | {
+        value: null;
+        source: string;
+    };
+    setConfig: (pattern: string | null) => void;
+    reset: () => void;
+    id: "image-sequence-pattern";
+};

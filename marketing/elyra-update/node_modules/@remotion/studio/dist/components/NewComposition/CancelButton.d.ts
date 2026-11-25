@@ -1,0 +1,7 @@
+import type { SVGProps } from 'react';
+import React from 'react';
+export declare const CancelIcon: React.FC<SVGProps<SVGSVGElement>>;
+export declare const CancelButton: React.FC<SVGProps<SVGSVGElement> & {
+    readonly onPress: () => void;
+    readonly 'aria-label': string;
+}>;

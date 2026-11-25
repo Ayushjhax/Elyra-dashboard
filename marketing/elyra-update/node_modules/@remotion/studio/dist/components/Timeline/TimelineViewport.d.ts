@@ -1,0 +1,13 @@
+import React from 'react';
+type TimelineRenderWindow = {
+    readonly left: number;
+    readonly width: number;
+};
+export declare const TimelineViewportContext: React.Context<TimelineRenderWindow | null>;
+export declare const syncTimelineViewport: () => void;
+export declare const getTimelineRenderWindow: (scrollable: HTMLDivElement) => TimelineRenderWindow;
+export declare const TimelineViewportProvider: React.FC<{
+    readonly children: React.ReactNode;
+    readonly scrollable: React.RefObject<HTMLDivElement | null>;
+}>;
+export {};

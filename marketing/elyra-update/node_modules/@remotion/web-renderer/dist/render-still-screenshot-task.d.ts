@@ -1,0 +1,28 @@
+import type { InternalState } from './internal-state';
+export type RenderStillOnWebImageFormat = 'png' | 'jpeg' | 'webp';
+export type RenderStillOnWebEncodeOptions = {
+    format?: RenderStillOnWebImageFormat;
+    /**
+     * Encoder quality for `jpeg` and `webp`, between `0` and `1`.
+     * Ignored for `png`.
+     */
+    quality?: number;
+};
+/**
+ * Outcome of `renderStillOnWeb()`. The frame is already rendered; use
+ * `canvas()`, `blob()`, or `url()` to read pixels or encode (same pattern as
+ * Renoun’s `screenshot()` task).
+ */
+export type RenderStillOnWebResult = {
+    internalState: InternalState;
+    canvas(): Promise<OffscreenCanvas>;
+    blob(options?: RenderStillOnWebEncodeOptions): Promise<Blob>;
+    /**
+     * Creates an object URL from an encoded blob. Call `URL.revokeObjectURL()` when done.
+     */
+    url(options?: RenderStillOnWebEncodeOptions): Promise<string>;
+};
+export declare const createRenderStillOnWebResult: ({ canvas, internalState, }: {
+    canvas: OffscreenCanvas;
+    internalState: InternalState;
+}) => RenderStillOnWebResult;

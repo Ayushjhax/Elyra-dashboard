@@ -1,0 +1,15 @@
+export type EffectConfigValue = string | number | boolean | null | EffectConfig | readonly EffectConfigValue[];
+export type EffectConfig = {
+    readonly [key: string]: EffectConfigValue;
+};
+export type EffectDragData = {
+    type: 'remotion-effect';
+    version: 1;
+    effect: {
+        name: string;
+        importPath: string;
+        config: EffectConfig;
+    };
+};
+export declare const makeEffectDragData: (effect: EffectDragData['effect']) => EffectDragData;
+export declare const parseEffectDragData: (value: string) => EffectDragData | null;

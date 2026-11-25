@@ -1,0 +1,8 @@
+import React from 'react';
+export declare const LoopedTimelineIndicator: React.FC<{
+    readonly loops: number;
+    readonly phase: number;
+    readonly fullWidth: number;
+    readonly visibleOffset: number;
+    readonly visibleWidth: number;
+}>;

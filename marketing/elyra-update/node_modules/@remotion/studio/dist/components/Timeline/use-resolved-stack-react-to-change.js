@@ -1,0 +1,122 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.useResolveStackAndReactToChange = void 0;
+const react_1 = require("react");
+const fast_refresh_context_1 = require("../../fast-refresh-context");
+const client_id_1 = require("../../helpers/client-id");
+const use_resolved_stack_1 = require("./use-resolved-stack");
+// This case: https://github.com/remotion-dev/remotion/issues/7393
+// A code change has been made and we cannot re-calculate the stack right away.
+// In that case, we wait for fast refresh, wait for the new stack trace, triggering a new event.
+const matchesSourceLocation = (event, location) => {
+    var _a;
+    if (!(location === null || location === void 0 ? void 0 : location.source) || !location.line) {
+        return false;
+    }
+    return (event.fileName === location.source &&
+        event.line === location.line &&
+        event.column === ((_a = location.column) !== null && _a !== void 0 ? _a : 0));
+};
+const useResolveStackAndReactToChange = (getStack, sequenceIdentity) => {
+    const { subscribeToEvent } = (0, react_1.useContext)(client_id_1.StudioServerConnectionCtx);
+    const { fastRefreshes } = (0, react_1.useContext)(fast_refresh_context_1.FastRefreshContext);
+    const [stackState, setStackState] = (0, react_1.useState)(() => ({
+        stack: getStack(),
+        preferMappedNodePath: true,
+    }));
+    const resolvedLocationFromStack = (0, use_resolved_stack_1.useResolvedStack)(stackState.stack);
+    const stackIsResolved = (0, use_resolved_stack_1.hasResolvedStack)(stackState.stack);
+    const lastResolvedLocation = (0, react_1.useRef)(resolvedLocationFromStack);
+    if (stackIsResolved) {
+        lastResolvedLocation.current = resolvedLocationFromStack;
+    }
+    // Keep the inspector mounted while resolving the refreshed stack. Source
+    // subscriptions must wait for stackIsResolved before using this location.
+    const resolvedLocation = stackIsResolved
+        ? resolvedLocationFromStack
+        : stackState.preferMappedNodePath
+            ? null
+            : lastResolvedLocation.current;
+    const resolvedLocationRef = (0, react_1.useRef)(resolvedLocation);
+    resolvedLocationRef.current = resolvedLocation;
+    const getStackRef = (0, react_1.useRef)(getStack);
+    getStackRef.current = getStack;
+    const previousSequenceIdentity = (0, react_1.useRef)(sequenceIdentity);
+    (0, react_1.useEffect)(() => {
+        const identityChanged = previousSequenceIdentity.current !== sequenceIdentity;
+        previousSequenceIdentity.current = sequenceIdentity;
+        const newStack = getStack();
+        setStackState((current) => {
+            if (newStack === current.stack) {
+                return current;
+            }
+            return {
+                stack: newStack,
+                // Registration can publish its new stack after the refresh event.
+                // Only a different sequence should retain its existing node path.
+                preferMappedNodePath: identityChanged,
+            };
+        });
+    }, [getStack, sequenceIdentity]);
+    (0, react_1.useEffect)(() => {
+        if (fastRefreshes === 0) {
+            return;
+        }
+        const newStack = getStackRef.current();
+        setStackState((current) => {
+            if (newStack === current.stack) {
+                return current;
+            }
+            return {
+                stack: newStack,
+                // Resolve from the post-refresh source location. The previous node path
+                // may now belong to a sibling after a structural edit.
+                preferMappedNodePath: false,
+            };
+        });
+    }, [fastRefreshes]);
+    (0, react_1.useEffect)(() => {
+        let interval = null;
+        const handleEvent = (event) => {
+            if (event.type !== 'lost-node-path') {
+                return;
+            }
+            if (!matchesSourceLocation(event, resolvedLocationRef.current)) {
+                return;
+            }
+            const initialStack = getStackRef.current();
+            if (interval !== null) {
+                clearInterval(interval);
+            }
+            interval = setInterval(() => {
+                const newStack = getStackRef.current();
+                if (newStack !== initialStack) {
+                    if (interval !== null) {
+                        clearInterval(interval);
+                        interval = null;
+                    }
+                    setStackState({
+                        stack: newStack,
+                        // The old override ID may now belong to a sibling. Resolve the
+                        // node path from the post-refresh source location instead.
+                        preferMappedNodePath: false,
+                    });
+                }
+            }, 10);
+        };
+        const unsubscribe = subscribeToEvent('lost-node-path', handleEvent);
+        return () => {
+            unsubscribe();
+            if (interval !== null) {
+                clearInterval(interval);
+            }
+        };
+    }, [subscribeToEvent]);
+    return {
+        preferMappedNodePath: stackState.preferMappedNodePath,
+        resolvedLocation,
+        stackIsResolved,
+        stack: stackState.stack,
+    };
+};
+exports.useResolveStackAndReactToChange = useResolveStackAndReactToChange;

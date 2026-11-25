@@ -1,0 +1,8 @@
+import React from 'react';
+export declare const useCompositionNavigation: () => {
+    navigateToNextComposition: () => void;
+    navigateToPreviousComposition: () => void;
+};
+export declare const CompositionSelector: React.FC<{
+    readonly onCompositionSelected: (() => void) | null;
+}>;

@@ -1,0 +1,43 @@
+import React from 'react';
+export type ComboboxSize = 'default' | 'compact' | 'small';
+type DividerItem = {
+    type: 'divider';
+    id: string;
+};
+type CustomContentItem = {
+    type: 'custom';
+    id: string;
+    content: React.ReactNode;
+};
+type SectionHeaderItem = {
+    type: 'section-header';
+    id: string;
+    label: string;
+};
+export type SubMenu = {
+    preselectIndex: number | false;
+    leaveLeftSpace: boolean;
+    items: ComboboxValue[];
+};
+export type SelectionItem = {
+    type: 'item';
+    id: string;
+    label: React.ReactNode;
+    value: string | number;
+    onClick: (id: string, e: React.PointerEvent | null) => void;
+    keyHint: string | null;
+    leftItem: React.ReactNode;
+    subMenu: SubMenu | null;
+    quickSwitcherLabel: string | null;
+    disabled?: boolean;
+};
+export type ComboboxValue = CustomContentItem | DividerItem | SectionHeaderItem | SelectionItem;
+export declare const Combobox: React.FC<{
+    readonly values: ComboboxValue[];
+    readonly selectedId: string | number;
+    readonly style?: React.CSSProperties;
+    readonly 'aria-label': string;
+    readonly size?: ComboboxSize;
+    readonly unhoveredIconColor?: string;
+}>;
+export {};

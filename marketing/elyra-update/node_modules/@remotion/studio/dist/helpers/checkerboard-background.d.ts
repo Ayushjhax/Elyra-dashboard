@@ -1,0 +1,4 @@
+export declare const getCheckerboardBackgroundSize: (size: number) => string;
+export declare const getCheckerboardBackgroundPos: (size: number) => string;
+export declare const checkerboardBackgroundColor: (checkerboard: boolean) => "var(--remotion-studio-background)" | "var(--remotion-studio-black)";
+export declare const checkerboardBackgroundImage: (checkerboard: boolean) => "\n     linear-gradient(\n        45deg,\n        var(--remotion-studio-white-alpha-15) 25%,\n        var(--remotion-studio-transparent) 25%\n      ),\n      linear-gradient(135deg, var(--remotion-studio-white-alpha-15) 25%, var(--remotion-studio-transparent) 25%),\n      linear-gradient(45deg, var(--remotion-studio-transparent) 75%, var(--remotion-studio-white-alpha-15) 75%),\n      linear-gradient(135deg, var(--remotion-studio-transparent) 75%, var(--remotion-studio-white-alpha-15) 75%)\n    " | undefined;

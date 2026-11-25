@@ -1,0 +1,18 @@
+import type { FrameSelection } from '../frame-range';
+export declare const framesOption: {
+    name: string;
+    addedIn: string;
+    cliFlag: "frames";
+    description: () => import("react").JSX.Element;
+    ssrName: 'frameRange';
+    docLink: string;
+    type: FrameSelection;
+    getValue: ({ commandLine }: {
+        commandLine: Record<string, unknown>;
+    }) => {
+        source: string;
+        value: FrameSelection;
+    };
+    setConfig: (value: FrameSelection) => void;
+    id: "frames";
+};

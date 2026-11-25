@@ -1,0 +1,46 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.resolveFileSource = void 0;
+const browser_studio_operations_1 = require("../../../helpers/browser-studio-operations");
+const resolveFileSource = async (location, contextLines) => {
+    const browserStudioOperations = (0, browser_studio_operations_1.getBrowserStudioOperations)();
+    let text;
+    if (browserStudioOperations) {
+        const browserSource = await browserStudioOperations.getFileSource(location.fileName);
+        if (browserSource === null) {
+            throw new Error(`Could not find ${location.fileName}`);
+        }
+        text = browserSource;
+    }
+    else {
+        const response = await fetch(`/api/file-source?f=${encodeURIComponent(location.fileName)}`);
+        if (!response.ok) {
+            throw new Error(`Could not load source for ${location.fileName}`);
+        }
+        text = await response.text();
+    }
+    const lines = text
+        .split('\n')
+        .map((l, i) => {
+        const oneIndexedLineNumber = i + 1;
+        return [oneIndexedLineNumber, l];
+    })
+        .filter(([oneIndexedLineNumber]) => {
+        return (Math.abs(oneIndexedLineNumber - location.lineNumber) <= contextLines);
+    });
+    const scriptCode = lines.map(([num, line]) => {
+        return {
+            content: line,
+            highlight: location.lineNumber === num,
+            lineNumber: num,
+        };
+    });
+    return {
+        originalColumnNumber: location.columnNumber,
+        originalFunctionName: null,
+        originalFileName: location.fileName,
+        originalLineNumber: location.lineNumber,
+        originalScriptCode: scriptCode,
+    };
+};
+exports.resolveFileSource = resolveFileSource;

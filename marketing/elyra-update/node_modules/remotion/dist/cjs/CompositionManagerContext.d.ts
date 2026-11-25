@@ -1,0 +1,44 @@
+import type React from 'react';
+import type { AnyComposition } from './CompositionManager.js';
+import type { TFolder } from './Folder.js';
+import type { VideoConfig } from './video-config.js';
+export type BaseMetadata = Pick<VideoConfig, 'durationInFrames' | 'fps' | 'props' | 'height' | 'width' | 'defaultCodec' | 'defaultOutName' | 'defaultVideoImageFormat' | 'defaultPixelFormat' | 'defaultProResProfile' | 'defaultSampleRate'>;
+export type AssetPreviewMetadata = BaseMetadata & {
+    asset: string;
+    src: string;
+};
+export declare const getAssetPreviewCompositionId: (asset: string) => string;
+export type CanvasContent = {
+    type: 'composition';
+    compositionId: string;
+} | {
+    type: 'asset';
+    asset: string;
+} | {
+    type: 'output';
+    path: string;
+} | {
+    type: 'output-blob';
+    displayName: string;
+    getBlob: () => Promise<Blob>;
+    width: number;
+    height: number;
+    sizeInBytes: number;
+};
+export type CompositionManagerSetters = {
+    setCanvasContent: React.Dispatch<React.SetStateAction<CanvasContent | null>>;
+    setCurrentAssetMetadata: React.Dispatch<React.SetStateAction<AssetPreviewMetadata | null>>;
+    onlyRenderComposition: string | null;
+};
+export type CompositionManagerContext = {
+    compositions: AnyComposition[];
+    currentCompositionMetadata: BaseMetadata | null;
+    currentAssetMetadata: AssetPreviewMetadata | null;
+    folders: TFolder[];
+    canvasContent: CanvasContent | null;
+};
+export declare const CompositionManager: React.Context<CompositionManagerContext>;
+export declare const CompositionManagerRefContext: React.Context<{
+    readonly current: CompositionManagerContext;
+}>;
+export declare const CompositionSetters: React.Context<CompositionManagerSetters>;

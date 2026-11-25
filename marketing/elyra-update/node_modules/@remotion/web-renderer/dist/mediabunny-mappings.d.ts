@@ -1,0 +1,17 @@
+import type { AudioCodec } from 'mediabunny';
+import { Quality, type OutputFormat, type VideoCodec } from 'mediabunny';
+export type WebRendererVideoCodec = 'h264' | 'h265' | 'vp8' | 'vp9' | 'av1';
+export type WebRendererContainer = 'mp4' | 'webm' | 'mkv' | 'mov' | 'wav' | 'mp3' | 'aac' | 'ogg' | 'flac';
+export type WebRendererAudioCodec = 'aac' | 'opus' | 'mp3' | 'vorbis' | 'pcm-s16' | 'flac';
+export type WebRendererQuality = 'very-low' | 'low' | 'medium' | 'high' | 'very-high';
+export declare const isAudioOnlyContainer: (container: WebRendererContainer) => boolean;
+export declare const codecToMediabunnyCodec: (codec: WebRendererVideoCodec) => VideoCodec;
+export declare const containerToMediabunnyContainer: (container: WebRendererContainer) => OutputFormat;
+export declare const getDefaultVideoCodecForContainer: (container: WebRendererContainer) => WebRendererVideoCodec | null;
+export declare const getDefaultContainerForCodec: (codec: WebRendererVideoCodec) => WebRendererContainer;
+export declare const getQualityForWebRendererQuality: (quality: WebRendererQuality | Quality) => Quality;
+export declare const getMimeType: (container: WebRendererContainer) => string;
+export declare const getDefaultAudioCodecForContainer: (container: WebRendererContainer) => WebRendererAudioCodec;
+export declare const getSupportedVideoCodecsForContainer: (container: WebRendererContainer) => WebRendererVideoCodec[];
+export declare const audioCodecToMediabunnyAudioCodec: (audioCodec: WebRendererAudioCodec) => AudioCodec;
+export declare const getSupportedAudioCodecsForContainer: (container: WebRendererContainer) => WebRendererAudioCodec[];

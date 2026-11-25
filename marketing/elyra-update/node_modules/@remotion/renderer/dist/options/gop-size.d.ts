@@ -1,0 +1,18 @@
+export declare const validateGopSize: (value: number | null) => void;
+export declare const gopSizeOption: {
+    name: string;
+    addedIn: string;
+    cliFlag: "gop";
+    description: () => import("react").JSX.Element;
+    ssrName: string;
+    docLink: string;
+    type: number | null;
+    getValue: ({ commandLine }: {
+        commandLine: Record<string, unknown>;
+    }) => {
+        value: number | null;
+        source: string;
+    };
+    setConfig: (value: number | null) => void;
+    id: "gop";
+};

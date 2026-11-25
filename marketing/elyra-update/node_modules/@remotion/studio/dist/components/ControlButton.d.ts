@@ -1,0 +1,7 @@
+import React from 'react';
+import type { RenderInlineAction } from './InlineAction';
+export declare const CONTROL_BUTTON_PADDING = 6;
+export declare const ControlButton: (props: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'onClick' | 'title'> & {
+    readonly onClick: React.MouseEventHandler<HTMLButtonElement>;
+    readonly children: React.ReactNode | RenderInlineAction;
+}) => React.JSX.Element;

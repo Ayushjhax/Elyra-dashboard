@@ -1,0 +1,7 @@
+import React from 'react';
+import { type SettingsTab } from '../helpers/settings-tab-availability';
+export declare const SettingsModal: React.FC<{
+    readonly initialStudioPane: 'elements' | 'general' | null;
+    readonly initialTab: SettingsTab;
+    readonly initialPublicLicenseKey: string | null;
+}>;

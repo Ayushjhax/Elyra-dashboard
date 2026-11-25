@@ -1,0 +1,5 @@
+import React from 'react';
+export declare const TimelineMediaInfo: React.FC<{
+    readonly src: string;
+    readonly isImage: boolean;
+}>;

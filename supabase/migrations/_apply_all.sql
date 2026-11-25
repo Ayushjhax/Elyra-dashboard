@@ -2148,9 +2148,7 @@ create index if not exists event_marks_user_idx on public.event_marks(user_id, m
 
 alter table public.event_marks enable row level security;
 
-
 -- ==================== 0024_agent_rails.sql ====================
-
 -- ---------------------------------------------------------------------------
 -- 0024 — Agent rails: the permissioned path between AI agents and money.
 --
@@ -2292,9 +2290,7 @@ create index if not exists payment_requests_open_idx
 
 alter table public.payment_requests enable row level security;
 
-
--- ===================== 0025_ai_funds.sql ======================
-
+-- ===================== 0025_ai_funds.sql =====================
 -- ---------------------------------------------------------------------------
 -- 0025 — Autonomous AI funds.
 --
@@ -2620,9 +2616,7 @@ create unique index if not exists trading_positions_copy_once
   on public.trading_positions(copy_id, leader_position_id)
   where copy_id is not null and leader_position_id is not null;
 
-
--- ================= 0030_strategy_designs.sql ==================
-
+-- ================= 0030_strategy_designs.sql =================
 -- ---------------------------------------------------------------------------
 -- 0030 — Strategy designs: the strategies a person designs in Elyra.
 --
@@ -2656,6 +2650,7 @@ create index if not exists strategy_designs_user_idx on public.strategy_designs(
 
 alter table public.strategy_designs enable row level security;
 
+-- =================== 0031_insider_watch.sql ===================
 -- ---------------------------------------------------------------------------
 -- 0031 — Insider watch: fresh Hyperliquid wallets whose first trade is big.
 --
@@ -2746,6 +2741,113 @@ create table if not exists public.paper_accounts (
 );
 
 alter table public.paper_accounts enable row level security;
+
+-- ================== 0033_market_reports.sql ==================
+-- ---------------------------------------------------------------------------
+-- 0033 — Market reports: the deep research Elyra's agent writes about a
+-- token, kept so the person can come back to it without asking again.
+--
+-- `facts` is what the `deep_research` tool gathered (lib/analysis/research.ts)
+-- — price and market data, safety checks, sentiment, derivatives positioning
+-- and technicals, each with its source — saved when the tool runs. `reply` is
+-- the report the agent then wrote from those facts, attached when the reply
+-- finishes; it stays null if the run ended before one was written.
+--
+-- Same lockdown as the rest of the schema: RLS on with no policies, the
+-- service-role client the only writer, every query filtered by user_id.
+-- Additive; safe to run twice.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.market_reports (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  subject     text not null check (length(subject) between 1 and 80),
+  facts       jsonb not null,
+  reply       text,
+  created_at  timestamptz not null default now(),
+  replied_at  timestamptz
+);
+
+create index if not exists market_reports_user_idx on public.market_reports(user_id, created_at desc);
+
+alter table public.market_reports enable row level security;
+
+-- ================ 0034_portfolio_tracking.sql ================
+-- 0034 — Portfolio tracking: one close a day for every account, net of flows.
+--
+-- `portfolio_snapshots` (0004) is written only while someone has Elyra open,
+-- so a line drawn from it has holes wherever the person did not look. This
+-- table is the daily close, written by the server for every account with a
+-- wallet whether or not they visited — what the Portfolio page's equity
+-- curve, returns, drawdown and daily PnL calendar are built from.
+--
+-- Each row also carries the net of the deposits and withdrawals since the
+-- previous row (lib/portfolio/flows.ts), measured between the two readings
+-- rather than between midnights: the job reads equity a little after 00:00
+-- UTC, and money that arrived in between belongs to the interval it moved
+-- the equity in. `flows_complete` is false when a chain holding value could
+-- not be read far enough back, or a transfer had no price — the page then
+-- leaves the day out rather than counting a deposit as a gain.
+--
+-- Safe to run against a database that already has it.
+
+create table if not exists public.portfolio_daily (
+  user_id         uuid           not null references public.profiles(id) on delete cascade,
+  -- The UTC day whose close this approximates (the reading is taken just after it).
+  day             date           not null,
+  recorded_at     timestamptz    not null default now(),
+  -- Null when the read was partial — a venue failed — so the figure is not the account's value.
+  equity_usd      numeric(20, 2),
+  -- Net USD in (positive) or out since the previous row's reading. Null when unknown.
+  flow_usd        numeric(20, 2),
+  flows_complete  boolean        not null default false,
+  -- What could not be read, written for a person.
+  notes           text[]         not null default '{}',
+  primary key (user_id, day)
+);
+
+create index if not exists portfolio_daily_user_day_idx
+  on public.portfolio_daily (user_id, day desc);
+
+-- RLS on with no policies: the service role writes and reads, scoped by
+-- user_id in every query; no client role can touch it.
+alter table public.portfolio_daily enable row level security;
+revoke all on public.portfolio_daily from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The schedule. Its own route, /api/portfolio/track, not a step of the
+-- five-minute tick: reading every account takes minutes and the tick's 300
+-- seconds belong to trading. Every ten minutes from 00:00 to 05:59 UTC, each
+-- call records yesterday's close for the next batch of accounts that lack
+-- one, and returns at once when none do. Same vault secrets as 0013.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.elyra_portfolio_track_tick()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  base   text;
+  secret text;
+begin
+  select decrypted_secret into base   from vault.decrypted_secrets where name = 'elyra_api_url';
+  select decrypted_secret into secret from vault.decrypted_secrets where name = 'elyra_cron_secret';
+  if base is null or secret is null then
+    return;
+  end if;
+  perform net.http_get(
+    url := rtrim(base, '/') || '/api/portfolio/track',
+    headers := jsonb_build_object('Authorization', 'Bearer ' || secret),
+    timeout_milliseconds := 300000
+  );
+end;
+$$;
+
+revoke execute on function public.elyra_portfolio_track_tick() from public, anon, authenticated;
+
+select cron.schedule('elyra-portfolio-track', '*/10 0-5 * * *', 'select public.elyra_portfolio_track_tick()');
 
 -- ======================= 0035_scout.sql =======================
 -- ---------------------------------------------------------------------------
@@ -2878,3 +2980,4 @@ create table if not exists public.poly_basket_legs (
 
 create index if not exists poly_basket_legs_user_idx on public.poly_basket_legs(user_id);
 alter table public.poly_basket_legs enable row level security;
+

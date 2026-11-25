@@ -51,10 +51,15 @@ describe("callback data", () => {
 
     const data = callbackDataFor(record!.token);
 
-    /* If any of these appear, the amount is an input to the webhook rather
-       than something the server established and stored. */
-    expect(data).not.toMatch(/21\.25|SOL|USDC|swap/i);
     expect(data).toBe(`action:${record!.token}`);
+    expect(record!.token).toMatch(/^[A-Za-z0-9_-]{16,64}$/);
+
+    /* If any of these appear, the amount is an input to the webhook rather
+       than something the server established and stored. The token itself is
+       left out: it is random base64url, so it spells "Sol" or "swap" by chance
+       about one run in 1,600, and that it is not derived from the action is
+       the "different token every time" test below. */
+    expect(data.replace(record!.token, "")).not.toMatch(/21\.25|SOL|USDC|swap/i);
   });
 
   it("stays inside Telegram's 64-byte limit", async () => {

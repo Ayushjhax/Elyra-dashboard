@@ -22,6 +22,12 @@ describe("yahooSymbol", () => {
     }))).toBe("TSLA");
   });
 
+  it("maps an index to its own Yahoo symbol, and a private company's index to none", () => {
+    expect(yahooSymbol(asset({ symbol: "US500", assetType: "equity", pythSymbol: "Equity.Index.US500/USD" }))).toBe("^GSPC");
+    expect(yahooSymbol(asset({ symbol: "JP225", assetType: "equity", pythSymbol: "Equity.Index.JP225/JPY" }))).toBe("^N225");
+    expect(yahooSymbol(asset({ symbol: "OPENAI", assetType: "equity", pythSymbol: "Equity.Index.OPENAI/USD" }))).toBeNull();
+  });
+
   it("refuses a foreign listing, where the ticker is another company", () => {
     expect(yahooSymbol(asset({
       symbol: "C3M", assetType: "equity", pythSymbol: "Equity.FR.C3M/EUR",

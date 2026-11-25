@@ -25,6 +25,19 @@ const feed = (id: number, price: string) => ({ priceFeedId: id, price, exponent:
 const answer = (...feeds: ReturnType<typeof feed>[]) => new Response(JSON.stringify({ parsed: { timestampUs: "1795621264400000", priceFeeds: feeds } }), { status: 200 });
 const refusal = (id: number) => new Response(`Not entitled: feed ${id} (no grant accepts this feed)`, { status: 403 });
 const askedFor = (call: unknown[]) => (JSON.parse((call[1] as { body: string }).body) as { priceFeedIds: number[] }).priceFeedIds;
+const isPyth = (call: unknown[]) => call[0] === PRICE_URL;
+const isYahoo = (url: unknown) => typeof url === "string" && url.startsWith("https://query1.finance.yahoo.com/v7/finance/spark");
+/* Yahoo's spark answer for the symbols asked; `known` names those it lists. */
+const spark = (url: string, known: Record<string, number>) => {
+  const asked = decodeURIComponent(new URL(url).searchParams.get("symbols") ?? "").split(",");
+  const result = asked
+    .filter((symbol) => known[symbol] !== undefined)
+    .map((symbol) => ({
+      symbol,
+      response: [{ meta: { symbol, regularMarketPrice: known[symbol], regularMarketTime: 1795621200, currentTradingPeriod: { regular: { start: 1795617000, end: 1795640400 } } } }],
+    }));
+  return new Response(JSON.stringify({ spark: { result } }), { status: 200 });
+};
 
 /* A real answer from POST /v1/latest_price, 25 November 2026. */
 const ANSWER = {
@@ -93,27 +106,56 @@ describe("a plan that covers only some feeds", () => {
     expect(refusedFeed(new PythError("upstream", "Not entitled: feed 922"))).toBeNull();
   });
 
-  it("keeps crypto when the plan has no equities, and stops asking for the refused group", async () => {
-    fetchMock.mockImplementation(async (_url: string, init: { body: string }) => {
+  it("keeps crypto from Pyth, prices the refused equities from Yahoo, and stops asking Pyth for them", async () => {
+    fetchMock.mockImplementation(async (url: string, init: { body: string }) => {
+      if (isYahoo(url)) return spark(url, { AAPL: 231.5, MSFT: 412.25 });
       const ids = (JSON.parse(init.body) as { priceFeedIds: number[] }).priceFeedIds;
       return ids.includes(922) || ids.includes(923) ? refusal(ids.includes(922) ? 922 : 923) : answer(feed(1, "5800000000000"), feed(2, "164000000000"));
     });
     const prices = await pricesForIds([1, 2, 922, 923]);
-    expect(prices.map((p) => p.symbol).sort()).toEqual(["BTC", "ETH"]);
+    expect(prices.map((p) => [p.symbol, p.source ?? "pyth"]).sort()).toEqual([
+      ["AAPL", "yahoo"],
+      ["BTC", "pyth"],
+      ["ETH", "pyth"],
+      ["MSFT", "yahoo"],
+    ]);
+    expect(prices.find((p) => p.symbol === "AAPL")).toMatchObject({ price: 231.5, publishedAt: "2026-11-25T15:40:00.000Z" });
 
+    /* Remembered: Pyth is asked only for what its plan covers; Yahoo answers the rest. */
     fetchMock.mockClear();
-    fetchMock.mockImplementation(async () => answer(feed(1, "5800000000000"), feed(2, "164000000000")));
+    fetchMock.mockImplementation(async (url: string) => (isYahoo(url) ? spark(url, { AAPL: 231.5, MSFT: 412.25 }) : answer(feed(1, "5800000000000"), feed(2, "164000000000"))));
     await pricesForIds([1, 2, 922, 923]);
-    expect(fetchMock.mock.calls.flatMap(askedFor).sort()).toEqual([1, 2]);
+    expect(fetchMock.mock.calls.filter(isPyth).flatMap(askedFor).sort()).toEqual([1, 2]);
+
+    /* Neither source has a price: still an error, not an empty success. */
+    fetchMock.mockImplementation(async (url: string) => (isYahoo(url) ? spark(url, {}) : answer()));
     await expect(pricesForIds([922])).rejects.toThrow(/does not cover/);
   });
 
-  it("drops one gated feed and keeps the rest of its group", async () => {
-    fetchMock.mockImplementation(async (_url: string, init: { body: string }) => {
+  it("prices a gated index from Yahoo under its own index symbol", async () => {
+    fetchMock.mockImplementation(async (url: string, init: { body: string }) => {
+      if (isYahoo(url)) return spark(url, { "^GSPC": 7182.78 });
       const ids = (JSON.parse(init.body) as { priceFeedIds: number[] }).priceFeedIds;
       return ids.includes(3290) ? refusal(3290) : answer(feed(1, "5800000000000"));
     });
-    const prices = await pricesForIds([3290]).catch(() => []);
-    expect(prices).toEqual([]);
+    const prices = await pricesForIds([3290]);
+    expect(prices).toEqual([expect.objectContaining({ id: 3290, symbol: "US500", price: 7182.78, source: "yahoo" })]);
+  });
+
+});
+
+describe("a slow Pyth", () => {
+  it("asks once more when a call times out, rather than blanking the price", async () => {
+    fetchMock
+      .mockRejectedValueOnce(Object.assign(new Error("The operation timed out."), { name: "TimeoutError" }))
+      .mockResolvedValueOnce(answer(feed(2, "164000000000")));
+    const prices = await pricesForIds([2]);
+    expect(prices.map((p) => p.symbol)).toEqual(["ETH"]);
+    expect(fetchMock.mock.calls.filter(isPyth)).toHaveLength(2);
+  });
+
+  it("names a timeout as Pyth's when both attempts fail", async () => {
+    fetchMock.mockRejectedValue(Object.assign(new Error("The operation timed out."), { name: "TimeoutError" }));
+    await expect(pricesForIds([2])).rejects.toThrow(/did not respond/);
   });
 });

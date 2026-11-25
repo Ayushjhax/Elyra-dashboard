@@ -278,8 +278,9 @@ function FeedFooter({
   const ageMs = row && now !== null ? now - Date.parse(row.publishedAt) : null;
   const stale = status === "error" || (ageMs !== null && ageMs > 60_000);
   const decimals = priceDecimals(row?.price);
+  /* A feed Pyth's plan does not cover is priced from Yahoo Finance and says so (lib/market/pyth/standIn.ts). */
   const label =
-    status === "loading" && !row ? t("Connecting to Pyth") : status === "error" && !row ? t("Pyth unavailable") : "Pyth";
+    status === "loading" && !row ? t("Connecting to Pyth") : status === "error" && !row ? t("Pyth unavailable") : row?.source === "yahoo" ? "Yahoo Finance" : "Pyth";
   const clock =
     now === null
       ? "—"

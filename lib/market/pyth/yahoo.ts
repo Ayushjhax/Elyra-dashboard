@@ -2,6 +2,7 @@ import "server-only";
 
 import { UpstreamError, fetchJson } from "@/lib/market/http";
 import type { PythAsset } from "@/lib/market/pyth/types";
+import { yahooCandidates } from "@/lib/markets/exchanges";
 
 /* ---------------------------------------------------------------------------
    24h change for what the crypto exchanges do not list.
@@ -58,7 +59,9 @@ export function yahooSymbol(asset: PythAsset): string | null {
   switch (asset.assetType) {
     case "equity":
       /* Only US listings resolve from a bare ticker; elsewhere the same
-         ticker is a different company. */
+         ticker is a different company. An index has its own Yahoo symbol
+         (^GSPC for US500), the one World markets uses. */
+      if (region(asset.pythSymbol) === "Index") return yahooCandidates(asset.pythSymbol)[0] ?? null;
       return region(asset.pythSymbol) === "US" ? base : null;
 
     case "metal":

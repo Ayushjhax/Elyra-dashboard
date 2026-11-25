@@ -95,6 +95,16 @@ Every price shown with a currency sign goes through `formatPriceUsd` in
 `lib/format.ts`, whose precision follows the instrument (`lib/market/precision.ts`)
 — a small token must never render as `$0.00` or in exponent notation.
 
+Pyth is the price of record. A feed the key's plan refuses — on the current
+plan, equities and equity indices — is priced from Yahoo Finance's free
+quote instead (`lib/market/pyth/standIn.ts`, through `pricesForIds` and
+`pricesForLabelledIds`, so every caller gets it), marked `source: "yahoo"`
+and labelled as Yahoo wherever a source is shown. Outside the regular
+session its price is the last close and its session says "closed". Once the
+plan covers a class, Pyth answers again by itself (a refusal is forgotten
+after 15 minutes). A timed-out Pyth call is asked once more before a feed
+goes blank.
+
 The workspace shows no sample data — `lib/mock/` is gone and must not come
 back. Every surface reads the signed-in account through a shared,
 reference-counted store (`usePortfolio`, `useWalletActivity`, `useAlerts`,
@@ -164,8 +174,8 @@ so `/api/swap/submit` asks it again before Jupiter gets the bytes.
 Tokenized stocks (`/stocks`, `lib/equities/`) is every issuer's tokens in one
 list, grouped by the share behind them: Sunrise's, Backed's xStocks and Ondo's
 on Solana, and Robinhood's on Robinhood Chain, which are shown read-only.
-Each share is priced by Pyth's US equity feed and each Solana token at its
-on-chain price. The premium compares one token with one share and says so.
+Each share is priced by Pyth's US equity feed (or its Yahoo stand-in) and
+each Solana token at its on-chain price. The premium compares one token with one share and says so.
 
 Intelligent Portfolios (`/invest`) are published model portfolios, not
 tokens: `lib/invest/catalog.ts` holds the weights, every holding must be on
@@ -365,7 +375,7 @@ saved and again when it is applied — `lib/layout.ts` stays the one
 authority, and no layout sizes the chart.
 
 World markets (`/markets`, `lib/markets/`) prices every exchange from Pyth
-in its own currency, through its own symbol read (`worldCatalogue`), since
+(or its Yahoo stand-in) in its own currency, through its own symbol read (`worldCatalogue`), since
 the main catalogue keeps dollar feeds only. Session hours and holidays come
 from the schedule Pyth publishes for one feed per exchange
 (`lib/markets/schedule.ts`), never a table kept here. A market whose local

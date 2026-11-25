@@ -162,7 +162,7 @@ function ExchangeDetail({ exchange }: { exchange: ExchangeView }) {
         title={t("Benchmarks")}
         quotes={exchange.benchmarks}
         labels={labels}
-        tip={t("An index is Pyth's price for the index itself. A fund tracks it: one on the market's own exchange in its currency, or one in New York in dollars, which also moves with the currency.")}
+        tip={t("An index is the price of the index itself, from Pyth, or from Yahoo Finance where Pyth's plan does not cover it. A fund tracks it: one on the market's own exchange in its currency, or one in New York in dollars, which also moves with the currency.")}
       />
       {exchange.holidays.length > 0 && (
         <p className="type-label text-text-secondary">
@@ -339,7 +339,7 @@ export function WorldMarketsView() {
         <QuoteList title={t("Currencies")} quotes={data.fx} labels={fxLabels} tip={t("Pyth's live rates. A move in the yen, won or euro changes what a market's move is worth in dollars.")} />
       </section>
       <p className="type-label text-center text-text-muted">
-        {t("Prices from Pyth. Change against the previous close. London, Frankfurt, Paris and São Paulo are shown through funds and New York listings until Pyth's local feeds go live.")}
+        {t("Prices from Pyth, with Yahoo Finance standing in for any feed Pyth's plan does not cover. Change against the previous close. London, Frankfurt, Paris and São Paulo are shown through funds and New York listings until Pyth's local feeds go live.")}
       </p>
     </div>
   );

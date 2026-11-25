@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { FileSearch } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ReportsTab } from "./ReportsTab";
 import { BacktestsTab } from "./BacktestsTab";
 import { PredictionMarketsTab } from "./PredictionMarketsTab";
@@ -10,19 +12,28 @@ import { SignalsTab } from "./SignalsTab";
 import { YieldTab } from "./YieldTab";
 import { UnlocksTab } from "./UnlocksTab";
 import "./research.css";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
+import { ArbitrageTab } from "@/components/research/ArbitrageTab";
+import { SentimentTab } from "@/components/research/SentimentTab";
+import { InsiderTab } from "@/components/research/InsiderTab";
 
 const TABS = [
-  ["reports", "Reports"],
-  ["backtests", "Backtests"],
-  ["prediction", "Prediction Markets"],
-  ["recap", "Market Recap"],
-  ["signals", "Signals"],
-  ["yield", "Yield"],
-  ["unlocks", "Unlocks"],
+  ["reports", msg("Reports")],
+  ["backtests", msg("Backtests")],
+  ["prediction", msg("Prediction markets")],
+  ["recap", msg("Market recap")],
+  ["signals", msg("Signals")],
+  ["insiders", msg("Insider watch")],
+  ["arbitrage", msg("Arbitrage")],
+  ["sentiment", msg("Sentiment")],
+  ["yield", msg("Yield")],
+  ["unlocks", msg("Unlocks")],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
 export function ResearchWorkspace() {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   const raw = params.get("tab");
@@ -47,11 +58,13 @@ export function ResearchWorkspace() {
   }, [tab]);
   return (
     <div className="research-workspace">
-      <header className="r-header">
-        <h1>Research</h1>
-        <p>Filings, markets, signals and event intelligence.</p>
-      </header>
-      <div ref={nav} className="r-tabs" role="tablist" aria-label="Research">
+      <PageHeader
+        icon={FileSearch}
+        title={t("Research")}
+        subtitle={t("Filings, markets, signals and event intelligence.")}
+        className="mb-6"
+      />
+      <div ref={nav} className="r-tabs" role="tablist" aria-label={t("Research")}>
         {TABS.map(([id, label], index) => (
           <button
             key={id}
@@ -80,7 +93,7 @@ export function ResearchWorkspace() {
               )?.focus();
             }}
           >
-            {label}
+            {t(label)}
           </button>
         ))}
       </div>
@@ -101,6 +114,9 @@ export function ResearchWorkspace() {
               {id === "prediction" && <PredictionMarketsTab />}
               {id === "recap" && <RecapTab active={tab === id} />}
               {id === "signals" && <SignalsTab active={tab === id} />}
+              {id === "insiders" && <InsiderTab active={tab === id} />}
+              {id === "arbitrage" && <ArbitrageTab active={tab === id} />}
+              {id === "sentiment" && <SentimentTab active={tab === id} />}
               {id === "yield" && <YieldTab active={tab === id} />}
               {id === "unlocks" && (
                 <UnlocksTab

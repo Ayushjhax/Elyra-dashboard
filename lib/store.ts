@@ -21,6 +21,7 @@ import type {
   MarketFilter,
   WidgetKey,
 } from "@/lib/types";
+import { newLayout, readSavedLayouts, sanitizeState, type WorkspaceLayout } from "@/lib/workspaceLayouts";
 
 /** The left column, top to bottom, before the operator has moved anything. */
 export const DEFAULT_WIDGET_ORDER: WidgetKey[] = ["watchlist", "signals", "activity"];
@@ -175,6 +176,13 @@ interface ElyraState {
   setFocusMode: (on: boolean) => void;
   /** Every arrangement back to its default: order, widths, sections, columns. */
   resetLayout: () => void;
+  /** Layouts the operator saved by name (persisted; lib/workspaceLayouts.ts). */
+  savedLayouts: WorkspaceLayout[];
+  /** Saves the arrangement now under `name`, replacing one of that name. The reason in words when it cannot. */
+  saveLayout: (name: string) => string | null;
+  /** Puts a layout in place, its widths held to the shell's bounds. */
+  applyLayout: (layout: WorkspaceLayout) => void;
+  deleteLayout: (id: string) => void;
 
   /* ---- floating surfaces (never persisted) ---- */
   agentDrawerOpen: boolean;
@@ -286,7 +294,7 @@ function agentIsColumn(): boolean {
 
 export const useElyraStore = create<ElyraState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       selectedAssetId: DEFAULT_ASSET_ID,
       setSelectedAssetId: (id) => set({ selectedAssetId: id }),
 
@@ -446,6 +454,18 @@ export const useElyraStore = create<ElyraState>()(
           focusMode: false,
         }),
 
+      savedLayouts: [],
+      saveLayout: (name) => {
+        const state = get();
+        const made = newLayout(name, state, readSavedLayouts(state.savedLayouts), Date.now());
+        if ("error" in made) return made.error;
+        const others = readSavedLayouts(state.savedLayouts).filter((layout) => layout.id !== made.layout.id);
+        set({ savedLayouts: [...others, made.layout] });
+        return null;
+      },
+      applyLayout: (layout) => set({ ...sanitizeState(layout), focusMode: false }),
+      deleteLayout: (id) => set((state) => ({ savedLayouts: readSavedLayouts(state.savedLayouts).filter((layout) => layout.id !== id) })),
+
       agentDrawerOpen: false,
       setAgentDrawerOpen: (open) => set({ agentDrawerOpen: open }),
       navSheetOpen: false,
@@ -495,6 +515,7 @@ export const useElyraStore = create<ElyraState>()(
         automationOpen: state.automationOpen,
         columnWidths: state.columnWidths,
         railExpanded: state.railExpanded,
+        savedLayouts: state.savedLayouts,
         notificationsSeenAt: state.notificationsSeenAt,
         notificationsReadIds: state.notificationsReadIds,
         decisionBriefOpen: state.decisionBriefOpen,

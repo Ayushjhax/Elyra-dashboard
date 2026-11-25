@@ -3,6 +3,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * shadcn/ui Dialog, restyled: --surface-panel, --radius-panel, 1px
@@ -69,6 +70,7 @@ function DialogContent({
   showClose?: boolean;
   overlayClassName?: string;
 }) {
+  const t = useT();
   return (
     <DialogPortal>
       <DialogOverlay className={overlayClassName} />
@@ -86,7 +88,7 @@ function DialogContent({
         {children}
         {showClose && (
           <DialogPrimitive.Close
-            aria-label="Close"
+            aria-label={t("Close")}
             className={cn(
               "absolute right-3 top-3 inline-flex size-6 items-center justify-center rounded-chip",
               "text-text-muted transition-colors duration-[var(--dur-fast)] ease-brand",

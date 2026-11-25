@@ -26,6 +26,7 @@ import {
   Timestamp,
   useResearchResource,
 } from "./shared";
+import { useT } from "@/lib/i18n/client";
 
 export function UnlocksTab({
   active,
@@ -34,6 +35,7 @@ export function UnlocksTab({
   active: boolean;
   onReports: () => void;
 }) {
+  const t = useT();
   const auth = useElyraAuth();
   const [about, setAbout] = useState(false);
   const feed = useResearchResource<{
@@ -44,23 +46,23 @@ export function UnlocksTab({
   return (
     <div>
       {!auth.authenticated ? (
-        <SignIn>Sign in to check unlock data availability.</SignIn>
+        <SignIn>{t("Sign in to check unlock data availability.")}</SignIn>
       ) : (
         <>
           {feed.loading && !feed.data && (
-            <Loading>Checking unlock schedules…</Loading>
+            <Loading>{t("Checking unlock schedules…")}</Loading>
           )}
           {feed.error && <Problem retry={feed.reload}>{feed.error}</Problem>}
           {feed.data?.configured === false && (
             <>
               <div className="r-unlock-status">
                 <span aria-hidden />
-                Data source not connected
+                {t("Data source not connected")}
               </div>
               <div className="r-empty r-unlock-empty">
                 <LockKeyhole size={36} strokeWidth={1.25} aria-hidden />
-                <h2>Unlock data is unavailable</h2>
-                <p>Schedules will appear once a data source is connected.</p>
+                <h2>{t("Unlock data is unavailable")}</h2>
+                <p>{t("Schedules will appear once a data source is connected.")}</p>
                 <div className="r-actions">
                   <button
                     type="button"
@@ -68,14 +70,14 @@ export function UnlocksTab({
                     onClick={onReports}
                   >
                     <FileSearch size={17} aria-hidden />
-                    Explore reports
+                    {t("Explore reports")}
                   </button>
                   <button
                     type="button"
                     className="r-button r-borderless"
                     onClick={() => setAbout(true)}
                   >
-                    About unlocks ↗
+                    {t("About unlocks ↗")}
                   </button>
                 </div>
               </div>
@@ -84,34 +86,33 @@ export function UnlocksTab({
           {feed.data?.configured &&
             (feed.data.error ? (
               <Problem retry={feed.reload}>
-                Unlock schedules could not be read. The connected source is
-                unavailable.
+                {t("Unlock schedules could not be read. The connected source is unavailable.")}
               </Problem>
             ) : feed.data.unlocks.length === 0 ? (
               <div className="r-empty">
                 <CalendarDays size={30} aria-hidden />
-                <h2>No upcoming unlocks</h2>
-                <p>No releases were found in the next seven days.</p>
+                <h2>{t("No upcoming unlocks")}</h2>
+                <p>{t("No releases were found in the next seven days.")}</p>
               </div>
             ) : (
               <>
-                <h2>Upcoming unlocks · 7 days</h2>
+                <h2>{t("Upcoming unlocks · 7 days")}</h2>
                 <div className="r-table-scroll">
                   <table>
                     <thead>
                       <tr>
-                        <th scope="col">Date &amp; token</th>
+                        <th scope="col">{t("Date & token")}</th>
                         <th scope="col" className="r-number">
-                          Tokens
+                          {t("Tokens")}
                         </th>
                         <th scope="col" className="r-number">
-                          Value
+                          {t("Value")}
                         </th>
                         <th scope="col" className="r-number">
-                          Circulating supply
+                          {t("Circulating supply")}
                         </th>
-                        <th scope="col">Allocation</th>
-                        <th scope="col">Source</th>
+                        <th scope="col">{t("Allocation")}</th>
+                        <th scope="col">{t("Source")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -121,13 +122,12 @@ export function UnlocksTab({
                             {unlock.token}
                             <br />
                             <time dateTime={unlock.unlockAt}>
-                              {new Date(unlock.unlockAt).toLocaleDateString(
+                              {t("{value} UTC", { value: new Date(unlock.unlockAt).toLocaleDateString(
                                 "en-GB",
                                 { timeZone: "UTC" },
-                              )}{" "}
-                              UTC
+                              ) })}
                             </time>
-                            {unlock.estimated && <small>Estimated date</small>}
+                            {unlock.estimated && <small>{t("Estimated date")}</small>}
                           </td>
                           <td className="r-number">
                             {unlock.tokenAmount?.toLocaleString() ?? "—"}
@@ -138,7 +138,7 @@ export function UnlocksTab({
                           <td className="r-number">
                             {percentage(unlock.percentOfCirculating)}
                           </td>
-                          <td>{unlock.allocation ?? "Undisclosed"}</td>
+                          <td>{unlock.allocation ?? t("Undisclosed")}</td>
                           <td>
                             {unlock.sourceUrl ? (
                               <a
@@ -164,13 +164,13 @@ export function UnlocksTab({
       )}
       <div className="r-summaries r-unlock-explain">
         {[
-          [CalendarDays, "Date & token", "Upcoming releases"],
+          [CalendarDays, t("Date & token"), t("Upcoming releases")],
           [
             ChartNoAxesColumnIncreasing,
-            "Supply impact",
-            "Tokens entering circulation",
+            t("Supply impact"),
+            t("Tokens entering circulation"),
           ],
-          [Users, "Allocation", "Release recipients"],
+          [Users, t("Allocation"), t("Release recipients")],
         ].map(([Icon, title, text]) => {
           const Glyph = Icon as typeof CalendarDays;
           return (
@@ -187,20 +187,17 @@ export function UnlocksTab({
       <Dialog open={about} onOpenChange={setAbout}>
         <DialogContent className="research-dialog">
           <DialogHeader>
-            <DialogTitle>About token unlocks</DialogTitle>
+            <DialogTitle>{t("About token unlocks")}</DialogTitle>
             <DialogDescription>
-              Unlocks describe scheduled supply releases, not future prices.
+              {t("Unlocks describe scheduled supply releases, not future prices.")}
             </DialogDescription>
           </DialogHeader>
           <div className="r-dialog-body">
             <p>
-              Schedules show when tokens become transferable, how much may enter
-              circulation, and the allocation receiving them. Estimated dates
-              and missing values are identified when provided.
+              {t("Schedules show when tokens become transferable, how much may enter circulation, and the allocation receiving them. Estimated dates and missing values are identified when provided.")}
             </p>
             <p>
-              A release does not tell us whether recipients will sell. Schedules
-              depend on a connected data source.
+              {t("A release does not tell us whether recipients will sell. Schedules depend on a connected data source.")}
             </p>
           </div>
         </DialogContent>

@@ -9,8 +9,12 @@ import { MARKET_TOOLS } from "@/lib/agent/tools/market";
 import { PORTFOLIO_TOOLS } from "@/lib/agent/tools/portfolio";
 import { PREDICTION_TOOLS } from "@/lib/agent/tools/prediction";
 import { PREDICTION_SIGNAL_TOOLS } from "@/lib/agent/tools/prediction-signals";
+import { TRADING_TOOLS } from "@/lib/agent/tools/trading";
+import { ANALYSIS_TOOLS } from "@/lib/agent/tools/analysis";
 import { companyResearch } from "@/lib/research/tool";
 import { BACKTEST_TOOLS } from "@/lib/backtest/tool";
+import type { Locale } from "@/lib/i18n/locales";
+import type { VoicePersonaId } from "@/lib/voice/personas";
 
 /* ---------------------------------------------------------------------------
    The tool registry.
@@ -57,6 +61,17 @@ export interface ToolContext {
    * Absent (an outside agent, a scheduled run): nothing may be changed.
    */
   operatorMessage?: string | null;
+  /**
+   * The language the operator reads the website in — the reply is written
+   * in it. Never an instruction from text the operator did not write.
+   */
+  locale?: Locale;
+  /**
+   * The voice the reply will be spoken in, when the operator is in a voice
+   * conversation: an id from lib/voice/personas.ts, checked against that
+   * list. It shapes how the reply is written to be heard, nothing else.
+   */
+  voice?: VoicePersonaId;
 }
 
 export interface RegisteredTool {
@@ -69,7 +84,9 @@ export interface RegisteredTool {
 
 export const TOOLS: RegisteredTool[] = [
   ...MARKET_TOOLS,
+  ...ANALYSIS_TOOLS,
   ...PORTFOLIO_TOOLS,
+  ...TRADING_TOOLS,
   ...ELYRA_TOOLS,
   ...PREDICTION_TOOLS,
   ...PREDICTION_SIGNAL_TOOLS,

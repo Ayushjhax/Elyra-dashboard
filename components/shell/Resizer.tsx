@@ -8,6 +8,7 @@ import {
 } from "@/lib/layout";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The handle on a side column's inner edge.
@@ -54,6 +55,7 @@ export function ColumnResizer({
   side?: "start" | "end";
   className?: string;
 }) {
+  const t = useT();
   const stored = useElyraStore(
     (state) => state.columnWidths[id] ?? COLUMN_BOUNDS[id].initial,
   );
@@ -144,12 +146,12 @@ export function ColumnResizer({
       ref={ref}
       role="separator"
       aria-orientation="vertical"
-      aria-label={`Resize the ${bounds.label} column`}
+      aria-label={t("Resize the {label} column", { label: bounds.label })}
       aria-valuemin={bounds.min}
       aria-valuemax={bounds.max}
       aria-valuenow={drawn ?? clampColumn(id, stored)}
       tabIndex={0}
-      title="Drag to resize. Double-click to reset."
+      title={t("Drag to resize. Double-click to reset.")}
       onPointerDown={handlePointerDown}
       onKeyDown={handleKeyDown}
       onDoubleClick={() => resetColumnWidth(id)}

@@ -1,5 +1,7 @@
 import type { AccountEvent } from "@/lib/activity/events";
 import { formatDayGroup } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    What the bell shows, made from the account events that ask for attention.
@@ -14,7 +16,8 @@ import { formatDayGroup } from "@/lib/format";
    reload — and it is local, so there is no request that can fail.
 --------------------------------------------------------------------------- */
 
-export type NotificationCategory = "alert" | "action" | "failed" | "agent";
+/** `insider` is the website's insider watch (lib/insider), merged in by the bell. */
+export type NotificationCategory = "alert" | "action" | "failed" | "agent" | "insider";
 
 export type NotificationTarget =
   /** A page or an outside link. */
@@ -53,7 +56,7 @@ export function toNotification(event: AccountEvent): NotificationItem | null {
       return {
         id: event.id,
         category: "alert",
-        title: "Price alert triggered",
+        title: msg("Price alert triggered"),
         description: event.text,
         at: event.at,
         target: { kind: "alerts" },
@@ -63,7 +66,7 @@ export function toNotification(event: AccountEvent): NotificationItem | null {
       return {
         id: event.id,
         category: "action",
-        title: "Action awaiting your review",
+        title: msg("Action awaiting your review"),
         description: event.text.replace(/ — awaiting your review$/, ""),
         at: event.at,
         target: { kind: "review-actions" },
@@ -72,7 +75,7 @@ export function toNotification(event: AccountEvent): NotificationItem | null {
       return {
         id: event.id,
         category: "failed",
-        title: "Transaction failed",
+        title: msg("Transaction failed"),
         description: event.text.replace(/^Failed: /, "").replace(/^./, (first) => first.toUpperCase()),
         at: event.at,
         target: link,
@@ -81,7 +84,7 @@ export function toNotification(event: AccountEvent): NotificationItem | null {
       return {
         id: event.id,
         category: event.status === "failed" ? "failed" : "agent",
-        title: event.status === "failed" ? "Venue action failed" : "Elyra completed an action",
+        title: event.status === "failed" ? msg("Venue action failed") : msg("Elyra completed an action"),
         description: event.text,
         at: event.at,
         target: link,
@@ -89,10 +92,9 @@ export function toNotification(event: AccountEvent): NotificationItem | null {
   }
 }
 
-export function notificationsFrom(events: readonly AccountEvent[]): NotificationItem[] {
-  return events
-    .map(toNotification)
-    .filter((item): item is NotificationItem => item !== null)
+/** The bell's list: the account events that ask for attention, and any items made elsewhere (`extra`). */
+export function notificationsFrom(events: readonly AccountEvent[], extra: readonly NotificationItem[] = []): NotificationItem[] {
+  return [...events.map(toNotification).filter((item): item is NotificationItem => item !== null), ...extra]
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, NOTIFICATION_LIMIT);
 }
@@ -106,10 +108,11 @@ export function isUnread(item: NotificationItem, seenAt: string | null, readIds:
 export function groupByDay(
   items: readonly NotificationItem[],
   now: number,
+  locale: Locale = "en",
 ): Array<{ label: string; items: NotificationItem[] }> {
   const groups: Array<{ label: string; items: NotificationItem[] }> = [];
   for (const item of items) {
-    const label = formatDayGroup(item.at, now);
+    const label = formatDayGroup(item.at, now, locale);
     const last = groups.at(-1);
     if (last !== undefined && last.label === label) last.items.push(item);
     else groups.push({ label, items: [item] });

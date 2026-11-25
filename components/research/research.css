@@ -1,5 +1,7 @@
 /* Research reads the brand tokens from app/globals.css like every other
-   surface; only its card radius and type defaults are its own. */
+   surface; only its card radius and body type defaults are its own. Its
+   headings are the brand's (Fustat, section 2.1), and it adds no inset of its
+   own: the shell's padding is the page's edge, as on every full-bleed page. */
 .research-workspace,
 .research-dialog {
   --radius-card: 16px;
@@ -17,44 +19,35 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--surface-base);
-  padding: 32px 40px 48px;
+  padding-bottom: 48px;
 }
 .research-workspace *,
 .research-dialog * {
   min-width: 0;
 }
+/* 2.1's h1 and h2 roles. The page's own title is PageHeader's. */
 .research-workspace h1,
 .research-workspace h2,
 .research-workspace h3,
 .research-dialog h2,
 .research-dialog h3 {
-  font-family: var(--font-sans);
-  font-weight: 500;
-  letter-spacing: -0.02em;
-}
-.research-workspace h1 {
-  font-size: 24px;
-  line-height: 32px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  /* Fustat's tnum widens its word space to a figure's; see app/globals.css. */
+  font-variant-numeric: normal;
 }
 .research-workspace h2 {
   font-size: 20px;
-  line-height: 28px;
+  line-height: 26px;
   margin-bottom: 24px;
 }
 .research-workspace h3 {
   font-size: 16px;
-  line-height: 24px;
+  line-height: 22px;
 }
 .research-workspace p {
   overflow-wrap: anywhere;
-}
-.r-header p {
-  color: var(--text-secondary);
-  margin-top: 4px;
-  font-size: 15px;
-}
-.r-header {
-  margin-bottom: 24px;
 }
 .r-tabs {
   display: flex;
@@ -283,6 +276,7 @@
 .r-count {
   padding-left: 16px;
   font-size: 18px;
+  font-variant-numeric: tabular-nums;
 }
 .r-empty {
   padding: 64px 24px;
@@ -815,7 +809,8 @@
   min-height: 360px;
 }
 .r-unlock-empty h2 {
-  font-size: 24px;
+  font-size: 20px;
+  line-height: 26px;
 }
 .r-unlock-explain {
   border-top: 1px solid var(--border-subtle);
@@ -866,15 +861,7 @@
       border-color 150ms ease-out;
   }
 }
-@media (width >= 1700px) {
-  .research-workspace {
-    padding-inline: 56px;
-  }
-}
 @media (width < 1100px) {
-  .research-workspace {
-    padding: 24px;
-  }
   .r-split {
     gap: 24px;
   }
@@ -926,9 +913,6 @@
   }
 }
 @media (width < 520px) {
-  .research-workspace {
-    padding: 24px 16px 40px;
-  }
   .r-tabs {
     gap: 24px;
   }
@@ -975,7 +959,8 @@
     align-items: flex-start;
   }
   .r-quiet h2 {
-    font-size: 18px;
+    font-size: 16px;
+    line-height: 22px;
   }
   .r-quiet > svg {
     width: 20px;

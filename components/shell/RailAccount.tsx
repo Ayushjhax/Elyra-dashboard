@@ -17,6 +17,7 @@ import { useElyraStore } from "@/lib/store";
 import { walletIdentity, walletStatus } from "@/lib/wallet/status";
 import { useWalletDashboard, type WalletDashboard } from "@/lib/wallet/useWalletDashboard";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The account, from the foot of the rail.
@@ -62,6 +63,7 @@ function AccountPanel({
   onClose: () => void;
   onOpenWallet: () => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const logos = useTickerLogos(SOL);
   const [busy, setBusy] = useState(false);
@@ -80,7 +82,7 @@ function AccountPanel({
       onClose();
       router.push("/");
     } catch (failure: unknown) {
-      setError(failure instanceof Error ? failure.message : "Signing out failed. Try again.");
+      setError(failure instanceof Error ? failure.message : t("Signing out failed. Try again."));
     } finally {
       /* Cleared on failure too, so an error leaves a usable row rather than
          one stuck saying "Signing out". */
@@ -94,7 +96,7 @@ function AccountPanel({
         <div className="flex items-center gap-3">
           <Identicon identity={identity?.mark ?? null} size={40} />
           <div className="min-w-0">
-            <p className="type-h2 truncate font-sans text-text-primary">Your account</p>
+            <p className="type-h2 truncate font-sans text-text-primary">{t("Your account")}</p>
             {method !== null && <p className="type-body-sm truncate text-text-secondary">{method}</p>}
           </div>
         </div>
@@ -106,21 +108,21 @@ function AccountPanel({
           </span>
           <span className="type-label inline-flex shrink-0 items-center gap-1.5 text-text-secondary">
             <span aria-hidden className={cn("size-1.5 rounded-pill", DOT[status.tone])} />
-            {status.tone === "positive" ? "Wallet connected" : status.label}
+            {status.tone === "positive" ? t("Wallet connected") : t(status.label)}
           </span>
         </div>
 
         {identity === null ? (
           <p className="type-body-sm mt-3 text-text-secondary">
-            {wallet.isLoading ? "Reading your wallet…" : "This account has no Solana wallet yet."}
+            {wallet.isLoading ? t("Reading your wallet…") : t("This account has no Solana wallet yet.")}
           </p>
         ) : (
           <div className="mt-3 flex items-center gap-2 rounded-control border border-border-subtle py-0.5 pl-3 pr-0.5">
             <span className="type-mono-addr min-w-0 flex-1 truncate text-text-primary" title={identity.address}>
               {truncateMiddle(identity.address, 4, 4)}
-              <span className="sr-only"> (full address: {identity.address})</span>
+              <span className="sr-only">{" "}{t("(full address: {address})", { address: identity.address })}</span>
             </span>
-            <CopyButton value={identity.address} label="wallet address" />
+            <CopyButton value={identity.address} label={t("wallet address")} />
           </div>
         )}
       </div>
@@ -131,12 +133,12 @@ function AccountPanel({
             whose tooltip would open over the status line. */}
         <Link href="/dashboard#account" onClick={onClose} data-autofocus className={ROW}>
           <UserRound size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
-          <span className="flex-1">Account settings</span>
+          <span className="flex-1">{t("Account settings")}</span>
           <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
         </Link>
         <button type="button" onClick={onOpenWallet} className={ROW}>
           <Wallet size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
-          <span className="flex-1">Open wallet</span>
+          <span className="flex-1">{t("Open wallet")}</span>
           <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-text-muted" />
         </button>
       </div>
@@ -150,7 +152,7 @@ function AccountPanel({
           className={cn(ROW, "text-negative")}
         >
           <LogOut size={18} strokeWidth={1.5} aria-hidden className="shrink-0" />
-          <span className="flex-1">{busy ? "Signing out…" : "Sign out"}</span>
+          <span className="flex-1">{busy ? t("Signing out…") : t("Sign out")}</span>
           <ChevronRight size={16} strokeWidth={1.5} aria-hidden className="text-negative/70" />
         </button>
         {error !== null && (
@@ -165,6 +167,7 @@ function AccountPanel({
 
 /** The avatar at the foot of the rail, and the account menu it opens. */
 export function RailAccount({ icons }: { icons: boolean }) {
+  const t = useT();
   const auth = useElyraAuth();
   const wallet = useWalletDashboard();
   const setWalletSheetOpen = useElyraStore((state) => state.setWalletSheetOpen);
@@ -175,7 +178,7 @@ export function RailAccount({ icons }: { icons: boolean }) {
   if (!auth.available) return null;
 
   if (!(auth.ready && auth.authenticated)) {
-    const label = auth.ready ? "Sign in" : "Restoring session";
+    const label = auth.ready ? t("Sign in") : t("Restoring session");
     return (
       <Tooltip open={tip && icons} onOpenChange={setTip}>
         <TooltipTrigger asChild>
@@ -209,7 +212,7 @@ export function RailAccount({ icons }: { icons: boolean }) {
   return (
     <Popover
       id="rail-account-menu"
-      label="Account"
+      label={t("Account")}
       open={open}
       onOpenChange={setOpen}
       side="right"
@@ -223,7 +226,7 @@ export function RailAccount({ icons }: { icons: boolean }) {
             <button
               ref={triggerRef}
               type="button"
-              aria-label="Open account menu"
+              aria-label={t("Open account menu")}
               aria-haspopup="dialog"
               aria-expanded={open}
               aria-controls="rail-account-menu"
@@ -235,11 +238,11 @@ export function RailAccount({ icons }: { icons: boolean }) {
             >
               <Identicon identity={identity?.mark ?? null} size={36} active={open} />
               <span className="rail-label type-label">
-                {identity === null ? "Your account" : truncateMiddle(identity.address, 4, 4)}
+                {identity === null ? t("Your account") : truncateMiddle(identity.address, 4, 4)}
               </span>
             </button>
           </TooltipTrigger>
-          <TooltipContent side="right">Account</TooltipContent>
+          <TooltipContent side="right">{t("Account")}</TooltipContent>
         </Tooltip>
       }
     >
@@ -262,6 +265,7 @@ export function RailAccount({ icons }: { icons: boolean }) {
 
 /** The same account panel, inline in the navigation sheet on a phone. */
 export function SheetAccount({ onNavigate }: { onNavigate: () => void }) {
+  const t = useT();
   const auth = useElyraAuth();
   const wallet = useWalletDashboard();
   const setWalletSheetOpen = useElyraStore((state) => state.setWalletSheetOpen);
@@ -283,13 +287,13 @@ export function SheetAccount({ onNavigate }: { onNavigate: () => void }) {
         className={cn(ROW, "border border-border-subtle")}
       >
         <LogIn size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
-        <span className="flex-1">Sign in</span>
+        <span className="flex-1">{t("Sign in")}</span>
       </button>
     );
   }
 
   return (
-    <section aria-label="Account" className="rounded-panel border border-border-subtle bg-surface-raised">
+    <section aria-label={t("Account")} className="rounded-panel border border-border-subtle bg-surface-raised">
       <AccountPanel
         auth={auth}
         wallet={wallet}

@@ -1,5 +1,6 @@
 import type { AccountEvent } from "@/lib/activity/events";
 import type { WalletActivity } from "@/lib/wallet/types";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The Activity widget's filters, as one pure function.
@@ -28,10 +29,10 @@ export interface ActivityFilters {
 export const DEFAULT_FILTERS: ActivityFilters = { direction: "all", range: "all", network: "all", query: "" };
 
 export const RANGE_LABEL: Record<DateRange, string> = {
-  all: "All time",
-  today: "Today",
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
+  all: msg("All time"),
+  today: msg("Today"),
+  "7d": msg("Last 7 days"),
+  "30d": msg("Last 30 days"),
 };
 
 const DAY = 86_400_000;

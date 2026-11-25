@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChartNoAxesColumnIncreasing } from "lucide-react";
+import Link from "next/link";
+import { Bot, ChartNoAxesColumnIncreasing } from "lucide-react";
+import { handoffFor, handoffHref } from "@/lib/autotrade/handoff";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { cn } from "@/lib/utils";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { Loading, Problem, SignIn, useResearchResource } from "./shared";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The Backtest lab.
@@ -68,6 +71,7 @@ interface RunResult {
   strategy: { name: string; rules: { entry: string; exit: string } };
   config: {
     instrumentId: string;
+    strategyId?: string;
     timeframe: string;
     startAt: string;
     endAt: string;
@@ -144,6 +148,7 @@ function Chip({
 
 /** Equity curve, drawn from the result rather than a chart library. */
 function EquitySpark({ equity }: { equity: Array<{ equity: number }> }) {
+  const t = useT();
   if (equity.length < 2) return null;
 
   /* Downsampled to roughly the pixel width — plotting 8,700 points into a
@@ -170,7 +175,7 @@ function EquitySpark({ equity }: { equity: Array<{ equity: number }> }) {
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
       className="h-24 w-full"
-      aria-label="Equity curve"
+      aria-label={t("Equity curve")}
     >
       <path
         d={path}
@@ -184,6 +189,7 @@ function EquitySpark({ equity }: { equity: Array<{ equity: number }> }) {
 }
 
 export function BacktestsTab() {
+  const t = useT();
   const authedFetch = useAuthedFetch();
 
   const auth = useElyraAuth();
@@ -238,7 +244,7 @@ export function BacktestsTab() {
       const body = (await response.json()) as RunResult & { error?: string };
       if (requestController.signal.aborted) return;
       if (!response.ok) {
-        setError(body.error ?? "The backtest failed.");
+        setError(body.error ?? t("The backtest failed."));
         setResult(null);
         return;
       }
@@ -247,7 +253,7 @@ export function BacktestsTab() {
     } catch {
       if (!requestController.signal.aborted)
         setError(
-          "The backtest could not be run. Check the inputs and try again.",
+          t("The backtest could not be run. Check the inputs and try again."),
         );
     } finally {
       controller.current = null;
@@ -262,7 +268,7 @@ export function BacktestsTab() {
     feeBps,
     slippageBps,
     params,
-    strategy,
+    strategy, t,
   ]);
 
   const parameterValue = (key: string) =>
@@ -283,13 +289,13 @@ export function BacktestsTab() {
   return (
     <div className="r-backtests">
       {!auth.authenticated && (
-        <SignIn>Connect a wallet to configure and run a backtest.</SignIn>
+        <SignIn>{t("Connect a wallet to configure and run a backtest.")}</SignIn>
       )}
       {catalogueFeed.error && (
         <Problem retry={catalogueFeed.reload}>{catalogueFeed.error}</Problem>
       )}
       {catalogueFeed.loading && (
-        <Loading>Loading supported strategies…</Loading>
+        <Loading>{t("Loading supported strategies…")}</Loading>
       )}
       <div className="r-split r-backtest-builder">
         <form
@@ -299,13 +305,13 @@ export function BacktestsTab() {
             void run();
           }}
         >
-          <h2>Strategy builder</h2>
+          <h2>{t("Strategy builder")}</h2>
           <fieldset disabled={running}>
-            <legend className="sr-only">Market and period</legend>
+            <legend className="sr-only">{t("Market and period")}</legend>
             {(
               [
-                ["Asset", SYMBOLS, symbol, setSymbol],
-                ["Timeframe", TIMEFRAMES, timeframe, setTimeframe],
+                [t("Asset"), SYMBOLS, symbol, setSymbol],
+                [t("Timeframe"), TIMEFRAMES, timeframe, setTimeframe],
               ] as const
             ).map(([label, options, value, change]) => (
               <div className="r-form-row" key={label}>
@@ -324,8 +330,8 @@ export function BacktestsTab() {
               </div>
             ))}
             <div className="r-form-row">
-              <span>Period</span>
-              <div className="r-choices" role="group" aria-label="Period">
+              <span>{t("Period")}</span>
+              <div className="r-choices" role="group" aria-label={t("Period")}>
                 {PERIODS.map((option) => (
                   <Chip
                     key={option.label}
@@ -338,7 +344,7 @@ export function BacktestsTab() {
               </div>
             </div>
             <label className="r-form-row">
-              <span>Strategy</span>
+              <span>{t("Strategy")}</span>
               <select
                 value={strategyId}
                 disabled={!catalogue}
@@ -346,11 +352,11 @@ export function BacktestsTab() {
                   setStrategyId(event.target.value);
                   setParams({});
                 }}
-                aria-label="Strategy"
+                aria-label={t("Strategy")}
               >
                 {!catalogue && (
                   <option value="RSI_12_MEAN_REVERSION_V1">
-                    RSI (12) — mean reversion
+                    {t("RSI (12) — mean reversion")}
                   </option>
                 )}
                 {catalogue?.categories.map((category) => (
@@ -369,7 +375,7 @@ export function BacktestsTab() {
           </fieldset>
           {strategy && strategy.parameters.length > 0 && (
             <fieldset className="r-parameter-grid" disabled={running}>
-              <legend className="sr-only">Parameters</legend>
+              <legend className="sr-only">{t("Parameters")}</legend>
               {strategy.parameters.map((parameter) => (
                 <label key={parameter.key}>
                   <span>{parameter.label}</span>
@@ -399,9 +405,9 @@ export function BacktestsTab() {
             </fieldset>
           )}
           <fieldset className="r-cost-grid" disabled={running}>
-            <legend className="sr-only">Execution costs</legend>
+            <legend className="sr-only">{t("Execution costs")}</legend>
             <label>
-              <span>Fee (bps)</span>
+              <span>{t("Fee (bps)")}</span>
               <input
                 type="number"
                 required
@@ -418,7 +424,7 @@ export function BacktestsTab() {
               />
             </label>
             <label>
-              <span>Slippage (bps)</span>
+              <span>{t("Slippage (bps)")}</span>
               <input
                 type="number"
                 required
@@ -442,7 +448,7 @@ export function BacktestsTab() {
               disabled={running || !strategy || !auth.authenticated}
               aria-busy={running}
             >
-              {running ? "Running…" : "Run backtest"}
+              {running ? t("Running…") : t("Run backtest")}
             </button>
             <button
               type="button"
@@ -450,47 +456,47 @@ export function BacktestsTab() {
               disabled={running}
               onClick={reset}
             >
-              Reset
+              {t("Reset")}
             </button>
           </div>
         </form>
         <aside className="r-strategy-summary">
-          <h2>Strategy logic</h2>
+          <h2>{t("Strategy logic")}</h2>
           <dl className="r-definition">
-            <dt>Entry</dt>
+            <dt>{t("Entry")}</dt>
             <dd>
               {strategy
                 ? isRsi
-                  ? `RSI (${parameterValue("period")}) crosses back above ${parameterValue("oversold")}.`
+                  ? t("RSI ({period}) crosses back above {level}.", { period: parameterValue("period"), level: parameterValue("oversold") })
                   : strategy.rules.entry
-                : "Load a strategy to view its rules."}
+                : t("Load a strategy to view its rules.")}
             </dd>
-            <dt>Exit</dt>
+            <dt>{t("Exit")}</dt>
             <dd>
               {strategy
                 ? isRsi
-                  ? `RSI crosses above ${parameterValue("exitLevel")}.`
+                  ? t("RSI crosses above {level}.", { level: parameterValue("exitLevel") })
                   : strategy.rules.exit
                 : "—"}
             </dd>
-            <dt>Position</dt>
-            <dd>Long only</dd>
+            <dt>{t("Position")}</dt>
+            <dd>{t("Long only")}</dd>
           </dl>
           <div className="r-section">
-            <h2>Execution</h2>
+            <h2>{t("Execution")}</h2>
             <dl className="r-definition">
-              <dt>Signal</dt>
-              <dd>At bar close</dd>
-              <dt>Fill</dt>
-              <dd>At next bar open</dd>
-              <dt>Fee</dt>
-              <dd>{Number.isFinite(feeBps) ? feeBps : "—"} bps</dd>
-              <dt>Slippage</dt>
-              <dd>{Number.isFinite(slippageBps) ? slippageBps : "—"} bps</dd>
+              <dt>{t("Signal")}</dt>
+              <dd>{t("At bar close")}</dd>
+              <dt>{t("Fill")}</dt>
+              <dd>{t("At next bar open")}</dd>
+              <dt>{t("Fee")}</dt>
+              <dd>{t("{value} bps", { value: Number.isFinite(feeBps) ? feeBps : "—" })}</dd>
+              <dt>{t("Slippage")}</dt>
+              <dd>{t("{value} bps", { value: Number.isFinite(slippageBps) ? slippageBps : "—" })}</dd>
             </dl>
           </div>
           <p className="r-footnote">
-            Funding, shorts and leverage are not simulated.
+            {t("Funding, shorts and leverage are not simulated.")}
           </p>
         </aside>
       </div>
@@ -501,11 +507,11 @@ export function BacktestsTab() {
             strokeWidth={1.5}
             aria-hidden
           />
-          <p>Run a test to see results here.</p>
+          <p>{t("Run a test to see results here.")}</p>
         </div>
       )}
       {running && (
-        <Loading>Running the simulation against historical bars…</Loading>
+        <Loading>{t("Running the simulation against historical bars…")}</Loading>
       )}
       {error !== null && (
         <div className="rounded-card border border-border-subtle bg-surface-base p-4">
@@ -527,23 +533,25 @@ export function BacktestsTab() {
                   {result.config.instrumentId} · {result.strategy.name}
                 </p>
                 <p className="type-label text-text-muted">
-                  {result.config.timeframe.toUpperCase()} · {result.barsLoaded}{" "}
-                  bars · {(result.coverage * 100).toFixed(1)}% coverage
+                  {t("{timeframe} · {barsLoaded} bars · {value2}% coverage", { timeframe: result.config.timeframe.toUpperCase(), barsLoaded: result.barsLoaded, value2: (result.coverage * 100).toFixed(1) })}
                 </p>
               </div>
-              <span className="type-label text-text-muted">
-                {result.quality.level}
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="type-label text-text-muted">
+                  {result.quality.level}
+                </span>
+                <RunOnPaper result={result} strategyId={strategyId} />
+              </div>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {[
-                ["Return", pct(result.metrics.totalReturnPct)],
-                ["Buy & hold", pct(result.metrics.benchmarkReturnPct)],
-                ["Max drawdown", pct(result.metrics.maxDrawdownPct)],
-                ["Sharpe", num(result.metrics.sharpe)],
-                ["Trades", String(result.metrics.trades)],
-                ["Win rate", pct(result.metrics.winRatePct, 0)],
+                [t("Return"), pct(result.metrics.totalReturnPct)],
+                [t("Buy & hold"), pct(result.metrics.benchmarkReturnPct)],
+                [t("Max drawdown"), pct(result.metrics.maxDrawdownPct)],
+                [t("Sharpe"), num(result.metrics.sharpe)],
+                [t("Trades"), String(result.metrics.trades)],
+                [t("Win rate"), pct(result.metrics.winRatePct, 0)],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="type-label text-text-muted">{label}</p>
@@ -578,15 +586,15 @@ export function BacktestsTab() {
             <Panel>
               {/* Not a footnote: a return without its assumptions is a number
                   that circulates without its caveats. */}
-              <p className="type-label mb-2 text-text-muted">Assumptions</p>
+              <p className="type-label mb-2 text-text-muted">{t("Assumptions")}</p>
               <ul className="flex list-none flex-col gap-0.5">
                 {[
-                  `Data source: Binance klines, ${result.config.timeframe}`,
-                  `Period: ${result.config.startAt.slice(0, 10)} → ${result.config.endAt.slice(0, 10)}`,
-                  `Initial capital: $${result.config.initialCapitalUsd.toLocaleString()}`,
-                  `Fee ${result.config.execution.feeBps} bps · Slippage ${result.config.execution.slippageBps} bps`,
-                  "Direction: long only · Funding excluded",
-                  "Execution: signal on bar close, fill at next bar open",
+                  t("Data source: Binance klines, {timeframe}", { timeframe: result.config.timeframe }),
+                  t("Period: {start} → {end}", { start: result.config.startAt.slice(0, 10), end: result.config.endAt.slice(0, 10) }),
+                  t("Initial capital: {capital}", { capital: `$${result.config.initialCapitalUsd.toLocaleString("en-US")}` }),
+                  t("Fee {fee} bps · Slippage {slippage} bps", { fee: result.config.execution.feeBps, slippage: result.config.execution.slippageBps }),
+                  t("Direction: long only · Funding excluded"),
+                  t("Execution: signal on bar close, fill at next bar open"),
                 ].map((line) => (
                   <li key={line} className="type-label text-text-secondary">
                     {line}
@@ -597,7 +605,7 @@ export function BacktestsTab() {
               {result.quality.issues.length > 0 && (
                 <>
                   <p className="type-label mb-1 mt-3 text-text-muted">
-                    Caveats
+                    {t("Caveats")}
                   </p>
                   {result.quality.issues.map((issue) => (
                     <p key={issue} className="type-label text-text-secondary">
@@ -610,7 +618,7 @@ export function BacktestsTab() {
               {result.robustness !== null && (
                 <>
                   <p className="type-label mb-1 mt-3 text-text-muted">
-                    Robustness
+                    {t("Robustness")}
                   </p>
                   {result.robustness.findings.map((finding) => (
                     <p key={finding} className="type-label text-text-secondary">
@@ -625,14 +633,13 @@ export function BacktestsTab() {
           {tab === "trades" && (
             <Panel>
               <p className="type-label mb-2 text-text-muted">
-                {result.trades.length} trade
-                {result.trades.length === 1 ? "" : "s"}
+                {(result.trades.length === 1 ? t("{count} trade", { count: result.trades.length }) : t("{count} trades", { count: result.trades.length }))}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px]">
                   <thead>
                     <tr className="border-b border-border-subtle">
-                      {["Entry", "Exit", "Return", "PnL", "Bars"].map(
+                      {[t("Entry"), t("Exit"), t("Return"), "PnL", t("Bars")].map(
                         (head) => (
                           <th
                             scope="col"
@@ -688,7 +695,7 @@ export function BacktestsTab() {
               </div>
               {result.trades.length > 50 && (
                 <p className="type-label mt-2 text-text-muted">
-                  Showing the first 50 of {result.trades.length}.
+                  {t("Showing the first 50 of {count}.", { count: result.trades.length })}
                 </p>
               )}
             </Panel>
@@ -696,15 +703,15 @@ export function BacktestsTab() {
 
           {tab === "strategy" && (
             <Panel>
-              <p className="type-label mb-1 text-text-muted">Entry</p>
+              <p className="type-label mb-1 text-text-muted">{t("Entry")}</p>
               <p className="type-body-sm mb-3 text-text-primary">
                 {result.strategy.rules.entry}
               </p>
-              <p className="type-label mb-1 text-text-muted">Exit</p>
+              <p className="type-label mb-1 text-text-muted">{t("Exit")}</p>
               <p className="type-body-sm mb-3 text-text-primary">
                 {result.strategy.rules.exit}
               </p>
-              <p className="type-label mb-1 text-text-muted">Parameters</p>
+              <p className="type-label mb-1 text-text-muted">{t("Parameters")}</p>
               <p className="type-data-sm text-text-secondary">
                 {Object.entries(result.config.params)
                   .map(([key, value]) => `${key}: ${value}`)
@@ -715,5 +722,25 @@ export function BacktestsTab() {
         </>
       )}
     </div>
+  );
+}
+
+/* A tested strategy, one step from running: on a market and timeframe a rule
+   can trade, the result offers to fill /automation's New rule form with it.
+   Nothing is created until the person adds the rule, and it starts on paper. */
+function RunOnPaper({ result, strategyId }: { result: RunResult; strategyId: string }) {
+  const t = useT();
+  const handoff = handoffFor({
+    strategyId: result.config.strategyId ?? strategyId,
+    symbol: result.config.instrumentId,
+    timeframe: result.config.timeframe,
+    params: result.config.params,
+  });
+  if (handoff === null) return null;
+  return (
+    <Link href={handoffHref(handoff)} className="r-button" title={t("Fill a new paper rule on Automation with this strategy, market, timeframe and parameters.")}>
+      <Bot size={14} strokeWidth={1.5} aria-hidden />
+      {t("Run on paper")}
+    </Link>
   );
 }

@@ -7,15 +7,19 @@ import { CoinMark } from "@/components/ui/CoinMark";
 import { DeltaText } from "@/components/ui/DeltaText";
 import { Section, SectionControl } from "@/components/ui/Section";
 import type { WidgetProps } from "@/components/workspace/WidgetColumn";
+import { marketFor } from "@/lib/autotrade/rules";
 import { formatCompactUsd, formatPrice, formatPriceUsd, formatRelativeTime } from "@/lib/format";
 import { priceDecimals } from "@/lib/market/precision";
 import { useTickerLogos, type TickerLogo } from "@/lib/market/tickerLogos";
 import { refreshPrices, useAssets, useAssetsBySymbols, usePrices } from "@/lib/market/usePrices";
 import type { PriceRow, PythAsset } from "@/lib/market/pyth/types";
 import { parseTrackerSignalList, type TrackerSignal } from "@/lib/tracker/types";
+import { requestTicket } from "@/lib/trade/ticketRequest";
 import { useMinute } from "@/lib/useClock";
 import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
+import { translateNow, useT } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/locales";
 
 /* ---------------------------------------------------------------------------
    Market and smart-money signals — two feeds, kept apart. Market opens
@@ -78,8 +82,8 @@ const META_EQUITY_FEED_ID = 1272;
 /* Ages come from the shared minute clock, which is null until hydration
    (there is no "now" the server and client would agree on) and ticks on its
    own after. */
-function age(iso: string, now: number | null): string {
-  return now === null ? "—" : formatRelativeTime(iso, now);
+function age(iso: string, now: number | null, locale: Locale): string {
+  return now === null ? "—" : formatRelativeTime(iso, now, locale);
 }
 
 /**
@@ -144,6 +148,7 @@ function MarketRow({
   seq: number;
   now: number | null;
 }) {
+  const t = useT();
   const distance = emaDistance(row);
   const above = distance >= 0;
   const direction =
@@ -162,14 +167,28 @@ function MarketRow({
               above ? "bg-positive-bg text-positive" : "bg-negative-bg text-negative",
             )}
           >
-            {above ? "Long" : "Short"}
+            {above ? t("Long") : t("Short")}
           </span>
         </div>
         <p className="type-label mt-0.5 truncate text-text-muted">
-          {above ? "Above" : "Below"} EMA by {Math.abs(distance).toFixed(2)}%
-          {row.marketSession && row.marketSession !== "regular" ? ` · ${row.marketSession}` : ""}
-          {` · ${age(row.publishedAt, now)}`}
+          {above
+            ? t("Above EMA by {distance}%", { distance: Math.abs(distance).toFixed(2) })
+            : t("Below EMA by {distance}%", { distance: Math.abs(distance).toFixed(2) })}
+          {row.marketSession && row.marketSession !== "regular" ? ` · ${t(row.marketSession)}` : ""}
+          {` · ${age(row.publishedAt, now, t.locale)}`}
         </p>
+        {/* Try the signal without a fill: the chart's ticket, on this market and side, on paper. */}
+        {(marketFor(asset.symbol) ?? marketFor(`xyz:${asset.symbol}`)) !== null && (
+          <button
+            type="button"
+            onClick={() => requestTicket({ assetId: asset.id, side: above ? "long" : "short", paper: true })}
+            aria-label={t("Paper trade {symbol} {side}", { symbol: asset.symbol, side: above ? t("long") : t("short") })}
+            className="type-label mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-chip text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
+          >
+            <FlaskConical size={12} strokeWidth={1.5} aria-hidden />
+            {t("Paper trade")}
+          </button>
+        )}
       </div>
       <div className="shrink-0 text-right">
         <p className={cn("type-data rounded-chip px-1 text-text-primary", flash)}>
@@ -214,22 +233,23 @@ function MarketSignals({
   resolving,
   now,
 }: ReturnType<typeof useMarketSignals> & { now: number | null }) {
+  const t = useT();
   return (
     <>
       {feed.status === "error" && (
         <div role="alert" className="flex items-center gap-2 border-b border-border-subtle bg-negative-bg px-3 py-2">
           <AlertTriangle size={13} aria-hidden className="shrink-0 text-negative" />
           <p className="type-label min-w-0 flex-1 text-text-secondary">
-            Latest prices could not refresh. Last good prices stay visible.
+            {t("Latest prices could not refresh. Last good prices stay visible.")}
           </p>
           <Button size="xs" variant="quiet" onClick={refreshPrices}>
-            Retry
+            {t("Retry")}
           </Button>
         </div>
       )}
 
       {resolving && rows.length === 0 ? (
-        <ul aria-busy="true" aria-label="Loading market signals" className="list-none">
+        <ul aria-busy="true" aria-label={t("Loading market signals")} className="list-none">
           {LIVE_MARKETS.slice(0, 5).map((symbol) => (
             <li key={symbol} className="flex h-14 items-center gap-2 border-b border-border-subtle px-3">
               <span className="skeleton size-7 rounded-pill" />
@@ -253,16 +273,16 @@ function MarketSignals({
         </ul>
       ) : (
         <div className="px-3 py-6 text-center">
-          <p className="type-body-sm text-text-secondary">Live prices are unavailable</p>
-          <p className="type-label mt-1 text-text-muted">Check the Pyth connection, then retry.</p>
+          <p className="type-body-sm text-text-secondary">{t("Live prices are unavailable")}</p>
+          <p className="type-label mt-1 text-text-muted">{t("Check the Pyth connection, then retry.")}</p>
           <Button className="mt-3" size="sm" variant="quiet" onClick={refreshPrices}>
-            Try again
+            {t("Try again")}
           </Button>
         </div>
       )}
 
       <p className="type-label border-t border-border-subtle px-3 py-2 text-text-muted">
-        Live price against Pyth EMA · refreshes every 5s · not financial advice.
+        {t("Live price against Pyth EMA · refreshes every 5s · not financial advice.")}
       </p>
     </>
   );
@@ -279,6 +299,7 @@ function SmartMoneyCard({
   now: number | null;
   mark: TickerLogo;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const positive = signal.side === "LONG" || signal.side === "ACCUMULATING";
   /* Elyra's own Hyperliquid read rather than the tracker: its score is a
@@ -306,15 +327,15 @@ function SmartMoneyCard({
              header, or screenshots one card, must still see that this
              consensus was never observed. */
           <span
-            title="Seeded demo row — not observed consensus. Wallets and prices are real; the consensus is not."
+            title={t("Seeded demo row — not observed consensus. Wallets and prices are real; the consensus is not.")}
             className="type-label flex items-center gap-1 rounded-chip border border-accent-quiet px-1.5 text-accent"
           >
             <FlaskConical size={10} strokeWidth={1.5} aria-hidden />
-            Demo
+            {t("Demo")}
           </span>
         )}
         <time dateTime={signal.createdAt} className="type-data-sm ml-auto text-text-muted">
-          {age(signal.createdAt, now)}
+          {age(signal.createdAt, now, t.locale)}
         </time>
       </div>
 
@@ -324,21 +345,21 @@ function SmartMoneyCard({
 
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-control border border-border-subtle bg-surface-raised p-2.5">
         <div>
-          <dt className="type-label text-text-muted">Consensus</dt>
-          <dd className="type-data-sm text-text-primary">{signal.walletCount} wallets</dd>
+          <dt className="type-label text-text-muted">{t("Consensus")}</dt>
+          <dd className="type-data-sm text-text-primary">{t("{walletCount} wallets", { walletCount: signal.walletCount })}</dd>
         </div>
         <div>
-          <dt className="type-label text-text-muted">{inApp ? "Of the money" : "Score"}</dt>
+          <dt className="type-label text-text-muted">{inApp ? t("Of the money") : t("Score")}</dt>
           <dd className="type-data-sm text-text-primary">
             {inApp ? `${signal.weightedScore}%` : signal.weightedScore.toFixed(0)}
           </dd>
         </div>
         <div>
-          <dt className="type-label text-text-muted">Price</dt>
+          <dt className="type-label text-text-muted">{t("Price")}</dt>
           <dd className="type-data-sm text-text-primary">{money(signal.currentPxUsd)}</dd>
         </div>
         <div>
-          <dt className="type-label text-text-muted">Avg. entry</dt>
+          <dt className="type-label text-text-muted">{t("Avg. entry")}</dt>
           <dd className="type-data-sm text-text-primary">
             {money(signal.vwapEntryUsd)}
             {!inApp && (
@@ -358,8 +379,7 @@ function SmartMoneyCard({
         className="type-label mt-2 flex h-8 w-full items-center justify-between rounded-control px-1 text-left text-text-secondary transition-colors hover:text-text-primary"
       >
         <span>
-          {open ? "Hide" : "Show"} {signal.participants.length} wallets
-          {inApp ? "" : ` · ${signal.archetypeCount} archetypes`}
+          {`${open ? t("Hide {count} wallets", { count: signal.participants.length }) : t("Show {count} wallets", { count: signal.participants.length })}${inApp ? "" : ` · ${t("{count} archetypes", { count: signal.archetypeCount })}`}`}
         </span>
         <ChevronDown
           size={14}
@@ -369,7 +389,7 @@ function SmartMoneyCard({
         />
       </button>
       {open && (
-        <ul className="mt-1 list-none space-y-1.5" aria-label={`${signal.symbol} participants`}>
+        <ul className="mt-1 list-none space-y-1.5" aria-label={t("{symbol} participants", { symbol: signal.symbol })}>
           {signal.participants.map((participant) => (
             <li key={participant.wallet} className="type-label flex items-baseline gap-2">
               <span className="type-mono-addr min-w-0 flex-1 truncate text-text-secondary">
@@ -378,7 +398,7 @@ function SmartMoneyCard({
               <span className="shrink-0 text-text-muted">
                 {inApp
                   ? `${participant.performance.roiPct}% 30d · ${size(participant.magnitudeUsd)}`
-                  : `${participant.archetype} ${participant.score.toFixed(0)} · ${participant.performance.tradeCount} fills`}
+                  : t("{archetype} {score} · {tradeCount} fills", { archetype: participant.archetype, score: participant.score.toFixed(0), tradeCount: participant.performance.tradeCount })}
               </span>
             </li>
           ))}
@@ -397,6 +417,7 @@ function SmartMoney({
   now: number | null;
   reload: () => void;
 }) {
+  const t = useT();
   const seeded = state.signals.filter(isSeeded).length;
   const symbols = useMemo(() => state.signals.map((signal) => signal.symbol), [state.signals]);
   const logoFor = useTickerLogos(symbols);
@@ -407,11 +428,11 @@ function SmartMoney({
         <div role="alert" className="m-3 rounded-card border border-negative/40 bg-negative-bg p-3">
           <p className="type-label flex items-center gap-2 text-negative">
             <AlertTriangle size={14} strokeWidth={1.5} aria-hidden />
-            Tracker unavailable
+            {t("Tracker unavailable")}
           </p>
           <p className="type-label mt-1 break-words text-text-muted">{state.error}</p>
           <Button className="mt-2" size="sm" variant="quiet" onClick={reload}>
-            Try again
+            {t("Try again")}
           </Button>
         </div>
       )}
@@ -420,17 +441,16 @@ function SmartMoney({
         <div className="m-3 rounded-card border border-accent-quiet bg-surface-raised px-2.5 py-2">
           <p className="type-label flex items-center gap-1.5 text-accent">
             <FlaskConical size={11} strokeWidth={1.5} aria-hidden />
-            Showing seeded demo signals
+            {t("Showing seeded demo signals")}
           </p>
           <p className="type-label mt-1 text-text-muted">
-            {seeded} of {state.signals.length} rows were inserted to demonstrate this feed.
-            Tracked wallets and marks are real; the consensus between them is not.
+            {t("{seeded} of {count} rows were inserted to demonstrate this feed. Tracked wallets and marks are real; the consensus between them is not.", { seeded, count: state.signals.length })}
           </p>
         </div>
       )}
 
       {state.loading ? (
-        <div aria-busy="true" aria-label="Loading smart money" className="space-y-2 p-3">
+        <div aria-busy="true" aria-label={t("Loading smart money")} className="space-y-2 p-3">
           <div className="skeleton h-24 rounded-card" />
           <div className="skeleton h-24 rounded-card" />
         </div>
@@ -446,16 +466,16 @@ function SmartMoney({
              claim about the market, and it cannot be made on the strength
              of a connection failure. */
           <p className="type-body-sm px-4 py-6 text-center text-text-secondary">
-            No wallet consensus has cleared the tracker&rsquo;s gates yet.
+            {t("No wallet consensus has cleared the tracker’s gates yet.")}
           </p>
         )
       )}
 
       {state.fetchedAt !== null && state.error === null && (
         <p className="type-label border-t border-border-subtle px-3 py-2 text-text-muted">
-          Updated {age(state.fetchedAt, now)}
-          {state.notice ? ` · ${state.notice}` : ""}
-          {state.disclaimer ? ` ${state.disclaimer}` : ""}
+          {t("Updated {age}", { age: age(state.fetchedAt, now, t.locale) })}
+          {state.notice ? ` · ${t(state.notice)}` : ""}
+          {state.disclaimer ? ` ${t(state.disclaimer)}` : ""}
         </p>
       )}
     </>
@@ -474,11 +494,12 @@ function FeedLine({
   now: number | null;
   source: string | null;
 }) {
+  const t = useT();
   const words: Record<FeedHealth, string> = {
-    live: "Live",
-    stale: "Stale",
-    disconnected: "Disconnected",
-    loading: "Loading",
+    live: t("Live"),
+    stale: t("Stale"),
+    disconnected: t("Disconnected"),
+    loading: t("Loading"),
   };
   return (
     <p
@@ -490,7 +511,7 @@ function FeedLine({
         {words[state]}
       </span>
       {at !== null && now !== null && (
-        <span className="shrink-0 whitespace-nowrap">· {age(at, now)}</span>
+        <span className="shrink-0 whitespace-nowrap">· {age(at, now, t.locale)}</span>
       )}
       {source && <span className="min-w-0 truncate whitespace-nowrap">· {source}</span>}
     </p>
@@ -500,6 +521,7 @@ function FeedLine({
 /* --- the widget ----------------------------------------------------------- */
 
 export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
+  const t = useT();
   const [view, setView] = useState<View>("market");
   const [state, setState] = useState<FeedState>(INITIAL);
   const now = useMinute();
@@ -531,7 +553,7 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
         origin: null,
         notice: null,
         disclaimer: "",
-        error: error instanceof Error ? error.message : "Could not reach the tracker",
+        error: error instanceof Error ? error.message : translateNow("Could not reach the tracker"),
         loading: false,
         fetchedAt: new Date().toISOString(),
         connection: "offline",
@@ -614,7 +636,7 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
 
   return (
     <Section
-      title="Live signals"
+      title={t("Live signals")}
       icon={<Radio size={16} strokeWidth={1.5} />}
       /* A dot rather than a word: the column is narrow, the title must not
          truncate, and the tabs below spell each feed's state out. It follows
@@ -622,7 +644,7 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
       meta={
         <span className="flex items-center">
           <Dot tone={view === "market" ? marketTone : smartTone} />
-          <span className="sr-only">{view === "market" ? marketState : smartState}</span>
+          <span className="sr-only">{t(view === "market" ? marketState : smartState)}</span>
         </span>
       }
       open={open}
@@ -630,11 +652,11 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
       actions={controls}
     >
       <div className="flex items-center gap-1 border-b border-border-subtle pl-3 pr-2">
-      <div role="tablist" aria-label="Signal feed" className="flex min-w-0 flex-1 gap-1">
+      <div role="tablist" aria-label={t("Signal feed")} className="flex min-w-0 flex-1 gap-1">
         {(
           [
-            ["market", "Market", marketTone, marketLabel],
-            ["smart", "Smart money", smartTone, smartState],
+            ["market", t("Market"), marketTone, t(marketLabel)],
+            ["smart", t("Smart money"), smartTone, t(smartState)],
           ] as const
         ).map(([value, label, tone, status]) => {
           const active = view === value;
@@ -665,7 +687,7 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
         {/* Here rather than in the header: the column is narrow, and the
             header's room belongs to the title. It refreshes both feeds. */}
         <SectionControl
-          label="Refresh signals"
+          label={t("Refresh signals")}
           onClick={() => {
             reload();
             refreshPrices();
@@ -697,7 +719,7 @@ export function SignalsWidget({ open, onOpenChange, controls }: WidgetProps) {
           aria-labelledby="signals-tab-smart"
           hidden={view !== "smart"}
         >
-          <FeedLine state={smartState} at={state.fetchedAt} now={now} source={state.origin === "hyperliquid" ? "Elyra's Hyperliquid read" : state.origin === "tracker" ? "Smart-money tracker" : null} />
+          <FeedLine state={smartState} at={state.fetchedAt} now={now} source={state.origin === "hyperliquid" ? t("Elyra's Hyperliquid read") : state.origin === "tracker" ? t("Smart-money tracker") : null} />
           <SmartMoney state={state} now={now} reload={reload} />
         </div>
       </div>

@@ -15,6 +15,7 @@ import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { isSuiAddress, suiAddressUrl, suiScopeId } from "@/lib/sui/chain";
 import type { Cluster } from "@/lib/solana/cluster";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The account's Sui wallet, in the wallet drawer.
@@ -36,6 +37,7 @@ function byValue(a: SpotHolding, b: SpotHolding): number {
 }
 
 export function SuiWallet({ cluster }: { cluster: Cluster | null }) {
+  const t = useT();
   const auth = useElyraAuth();
   const feed = usePortfolio();
   const [receiving, setReceiving] = useState(false);
@@ -64,14 +66,14 @@ export function SuiWallet({ cluster }: { cluster: Cluster | null }) {
         </h3>
         {address !== null && (
           <>
-            <Money value={scope?.valueUsd ?? null} reason={failure?.reason ?? "Sui could not be read."} className="type-body-sm text-text-secondary" />
-            <IconButton label="Send on Sui" onClick={() => setActing("send")}>
+            <Money value={scope?.valueUsd ?? null} reason={failure?.reason ?? t("Sui could not be read.")} className="type-body-sm text-text-secondary" />
+            <IconButton label={t("Send on Sui")} onClick={() => setActing("send")}>
               <Send size={14} strokeWidth={1.5} aria-hidden />
             </IconButton>
-            <IconButton label="Swap on Sui" onClick={() => setActing("swap")}>
+            <IconButton label={t("Swap on Sui")} onClick={() => setActing("swap")}>
               <ArrowLeftRight size={15} strokeWidth={1.5} aria-hidden />
             </IconButton>
-            <a href={suiAddressUrl(address)} target="_blank" rel="noopener noreferrer" aria-label="View on Suiscan (opens in a new tab)" className={ICON_LINK}>
+            <a href={suiAddressUrl(address)} target="_blank" rel="noopener noreferrer" aria-label={t("View on Suiscan (opens in a new tab)")} className={ICON_LINK}>
               <ExternalLink size={14} strokeWidth={1.5} aria-hidden />
             </a>
           </>
@@ -80,7 +82,7 @@ export function SuiWallet({ cluster }: { cluster: Cluster | null }) {
 
       {address === null ? (
         <div className="mt-2 flex flex-col items-start gap-2">
-          <p className="type-body-sm text-text-secondary">This account has no Sui wallet yet.</p>
+          <p className="type-body-sm text-text-secondary">{t("This account has no Sui wallet yet.")}</p>
           <button
             type="button"
             disabled={creating}
@@ -89,13 +91,13 @@ export function SuiWallet({ cluster }: { cluster: Cluster | null }) {
               setCreateError(null);
               auth
                 .createSuiWallet()
-                .catch((error: unknown) => setCreateError(error instanceof Error ? error.message : "The Sui wallet could not be created."))
+                .catch((error: unknown) => setCreateError(error instanceof Error ? error.message : t("The Sui wallet could not be created.")))
                 .finally(() => setCreating(false));
             }}
             className="type-body-sm inline-flex h-9 items-center gap-2 rounded-control border border-accent-quiet px-3 text-text-primary hover:border-accent hover:bg-surface-hover disabled:opacity-60"
           >
             {creating && <Loader2 size={14} className="animate-spin" aria-hidden />}
-            {creating ? "Creating" : "Set up a Sui wallet"}
+            {creating ? t("Creating") : t("Set up a Sui wallet")}
           </button>
           {createError !== null && <p className="type-label text-negative">{createError}</p>}
         </div>
@@ -104,24 +106,24 @@ export function SuiWallet({ cluster }: { cluster: Cluster | null }) {
           <div className="mt-2 flex items-center gap-0.5">
             <span className="type-mono-addr mr-1.5 text-text-primary" title={address}>
               {truncateMiddle(address, 6, 4)}
-              <span className="sr-only"> (full address: {address})</span>
+              <span className="sr-only">{" "}{t("(full address: {address})", { address })}</span>
             </span>
-            <CopyButton value={address} label="Sui wallet address" />
-            <IconButton label="Show QR code to receive on Sui" onClick={() => setReceiving(true)}>
+            <CopyButton value={address} label={t("Sui wallet address")} />
+            <IconButton label={t("Show QR code to receive on Sui")} onClick={() => setReceiving(true)}>
               <QrCode size={15} strokeWidth={1.5} aria-hidden />
             </IconButton>
           </div>
           {snapshot === null ? (
             feed.loading ? (
-              <div aria-busy="true" aria-label="Reading Sui" className="mt-3 flex items-center gap-3">
+              <div aria-busy="true" aria-label={t("Reading Sui")} className="mt-3 flex items-center gap-3">
                 <span className="skeleton size-5 rounded-pill" />
                 <span className="skeleton h-3.5 w-28" />
               </div>
             ) : null
           ) : scope === null ? (
-            <p role="status" className="type-label mt-2 text-negative">{failure?.reason ?? "Sui could not be read."}</p>
+            <p role="status" className="type-label mt-2 text-negative">{failure?.reason ?? t("Sui could not be read.")}</p>
           ) : holdings.length === 0 ? (
-            <p className="type-body-sm mt-2 text-text-secondary">No balances on Sui yet.</p>
+            <p className="type-body-sm mt-2 text-text-secondary">{t("No balances on Sui yet.")}</p>
           ) : (
             <ul className="mt-1 list-none">
               {holdings.map((holding) => (
@@ -133,7 +135,7 @@ export function SuiWallet({ cluster }: { cluster: Cluster | null }) {
                   logo={{ logo: holding.logo }}
                   amount={holding.quantity}
                   usd={holding.verified ? holding.valueUsd : null}
-                  reason={holding.verified ? "No price for this coin from Pyth right now." : "Unverified coins are never valued."}
+                  reason={holding.verified ? t("No price for this coin from Pyth right now.") : t("Unverified coins are never valued.")}
                   unverified={!holding.verified}
                 />
               ))}

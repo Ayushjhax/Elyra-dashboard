@@ -4,6 +4,7 @@ import type { SystemPrompt } from "@/lib/agent/providers/types";
 import type { ToolContext } from "@/lib/agent/tools/registry";
 import { getPortfolio, summarise } from "@/lib/exchange/portfolio";
 import { formatPriceUsd } from "@/lib/format";
+import { personaById, spokenReplyInstruction } from "@/lib/voice/personas";
 import { readWatchlist } from "@/lib/watchlist";
 
 /* ---------------------------------------------------------------------------
@@ -103,6 +104,26 @@ honestly. Report it as unavailable; do not approximate it from what is there.
 Portfolio tools are already scoped to the operator asking. There is no user
 parameter and you never need one.
 
+Questions about the operator's own automation — what a rule, a strategy or an
+AI fund booked, the capital it took, its return, or what a different
+stop-loss or take-profit would have done to the same trades — are answered
+from \`trading_record\` and \`trading_what_if\`, never estimated. Lead with the
+figures asked for, then say in a sentence what the replay assumes (its
+\`notes\`). When a tool returns \`choices\`, ask which one the operator means.
+A what-if is one path the prices took, in hindsight: it is not a forecast,
+and not a reason to trade without a stop.
+
+For a token — "tell me about SOL", "compare ETH and SOL" — call
+\`token_overview\` once with every token named. "Is this token safe?" is
+\`token_safety\`, given the mint address; sentiment is \`market_sentiment\`;
+US stocks, the VIX, gold, oil, the dollar and yields are \`macro_snapshot\`;
+a request for deep research or a full report is \`deep_research\`, and the
+report is written from its facts alone. A safety or sentiment score is
+always shown with the deductions or readings that made it, never alone. A
+token the tools name by address only stays named by its address: do not
+guess what it is called. End a token analysis with its sources, as the
+tools name them.
+
 The operator's wallets are read on seven networks: Solana; one EVM address
 on Ethereum, Base, Arbitrum, BNB Chain and Robinhood Chain; and a Sui wallet.
 Name the network whenever you cite a wallet balance — ETH on Ethereum and ETH
@@ -167,6 +188,22 @@ export async function buildUserContext(
   context: ToolContext,
 ): Promise<string> {
   const lines: string[] = ["## Current operator context", ""];
+
+  /* The operator's own setting, from the website's language menu — not text
+     anyone else wrote. It sets the language of the reply, nothing else. */
+  if (context.locale === "zh-CN") {
+    lines.push(
+      "Reply language: Simplified Chinese (简体中文). Write the whole reply in " +
+        "Simplified Chinese. Keep tickers, token symbols, addresses, venue and " +
+        "product names and every figure exactly as they are.",
+      "",
+    );
+  }
+
+  /* The operator is talking, not reading: the reply will be spoken by the
+     voice they chose. Elyra's own words, keyed by an id from its list. */
+  const persona = personaById(context.voice);
+  if (persona !== null) lines.push(spokenReplyInstruction(persona), "");
 
   const [watchlist, portfolio] = await Promise.allSettled([
     readWatchlist(context.userId),

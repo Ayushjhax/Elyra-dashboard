@@ -5,6 +5,7 @@ import { ChevronDown, type LucideIcon } from "lucide-react";
 import { STATUS, type ConnectionStatus, type StatusTone } from "@/lib/connections/state";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The pieces every Connections card is made of.
@@ -118,8 +119,9 @@ export function StatusBadge({
   name: string;
   className?: string;
 }) {
+  const t = useT();
   const { tone, label: fallback } = STATUS[status];
-  const words = label ?? fallback;
+  const words = t(label ?? fallback);
   return (
     <span
       role="status"
@@ -300,6 +302,7 @@ export function ConfirmAction({
   onConfirm: () => void;
   beside?: React.ReactNode;
 }) {
+  const t = useT();
   const [asking, setAsking] = useState(false);
   const keepRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -333,7 +336,7 @@ export function ConfirmAction({
       <p className="type-body-sm min-w-0 text-text-primary">{question}</p>
       <div className="flex gap-2">
         <button ref={keepRef} type="button" onClick={() => setAsking(false)} className={cn(quietAction, "h-9 px-3")}>
-          Keep it
+          {t("Keep it")}
         </button>
         <button type="button" onClick={onConfirm} disabled={pending} className={cn(danger, "border-negative/50")}>
           {pending ? pendingLabel : confirm}

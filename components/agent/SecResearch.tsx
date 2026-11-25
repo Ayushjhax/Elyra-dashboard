@@ -18,6 +18,7 @@ import { CATEGORIES, MAJOR_ITEMS, inCategory, type EdgarCategory } from "@/lib/r
 import { useElyraStore } from "@/lib/store";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { translateNow, useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    SEC EDGAR, for the whole US market.
@@ -84,13 +85,14 @@ function CategoryChips({
 }
 
 function ItemTags({ items }: { items: Array<{ code: string; label: string }> }) {
+  const t = useT();
   if (items.length === 0) return null;
   return (
     <span className="mt-1 flex flex-wrap gap-1">
       {items.slice(0, 4).map((item) => (
         <span
           key={item.code}
-          title={`Item ${item.code}`}
+          title={t("Item {code}", { code: item.code })}
           className={cn(
             "type-label rounded-chip px-1.5",
             MAJOR_ITEMS.has(item.code) ? "bg-surface-active text-text-primary" : "bg-surface-hover text-text-secondary",
@@ -118,12 +120,13 @@ function FeedRow({
   now: number | null;
   onOpen: (query: string) => void;
 }) {
+  const t = useT();
   return (
     <li className="metallic research-card flex flex-wrap items-start gap-3 border-t border-border-subtle px-4 py-3.5">
       <button
         type="button"
         onClick={() => onOpen(filing.ticker ?? filing.cik)}
-        aria-label={`Open ${filing.company}`}
+        aria-label={t("Open {company}", { company: filing.company })}
         className="mt-0.5 shrink-0 rounded-pill"
       >
         <Mark ticker={filing.ticker} name={filing.company} size={30} />
@@ -135,13 +138,13 @@ function FeedRow({
             onClick={() => onOpen(filing.ticker ?? filing.cik)}
             className="type-data mr-1.5 text-text-primary hover:underline"
           >
-            {filing.ticker ?? "Unlisted"}
+            {filing.ticker ?? t("Unlisted")}
           </button>
           {filing.label}
         </p>
         <p className="type-label mt-1 break-words leading-5 text-text-secondary">
           {filing.company}
-          {filing.filer ? <span className="text-text-muted"> · by {filing.filer}</span> : null}
+          {filing.filer ? <span className="text-text-muted">{" "}{t("· by {filer}", { filer: filing.filer })}</span> : null}
           <span className="text-text-muted"> · {filing.form}</span>
         </p>
         <ItemTags items={filing.items} />
@@ -150,11 +153,11 @@ function FeedRow({
         href={filing.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`Open the ${filing.form} filing on EDGAR`}
+        aria-label={t("Open the {form} filing on EDGAR", { form: filing.form })}
         className="research-link ml-auto flex min-h-8 shrink-0 items-center gap-1.5 rounded-control px-2 py-1 text-text-secondary hover:text-text-primary"
       >
         <time dateTime={filing.filedAt} className="type-data-sm">
-          {now === null ? null : formatRelativeTime(filing.filedAt, now)}
+          {now === null ? null : formatRelativeTime(filing.filedAt, now, t.locale)}
         </time>
         <ExternalLink size={12} strokeWidth={1.5} aria-hidden />
       </a>
@@ -165,6 +168,7 @@ function FeedRow({
 type FeedState = { category: EdgarCategory; data: LatestResponse | null; error: string | null };
 
 function MarketFeed({ onOpen }: { onOpen: (query: string) => void }) {
+  const t = useT();
   const [category, setCategory] = useState<EdgarCategory>("all");
   const [state, setState] = useState<FeedState>({ category: "all", data: null, error: null });
   const [refreshing, setRefreshing] = useState(false);
@@ -175,7 +179,7 @@ function MarketFeed({ onOpen }: { onOpen: (query: string) => void }) {
       const response = await fetch(`/api/sec/latest?category=${wanted}`);
       return { category: wanted, data: (await response.json()) as LatestResponse, error: null };
     } catch {
-      return { category: wanted, data: null, error: "EDGAR could not be reached." };
+      return { category: wanted, data: null, error: translateNow("EDGAR could not be reached.") };
     }
   }, []);
 
@@ -201,21 +205,21 @@ function MarketFeed({ onOpen }: { onOpen: (query: string) => void }) {
     if (now === null) return [];
     const out: Array<{ label: string; rows: EdgarFiling[] }> = [];
     for (const filing of filings) {
-      const label = formatDayGroup(filing.filedAt, now);
+      const label = formatDayGroup(filing.filedAt, now, t.locale);
       const last = out.at(-1);
       if (last?.label === label) last.rows.push(filing);
       else out.push({ label, rows: [filing] });
     }
     return out;
-  }, [filings, now]);
+  }, [filings, now, t.locale]);
 
   return (
-    <section aria-label="Latest filings across the US market">
+    <section aria-label={t("Latest filings across the US market")}>
       <div className="flex items-center justify-between gap-2 px-4 pt-4">
-        <p className="type-eyebrow text-text-muted">Filing now · all US registrants</p>
+        <p className="type-eyebrow text-text-muted">{t("Filing now · all US registrants")}</p>
         <button
           type="button"
-          aria-label="Refresh filings"
+          aria-label={t("Refresh filings")}
           onClick={() => {
             setRefreshing(true);
             void load(category)
@@ -228,26 +232,26 @@ function MarketFeed({ onOpen }: { onOpen: (query: string) => void }) {
         </button>
       </div>
       <div className="px-4 pb-2 pt-2">
-        <CategoryChips value={category} onChange={setCategory} label="Kind of filing" />
+        <CategoryChips value={category} onChange={setCategory} label={t("Kind of filing")} />
       </div>
 
       {current === null ? (
-        <ul aria-busy="true" aria-label="Loading filings" className="list-none space-y-2 px-4 py-2">
+        <ul aria-busy="true" aria-label={t("Loading filings")} className="list-none space-y-2 px-4 py-2">
           {[0, 1, 2, 3, 4].map((row) => (
             <li key={row} className="skeleton h-14 rounded-control" />
           ))}
         </ul>
       ) : current.error !== null || current.data === null ? (
         <div className="px-4 py-6 text-center">
-          <p className="type-body-sm text-text-secondary">EDGAR could not be reached.</p>
+          <p className="type-body-sm text-text-secondary">{t("EDGAR could not be reached.")}</p>
           <Button className="mt-3" size="sm" variant="quiet" onClick={() => void load(category).then(setState)}>
-            Try again
+            {t("Try again")}
           </Button>
         </div>
       ) : !current.data.configured ? (
         <p className="type-body-sm px-4 py-6 text-center text-text-secondary">{current.data.errors[0]}</p>
       ) : filings.length === 0 ? (
-        <p className="type-body-sm px-4 py-6 text-center text-text-secondary">Nothing of this kind filed in the latest window.</p>
+        <p className="type-body-sm px-4 py-6 text-center text-text-secondary">{t("Nothing of this kind filed in the latest window.")}</p>
       ) : (
         <>
           {groups.map((group) => (
@@ -263,7 +267,7 @@ function MarketFeed({ onOpen }: { onOpen: (query: string) => void }) {
             </div>
           ))}
           {current.data.errors.length > 0 && (
-            <p className="type-label px-4 py-2 text-text-muted">Not read this time: {current.data.errors.join(", ")}.</p>
+            <p className="type-label px-4 py-2 text-text-muted">{t("Not read this time: {value}.", { value: current.data.errors.join(", ") })}</p>
           )}
         </>
       )}
@@ -288,6 +292,7 @@ function dateLabel(iso: string): string {
 }
 
 function CompanyFilingRow({ filing }: { filing: CompanyFiling }) {
+  const t = useT();
   return (
     <li className="border-t border-border-subtle">
       <a
@@ -299,7 +304,7 @@ function CompanyFilingRow({ filing }: { filing: CompanyFiling }) {
         <span className="type-data-sm mt-0.5 w-14 shrink-0 text-text-muted">{filing.form}</span>
         <span className="min-w-0 flex-1">
           <span className="type-body-sm block text-text-primary">{filing.label}</span>
-          {filing.periodEnd && <span className="type-label block text-text-muted">Period {dateLabel(filing.periodEnd)}</span>}
+          {filing.periodEnd && <span className="type-label block text-text-muted">{t("Period {periodEnd}", { periodEnd: dateLabel(filing.periodEnd) })}</span>}
           <ItemTags items={filing.items} />
         </span>
         <span className="flex shrink-0 items-center gap-1 text-text-muted">
@@ -322,6 +327,7 @@ function CompanyView({
   onBack: () => void;
   onAsk: (prompt: string) => void;
 }) {
+  const t = useT();
   const [state, setState] = useState<{ query: string; data: CompanyResponse | null }>({ query: "", data: null });
   const [category, setCategory] = useState<EdgarCategory>("all");
 
@@ -329,7 +335,7 @@ function CompanyView({
     let cancelled = false;
     void fetch(`/api/sec/company?q=${encodeURIComponent(query)}`)
       .then((response) => response.json() as Promise<CompanyResponse>)
-      .catch((): CompanyResponse => ({ company: null, error: "EDGAR could not be reached." }))
+      .catch((): CompanyResponse => ({ company: null, error: translateNow("EDGAR could not be reached.") }))
       .then((data) => {
         if (!cancelled) setState({ query, data });
       });
@@ -344,7 +350,7 @@ function CompanyView({
   const quarter = company?.fundamentals.find((entry) => entry.yoyPct !== null || entry.id === "revenue")?.period ?? null;
 
   return (
-    <section aria-label={company ? `${company.name} on EDGAR` : "Company on EDGAR"}>
+    <section aria-label={company ? t("{name} on EDGAR", { name: company.name }) : t("Company on EDGAR")}>
       <div className="px-4 pt-3">
         <button
           type="button"
@@ -352,12 +358,12 @@ function CompanyView({
           className="type-label inline-flex items-center gap-1.5 rounded-control px-1 py-1 text-text-secondary hover:text-text-primary"
         >
           <ArrowLeft size={13} strokeWidth={1.5} aria-hidden />
-          Back to the market
+          {t("Back to the market")}
         </button>
       </div>
 
       {data === null ? (
-        <div aria-busy="true" aria-label="Loading company" className="space-y-2 px-4 py-3">
+        <div aria-busy="true" aria-label={t("Loading company")} className="space-y-2 px-4 py-3">
           <div className="skeleton h-12 rounded-control" />
           <div className="skeleton h-28 rounded-control" />
           <div className="skeleton h-40 rounded-control" />
@@ -373,7 +379,7 @@ function CompanyView({
               <p className="type-data-sm text-text-secondary">
                 {company.tickers.join(" · ")}
                 {company.exchanges.length > 0 ? ` · ${company.exchanges.join(", ")}` : ""}
-                <span className="text-text-muted"> · CIK {Number(company.cik)}</span>
+                <span className="text-text-muted">{" "}{t("· CIK {cik}", { cik: Number(company.cik) })}</span>
               </p>
               <p className="type-label mt-0.5 text-text-muted">
                 {[company.industry, company.category, company.state ? `Inc. ${company.state}` : null, company.fiscalYearEnd ? `FY ends ${company.fiscalYearEnd.slice(2)}/${company.fiscalYearEnd.slice(0, 2)}` : null]
@@ -391,27 +397,27 @@ function CompanyView({
               className="type-label inline-flex h-8 items-center gap-1.5 rounded-control border border-border-strong px-2.5 text-text-primary hover:bg-surface-hover"
             >
               <Landmark size={13} strokeWidth={1.5} aria-hidden />
-              Open on EDGAR
+              {t("Open on EDGAR")}
               <ExternalLink size={11} strokeWidth={1.5} aria-hidden className="text-text-muted" />
             </a>
             <button
               type="button"
               onClick={() =>
                 onAsk(
-                  `Summarise ${company.name} (${company.ticker}) from its SEC filings: the latest quarter, what changed against a year ago, and anything material it filed recently.`,
+                  t("Summarise {name} ({ticker}) from its SEC filings: the latest quarter, what changed against a year ago, and anything material it filed recently.", { name: company.name, ticker: company.ticker }),
                 )
               }
               className="type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-text-secondary hover:bg-surface-hover hover:text-text-primary"
             >
               <Sparkles size={13} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
-              Ask Elyra about {company.ticker}
+              {t("Ask Elyra about {ticker}", { ticker: company.ticker })}
             </button>
           </div>
 
           <div className="mx-4 mt-4 rounded-card border border-border-subtle bg-surface-raised">
             <p className="type-eyebrow flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2 text-text-muted">
-              <span>Reported figures</span>
-              {quarter && <span className="normal-case tracking-normal text-text-secondary">{quarter} · XBRL</span>}
+              <span>{t("Reported figures")}</span>
+              {quarter && <span className="normal-case tracking-normal text-text-secondary">{t("{quarter} · XBRL", { quarter })}</span>}
             </p>
             {company.fundamentals.length === 0 ? (
               <p className="type-body-sm px-3 py-3 text-text-secondary">{company.fundamentalsNote}</p>
@@ -431,7 +437,7 @@ function CompanyView({
                       <span className="type-data text-text-primary">{fundamentalValue(entry)}</span>
                       {entry.yoyPct !== null && <DeltaText value={entry.yoyPct} decimals={1} className="type-data-sm" />}
                     </dd>
-                    <dd className="type-label text-text-muted">{entry.yoyPct !== null ? "vs a year earlier" : entry.period}</dd>
+                    <dd className="type-label text-text-muted">{entry.yoyPct !== null ? t("vs a year earlier") : entry.period}</dd>
                   </div>
                 ))}
               </dl>
@@ -441,11 +447,11 @@ function CompanyView({
           <InsiderActivity query={company.ticker} onAsk={onAsk} />
 
           <div className="px-4 pb-2 pt-4">
-            <p className="type-eyebrow mb-2 text-text-muted">Filings · {company.filings.length} most recent</p>
-            <CategoryChips value={category} onChange={setCategory} label="Kind of filing" />
+            <p className="type-eyebrow mb-2 text-text-muted">{t("Filings · {count} most recent", { count: company.filings.length })}</p>
+            <CategoryChips value={category} onChange={setCategory} label={t("Kind of filing")} />
           </div>
           {filings.length === 0 ? (
-            <p className="type-body-sm px-4 py-4 text-text-secondary">None of this kind among its recent filings.</p>
+            <p className="type-body-sm px-4 py-4 text-text-secondary">{t("None of this kind among its recent filings.")}</p>
           ) : (
             <ul className="list-none">
               {filings.slice(0, 40).map((filing) => (
@@ -464,6 +470,7 @@ function CompanyView({
 --------------------------------------------------------------------------- */
 
 function CompanySearch({ onOpen }: { onOpen: (query: string) => void }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ for: string; rows: SecEntity[] }>({ for: "", rows: [] });
   const [active, setActive] = useState(0);
@@ -502,7 +509,7 @@ function CompanySearch({ onOpen }: { onOpen: (query: string) => void }) {
     <div className="relative px-4 pt-4">
       <label className="flex h-10 items-center gap-2 rounded-control border border-border-strong bg-surface-raised px-3 focus-within:border-accent-quiet">
         <Search size={14} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
-        <span className="sr-only">Search any company that files with the SEC</span>
+        <span className="sr-only">{t("Search any company that files with the SEC")}</span>
         <input
           role="combobox"
           aria-expanded={showList}
@@ -532,7 +539,7 @@ function CompanySearch({ onOpen }: { onOpen: (query: string) => void }) {
               setOpen(false);
             }
           }}
-          placeholder="Any US company — ticker, name or CIK"
+          placeholder={t("Any US company — ticker, name or CIK")}
           className="type-body-sm min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-muted focus:outline-none"
         />
       </label>
@@ -540,7 +547,7 @@ function CompanySearch({ onOpen }: { onOpen: (query: string) => void }) {
         <ul
           id={listId}
           role="listbox"
-          aria-label="Companies"
+          aria-label={t("Companies")}
           className="absolute inset-x-4 top-full z-20 mt-1 list-none overflow-hidden rounded-card border border-border-strong bg-surface-raised py-1 shadow-pop"
         >
           {rows.map((row, index) => (
@@ -575,6 +582,7 @@ function CompanySearch({ onOpen }: { onOpen: (query: string) => void }) {
 --------------------------------------------------------------------------- */
 
 export function SecResearch({ onAsk }: { onAsk: (prompt: string) => void }) {
+  const t = useT();
   const [company, setCompany] = useState<string | null>(null);
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
   const { byId } = useAssets([selectedAssetId]);
@@ -592,16 +600,16 @@ export function SecResearch({ onAsk }: { onAsk: (prompt: string) => void }) {
     <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4">
       <div className="flex items-center gap-2 px-4 pt-4">
         <Landmark size={14} strokeWidth={1.5} aria-hidden className="text-text-muted" />
-        <p className="type-eyebrow text-text-muted">SEC EDGAR · US market</p>
+        <p className="type-eyebrow text-text-muted">{t("SEC EDGAR · US market")}</p>
         <span className="type-label ml-auto flex items-center gap-1.5 text-text-secondary">
           <span aria-hidden className="size-1.5 rounded-pill bg-positive" />
-          Live
+          {t("Live")}
         </span>
       </div>
 
       <CompanySearch onOpen={open} />
 
-      <div role="group" aria-label="Companies" className="-mx-0 flex gap-1.5 overflow-x-auto px-4 pb-1 pt-2.5">
+      <div role="group" aria-label={t("Companies")} className="-mx-0 flex gap-1.5 overflow-x-auto px-4 pb-1 pt-2.5">
         {picks.map((ticker) => (
           <button
             key={ticker}
@@ -618,7 +626,7 @@ export function SecResearch({ onAsk }: { onAsk: (prompt: string) => void }) {
           >
             <CompanyMark ticker={ticker} size={18} />
             <span className="type-data-sm text-text-secondary">{ticker}</span>
-            {ticker === onChart && <span className="type-label text-text-muted">· chart</span>}
+            {ticker === onChart && <span className="type-label text-text-muted">{t("· chart")}</span>}
           </button>
         ))}
       </div>
@@ -633,7 +641,7 @@ export function SecResearch({ onAsk }: { onAsk: (prompt: string) => void }) {
       )}
 
       <p className="type-label px-4 pt-4 text-text-muted">
-        Straight from SEC EDGAR: the filings as filed, and figures as tagged in XBRL. Not advice.
+        {t("Straight from SEC EDGAR: the filings as filed, and figures as tagged in XBRL. Not advice.")}
       </p>
     </div>
   );

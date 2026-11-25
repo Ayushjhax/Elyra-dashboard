@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The Mini App shell.
@@ -51,15 +53,15 @@ type View =
   | "backtests";
 
 const TABS: Array<{ id: View; label: string }> = [
-  { id: "portfolio", label: "Overview" },
-  { id: "holdings", label: "Holdings" },
-  { id: "risk", label: "Risk" },
+  { id: "portfolio", label: msg("Overview") },
+  { id: "holdings", label: msg("Holdings") },
+  { id: "risk", label: msg("Risk") },
   { id: "defi", label: "DeFi" },
-  { id: "prediction", label: "Predictions" },
-  { id: "prediction-trending", label: "Markets" },
-  { id: "prediction-signals", label: "Signals" },
-  { id: "prediction-alerts", label: "Alerts" },
-  { id: "backtests", label: "Backtests" },
+  { id: "prediction", label: msg("Predictions") },
+  { id: "prediction-trending", label: msg("Markets") },
+  { id: "prediction-signals", label: msg("Signals") },
+  { id: "prediction-alerts", label: msg("Alerts") },
+  { id: "backtests", label: msg("Backtests") },
 ];
 
 interface Payload {
@@ -85,6 +87,7 @@ interface Loaded {
 }
 
 export function TelegramMiniApp() {
+  const t = useT();
   const [view, setView] = useState<View>("portfolio");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
 
@@ -115,7 +118,7 @@ export function TelegramMiniApp() {
           setLoaded({
             view,
             payload: null,
-            error: "Open this from the Elyra bot in Telegram.",
+            error: t("Open this from the Elyra bot in Telegram."),
           });
         }
         return;
@@ -135,14 +138,14 @@ export function TelegramMiniApp() {
         setLoaded(
           response.ok
             ? { view, payload: body, error: null }
-            : { view, payload: null, error: body.error ?? "Could not load your account." },
+            : { view, payload: null, error: body.error ?? t("Could not load your account.") },
         );
       } catch {
         if (cancelled) return;
         setLoaded({
           view,
           payload: null,
-          error: "Could not reach Elyra. Check your connection and try again.",
+          error: t("Could not reach Elyra. Check your connection and try again."),
         });
       }
     };
@@ -155,7 +158,7 @@ export function TelegramMiniApp() {
     return () => {
       cancelled = true;
     };
-  }, [view]);
+  }, [view, t]);
 
   return (
     <div className="mini-root">
@@ -163,7 +166,7 @@ export function TelegramMiniApp() {
 
       <header className="mini-header">
         <span className="mini-brand">Elyra</span>
-        <span className="mini-sub">Your capital</span>
+        <span className="mini-sub">{t("Your capital")}</span>
       </header>
 
       <nav className="mini-tabs" role="tablist">
@@ -176,13 +179,13 @@ export function TelegramMiniApp() {
             className="mini-tab"
             onClick={() => setView(tab.id)}
           >
-            {tab.label}
+            {t(tab.label)}
           </button>
         ))}
       </nav>
 
       <main className="mini-body">
-        {loading ? <p className="mini-muted">Reading…</p> : null}
+        {loading ? <p className="mini-muted">{t("Reading…")}</p> : null}
 
         {!loading && error !== null ? <p className="mini-error">{error}</p> : null}
 
@@ -201,6 +204,7 @@ export function TelegramMiniApp() {
 }
 
 function ViewBody({ view, data }: { view: View; data: Record<string, unknown> }) {
+  const t = useT();
   /* A tool that could not read returns `error`. Shown as-is: the message was
      written for a person and already says what is unavailable. */
   if (typeof data.error === "string") {
@@ -213,8 +217,7 @@ function ViewBody({ view, data }: { view: View; data: Record<string, unknown> })
         /* Never suppressed. A total presented as complete while a venue was
            unreadable is the one failure this product cannot afford. */
         <p className="mini-warn">
-          Some sources could not be read. These figures are a floor, not the
-          full picture.
+          {t("Some sources could not be read. These figures are a floor, not the full picture.")}
         </p>
       ) : null}
 
@@ -239,6 +242,7 @@ function ViewBody({ view, data }: { view: View; data: Record<string, unknown> })
 --------------------------------------------------------------------------- */
 
 function Backtests({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const results = (data.results ?? []) as Array<{
     id: string;
     instrument: string;
@@ -251,10 +255,9 @@ function Backtests({ data }: { data: Record<string, unknown> }) {
   if (results.length === 0) {
     return (
       <div className="mini-card">
-        <span className="mini-label">Backtests</span>
+        <span className="mini-label">{t("Backtests")}</span>
         <p className="mini-note">
-          No backtests yet. Run one with <b>/backtest SOL rsi 1h 1y</b> in the
-          chat, or open Elyra.
+          {t("No backtests yet. Run one with")}{" "}<b>{t("/backtest SOL rsi 1h 1y")}</b>{" "}{t("in the chat, or open Elyra.")}
         </p>
       </div>
     );
@@ -268,24 +271,24 @@ function Backtests({ data }: { data: Record<string, unknown> }) {
             {row.instrument} · {row.strategyId.split("_")[0]}
           </span>
           <div className="mini-row">
-            <span>Return</span>
+            <span>{t("Return")}</span>
             <span className="mini-prob">
               {row.metrics === null ? "—" : `${row.metrics.totalReturnPct.toFixed(1)}%`}
             </span>
           </div>
           <div className="mini-row">
-            <span>Max drawdown</span>
+            <span>{t("Max drawdown")}</span>
             <span className="mini-num">
               {row.metrics === null ? "—" : `${row.metrics.maxDrawdownPct.toFixed(1)}%`}
             </span>
           </div>
           <p className="mini-note">
-            {row.timeframe} · {row.metrics?.trades ?? 0} trades · {row.quality ?? "—"}
+            {t("{timeframe} · {value} trades · {value2}", { timeframe: row.timeframe, value: row.metrics?.trades ?? 0, value2: row.quality ?? "—" })}
           </p>
         </div>
       ))}
       <p className="mini-note">
-        Historical simulation. Long only, costs included, funding excluded.
+        {t("Historical simulation. Long only, costs included, funding excluded.")}
       </p>
     </>
   );
@@ -300,16 +303,17 @@ function Backtests({ data }: { data: Record<string, unknown> }) {
 --------------------------------------------------------------------------- */
 
 const SIGNAL_STATUS: Record<string, string> = {
-  generated: "Generated",
-  waiting_entry: "Waiting for entry",
-  entered: "Entered",
-  target_hit: "Target hit",
-  invalidated: "Invalidated",
-  expired: "Expired",
-  cancelled: "Cancelled",
+  generated: msg("Generated"),
+  waiting_entry: msg("Waiting for entry"),
+  entered: msg("Entered"),
+  target_hit: msg("Target hit"),
+  invalidated: msg("Invalidated"),
+  expired: msg("Expired"),
+  cancelled: msg("Cancelled"),
 };
 
 function PredictionSignals({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const signals = (data.signals ?? []) as Array<{
     id: string;
     status: string;
@@ -342,10 +346,9 @@ function PredictionSignals({ data }: { data: Record<string, unknown> }) {
   if (signals.length === 0) {
     return (
       <div className="mini-card">
-        <span className="mini-label">Prediction signals</span>
+        <span className="mini-label">{t("Prediction signals")}</span>
         <p className="mini-note">
-          No signals yet. Ask for one with <b>/signal prediction fed september</b>{" "}
-          in the chat.
+          {t("No signals yet. Ask for one with")}{" "}<b>{t("/signal prediction fed september")}</b>{t(" in the chat.")}
         </p>
       </div>
     );
@@ -360,16 +363,16 @@ function PredictionSignals({ data }: { data: Record<string, unknown> }) {
     <>
       {forward !== undefined && (
         <div className="mini-card">
-          <span className="mini-label">Forward track record</span>
+          <span className="mini-label">{t("Forward track record")}</span>
           <div className="mini-row">
-            <span>Decided</span>
+            <span>{t("Decided")}</span>
             <span className="mini-num">{forward.targetHit + forward.invalidated}</span>
           </div>
           <div className="mini-row">
-            <span>Win rate</span>
+            <span>{t("Win rate")}</span>
             <span className="mini-prob">
               {forward.winRatePct === null
-                ? "Not yet reportable"
+                ? t("Not yet reportable")
                 : `${forward.winRatePct.toFixed(1)}%`}
             </span>
           </div>
@@ -389,7 +392,7 @@ function PredictionSignals({ data }: { data: Record<string, unknown> }) {
             </span>
           </div>
           <div className="mini-row">
-            <span>Entry</span>
+            <span>{t("Entry")}</span>
             <span className="mini-num">
               {row.signal.entry.minPrice !== undefined && row.signal.entry.maxPrice !== undefined
                 ? `${centsOf(row.signal.entry.minPrice)}\u2013${centsOf(row.signal.entry.maxPrice)}`
@@ -397,44 +400,43 @@ function PredictionSignals({ data }: { data: Record<string, unknown> }) {
             </span>
           </div>
           <div className="mini-row">
-            <span>Target</span>
+            <span>{t("Target")}</span>
             <span className="mini-num">{centsOf(row.signal.target.price)}</span>
           </div>
           <div className="mini-row">
-            <span>{row.signal.stop.executable ? "Stop" : "Invalidation"}</span>
+            <span>{row.signal.stop.executable ? t("Stop") : t("Invalidation")}</span>
             <span className="mini-num">{centsOf(row.signal.stop.price)}</span>
           </div>
           <div className="mini-row">
-            <span>Risk / reward</span>
+            <span>{t("Risk / reward")}</span>
             <span className="mini-num">
               {row.signal.riskReward === null ? "\u2014" : row.signal.riskReward.toFixed(2)}
             </span>
           </div>
           <div className="mini-row">
-            <span>Win rate</span>
+            <span>{t("Win rate")}</span>
             <span className="mini-num">
               {row.signal.historicalWinRate === null
-                ? "Not measurable"
+                ? t("Not measurable")
                 : row.signal.historicalWinRate.insufficientSample
-                  ? `Insufficient \u00B7 ${row.signal.historicalWinRate.sampleSize}`
+                  ? t("Insufficient · {sampleSize}", { sampleSize: row.signal.historicalWinRate.sampleSize })
                   : `${row.signal.historicalWinRate.valuePct.toFixed(1)}% \u00B7 ${row.signal.historicalWinRate.sampleSize}`}
             </span>
           </div>
           <p className="mini-note">
-            {SIGNAL_STATUS[row.status] ?? row.status} \u00B7 {row.signal.strategyId} \u00B7{" "}
-            {row.signal.strength} strength
+            {t(SIGNAL_STATUS[row.status] ?? row.status)} · {row.signal.strategyId} · {t("{strength} strength", { strength: t(row.signal.strength) })}
           </p>
         </div>
       ))}
       <p className="mini-note">
-        Computed by Elyra&apos;s engine from live order books. Analysis, not advice
-        \u2014 a signal does not place an order.
+        {t("Computed by Elyra's engine from live order books. Analysis, not advice — a signal does not place an order.")}
       </p>
     </>
   );
 }
 
 function PredictionAlerts({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const alerts = (data.alerts ?? []) as Array<{
     id: string;
     marketQuestion: string | null;
@@ -447,9 +449,9 @@ function PredictionAlerts({ data }: { data: Record<string, unknown> }) {
   if (alerts.length === 0) {
     return (
       <div className="mini-card">
-        <span className="mini-label">Prediction alerts</span>
+        <span className="mini-label">{t("Prediction alerts")}</span>
         <p className="mini-note">
-          No alerts yet. Open a market in the chat and use <b>Set alert</b>.
+          {t("No alerts yet. Open a market in the chat and use")}{" "}<b>{t("Set alert")}</b>.
         </p>
       </div>
     );
@@ -459,14 +461,14 @@ function PredictionAlerts({ data }: { data: Record<string, unknown> }) {
     <>
       {alerts.map((alert) => (
         <div key={alert.id} className="mini-card">
-          <span className="mini-body">{alert.marketQuestion ?? "Market"}</span>
+          <span className="mini-body">{alert.marketQuestion ?? t("Market")}</span>
           <div className="mini-row">
-            <span>{alert.outcomeLabel ?? "Outcome"}</span>
+            <span>{alert.outcomeLabel ?? t("Outcome")}</span>
             <span className="mini-prob">{alert.kind.replace(/_/g, " ")}</span>
           </div>
           {alert.threshold !== null && (
             <div className="mini-row">
-              <span>Threshold</span>
+              <span>{t("Threshold")}</span>
               <span className="mini-num">{alert.threshold}</span>
             </div>
           )}
@@ -474,7 +476,7 @@ function PredictionAlerts({ data }: { data: Record<string, unknown> }) {
         </div>
       ))}
       <p className="mini-note">
-        An alert fires once on the crossing, then re-arms when the condition clears.
+        {t("An alert fires once on the crossing, then re-arms when the condition clears.")}
       </p>
     </>
   );
@@ -489,6 +491,7 @@ function PredictionAlerts({ data }: { data: Record<string, unknown> }) {
 --------------------------------------------------------------------------- */
 
 function Prediction({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   /* Not connected is its own screen, never a $0 card. Polymarket holds
      positions in a proxy wallet, so an unlinked account cannot be read at
      all — showing zero would be a claim nobody checked. */
@@ -496,14 +499,12 @@ function Prediction({ data }: { data: Record<string, unknown> }) {
     return (
       <>
         <div className="mini-card">
-          <span className="mini-label">Prediction markets</span>
+          <span className="mini-label">{t("Prediction markets")}</span>
           <p className="mini-note">
-            Market data is available and you can browse any market. Your own
-            prediction account is not linked yet, so I cannot see your
-            positions.
+            {t("Market data is available and you can browse any market. Your own prediction account is not linked yet, so I cannot see your positions.")}
           </p>
         </div>
-        <p className="mini-muted">Link it in Elyra to track them here.</p>
+        <p className="mini-muted">{t("Link it in Elyra to track them here.")}</p>
       </>
     );
   }
@@ -515,49 +516,49 @@ function Prediction({ data }: { data: Record<string, unknown> }) {
   return (
     <>
       <div className="mini-card">
-        <span className="mini-label">Prediction value</span>
+        <span className="mini-label">{t("Prediction value")}</span>
         <span className="mini-figure">{money(data.currentValueUsd)}</span>
       </div>
 
       <div className="mini-grid">
         <div className="mini-card">
-          <span className="mini-label">At risk</span>
+          <span className="mini-label">{t("At risk")}</span>
           <span className="mini-figure-sm">{money(data.capitalAtRiskUsd)}</span>
         </div>
         <div className="mini-card">
-          <span className="mini-label">Max payout</span>
+          <span className="mini-label">{t("Max payout")}</span>
           <span className="mini-figure-sm">{money(data.maxPayoutUsd)}</span>
         </div>
       </div>
 
       <div className="mini-card">
         <div className="mini-row">
-          <span>Active markets</span>
+          <span>{t("Active markets")}</span>
           <span className="mini-num">{String(data.activeMarkets ?? "—")}</span>
         </div>
         <div className="mini-row">
-          <span>Resolving in 7 days</span>
+          <span>{t("Resolving in 7 days")}</span>
           <span className="mini-num">{String(data.resolvingWithin7d ?? "—")}</span>
         </div>
         <div className="mini-row">
-          <span>Open PnL</span>
+          <span>{t("Open PnL")}</span>
           <span className="mini-num">{money(data.unrealisedPnlUsd)}</span>
         </div>
       </div>
 
       {(claimable.count ?? 0) > 0 ? (
         <div className="mini-card mini-claim">
-          <span className="mini-label">Unclaimed winnings</span>
+          <span className="mini-label">{t("Unclaimed winnings")}</span>
           <span className="mini-figure-sm">{money(claimable.valueUsd)}</span>
           <p className="mini-note">
-            {claimable.count} market(s) settled in your favour. Claim them in Elyra.
+            {claimable.count}{" "}{t("market(s) settled in your favour. Claim them in Elyra.")}
           </p>
         </div>
       ) : null}
 
       {largest !== null ? (
         <div className="mini-card">
-          <span className="mini-label">Largest position</span>
+          <span className="mini-label">{t("Largest position")}</span>
           <span className="mini-body">{String(largest.market)}</span>
           <p className="mini-note">
             {String(largest.outcome)} · {money(largest.currentValueUsd)} ·{" "}
@@ -568,21 +569,21 @@ function Prediction({ data }: { data: Record<string, unknown> }) {
 
       {next !== null ? (
         <div className="mini-card">
-          <span className="mini-label">Next resolution</span>
+          <span className="mini-label">{t("Next resolution")}</span>
           <span className="mini-body">{String(next.market)}</span>
           <p className="mini-note">{String(next.endsAt ?? "").slice(0, 10)}</p>
         </div>
       ) : null}
 
       <p className="mini-note">
-        Probabilities are market prices, not Elyra forecasts. Each share
-        settles at $1 or $0.
+        {t("Probabilities are market prices, not Elyra forecasts. Each share settles at $1 or $0.")}
       </p>
     </>
   );
 }
 
 function PredictionMarkets({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const markets = (data.markets ?? []) as Array<{
     question: string;
     outcomes: Array<{ label: string; impliedProbabilityPct: number }>;
@@ -590,7 +591,7 @@ function PredictionMarkets({ data }: { data: Record<string, unknown> }) {
     endsAt: string | null;
   }>;
 
-  if (markets.length === 0) return <p className="mini-muted">No markets to show.</p>;
+  if (markets.length === 0) return <p className="mini-muted">{t("No markets to show.")}</p>;
 
   return (
     <>
@@ -604,40 +605,41 @@ function PredictionMarkets({ data }: { data: Record<string, unknown> }) {
             </div>
           ))}
           <p className="mini-note">
-            {market.volume24hUsd === null ? "" : `Vol ${money(market.volume24hUsd)}`}
-            {market.endsAt === null ? "" : ` · Ends ${market.endsAt.slice(0, 10)}`}
+            {market.volume24hUsd === null ? "" : t("Vol {volume24hUsd}", { volume24hUsd: money(market.volume24hUsd) })}
+            {market.endsAt === null ? "" : t(" · Ends {value}", { value: market.endsAt.slice(0, 10) })}
           </p>
         </div>
       ))}
-      <p className="mini-note">Market-implied probabilities, not Elyra forecasts.</p>
+      <p className="mini-note">{t("Market-implied probabilities, not Elyra forecasts.")}</p>
     </>
   );
 }
 
 function Overview({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const venues = (data.venues ?? []) as Array<{ label: string; valueUsd: number | null }>;
 
   return (
     <>
       <div className="mini-card">
-        <span className="mini-label">Total value</span>
+        <span className="mini-label">{t("Total value")}</span>
         <span className="mini-figure">{money(data.totalValueUsd)}</span>
       </div>
 
       <div className="mini-grid">
         <div className="mini-card">
-          <span className="mini-label">Available</span>
+          <span className="mini-label">{t("Available")}</span>
           <span className="mini-figure-sm">{money(data.availableCapitalUsd)}</span>
         </div>
         <div className="mini-card">
-          <span className="mini-label">Open PnL</span>
+          <span className="mini-label">{t("Open PnL")}</span>
           <span className="mini-figure-sm">{money(data.unrealizedPnlUsd)}</span>
         </div>
       </div>
 
       {venues.length > 0 ? (
         <div className="mini-card">
-          <span className="mini-label">Where it sits</span>
+          <span className="mini-label">{t("Where it sits")}</span>
           {venues.map((venue) => (
             <div key={venue.label} className="mini-row">
               <span>{venue.label}</span>
@@ -651,6 +653,7 @@ function Overview({ data }: { data: Record<string, unknown> }) {
 }
 
 function Holdings({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const holdings = (data.holdings ?? []) as Array<{
     symbol: string;
     valueUsd: number | null;
@@ -658,7 +661,7 @@ function Holdings({ data }: { data: Record<string, unknown> }) {
     counted: boolean;
   }>;
 
-  if (holdings.length === 0) return <p className="mini-muted">Nothing above $1.</p>;
+  if (holdings.length === 0) return <p className="mini-muted">{t("Nothing above $1.")}</p>;
 
   return (
     <div className="mini-card">
@@ -666,7 +669,7 @@ function Holdings({ data }: { data: Record<string, unknown> }) {
         <div key={holding.symbol} className="mini-row">
           <span>
             {holding.symbol}
-            {holding.counted ? null : <span className="mini-flag">unverified</span>}
+            {holding.counted ? null : <span className="mini-flag">{t("unverified")}</span>}
           </span>
           <span className="mini-num">{money(holding.valueUsd)}</span>
         </div>
@@ -676,6 +679,7 @@ function Holdings({ data }: { data: Record<string, unknown> }) {
 }
 
 function Risk({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const exposures = (data.largestExposures ?? []) as Array<{
     asset: string;
     exposureUsd: number | null;
@@ -685,12 +689,12 @@ function Risk({ data }: { data: Record<string, unknown> }) {
   return (
     <>
       <div className="mini-card">
-        <span className="mini-label">Equity</span>
+        <span className="mini-label">{t("Equity")}</span>
         <span className="mini-figure">{money(data.equityUsd)}</span>
       </div>
 
       <div className="mini-card">
-        <span className="mini-label">Largest exposures</span>
+        <span className="mini-label">{t("Largest exposures")}</span>
         {exposures.map((exposure) => (
           <div key={exposure.asset} className="mini-row">
             <span>{exposure.asset}</span>
@@ -701,7 +705,7 @@ function Risk({ data }: { data: Record<string, unknown> }) {
           </div>
         ))}
         <p className="mini-note">
-          Spot and perpetual exposure to the same asset are counted together.
+          {t("Spot and perpetual exposure to the same asset are counted together.")}
         </p>
       </div>
     </>
@@ -709,6 +713,7 @@ function Risk({ data }: { data: Record<string, unknown> }) {
 }
 
 function Defi({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
   const positions = (data.positions ?? []) as Array<{
     label: string;
     netUsd: number | null;
@@ -719,7 +724,7 @@ function Defi({ data }: { data: Record<string, unknown> }) {
 
   return (
     <>
-      {positions.length === 0 ? <p className="mini-muted">No positions found.</p> : null}
+      {positions.length === 0 ? <p className="mini-muted">{t("No positions found.")}</p> : null}
 
       {positions.map((position) => (
         <div key={position.label} className="mini-card">
@@ -730,8 +735,8 @@ function Defi({ data }: { data: Record<string, unknown> }) {
               {position.pctFromLiquidation === null
                 ? /* The protocol published no threshold. Silence would read
                      as safety; a guess from leverage would read as fact. */
-                  "Distance to liquidation not published by the protocol."
-                : `${position.pctFromLiquidation}% from liquidation.`}
+                  t("Distance to liquidation not published by the protocol.")
+                : t("{pctFromLiquidation}% from liquidation.", { pctFromLiquidation: position.pctFromLiquidation })}
             </p>
           ) : null}
         </div>

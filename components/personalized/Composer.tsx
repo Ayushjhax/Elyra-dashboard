@@ -24,6 +24,9 @@ import { CHIP_SOURCE, usable, type SourceKey, type SourceStatus } from "@/lib/pe
 import { CONTEXT_SOURCES, type ContextSource } from "@/lib/personalized/types";
 import type { Dictation } from "@/lib/voice/useDictation";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The composer: what to ask, and what it may read.
@@ -40,10 +43,10 @@ import { cn } from "@/lib/utils";
 --------------------------------------------------------------------------- */
 
 export const SOURCE_META: Record<ContextSource, { label: string; icon: LucideIcon; reads: string }> = {
-  portfolio: { label: "Portfolio", icon: BarChart3, reads: "balances, equity and allocation" },
-  positions: { label: "Positions", icon: BriefcaseBusiness, reads: "open perps, DeFi and prediction markets" },
-  activity: { label: "Activity", icon: Clock3, reads: "your recent wallet transactions" },
-  memory: { label: "Memory", icon: BookOpen, reads: "the preferences you've saved" },
+  portfolio: { label: msg("Portfolio"), icon: BarChart3, reads: msg("balances, equity and allocation") },
+  positions: { label: msg("Positions"), icon: BriefcaseBusiness, reads: msg("open perps, DeFi and prediction markets") },
+  activity: { label: msg("Activity"), icon: Clock3, reads: msg("your recent wallet transactions") },
+  memory: { label: msg("Memory"), icon: BookOpen, reads: msg("the preferences you've saved") },
 };
 
 const MAX_INPUT_PX = 200;
@@ -54,11 +57,14 @@ function chipState(on: boolean, status: SourceStatus): "on" | "off" | "unavailab
   return usable(status) ? "on" : "unavailable";
 }
 
-function chipTip(source: ContextSource, state: ReturnType<typeof chipState>, status: SourceStatus): string {
-  const { label, reads } = SOURCE_META[source];
-  if (state === "off") return `${label} is left out — Elyra won't read ${reads}. Select to include it.`;
-  if (state === "unavailable") return `${label} is on, but can't be read right now (${status.label.toLowerCase()}).`;
-  return `Elyra may read ${reads}. Select to leave it out.`;
+function chipTip(source: ContextSource, state: ReturnType<typeof chipState>, status: SourceStatus, t: Translator): string {
+  const label = t(SOURCE_META[source].label);
+  const reads = t(SOURCE_META[source].reads);
+  if (state === "off") return t("{label} is left out — Elyra won't read {reads}. Select to include it.", { label, reads });
+  if (state === "unavailable") {
+    return t("{label} is on, but can't be read right now ({status}).", { label, status: t(status.template ?? status.label, status.values).toLowerCase() });
+  }
+  return t("Elyra may read {reads}. Select to leave it out.", { reads });
 }
 
 function SourceChip({
@@ -72,10 +78,11 @@ function SourceChip({
   status: SourceStatus;
   onToggle: () => void;
 }) {
+  const t = useT();
   const { label, icon: Icon } = SOURCE_META[source];
   const state = chipState(on, status);
   return (
-    <Tip label={chipTip(source, state, status)}>
+    <Tip label={chipTip(source, state, status, t)}>
       <button
         type="button"
         aria-pressed={on}
@@ -89,10 +96,10 @@ function SourceChip({
         )}
       >
         <Icon size={14} strokeWidth={1.5} aria-hidden className={state === "off" ? "text-text-muted" : "text-text-secondary"} />
-        <span className={cn(state === "off" && "line-through decoration-text-muted/60")}>{label}</span>
+        <span className={cn(state === "off" && "line-through decoration-text-muted/60")}>{t(label)}</span>
         {state === "unavailable" && <span aria-hidden className="size-1.5 rounded-pill bg-caution" />}
         <span className="sr-only">
-          {state === "off" ? "(left out)" : state === "unavailable" ? `(${status.label})` : "(included)"}
+          {state === "off" ? t("(left out)") : state === "unavailable" ? `(${t(status.template ?? status.label, status.values)})` : t("(included)")}
         </span>
       </button>
     </Tip>
@@ -108,6 +115,7 @@ function ContextSettings({
   statuses: Record<SourceKey, SourceStatus>;
   onChange: (next: ContextSource[]) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const id = useId();
   const all = selected.length === CONTEXT_SOURCES.length;
@@ -116,15 +124,15 @@ function ContextSettings({
       id={id}
       open={open}
       onOpenChange={setOpen}
-      label="Context for your questions"
+      label={t("Context for your questions")}
       side="top"
       align="end"
       className="w-[min(300px,calc(100vw-48px))]"
       trigger={
-        <Tip label="Context settings">
+        <Tip label={t("Context settings")}>
           <button
             type="button"
-            aria-label="Context settings"
+            aria-label={t("Context settings")}
             aria-expanded={open}
             aria-controls={id}
             onClick={() => setOpen((value) => !value)}
@@ -136,8 +144,8 @@ function ContextSettings({
       }
     >
       <div className="flex flex-col gap-1 p-3">
-        <p className="type-body-sm font-medium text-text-primary">What Elyra may read</p>
-        <p className="type-label mb-1 text-text-muted">For each question, until you change it. Left-out sources are never sent.</p>
+        <p className="type-body-sm font-medium text-text-primary">{t("What Elyra may read")}</p>
+        <p className="type-label mb-1 text-text-muted">{t("For each question, until you change it. Left-out sources are never sent.")}</p>
         {CONTEXT_SOURCES.map((source) => {
           const meta = SOURCE_META[source];
           const status = statuses[CHIP_SOURCE[source]];
@@ -155,8 +163,8 @@ function ContextSettings({
               />
               <meta.icon size={15} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
               <span className="min-w-0 flex-1">
-                <span className="type-body-sm block text-text-primary">{meta.label}</span>
-                <span className="type-label block text-text-muted">{meta.reads}</span>
+                <span className="type-body-sm block text-text-primary">{t(meta.label)}</span>
+                <span className="type-label block text-text-muted">{t(meta.reads)}</span>
               </span>
               <span
                 className={cn(
@@ -164,7 +172,7 @@ function ContextSettings({
                   status.state === "failed" ? "text-negative" : status.state === "unavailable" ? "text-caution" : "text-text-muted",
                 )}
               >
-                {status.label}
+                {t(status.template ?? status.label, status.values)}
               </span>
             </label>
           );
@@ -174,7 +182,7 @@ function ContextSettings({
           onClick={() => onChange(all ? [] : [...CONTEXT_SOURCES])}
           className="type-label mt-1 self-start rounded-chip px-1.5 py-1 text-text-secondary hover:text-text-primary"
         >
-          {all ? "Leave everything out" : "Include everything"}
+          {all ? t("Leave everything out") : t("Include everything")}
         </button>
       </div>
     </Popover>
@@ -182,6 +190,7 @@ function ContextSettings({
 }
 
 function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove: () => void }) {
+  const t = useT();
   return (
     <li className="flex max-w-56 items-center gap-2 rounded-control border border-border-subtle bg-surface-raised py-1 pl-1 pr-1">
       {file.previewUrl !== null ? (
@@ -201,7 +210,7 @@ function AttachmentChip({ file, onRemove }: { file: ComposerAttachment; onRemove
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Remove ${file.name}`}
+        aria-label={t("Remove {name}", { name: file.name })}
         className="grid size-7 shrink-0 place-items-center rounded-chip text-text-muted hover:bg-surface-hover hover:text-text-primary"
       >
         <X size={13} strokeWidth={1.75} aria-hidden />
@@ -243,6 +252,7 @@ export function Composer({
   dictation: Dictation;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
 }) {
+  const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileErrors, setFileErrors] = useState<string[]>([]);
   const ready = canSend && !pending && (draft.trim().length > 0 || attachments.length > 0);
@@ -289,10 +299,10 @@ export function Composer({
         }}
       >
         <div className="flex items-start gap-1.5 border-b border-border-subtle px-3 py-2">
-          <span className="type-label flex h-8 shrink-0 items-center pr-1 text-text-secondary">Using</span>
+          <span className="type-label flex h-8 shrink-0 items-center pr-1 text-text-secondary">{t("Using")}</span>
           {/* Wraps onto a second line on a narrow screen; nothing overlaps
               and nothing hides off the edge. */}
-          <div role="group" aria-label="Context for the next question" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          <div role="group" aria-label={t("Context for the next question")} className="flex min-w-0 flex-1 flex-wrap gap-1.5">
             {CONTEXT_SOURCES.map((source) => (
               <SourceChip
                 key={source}
@@ -311,7 +321,7 @@ export function Composer({
         </div>
 
         {attachments.length > 0 && (
-          <ul aria-label="Attached files" className="flex list-none flex-wrap gap-1.5 px-3 pt-3">
+          <ul aria-label={t("Attached files")} className="flex list-none flex-wrap gap-1.5 px-3 pt-3">
             {attachments.map((file) => (
               <AttachmentChip
                 key={file.id}
@@ -341,8 +351,8 @@ export function Composer({
             event.preventDefault();
             void addFiles(files);
           }}
-          placeholder={listening ? "Listening…" : "Ask Elyra about your capital…"}
-          aria-label="Ask Elyra about your capital"
+          placeholder={listening ? t("Listening…") : t("Ask Elyra about your capital…")}
+          aria-label={t("Ask Elyra about your capital")}
           className={cn(
             "type-body block w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-text-primary",
             "placeholder:text-text-muted focus-visible:outline-none",
@@ -364,10 +374,10 @@ export function Composer({
               event.target.value = "";
             }}
           />
-          <Tip label="Attach images, PDFs or text files">
+          <Tip label={t("Attach images, PDFs or text files")}>
             <button
               type="button"
-              aria-label="Attach files"
+              aria-label={t("Attach files")}
               onClick={() => fileRef.current?.click()}
               className="grid size-9 place-items-center rounded-control text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary"
             >
@@ -375,10 +385,10 @@ export function Composer({
             </button>
           </Tip>
           {dictation.mode !== null && (
-            <Tip label={listening ? "Stop dictating" : dictation.status === "transcribing" ? "Writing it out…" : "Dictate — words go into the box, nothing is sent"}>
+            <Tip label={listening ? t("Stop dictating") : dictation.status === "transcribing" ? t("Writing it out…") : t("Dictate — words go into the box, nothing is sent")}>
               <button
                 type="button"
-                aria-label={listening ? "Stop dictating" : "Dictate your question"}
+                aria-label={listening ? t("Stop dictating") : t("Dictate your question")}
                 aria-pressed={listening}
                 disabled={dictation.status === "transcribing"}
                 onClick={() => (listening ? dictation.stop() : dictation.start())}
@@ -393,20 +403,20 @@ export function Composer({
           )}
           {dictation.status === "recording" && (
             <span className="type-label tabular-nums text-text-muted" aria-live="polite">
-              Recording {dictation.elapsed}s
+              {t("Recording {elapsed}s", { elapsed: dictation.elapsed })}
             </span>
           )}
 
           <span aria-hidden className="flex-1" />
           <span className="type-label hidden pr-2 text-text-muted compact:inline">
-            {pending ? "Answering…" : "Enter to send"}
+            {pending ? t("Answering…") : t("Enter to send")}
           </span>
           {pending ? (
-            <Tip label="Stop generating">
+            <Tip label={t("Stop generating")}>
               <button
                 type="button"
                 onClick={onStop}
-                aria-label="Stop generating"
+                aria-label={t("Stop generating")}
                 className="grid size-9 place-items-center rounded-control border border-border-strong text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover"
               >
                 <Square size={13} strokeWidth={2} aria-hidden className="fill-current" />
@@ -417,7 +427,7 @@ export function Composer({
               type="button"
               onClick={submit}
               disabled={!ready}
-              aria-label="Send"
+              aria-label={t("Send")}
               className={cn(
                 "grid size-9 place-items-center rounded-control transition-colors duration-[var(--dur-fast)] ease-brand",
                 ready
@@ -441,7 +451,7 @@ export function Composer({
         </ul>
       ) : (
         <p className="type-label mx-auto mt-1.5 w-full max-w-[880px] text-center text-text-muted">
-          Grounded in connected data and preferences you save.
+          {t("Grounded in connected data and preferences you save.")}
         </p>
       )}
     </div>

@@ -528,6 +528,16 @@ export async function previewSwap(input: {
   };
 }
 
+/**
+ * The tokenized securities on the allowlist — every entry with an issuer
+ * (Backed's xStocks, Ondo's tokens) — for the tokenized-stocks page.
+ */
+export function tokenizedSecurities(): Array<TradableAsset & { symbol: string; issuer: Issuer }> {
+  return Object.entries(MINTS)
+    .filter((entry): entry is [string, TradableAsset & { issuer: Issuer }] => entry[1].issuer !== undefined)
+    .map(([symbol, asset]) => ({ ...asset, symbol }));
+}
+
 /** Resolves a symbol to a verified mint, for callers outside the swap path. */
 export function mintFor(symbol: string): string | null {
   return MINTS[symbol.trim().toUpperCase()]?.mint ?? null;

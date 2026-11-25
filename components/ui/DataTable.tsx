@@ -1,9 +1,11 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export interface Column<T> {
   key: string;
+  /** English — translated here, so a column list can live outside a component (`msg()`). */
   header: string;
   align?: "left" | "right";
   /** Applied to the header cell, so widths never shift as values tick. */
@@ -35,6 +37,11 @@ export interface Column<T> {
  * Both are rendered and a container query shows one, so the choice is CSS's,
  * like every other layout decision here, and the hidden one is out of the
  * accessibility tree.
+ *
+ * A table runs edge to edge across its card, and its outer cells (and the
+ * cards) are inset by `--table-inset` — the panel's 16px unless the card sets
+ * its own — so the first column lines up with the card's header and
+ * controls rather than sitting half that far in.
  */
 /* Where the table takes over from the cards, by the smallest width that holds
    it. Spelled out in full so Tailwind generates each container query. */
@@ -47,6 +54,18 @@ const CARD_BREAKPOINTS: readonly { px: number; table: string; cards: string }[] 
   { px: 896, table: "hidden @[56rem]:block", cards: "@[56rem]:hidden" },
   { px: 1024, table: "hidden @[64rem]:block", cards: "@[64rem]:hidden" },
 ];
+
+/** The outer cells' inset: the card's own padding, so the columns line up with it. */
+const INSET = "first:pl-[var(--table-inset,16px)] last:pr-[var(--table-inset,16px)]";
+
+/** What the inset adds over a cell's own 8px, which an outer column's width
+    gains back so its content keeps the room it was sized for. */
+const INSET_EXTRA = "(var(--table-inset, 16px) - 8px)";
+
+function columnWidth(width: string | undefined, index: number, count: number): string | undefined {
+  if (width === undefined) return undefined;
+  return index === 0 || index === count - 1 ? `calc(${width} + ${INSET_EXTRA})` : width;
+}
 
 function cardBreakpoint(minWidth: number | undefined) {
   const needed = minWidth ?? 0;
@@ -77,32 +96,34 @@ export function DataTable<T>({
   card?: (row: T) => React.ReactNode;
   className?: string;
 }) {
+  const t = useT();
   const table = (
     <table
       className={cn("w-full border-collapse text-left", className)}
-      style={{ tableLayout: "fixed", minWidth }}
+      style={{ tableLayout: "fixed", minWidth: minWidth === undefined ? undefined : `calc(${minWidth}px + 2 * ${INSET_EXTRA})` }}
     >
-      <caption className="sr-only">{caption}</caption>
+      <caption className="sr-only">{t(caption)}</caption>
       {/* Widths live on the header cells, not a <colgroup>: fixed layout
           reads the first row either way, and a column dropped by its
           container query then takes its width with it. A <col> stays
           behind, and every width after it lands one column off. */}
       <thead>
         <tr>
-          {columns.map((column) => (
+          {columns.map((column, index) => (
             <th
               key={column.key}
               scope="col"
-              style={column.width ? { width: column.width } : undefined}
+              style={column.width ? { width: columnWidth(column.width, index, columns.length) } : undefined}
               className={cn(
                 "type-label sticky top-0 z-10 h-8 whitespace-nowrap bg-surface-panel px-2",
+                INSET,
                 "border-b border-border-subtle font-medium text-text-secondary",
                 column.align === "right" ? "text-right" : "text-left",
                 column.className,
               )}
             >
               <span className={cn(column.headerSrOnly && "sr-only")}>
-                {column.header}
+                {t(column.header)}
               </span>
             </th>
           ))}
@@ -123,6 +144,7 @@ export function DataTable<T>({
                 key={column.key}
                 className={cn(
                   "type-data h-[var(--row-h)] truncate px-2 text-text-primary",
+                  INSET,
                   column.align === "right" ? "text-right" : "text-left",
                   column.className,
                 )}
@@ -142,11 +164,11 @@ export function DataTable<T>({
   return (
     <div className="@container">
       <div className={breakpoint.table}>{table}</div>
-      <ul aria-label={caption} className={cn("list-none", breakpoint.cards)}>
+      <ul aria-label={t(caption)} className={cn("list-none", breakpoint.cards)}>
         {rows.map((row) => (
           <li
             key={getRowKey(row)}
-            className={cn("border-b border-border-subtle px-4 py-3 last:border-b-0", rowClassName?.(row))}
+            className={cn("border-b border-border-subtle px-[var(--table-inset,16px)] py-3 last:border-b-0", rowClassName?.(row))}
           >
             {card(row)}
           </li>

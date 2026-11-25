@@ -7,13 +7,16 @@ import { useElyraAuth, type ElyraAuth } from "@/components/providers/PrivyClient
 import { CopyButton, Tip } from "@/components/shell/RouteDrawer";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { OptionMenu } from "@/components/ui/OptionMenu";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Popover } from "@/components/ui/Popover";
 import { QrCode } from "@/components/ui/QrCode";
 import { useCopy, type CopyState } from "@/lib/clipboard";
-import { activationRateText, activationStep, plural, poolProgress } from "@/lib/referrals/display";
+import { activationRateText, activationStep, poolProgress } from "@/lib/referrals/display";
 import type { ReferralListItem, ReferralStats } from "@/lib/referrals/stats";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Referrals — a little better, together.
@@ -58,16 +61,17 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
 }
 
 function Stats({ stats }: { stats: ReferralStats }) {
+  const t = useT();
   return (
     <dl className="grid grid-cols-2 gap-y-6 @[44rem]:grid-cols-4 @[44rem]:divide-x @[44rem]:divide-border-subtle [&>div]:min-h-16">
-      <Stat label="Total points" value={stats.totalPoints.toLocaleString("en-US")} />
+      <Stat label={t("Total points")} value={stats.totalPoints.toLocaleString("en-US")} />
       <Stat
-        label="Referrals"
+        label={t("Referrals")}
         value={stats.totalReferrals.toLocaleString("en-US")}
-        sub={`${stats.activatedReferrals.toLocaleString("en-US")} activated`}
+        sub={t("{activatedReferrals} activated", { activatedReferrals: stats.activatedReferrals.toLocaleString("en-US") })}
       />
-      <Stat label="Activation rate" value={activationRateText(stats.activationRate)} />
-      <Stat label="Bonus earned" value={`${stats.bonusPoints.toLocaleString("en-US")} pts`} />
+      <Stat label={t("Activation rate")} value={activationRateText(stats.activationRate)} />
+      <Stat label={t("Bonus earned")} value={`${stats.bonusPoints.toLocaleString("en-US")} pts`} />
     </dl>
   );
 }
@@ -75,16 +79,17 @@ function Stats({ stats }: { stats: ReferralStats }) {
 /* ---- Invite ---- */
 
 function ShareControl({ url, onCopy }: { url: string; onCopy: () => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const id = useId();
-  const message = encodeURIComponent("Join me on Elyra");
+  const message = encodeURIComponent(t("Join me on Elyra"));
 
   const share = async () => {
     /* The system sheet where there is one — phones, mostly. A dismissed
        sheet is the person's choice, not a failure; it opens the menu. */
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: "Elyra", text: "Join me on Elyra", url });
+        await navigator.share({ title: "Elyra", text: t("Join me on Elyra"), url });
         return;
       } catch {
         /* Fall through to the menu. */
@@ -101,13 +106,13 @@ function ShareControl({ url, onCopy }: { url: string; onCopy: () => void }) {
       id={id}
       open={open}
       onOpenChange={setOpen}
-      label="Share your invite"
+      label={t("Share your invite")}
       align="start"
       className="w-56 p-1.5"
       trigger={
         <button type="button" aria-expanded={open} aria-controls={id} onClick={() => void share()} className={cn(outlined, "w-full")}>
           <Share2 size={17} strokeWidth={1.5} aria-hidden />
-          Share
+          {t("Share")}
         </button>
       }
     >
@@ -119,7 +124,7 @@ function ShareControl({ url, onCopy }: { url: string; onCopy: () => void }) {
         className={item}
       >
         <X size={15} strokeWidth={1.5} aria-hidden />
-        Share on X
+        {t("Share on X")}
       </a>
       <a
         href={`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${message}`}
@@ -129,7 +134,7 @@ function ShareControl({ url, onCopy }: { url: string; onCopy: () => void }) {
         className={item}
       >
         <Send size={15} strokeWidth={1.5} aria-hidden />
-        Share on Telegram
+        {t("Share on Telegram")}
       </a>
       <button
         type="button"
@@ -140,13 +145,14 @@ function ShareControl({ url, onCopy }: { url: string; onCopy: () => void }) {
         className={item}
       >
         <Link2 size={15} strokeWidth={1.5} aria-hidden />
-        Copy link
+        {t("Copy link")}
       </button>
     </Popover>
   );
 }
 
 function InviteCard({ stats }: { stats: ReferralStats }) {
+  const t = useT();
   const { state, copy } = useCopy();
   const [qrOpen, setQrOpen] = useState(false);
   const url = stats.referralUrl;
@@ -154,15 +160,15 @@ function InviteCard({ stats }: { stats: ReferralStats }) {
 
   return (
     <section aria-labelledby="invite-heading" className={cn(card, "flex flex-col p-6")}>
-      <p className="type-eyebrow uppercase text-text-secondary">Your invite</p>
+      <p className="type-eyebrow uppercase text-text-secondary">{t("Your invite")}</p>
       <h2 id="invite-heading" className="type-h1 mt-2 text-text-primary">
-        Share Elyra with a friend
+        {t("Share Elyra with a friend")}
       </h2>
-      <p className="type-body mt-1 text-text-secondary">Earn {stats.activationPoints} points when they activate.</p>
+      <p className="type-body mt-1 text-text-secondary">{t("Earn {activationPoints} points when they activate.", { activationPoints: stats.activationPoints })}</p>
 
       {url === null || code === null ? (
         <p role="alert" className="type-body-sm mt-6 rounded-control border border-border-subtle bg-surface-raised px-4 py-3 text-text-secondary">
-          Your referral code couldn&rsquo;t be created just now. Reload the page to try again.
+          {t("Your referral code couldn’t be created just now. Reload the page to try again.")}
         </p>
       ) : (
         <>
@@ -172,7 +178,7 @@ function InviteCard({ stats }: { stats: ReferralStats }) {
               {displayUrl(url)}
               <span className="sr-only"> ({url})</span>
             </span>
-            <CopyButton value={url} label="invite link" className="size-10" />
+            <CopyButton value={url} label={t("invite link")} className="size-10" />
           </div>
 
           <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-3 @[34rem]:grid-cols-[minmax(0,13rem)_minmax(0,9rem)_auto]">
@@ -186,37 +192,37 @@ function InviteCard({ stats }: { stats: ReferralStats }) {
               )}
             >
               {state === "copied" ? <Check size={17} strokeWidth={1.75} aria-hidden /> : <Copy size={17} strokeWidth={1.5} aria-hidden />}
-              {state === "copied" ? "Copied" : state === "failed" ? "Couldn't copy" : "Copy link"}
+              {state === "copied" ? t("Copied") : state === "failed" ? t("Couldn't copy") : t("Copy link")}
             </button>
             <ShareControl url={url} onCopy={() => void copy(url)} />
-            <Tip label="Show QR code">
-              <button type="button" aria-label="Show QR code" onClick={() => setQrOpen(true)} className={cn(outlined, "w-11 px-0")}>
+            <Tip label={t("Show QR code")}>
+              <button type="button" aria-label={t("Show QR code")} onClick={() => setQrOpen(true)} className={cn(outlined, "w-11 px-0")}>
                 <QrIcon size={18} strokeWidth={1.5} aria-hidden />
               </button>
             </Tip>
           </div>
           <span aria-live="polite" className="sr-only">
-            {state === "copied" ? "Invite link copied" : state === "failed" ? "The invite link could not be copied" : ""}
+            {state === "copied" ? t("Invite link copied") : state === "failed" ? t("The invite link could not be copied") : ""}
           </span>
 
           <p className="type-body-sm mt-5 flex items-center gap-1 text-text-secondary">
-            Your referral code:
+            {t("Your referral code:")}
             <span className="type-mono-addr ml-1 font-medium text-text-primary">{code}</span>
-            <CopyButton value={code} label="referral code" className="size-8" />
+            <CopyButton value={code} label={t("referral code")} className="size-8" />
           </p>
 
           <Dialog open={qrOpen} onOpenChange={setQrOpen}>
             <DialogContent className="w-[min(360px,calc(100vw-24px))] p-0">
               <DialogHeader className="border-b border-border-subtle px-5 py-4">
-                <DialogTitle className="type-h2 text-text-primary">Your invite</DialogTitle>
+                <DialogTitle className="type-h2 text-text-primary">{t("Your invite")}</DialogTitle>
                 <DialogDescription className="type-body-sm text-text-secondary">
-                  Scan to open your link on another device.
+                  {t("Scan to open your link on another device.")}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col items-center gap-4 p-5">
-                <QrCode value={url} label={`QR code for ${displayUrl(url)}`} className="size-52" />
+                <QrCode value={url} label={t("QR code for {url}", { url: displayUrl(url) })} className="size-52" />
                 <p className="type-mono-addr break-all text-center text-text-primary">{displayUrl(url)}</p>
-                <CopyButton value={url} label="invite link" text="Copy link" className="w-full" />
+                <CopyButton value={url} label={t("invite link")} text={t("Copy link")} className="w-full" />
               </div>
             </DialogContent>
           </Dialog>
@@ -229,15 +235,16 @@ function InviteCard({ stats }: { stats: ReferralStats }) {
 /* ---- Activation pool ---- */
 
 function PoolCard({ stats }: { stats: ReferralStats }) {
+  const t = useT();
   const pool = stats.pool;
   const { filled, remaining } = poolProgress(pool);
   return (
     <section aria-labelledby="pool-heading" className={cn(card, "flex flex-col p-6")}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="type-eyebrow uppercase text-text-secondary">Activation pool</p>
+          <p className="type-eyebrow uppercase text-text-secondary">{t("Activation pool")}</p>
           <h2 id="pool-heading" className="type-h1 mt-2 text-text-primary">
-            Your next milestone
+            {t("Your next milestone")}
           </h2>
         </div>
         <Gift size={22} strokeWidth={1.5} aria-hidden className="shrink-0 text-accent" />
@@ -246,13 +253,13 @@ function PoolCard({ stats }: { stats: ReferralStats }) {
       <p className="mt-4 flex items-baseline gap-2.5 tabular-nums">
         <span className="type-display font-sans text-text-primary">{filled}</span>
         <span className="type-display font-sans text-text-secondary">/ {pool.target}</span>
-        <span className="type-body text-text-secondary">activations</span>
+        <span className="type-body text-text-secondary">{t("activations")}</span>
       </p>
 
       {/* Markers on a thin rail; a marker fills only for an activation the
           server has counted into this pool. */}
       <ol
-        aria-label={`${filled} of ${pool.target} activations in this pool`}
+        aria-label={t("{filled} of {target} activations in this pool", { filled, target: pool.target })}
         className="relative mt-4 flex list-none items-center justify-between"
       >
         <span aria-hidden className="absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-border-strong" />
@@ -266,7 +273,7 @@ function PoolCard({ stats }: { stats: ReferralStats }) {
           return (
             <li
               key={index}
-              aria-label={`Activation ${index + 1}${done ? ", counted" : ""}`}
+              aria-label={(done ? t("Activation {number}, counted", { number: index + 1 }) : t("Activation {number}", { number: index + 1 }))}
               className={cn(
                 "relative grid size-4 place-items-center rounded-pill border",
                 done ? "border-accent-quiet bg-accent-quiet" : "border-border-strong bg-surface-panel",
@@ -279,26 +286,25 @@ function PoolCard({ stats }: { stats: ReferralStats }) {
       </ol>
 
       <p className="type-body-sm mt-3 text-text-secondary">
-        <span className="tabular-nums text-text-primary">{remaining}</span> {remaining === 1 ? "activation" : "activations"} to your next bonus.
+        <span className="tabular-nums text-text-primary">{remaining}</span> {(remaining === 1 ? t("activation to your next bonus.") : t("activations to your next bonus."))}
       </p>
 
       <div className="mt-4 flex items-end justify-between gap-3 border-t border-border-subtle pt-3">
         <div className="min-w-0">
-          <p className="type-body-sm text-text-secondary">Next bonus</p>
-          <p className="type-h1 mt-0.5 font-sans tabular-nums text-accent">+{pool.nextBonusPoints.toLocaleString("en-US")} pts</p>
+          <p className="type-body-sm text-text-secondary">{t("Next bonus")}</p>
+          <p className="type-h1 mt-0.5 font-sans tabular-nums text-accent">{t("+{nextBonusPoints} pts", { nextBonusPoints: pool.nextBonusPoints.toLocaleString("en-US") })}</p>
         </div>
-        <Tip openOnTap label={`Unlocks at ${pool.target} activations`}>
-          <span tabIndex={0} aria-label={`Locked until ${plural(remaining, "more activation")}`} className="grid size-9 place-items-center rounded-control text-text-secondary">
+        <Tip openOnTap label={t("Unlocks at {target} activations", { target: pool.target })}>
+          <span tabIndex={0} aria-label={(remaining === 1 ? t("Locked until 1 more activation") : t("Locked until {count} more activations", { count: remaining }))} className="grid size-9 place-items-center rounded-control text-text-secondary">
             <Lock size={20} strokeWidth={1.5} aria-hidden />
           </span>
         </Tip>
       </div>
       <p className="type-label mt-2 text-text-secondary">
-        Your pool restarts after each bonus.
+        {t("Your pool restarts after each bonus.")}
         {pool.completedPools > 0 && (
           <span className="text-text-muted">
-            {" "}
-            {plural(pool.completedPools, "bonus", "bonuses")} earned so far.
+            {(pool.completedPools === 1 ? t("1 bonus earned so far.") : t("{count} bonuses earned so far.", { count: pool.completedPools }))}
           </span>
         )}
       </p>
@@ -309,16 +315,17 @@ function PoolCard({ stats }: { stats: ReferralStats }) {
 /* ---- How it works ---- */
 
 function HowItWorks({ stats }: { stats: ReferralStats }) {
+  const t = useT();
   const steps = [
-    { title: "Share your link", body: "Send your invite to a friend." },
-    { title: "They join", body: "They create an account through your link." },
-    { title: "They activate", body: activationStep(stats.activationRequirement) },
-    { title: "You earn", body: `${stats.activationPoints} points per activation, plus pool bonuses.` },
+    { title: t("Share your link"), body: t("Send your invite to a friend.") },
+    { title: t("They join"), body: t("They create an account through your link.") },
+    { title: t("They activate"), body: t(activationStep(stats.activationRequirement)) },
+    { title: t("You earn"), body: t("{points} points per activation, plus pool bonuses.", { points: stats.activationPoints }) },
   ];
   return (
     <section id="how-it-works" aria-labelledby="how-heading" className="scroll-mt-4">
       <h2 id="how-heading" className="type-h1 text-text-primary">
-        How it works
+        {t("How it works")}
       </h2>
       <ol className="mt-4 grid list-none grid-cols-1 gap-y-5 @[40rem]:grid-cols-2 @[64rem]:grid-cols-4 @[64rem]:divide-x @[64rem]:divide-border-subtle">
         {steps.map((step, index) => (
@@ -334,7 +341,7 @@ function HowItWorks({ stats }: { stats: ReferralStats }) {
         ))}
       </ol>
       <p className="sr-only">
-        Each pool of {stats.pool.target} activations adds {stats.pool.nextBonusPoints} bonus points, and the pool repeats.
+        {t("Each pool of {target} activations adds {nextBonusPoints} bonus points, and the pool repeats.", { target: stats.pool.target, nextBonusPoints: stats.pool.nextBonusPoints })}
       </p>
     </section>
   );
@@ -345,9 +352,9 @@ function HowItWorks({ stats }: { stats: ReferralStats }) {
 type Filter = "all" | "pending" | "activated" | "not_eligible";
 
 const STATUS: Record<ReferralListItem["status"], { label: string; className: string }> = {
-  activated: { label: "Activated", className: "border-sage/40 bg-positive-bg text-positive" },
-  pending: { label: "Pending", className: "border-border-strong text-text-secondary" },
-  not_eligible: { label: "Not eligible", className: "border-border-subtle text-text-muted" },
+  activated: { label: msg("Activated"), className: "border-sage/40 bg-positive-bg text-positive" },
+  pending: { label: msg("Pending"), className: "border-border-strong text-text-secondary" },
+  not_eligible: { label: msg("Not eligible"), className: "border-border-subtle text-text-muted" },
 };
 
 function ReferralsList({
@@ -361,14 +368,15 @@ function ReferralsList({
   canCopy: boolean;
   copyState: CopyState;
 }) {
+  const t = useT();
   const [filter, setFilter] = useState<Filter>("all");
   const shown = filter === "all" ? referrals : referrals.filter((entry) => entry.status === filter);
   const options: Array<{ id: Filter; label: string }> = [
-    { id: "all", label: "All referrals" },
-    { id: "pending", label: "Pending" },
-    { id: "activated", label: "Activated" },
+    { id: "all", label: t("All referrals") },
+    { id: "pending", label: t("Pending") },
+    { id: "activated", label: t("Activated") },
     /* Offered only when it exists: most accounts never see one. */
-    ...(referrals.some((entry) => entry.status === "not_eligible") ? [{ id: "not_eligible" as const, label: "Not eligible" }] : []),
+    ...(referrals.some((entry) => entry.status === "not_eligible") ? [{ id: "not_eligible" as const, label: t("Not eligible") }] : []),
   ];
 
   return (
@@ -376,12 +384,12 @@ function ReferralsList({
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border-subtle px-6 py-4 compact:px-7">
         <div className="min-w-0">
           <h2 id="list-heading" className="type-h2 font-sans text-text-primary">
-            Your referrals
+            {t("Your referrals")}
           </h2>
-          <p className="type-body-sm text-text-secondary">Follow each invite from join to activation.</p>
+          <p className="type-body-sm text-text-secondary">{t("Follow each invite from join to activation.")}</p>
         </div>
         <OptionMenu
-          label="Show"
+          label={t("Show")}
           options={options}
           value={filter}
           onChange={(id) => setFilter(id as Filter)}
@@ -393,15 +401,15 @@ function ReferralsList({
       {referrals.length === 0 ? (
         <div className="flex flex-col items-center px-6 py-7 text-center">
           <Users size={26} strokeWidth={1.4} aria-hidden className="text-text-secondary" />
-          <p className="type-body mt-2 font-medium text-text-primary">Your first invite starts here</p>
-          <p className="type-body-sm text-text-secondary">Share your link. We&rsquo;ll take care of tracking.</p>
+          <p className="type-body mt-2 font-medium text-text-primary">{t("Your first invite starts here")}</p>
+          <p className="type-body-sm text-text-secondary">{t("Share your link. We’ll take care of tracking.")}</p>
           {canCopy && (
             <button
               type="button"
               onClick={onCopyLink}
               className="type-body-sm mt-3 inline-flex items-center gap-1.5 rounded-chip font-medium text-accent transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent-hover"
             >
-              {copyState === "copied" ? "Copied" : copyState === "failed" ? "Couldn't copy — use the field above" : "Copy invite link"}
+              {copyState === "copied" ? t("Copied") : copyState === "failed" ? t("Couldn't copy — use the field above") : t("Copy invite link")}
               {copyState === "copied" ? (
                 <Check size={14} strokeWidth={1.75} aria-hidden />
               ) : (
@@ -410,23 +418,23 @@ function ReferralsList({
             </button>
           )}
           <span aria-live="polite" className="sr-only">
-            {copyState === "copied" ? "Invite link copied" : copyState === "failed" ? "The invite link could not be copied" : ""}
+            {copyState === "copied" ? t("Invite link copied") : copyState === "failed" ? t("The invite link could not be copied") : ""}
           </span>
         </div>
       ) : shown.length === 0 ? (
         <div className="flex flex-col items-center px-6 py-7 text-center">
-          <p className="type-body font-medium text-text-primary">No {options.find((option) => option.id === filter)?.label.toLowerCase()} referrals</p>
+          <p className="type-body font-medium text-text-primary">{t("No")}{" "}{options.find((option) => option.id === filter)?.label.toLowerCase()}{" "}{t("referrals")}</p>
           <button type="button" onClick={() => setFilter("all")} className="type-body-sm mt-2 rounded-chip text-accent hover:text-accent-hover">
-            Show all referrals
+            {t("Show all referrals")}
           </button>
         </div>
       ) : (
         <ul className="flex list-none flex-col">
           <li aria-hidden className="type-label hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)] gap-4 border-b border-border-subtle px-7 py-2.5 text-text-muted @[40rem]:grid">
-            <span>Referral</span>
-            <span>Joined</span>
-            <span>Status</span>
-            <span className="text-right">Points</span>
+            <span>{t("Referral")}</span>
+            <span>{t("Joined")}</span>
+            <span>{t("Status")}</span>
+            <span className="text-right">{t("Points")}</span>
           </li>
           {shown.map((entry) => {
             const status = STATUS[entry.status];
@@ -444,20 +452,20 @@ function ReferralsList({
                   </span>
                 </span>
                 <span className="type-body-sm order-3 col-span-2 tabular-nums text-text-secondary @[40rem]:order-none @[40rem]:col-span-1">
-                  <span className="@[40rem]:hidden">Joined </span>
+                  <span className="@[40rem]:hidden">{t("Joined")}{" "}</span>
                   <time dateTime={entry.joinedAt}>{joined(entry.joinedAt)}</time>
                 </span>
                 <span className="justify-self-end @[40rem]:justify-self-start">
-                  <span className={cn("type-label inline-flex rounded-pill border px-2.5 py-0.5", status.className)}>{status.label}</span>
+                  <span className={cn("type-label inline-flex rounded-pill border px-2.5 py-0.5", status.className)}>{t(status.label)}</span>
                 </span>
                 <span className="type-body-sm order-4 col-span-2 tabular-nums text-text-secondary @[40rem]:order-none @[40rem]:col-span-1 @[40rem]:text-right">
                   {entry.pointsAwarded === null ? (
                     <span className="text-text-muted">
-                      <span className="@[40rem]:hidden">No points yet</span>
+                      <span className="@[40rem]:hidden">{t("No points yet")}</span>
                       <span className="hidden @[40rem]:inline">—</span>
                     </span>
                   ) : (
-                    <span className="text-text-primary">+{entry.pointsAwarded.toLocaleString("en-US")} pts</span>
+                    <span className="text-text-primary">{t("+{pointsAwarded} pts", { pointsAwarded: entry.pointsAwarded.toLocaleString("en-US") })}</span>
                   )}
                 </span>
               </li>
@@ -472,8 +480,9 @@ function ReferralsList({
 /* ---- Page states ---- */
 
 function Skeleton() {
+  const t = useT();
   return (
-    <div aria-busy="true" aria-label="Loading your referrals" className="flex flex-col gap-8">
+    <div aria-busy="true" aria-label={t("Loading your referrals")} className="flex flex-col gap-8">
       <div className="grid grid-cols-2 gap-6 @[44rem]:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
           <div key={index} className="flex flex-col gap-2 px-1">
@@ -502,6 +511,7 @@ function Skeleton() {
 const REFRESH_MS = 60_000;
 
 export function Referrals() {
+  const t = useT();
   const auth = useElyraAuth();
   const authedFetch = useAuthedFetch();
   const signedIn = auth.ready && auth.authenticated;
@@ -521,9 +531,9 @@ export function Referrals() {
       const response = await authedFetch("/api/referrals", { cache: "no-store" });
       return (await response.json()) as ReferralsResponse;
     } catch (error: unknown) {
-      return { stats: null, referrals: [], unconfigured: false, error: error instanceof Error ? error.message : "Your referrals couldn't be loaded." };
+      return { stats: null, referrals: [], unconfigured: false, error: error instanceof Error ? error.message : t("Your referrals couldn't be loaded.") };
     }
-  }, [authedFetch]);
+  }, [authedFetch, t]);
 
   /* Read on open, again whenever the tab comes back, and every minute while
      it is visible — so a referral that activates while the page is open
@@ -550,7 +560,7 @@ export function Referrals() {
       inFlight.current = false;
       if (cancelled) return;
       if (next.stats === null && lastGood) {
-        setState((current) => ({ ...current, refreshError: next.error ?? "The latest refresh failed." }));
+        setState((current) => ({ ...current, refreshError: next.error ?? t("The latest refresh failed.") }));
       } else {
         lastGood = next.stats !== null;
         setState({ account, data: next, refreshError: null });
@@ -571,7 +581,7 @@ export function Referrals() {
       window.removeEventListener("focus", onReturn);
       document.removeEventListener("visibilitychange", onReturn);
     };
-  }, [account, read, nonce]);
+  }, [account, read, nonce, t]);
 
   const current = state.account === account ? state : null;
 
@@ -601,61 +611,61 @@ export function ReferralsView({
   refreshError?: string | null;
   onRetry: () => void;
 }) {
+  const t = useT();
   const { state: copyState, copy } = useCopy();
   const stats = data?.stats ?? null;
   const signedIn = auth.ready && auth.authenticated;
 
   return (
     <div className="min-h-0 overflow-y-auto overflow-x-hidden @container">
-      <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-6 px-1 pb-6 compact:px-4">
-        <header className="flex items-start justify-between gap-4 pt-1">
-          <div className="flex min-w-0 items-center gap-4">
-            <Gift size={34} strokeWidth={1.4} aria-hidden className="shrink-0 text-accent" />
-            <div className="min-w-0">
-              <h1 className="type-h1 text-text-primary">Referrals</h1>
-              <p className="type-body text-text-secondary">A little better, together.</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-              document.getElementById("how-it-works")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-            }}
-            className="type-body-sm mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-chip px-1 py-1 text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent"
-          >
-            How it works
-            <ArrowDown size={15} strokeWidth={1.5} aria-hidden />
-          </button>
-        </header>
+      <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-6 pb-6">
+        <PageHeader
+          icon={Gift}
+          title={t("Referrals")}
+          subtitle={t("A little better, together.")}
+          className="flex-nowrap"
+          actions={
+            <button
+              type="button"
+              onClick={() => {
+                const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                document.getElementById("how-it-works")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+              }}
+              className="type-body-sm mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-chip px-1 py-1 text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:text-accent"
+            >
+              {t("How it works")}
+              <ArrowDown size={15} strokeWidth={1.5} aria-hidden />
+            </button>
+          }
+        />
 
         {loading ? (
           <Skeleton />
         ) : !signedIn ? (
           <section className={cn(card, "flex flex-col items-center gap-3 px-6 py-14 text-center")}>
             <Users size={28} strokeWidth={1.4} aria-hidden className="text-text-secondary" />
-            <h2 className="type-h1 text-text-primary">Sign in to get your invite</h2>
+            <h2 className="type-h1 text-text-primary">{t("Sign in to get your invite")}</h2>
             <p className="type-body max-w-md text-text-secondary">
               {auth.available
-                ? "Your referral link is tied to your Elyra account. Connect to claim yours."
-                : "Sign-in isn't configured on this deployment, so there is no referral link to show."}
+                ? t("Your referral link is tied to your Elyra account. Connect to claim yours.")
+                : t("Sign-in isn't configured on this deployment, so there is no referral link to show.")}
             </p>
             {auth.available && (
               <button type="button" onClick={auth.login} className="type-body-sm inline-flex h-11 items-center rounded-control bg-accent px-5 font-medium text-text-on-accent hover:bg-accent-hover">
-                Connect wallet
+                {t("Connect wallet")}
               </button>
             )}
           </section>
         ) : stats === null ? (
           <section role="alert" className={cn(card, "flex flex-col items-center gap-3 px-6 py-14 text-center")}>
             <h2 className="type-h1 text-text-primary">
-              {data?.unconfigured === true ? "Referrals aren't available yet" : "Your referrals couldn't be loaded"}
+              {data?.unconfigured === true ? t("Referrals aren't available yet") : t("Your referrals couldn't be loaded")}
             </h2>
-            <p className="type-body max-w-md text-text-secondary">{data?.error ?? "Something went wrong reading your referrals."}</p>
+            <p className="type-body max-w-md text-text-secondary">{data?.error ?? t("Something went wrong reading your referrals.")}</p>
             {data?.unconfigured !== true && (
               <button type="button" onClick={onRetry} className={outlined}>
                 <RefreshCw size={16} strokeWidth={1.5} aria-hidden />
-                Try again
+                {t("Try again")}
               </button>
             )}
           </section>
@@ -663,7 +673,7 @@ export function ReferralsView({
           <>
             {refreshError !== null && (
               <p role="status" className="type-label -mb-3 text-caution">
-                Couldn&rsquo;t refresh just now — showing your last reading. It will try again shortly.
+                {t("Couldn’t refresh just now — showing your last reading. It will try again shortly.")}
               </p>
             )}
             <Stats stats={stats} />

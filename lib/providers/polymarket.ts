@@ -917,15 +917,16 @@ export async function polymarketBooks(
   });
 }
 
+/* Data API v2 (v1 was retired on 2026-11-02): rows are snake_case, inside `data`. */
 interface WireTrade {
-  asset?: string;
-  conditionId?: string;
+  token_id?: string;
+  condition_id?: string;
   side?: string;
   size?: number | string;
   price?: number | string;
   timestamp?: number | string;
   outcome?: string | null;
-  transactionHash?: string | null;
+  transaction_hash?: string | null;
 }
 
 /** Trades move the tape, not the clock. Short enough to be current. */
@@ -958,13 +959,14 @@ export async function polymarketTrades(
   const size = Math.min(Math.max(limit, 1), 500);
 
   return cached(`polymarket:trades:${condition}:${size}`, TRADE_TTL_MS, async () => {
-    const response = await providerFetch<WireTrade[]>({
+    const response = await providerFetch<{ data?: WireTrade[] | null }>({
       provider: "polymarket",
-      url: `${DATA_API}/trades?market=${condition}&limit=${size}`,
+      url: `${DATA_API}/v2/trades?condition=${condition}&limit=${size}`,
       timeoutMs: 12_000,
     });
 
-    if (!response.ok || !Array.isArray(response.data)) {
+    const rows = response.ok ? response.data?.data : undefined;
+    if (!response.ok || !Array.isArray(rows)) {
       return fail<PredictionTrade[]>(
         "polymarket",
         response.error?.code ?? "UPSTREAM_UNAVAILABLE",
@@ -973,15 +975,15 @@ export async function polymarketTrades(
     }
 
     const trades: PredictionTrade[] = [];
-    for (const wire of response.data) {
+    for (const wire of rows) {
       const price = num(wire.price ?? null);
       const shares = num(wire.size ?? null);
       const seconds = num(wire.timestamp ?? null);
-      if (typeof wire.asset !== "string" || price === null || shares === null) continue;
+      if (typeof wire.token_id !== "string" || price === null || shares === null) continue;
 
       trades.push({
-        tokenId: wire.asset,
-        marketId: wire.conditionId ?? condition,
+        tokenId: wire.token_id,
+        marketId: wire.condition_id ?? condition,
         side: String(wire.side).toUpperCase() === "SELL" ? "sell" : "buy",
         size: shares,
         /* Clamped for the same reason as everywhere else in this file: a
@@ -992,7 +994,7 @@ export async function polymarketTrades(
            milliseconds dates every print to 1970. */
         at: new Date((seconds ?? 0) * 1000).toISOString(),
         outcome: wire.outcome ?? null,
-        txHash: wire.transactionHash ?? null,
+        txHash: wire.transaction_hash ?? null,
       });
     }
 

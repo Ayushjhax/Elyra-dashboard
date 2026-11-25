@@ -3,6 +3,7 @@ import "server-only";
 import { liveRefusal } from "@/lib/autotrade/liveGate";
 import { marketFor, type RuleMode } from "@/lib/autotrade/rules";
 import { num, readSettings, tablesMissing } from "@/lib/autotrade/store";
+import { paperGate } from "@/lib/paper/store";
 import { serviceClient } from "@/lib/supabase/server";
 
 /* ---------------------------------------------------------------------------
@@ -14,14 +15,24 @@ import { serviceClient } from "@/lib/supabase/server";
    most positions allowed (resting orders count, since each can become one).
    Live also needs the server switched to live and an approved key, and is
    refused on a coin Elyra already trades live: Hyperliquid nets one position
-   per coin, so a second would quietly merge into the first.
+   per coin, so a second would quietly merge into the first. Paper needs the
+   margin from the paper account (lib/paper/store.ts) when `marginUsd` is
+   given — every order the person places; an AI fund's orders are held to
+   the fund's own capital instead.
 --------------------------------------------------------------------------- */
 
 export type GateResult = { ok: true } | { ok: false; error: string; status: number };
 
 const MIGRATION = "Limit orders need database migration 0020, which has not been applied.";
 
-export async function accountGate(userId: string, coin: string, mode: RuleMode, what: "orders" | "trades"): Promise<GateResult> {
+export async function accountGate(
+  userId: string,
+  coin: string,
+  mode: RuleMode,
+  what: "orders" | "trades",
+  /** The margin this order needs, held to the paper account on paper. */
+  marginUsd?: number,
+): Promise<GateResult> {
   const db = serviceClient();
   const settings = await readSettings(userId);
   if (settings.paused) return { ok: false, error: `Automation is paused. Resume it to place ${what}.`, status: 400 };
@@ -53,6 +64,11 @@ export async function accountGate(userId: string, coin: string, mode: RuleMode, 
       error: `${committed} positions and orders are open, the most allowed. Close or cancel one, or raise the limit.`,
       status: 400,
     };
+  }
+
+  if (mode === "paper" && marginUsd !== undefined) {
+    const refusal = await paperGate(userId, marginUsd);
+    if (refusal !== null) return { ok: false, error: refusal, status: 400 };
   }
 
   if (mode === "live") {

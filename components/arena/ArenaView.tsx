@@ -15,6 +15,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useArena } from "@/lib/arena/useArena";
 import { useMinute } from "@/lib/useClock";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Elyra Arena: trading, played as a game and a sport.
@@ -34,12 +36,12 @@ import { useMinute } from "@/lib/useClock";
 --------------------------------------------------------------------------- */
 
 const TABS: readonly { value: ArenaTab; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "puzzle", label: "Puzzle" },
-  { value: "league", label: "League" },
-  { value: "calls", label: "Calls" },
-  { value: "trades", label: "Trades" },
-  { value: "ladder", label: "Ladder" },
+  { value: "today", label: msg("Today") },
+  { value: "puzzle", label: msg("Puzzle") },
+  { value: "league", label: msg("League") },
+  { value: "calls", label: msg("Calls") },
+  { value: "trades", label: msg("Trades") },
+  { value: "ladder", label: msg("Ladder") },
 ];
 
 /* Links written before the launch layout still land in the right place. */
@@ -52,6 +54,7 @@ function tabFrom(value: string | null, trade: string | null): ArenaTab {
 }
 
 export function ArenaView({ initialTab, trade, league }: { initialTab: string | null; trade: string | null; league?: string | null }) {
+  const t = useT();
   const auth = useElyraAuth();
   const feed = useArena();
   const now = useMinute();
@@ -63,18 +66,18 @@ export function ArenaView({ initialTab, trade, league }: { initialTab: string | 
     return (
       <EmptyState
         icon={Swords}
-        title="Sign in to play"
-        body="Trading as a game and a sport: a daily chart puzzle, leagues with friends, calls with receipts and a review of every paper trade. Scored on judgment, not on how much you trade."
+        title={t("Sign in to play")}
+        body={t("Trading as a game and a sport: a daily chart puzzle, leagues with friends, calls with receipts and a review of every paper trade. Scored on judgment, not on how much you trade.")}
         action={
           <Button size="sm" variant="accent" onClick={auth.login}>
-            Sign in
+            {t("Sign in")}
           </Button>
         }
       />
     );
   }
   const data = feed.data;
-  if (data === null) return <EmptyState icon={Swords} title="Arena is unavailable" body={feed.error ?? "It will try again shortly."} />;
+  if (data === null) return <EmptyState icon={Swords} title={t("Arena is unavailable")} body={feed.error ?? t("It will try again shortly.")} />;
 
   const go = (next: ArenaTab, leagueId?: string) => {
     if (leagueId !== undefined) setFocus(leagueId);
@@ -85,11 +88,11 @@ export function ArenaView({ initialTab, trade, league }: { initialTab: string | 
     <div className="@container">
       <Tabs value={tab} onValueChange={(value) => setTab(value as ArenaTab)} className="gap-3">
         {/* Three to a row in a narrow column, one row once there is room. */}
-        <TabsList aria-label="Arena" className="grid grid-cols-3 @[30rem]:flex">
+        <TabsList aria-label={t("Arena")} className="grid grid-cols-3 @[30rem]:flex">
           {TABS.map(({ value, label }) => (
             <TabsTrigger key={value} value={value} className="justify-center @[30rem]:justify-start">
-              {label}
-              {value === "league" && data.leagues.some((entry) => entry.onClock?.me) && <span className="sr-only"> — your pick</span>}
+              {t(label)}
+              {value === "league" && data.leagues.some((entry) => entry.onClock?.me) && <span className="sr-only"> — {t("your pick")}</span>}
               {value === "league" && data.leagues.some((entry) => entry.onClock?.me) && <span aria-hidden className="ml-1.5 size-1.5 rounded-pill bg-accent" />}
             </TabsTrigger>
           ))}

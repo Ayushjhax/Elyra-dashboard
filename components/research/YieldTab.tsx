@@ -20,8 +20,10 @@ import {
   Timestamp,
   useResearchResource,
 } from "./shared";
+import { useT } from "@/lib/i18n/client";
 
 export function YieldTab({ active }: { active: boolean }) {
+  const t = useT();
   const auth = useElyraAuth();
   const [stables, setStables] = useState(false);
   const [query, setQuery] = useState("");
@@ -50,17 +52,17 @@ export function YieldTab({ active }: { active: boolean }) {
   return (
     <div>
       <div className="r-section-heading">
-        <h2>Yield opportunities</h2>
-        <Timestamp at={feed.data?.asOf} label="Kamino ·" />
+        <h2>{t("Yield opportunities")}</h2>
+        <Timestamp at={feed.data?.asOf} label={t("Kamino ·")} />
       </div>
       <div className="r-toolbar r-yield-toolbar">
         <label className="r-search">
           <Search size={18} aria-hidden />
-          <span className="sr-only">Search pools or protocols</span>
+          <span className="sr-only">{t("Search pools or protocols")}</span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search pools or protocols…"
+            placeholder={t("Search pools or protocols…")}
           />
         </label>
         <label className="r-toggle">
@@ -69,17 +71,17 @@ export function YieldTab({ active }: { active: boolean }) {
             checked={stables}
             onChange={(event) => setStables(event.target.checked)}
           />
-          <span>Stablecoins only</span>
+          <span>{t("Stablecoins only")}</span>
         </label>
         <label>
-          <span className="sr-only">Sort yield opportunities</span>
+          <span className="sr-only">{t("Sort yield opportunities")}</span>
           <select
             value={sort}
             onChange={(event) => setSort(event.target.value as typeof sort)}
           >
-            <option value="apyPct">Sort: Current APY</option>
-            <option value="apy30dPct">Sort: 30-day APY</option>
-            <option value="tvlUsd">Sort: Deposited</option>
+            <option value="apyPct">{t("Sort: Current APY")}</option>
+            <option value="apy30dPct">{t("Sort: 30-day APY")}</option>
+            <option value="tvlUsd">{t("Sort: Deposited")}</option>
           </select>
         </label>
       </div>
@@ -88,7 +90,7 @@ export function YieldTab({ active }: { active: boolean }) {
       ) : (
         <>
           {feed.loading && !feed.data && (
-            <Loading>Reading Kamino vaults…</Loading>
+            <Loading>{t("Reading Kamino vaults…")}</Loading>
           )}
           {feed.error && <Problem retry={feed.reload}>{feed.error}</Problem>}
           {feed.data && (
@@ -96,21 +98,21 @@ export function YieldTab({ active }: { active: boolean }) {
               <table className="r-yield-table">
                 <thead>
                   <tr>
-                    <th scope="col">Pool</th>
-                    <th scope="col">Asset</th>
+                    <th scope="col">{t("Pool")}</th>
+                    <th scope="col">{t("Asset")}</th>
                     <th
                       scope="col"
                       className="r-number"
                       aria-sort={sort === "tvlUsd" ? "descending" : undefined}
                     >
-                      Deposited
+                      {t("Deposited")}
                     </th>
                     <th
                       scope="col"
                       className="r-number"
                       aria-sort={sort === "apyPct" ? "descending" : undefined}
                     >
-                      Yield · APY
+                      {t("Yield · APY")}
                     </th>
                     <th
                       scope="col"
@@ -119,10 +121,10 @@ export function YieldTab({ active }: { active: boolean }) {
                         sort === "apy30dPct" ? "descending" : undefined
                       }
                     >
-                      30-day avg · APY
+                      {t("30-day avg · APY")}
                     </th>
                     <th scope="col">
-                      <span className="sr-only">Details</span>
+                      <span className="sr-only">{t("Details")}</span>
                     </th>
                   </tr>
                 </thead>
@@ -154,7 +156,7 @@ export function YieldTab({ active }: { active: boolean }) {
                         <button
                           type="button"
                           className="r-button"
-                          aria-label={`View ${row.name} details`}
+                          aria-label={t("View {name} details", { name: row.name })}
                           onClick={() => setSelected(row)}
                         >
                           <ChevronRight size={18} aria-hidden />
@@ -166,8 +168,8 @@ export function YieldTab({ active }: { active: boolean }) {
               </table>
               {rows.length === 0 && (
                 <div className="r-empty">
-                  <h3>No pools match</h3>
-                  <p>Try another search or turn off the stablecoins filter.</p>
+                  <h3>{t("No pools match")}</h3>
+                  <p>{t("Try another search or turn off the stablecoins filter.")}</p>
                 </div>
               )}
             </div>
@@ -189,31 +191,31 @@ export function YieldTab({ active }: { active: boolean }) {
       >
         <DialogContent className="research-dialog">
           <DialogHeader>
-            <DialogTitle>{selected?.name ?? "Pool details"}</DialogTitle>
+            <DialogTitle>{selected?.name ?? t("Pool details")}</DialogTitle>
             <DialogDescription>
-              Kamino vault · Protocol-reported APY.
+              {t("Kamino vault · Protocol-reported APY.")}
             </DialogDescription>
           </DialogHeader>
           {selected && (
             <div className="r-dialog-body">
               <dl className="r-definition">
-                <dt>Asset</dt>
+                <dt>{t("Asset")}</dt>
                 <dd>{selected.asset}</dd>
-                <dt>Token mint</dt>
+                <dt>{t("Token mint")}</dt>
                 <dd>{selected.mint}</dd>
-                <dt>Vault</dt>
+                <dt>{t("Vault")}</dt>
                 <dd>{selected.id}</dd>
-                <dt>Deposited</dt>
+                <dt>{t("Deposited")}</dt>
                 <dd>{dollars(selected.tvlUsd)}</dd>
-                <dt>Current APY</dt>
+                <dt>{t("Current APY")}</dt>
                 <dd>{percentage(selected.apyPct)}</dd>
-                <dt>30-day average APY</dt>
+                <dt>{t("30-day average APY")}</dt>
                 <dd>{percentage(selected.apy30dPct)}</dd>
-                <dt>Reward APY</dt>
+                <dt>{t("Reward APY")}</dt>
                 <dd>{percentage(selected.rewardApyPct)}</dd>
-                <dt>Available capital</dt>
+                <dt>{t("Available capital")}</dt>
                 <dd>{dollars(selected.availableUsd)}</dd>
-                <dt>Holders</dt>
+                <dt>{t("Holders")}</dt>
                 <dd>{selected.holders?.toLocaleString() ?? "—"}</dd>
               </dl>
               {selected.flags.map((flag) => (

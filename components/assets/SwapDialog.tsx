@@ -15,8 +15,10 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 import { isSolanaAddress, txExplorerUrl } from "@/lib/solana/address";
 import { truncateMiddle } from "@/lib/format";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
-import { buildSwap, runSwap, type BuiltSwap } from "@/lib/wallet/runSwap";
+import { buildSwap, runSwap, type BuiltSwap, type PlacedOrder } from "@/lib/wallet/runSwap";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The swap, end to end.
@@ -45,7 +47,21 @@ const MINT_FIELD =
 interface TokenGroup {
   label: string;
   symbols: string[];
+  /** A group whose tokens need the person's eligibility confirmed first. */
+  eligibility?: "sunrise";
 }
+
+/** An RFQ order's state, from Sunrise, in words. */
+const ORDER_WORDS: Record<string, string> = {
+  PENDING: msg("Placed. Waiting for a market maker to fill it."),
+  OPEN: msg("Placed. Waiting for a market maker to fill it."),
+  FILLED: msg("Filled. The tokens are in your wallet."),
+  PARTIALLY_FILLED: msg("Filled in part. What was not filled went back to your wallet."),
+  CANCELLED: msg("Cancelled. The funds went back to your wallet."),
+  REFUNDED: msg("Refunded to your wallet."),
+  FAILED: msg("The order failed."),
+};
+const ORDER_DONE = new Set(["FILLED", "PARTIALLY_FILLED", "CANCELLED", "REFUNDED", "FAILED"]);
 
 type BuildResponse = BuiltSwap;
 
@@ -78,6 +94,7 @@ export function SwapDialog({
   /** Called once the swap has landed and returned its signature. */
   onExecuted?: (signature: string) => void;
 }) {
+  const t = useT();
   const { wallets } = useWallets();
   const { signTransaction } = useSignTransaction();
   /* Both steps are scoped to the session's wallet, so both carry the token —
@@ -91,6 +108,10 @@ export function SwapDialog({
   const [fromMint, setFromMint] = useState(isSolanaAddress(initialFrom) ? initialFrom : "");
   const [toMint, setToMint] = useState(isSolanaAddress(initialTo) ? initialTo : "");
   const [acknowledged, setAcknowledged] = useState(false);
+  /* Tokenized stocks (Sunrise) ask, per trade, whether the person may hold them. */
+  const [eligible, setEligible] = useState(false);
+  const [askedEligibility, setAskedEligibility] = useState(false);
+  const [order, setOrder] = useState<PlacedOrder | null>(null);
   const [passport, setPassport] = useState<string | null>(null);
   const [amount, setAmount] = useState(initialAmount);
 
@@ -102,7 +123,7 @@ export function SwapDialog({
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/swap/tokens")
+    void fetch("/api/swap/tokens?include=sunrise")
       .then((response) => response.json() as Promise<{ groups?: TokenGroup[] }>)
       .then((payload) => {
         if (!cancelled) setGroups(payload.groups ?? []);
@@ -117,6 +138,9 @@ export function SwapDialog({
 
   const sellsOther = fromSymbol === OTHER;
   const buysOther = toSymbol === OTHER;
+  const restricted = useMemo(() => new Set(groups.filter((group) => group.eligibility === "sunrise").flatMap((group) => group.symbols)), [groups]);
+  /* Asked when a stock is picked, or when the server found one by its mint. */
+  const needsEligibility = restricted.has(fromSymbol) || restricted.has(toSymbol) || askedEligibility;
   const request = useMemo(
     () => ({
       fromSymbol: sellsOther ? "" : fromSymbol,
@@ -125,8 +149,9 @@ export function SwapDialog({
       ...(sellsOther ? { fromMint: fromMint.trim() } : {}),
       ...(buysOther ? { toMint: toMint.trim() } : {}),
       acknowledgeUnverified: (sellsOther || buysOther) && acknowledged,
+      confirmEligible: needsEligibility && eligible,
     }),
-    [sellsOther, buysOther, fromSymbol, toSymbol, fromMint, toMint, amount, acknowledged],
+    [sellsOther, buysOther, fromSymbol, toSymbol, fromMint, toMint, amount, acknowledged, needsEligibility, eligible],
   );
 
   const onQuote = useCallback(() => {
@@ -135,18 +160,43 @@ export function SwapDialog({
     setQuoting(true);
     void buildSwap(authedFetch, request)
       .then((payload) => {
-        if (payload.error !== undefined) setError(payload.error);
-        else setQuote(payload);
+        if (payload.error !== undefined) {
+          setError(payload.error);
+          if (payload.eligibility === "unconfirmed") setAskedEligibility(true);
+        } else setQuote(payload);
       })
       .finally(() => setQuoting(false));
   }, [authedFetch, request]);
+
+  /* An RFQ order is filled after its transaction lands; follow it until it ends. */
+  useEffect(() => {
+    if (signature === null || order === null || ORDER_DONE.has(order.status)) return;
+    let checks = 0;
+    const timer = setInterval(() => {
+      checks += 1;
+      if (checks > 20) {
+        clearInterval(timer);
+        return;
+      }
+      void authedFetch(`/api/swap/orders?tx=${encodeURIComponent(signature)}`)
+        .then(async (response) => (response.ok ? ((await response.json()) as { orders?: PlacedOrder[] }) : null))
+        .then((payload) => {
+          const latest = payload?.orders?.[0];
+          if (latest !== undefined) setOrder({ status: latest.status });
+        })
+        .catch(() => {
+          /* The next check tries again; the explorer link stands meanwhile. */
+        });
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [signature, order, authedFetch]);
 
   const onConfirm = useCallback(() => {
     setError(null);
 
     const wallet = wallets.find((entry) => entry.address === address) ?? wallets[0];
     if (wallet === undefined) {
-      setError("No Solana wallet is connected in this browser.");
+      setError(t("No Solana wallet is connected in this browser."));
       return;
     }
 
@@ -163,15 +213,15 @@ export function SwapDialog({
       .then((result) => {
         if (result.ok) {
           setSignature(result.signature);
+          setOrder(result.order);
           onExecuted?.(result.signature);
         } else {
           setError(result.error);
         }
       })
       .finally(() => setWorking(false));
-  }, [authedFetch, request, wallets, address, signTransaction, onExecuted]);
+  }, [authedFetch, request, wallets, address, signTransaction, onExecuted, t]);
 
-  const symbols = groups.flatMap((group) => group.symbols);
   const mintsValid = (!sellsOther || isSolanaAddress(fromMint.trim())) && (!buysOther || isSolanaAddress(toMint.trim()));
   const sameToken = sellsOther && buysOther ? fromMint.trim() === toMint.trim() : fromSymbol === toSymbol;
   const canQuote =
@@ -179,6 +229,7 @@ export function SwapDialog({
     !sameToken &&
     mintsValid &&
     (!(sellsOther || buysOther) || acknowledged) &&
+    (!needsEligibility || eligible) &&
     address !== null &&
     !working;
   const ready = quote?.action?.readiness === "ready";
@@ -188,17 +239,17 @@ export function SwapDialog({
       <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
-            <Eyebrow>Swap</Eyebrow>
+            <Eyebrow>{t("Swap")}</Eyebrow>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Swap one token for another, routed by Jupiter and signed in your browser.
+            {t("Swap one token for another, routed by Jupiter and signed in your browser.")}
           </DialogDescription>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           {signature === null ? (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   <input
                     inputMode="decimal"
@@ -208,7 +259,8 @@ export function SwapDialog({
                       setQuote(null);
                     }}
                     placeholder="0.00"
-                    aria-label="Amount to swap"
+                    aria-label={t("Amount to swap")}
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
                   <select
@@ -217,21 +269,17 @@ export function SwapDialog({
                       setFromSymbol(event.target.value);
                       setQuote(null);
                     }}
-                    aria-label="Token to sell"
+                    aria-label={t("Token to sell")}
                     className={PICKER}
                   >
-                    {symbols.map((symbol) => (
-                      <option key={symbol} value={symbol}>
-                        {symbol}
-                      </option>
-                    ))}
-                    <option value={OTHER}>Other token…</option>
+                    <SymbolOptions groups={groups} />
+                    <option value={OTHER}>{t("Other token…")}</option>
                   </select>
                 </div>
                 {sellsOther && (
                   <MintField
                     value={fromMint}
-                    label="Mint of the token to sell"
+                    label={t("Mint of the token to sell")}
                     onChange={(value) => {
                       setFromMint(value);
                       setQuote(null);
@@ -251,21 +299,17 @@ export function SwapDialog({
                       setToSymbol(event.target.value);
                       setQuote(null);
                     }}
-                    aria-label="Token to receive"
+                    aria-label={t("Token to receive")}
                     className={PICKER}
                   >
-                    {symbols.map((symbol) => (
-                      <option key={symbol} value={symbol}>
-                        {symbol}
-                      </option>
-                    ))}
-                    <option value={OTHER}>Other token…</option>
+                    <SymbolOptions groups={groups} />
+                    <option value={OTHER}>{t("Other token…")}</option>
                   </select>
                 </div>
                 {buysOther && (
                   <MintField
                     value={toMint}
-                    label="Mint of the token to buy"
+                    label={t("Mint of the token to buy")}
                     onChange={(value) => {
                       setToMint(value);
                       setQuote(null);
@@ -286,8 +330,22 @@ export function SwapDialog({
                     }}
                     className="mt-0.5"
                   />
-                  I have checked this mint and its Asset Passport. Anyone can create a token under any name; Elyra has not
-                  verified this one and will not value or count it.
+                  {t("I have checked this mint and its Asset Passport. Anyone can create a token under any name; Elyra has not verified this one and will not value or count it.")}
+                </label>
+              )}
+
+              {needsEligibility && (
+                <label className="type-label flex items-start gap-2 text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={eligible}
+                    onChange={(event) => {
+                      setEligible(event.target.checked);
+                      setQuote(null);
+                    }}
+                    className="mt-0.5"
+                  />
+                  {t("I am not a US person or a resident of mainland China, Hong Kong or Macau, and I am not otherwise restricted from holding these tokens. Tokenized stocks listed by Sunrise are not the shares themselves.")}
                 </label>
               )}
 
@@ -311,7 +369,7 @@ export function SwapDialog({
 
               {quote?.action !== undefined && !ready && (
                 <div className="rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
-                  <p className="type-label text-negative">Cannot be executed</p>
+                  <p className="type-label text-negative">{t("Cannot be executed")}</p>
                   <p className="type-label mt-1 text-text-secondary">
                     {quote.action.reason}
                   </p>
@@ -320,7 +378,7 @@ export function SwapDialog({
 
               {address === null && (
                 <p className="type-label text-text-muted">
-                  Connect a Solana wallet to swap.
+                  {t("Connect a Solana wallet to swap.")}
                 </p>
               )}
 
@@ -334,8 +392,13 @@ export function SwapDialog({
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2 rounded-card border border-positive/40 bg-positive-bg px-3 py-2.5">
                 <Check size={14} className="text-positive" aria-hidden />
-                <p className="type-label text-positive">Swap landed.</p>
+                <p className="type-label text-positive">{order === null ? t("Swap landed.") : t("Order placed.")}</p>
               </div>
+              {order !== null && (
+                <p className="type-label text-text-secondary" aria-live="polite">
+                  {t(ORDER_WORDS[order.status] ?? msg("Placed. Waiting for a market maker to fill it."))}
+                </p>
+              )}
               <a
                 href={txExplorerUrl(signature)}
                 target="_blank"
@@ -343,7 +406,7 @@ export function SwapDialog({
                 className="type-label flex items-center gap-1.5 text-text-secondary hover:text-text-primary"
               >
                 <ExternalLink size={12} aria-hidden />
-                View on explorer
+                {t("View on explorer")}
               </a>
             </div>
           )}
@@ -351,7 +414,7 @@ export function SwapDialog({
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-4 py-3">
           <Button size="sm" variant="quiet" onClick={onClose}>
-            {signature === null ? "Cancel" : "Done"}
+            {signature === null ? t("Cancel") : t("Done")}
           </Button>
 
           {signature === null &&
@@ -360,7 +423,7 @@ export function SwapDialog({
                 {working && (
                   <Loader2 size={14} className={cn("animate-spin")} aria-hidden />
                 )}
-                {working ? "Confirming" : "Confirm swap"}
+                {working ? t("Confirming") : t("Confirm swap")}
               </Button>
             ) : (
               <Button
@@ -370,7 +433,7 @@ export function SwapDialog({
                 onClick={onQuote}
               >
                 {quoting && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {quoting ? "Quoting" : "Get quote"}
+                {quoting ? t("Quoting") : t("Get quote")}
               </Button>
             ))}
         </footer>
@@ -379,6 +442,26 @@ export function SwapDialog({
         <AssetPassportDialog mint={passport} symbol={truncateMiddle(passport, 4, 4)} onClose={() => setPassport(null)} />
       )}
     </Dialog>
+  );
+}
+
+/** The picker's tokens, grouped as the server lists them. */
+function SymbolOptions({ groups }: { groups: TokenGroup[] }) {
+  const t = useT();
+  return (
+    <>
+      {groups
+        .filter((group) => group.symbols.length > 0)
+        .map((group) => (
+          <optgroup key={group.label} label={t(group.label)}>
+            {group.symbols.map((symbol) => (
+              <option key={symbol} value={symbol}>
+                {symbol}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+    </>
   );
 }
 
@@ -394,6 +477,7 @@ function MintField({
   onChange: (value: string) => void;
   onPassport: (mint: string) => void;
 }) {
+  const t = useT();
   const typed = value.trim();
   const valid = isSolanaAddress(typed);
   return (
@@ -401,21 +485,21 @@ function MintField({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Token mint address"
+        placeholder={t("Token mint address")}
         aria-label={label}
         spellCheck={false}
         autoComplete="off"
         className={MINT_FIELD}
       />
       {typed.length > 0 && !valid ? (
-        <p className="type-label text-negative">That is not a Solana mint address.</p>
+        <p className="type-label text-negative">{t("That is not a Solana mint address.")}</p>
       ) : valid ? (
         <button
           type="button"
           onClick={() => onPassport(typed)}
           className="type-label self-start text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
         >
-          Check its Asset Passport
+          {t("Check its Asset Passport")}
         </button>
       ) : null}
     </div>

@@ -43,19 +43,21 @@ import type { LedgerTab, MarketFilter, MarketType } from "@/lib/types";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 import { useWalletActivity } from "@/lib/wallet/useWalletActivity";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 const TABS: { value: LedgerTab; label: string }[] = [
-  { value: "positions", label: "Positions" },
-  { value: "orders", label: "Orders" },
-  { value: "history", label: "History" },
+  { value: "positions", label: msg("Positions") },
+  { value: "orders", label: msg("Orders") },
+  { value: "history", label: msg("History") },
 ];
 
 const FILTERS: { value: MarketFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "spot", label: "Spot" },
-  { value: "perps", label: "Perps" },
-  { value: "prediction", label: "Prediction" },
-  { value: "defi", label: "DeFi" },
+  { value: "all", label: msg("All") },
+  { value: "spot", label: msg("Spot") },
+  { value: "perps", label: msg("Perps") },
+  { value: "prediction", label: msg("Prediction") },
+  { value: "defi", label: msg("DeFi") },
 ];
 
 /** Whether a row belongs under the current venue filter. */
@@ -66,7 +68,8 @@ function inFilter(market: MarketType, filter: MarketFilter): boolean {
 /** Long / Short / Buy / Sell as a badge, coloured by what it means. */
 function SideCell({ side }: { side: "long" | "short" | "buy" | "sell" }) {
   const positive = side === "long" || side === "buy";
-  const label = side.charAt(0).toUpperCase() + side.slice(1);
+  const t = useT();
+  const label = t(side.charAt(0).toUpperCase() + side.slice(1));
   return (
     <span
       className={cn(
@@ -81,8 +84,9 @@ function SideCell({ side }: { side: "long" | "short" | "buy" | "sell" }) {
 
 /** Long or Short for a position with a side; otherwise what kind of holding it is. */
 function PositionKind({ row }: { row: LedgerPosition }) {
+  const t = useT();
   if (row.side !== null) return <SideCell side={row.side} />;
-  return <span className="type-label capitalize text-text-secondary">{row.category ?? "Hold"}</span>;
+  return <span className="type-label capitalize text-text-secondary">{row.category ?? t("Hold")}</span>;
 }
 
 /** Left behind on a SOL sale for network fees and rent. */
@@ -129,6 +133,7 @@ function ActionCell({
   canSignSui?: boolean;
   onSell: (symbol: string, quantity: number, chain?: EvmChainKey | "sui") => void;
 }) {
+  const t = useT();
   if (action === null) return null;
   if (action.kind === "swap") {
     const able = action.chain === undefined ? canSign : action.chain === "sui" ? canSignSui : canSignEvm;
@@ -138,10 +143,10 @@ function ActionCell({
         variant="quiet"
         className="px-1.5"
         disabled={!able}
-        title={able ? `Swap ${action.symbol} to a stablecoin, signed in your wallet` : "Wallet signing is unavailable"}
+        title={able ? t("Swap {symbol} to a stablecoin, signed in your wallet", { symbol: action.symbol }) : t("Wallet signing is unavailable")}
         onClick={() => onSell(action.symbol, action.quantity, action.chain)}
       >
-        Sell
+        {t("Sell")}
       </Button>
     );
   }
@@ -151,7 +156,7 @@ function ActionCell({
       href={action.href}
       target="_blank"
       rel="noopener noreferrer"
-      title={`Elyra's ${venueLabel(action.venue)} connection is read-only — manage this on ${venueLabel(action.venue)}`}
+      title={t("Elyra's {venue} connection is read-only — manage this on {venue2}", { venue: venueLabel(action.venue), venue2: venueLabel(action.venue) })}
       className={cn(buttonVariants({ variant: "quiet", size: "xs" }), "px-1.5")}
     >
       {venueLabel(action.venue)}
@@ -215,6 +220,7 @@ function EventStatus({ status }: { status: LedgerEvent["status"] }) {
 
 /** Out to the explorer or the venue, where a row has somewhere to go. */
 function EventLink({ href }: { href: string | null }) {
+  const t = useT();
   if (href === null) return null;
   return (
     <a
@@ -226,7 +232,7 @@ function EventLink({ href }: { href: string | null }) {
         "after:absolute after:-inset-2.5 hover:text-text-primary hover:underline",
       )}
     >
-      View
+      {t("View")}
       <ExternalLink size={11} strokeWidth={1.5} aria-hidden />
     </a>
   );
@@ -246,6 +252,7 @@ function EventLink({ href }: { href: string | null }) {
 --------------------------------------------------------------------------- */
 
 export function TradingActivity() {
+  const t = useT();
   const open = useElyraStore((state) => state.tradingOpen);
   const setOpen = useElyraStore((state) => state.setTradingOpen);
   const ledgerTab = useElyraStore((state) => state.ledgerTab);
@@ -338,17 +345,17 @@ export function TradingActivity() {
 
   const eventTime = (row: LedgerEvent) =>
     row.at === null ? (
-      <span className="text-text-muted">Pending</span>
+      <span className="text-text-muted">{t("Pending")}</span>
     ) : (
-      <time dateTime={row.at} className="text-text-secondary" title={`${formatTimestamp(row.at)} UTC`}>
-        {now === null ? formatTimestamp(row.at) : formatRelativeTime(row.at, now)}
+      <time dateTime={row.at} className="text-text-secondary" title={t("{at} UTC", { at: formatTimestamp(row.at, t.locale) })}>
+        {now === null ? formatTimestamp(row.at, t.locale) : formatRelativeTime(row.at, now, t.locale)}
       </time>
     );
 
   const positionColumns: Column<LedgerPosition>[] = [
     {
       key: "market",
-      header: "Market",
+      header: msg("Market"),
       width: "132px",
       render: (row) => (
         <span className="block truncate text-text-primary" title={row.label}>
@@ -356,10 +363,10 @@ export function TradingActivity() {
         </span>
       ),
     },
-    { key: "side", header: "Side", width: "64px", render: (row) => <PositionKind row={row} /> },
+    { key: "side", header: msg("Side"), width: "64px", render: (row) => <PositionKind row={row} /> },
     {
       key: "size",
-      header: "Size",
+      header: msg("Size"),
       align: "right",
       width: "88px",
       render: (row) => (row.size === null ? <Dash /> : formatQty(row.size, row.size < 1 ? 4 : 2)),
@@ -369,16 +376,16 @@ export function TradingActivity() {
        screen rather than behind a sideways scroll. */
     {
       key: "entry",
-      header: "Entry",
+      header: msg("Entry"),
       align: "right",
       width: "88px",
       className: "hidden @[52rem]:table-cell",
       render: (row) => price(row.entryPrice),
     },
-    { key: "mark", header: "Mark", align: "right", width: "88px", render: (row) => price(row.markPrice) },
+    { key: "mark", header: msg("Mark"), align: "right", width: "88px", render: (row) => price(row.markPrice) },
     {
       key: "liq",
-      header: "Liq. Price",
+      header: msg("Liq. Price"),
       align: "right",
       width: "88px",
       className: "hidden @[52rem]:table-cell",
@@ -386,14 +393,14 @@ export function TradingActivity() {
     },
     {
       key: "value",
-      header: "Value",
+      header: msg("Value"),
       align: "right",
       width: "88px",
       render: (row) => (row.valueUsd === null ? <Dash /> : formatCompactUsd(row.valueUsd)),
     },
     {
       key: "pnl",
-      header: "PnL",
+      header: msg("PnL"),
       align: "right",
       width: "96px",
       render: (row) =>
@@ -408,7 +415,7 @@ export function TradingActivity() {
     },
     {
       key: "action",
-      header: "Action",
+      header: msg("Action"),
       align: "right",
       width: "96px",
       headerSrOnly: true,
@@ -427,11 +434,11 @@ export function TradingActivity() {
         )}
       </CardHead>
       <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2">
-        <Fact label="Value">{row.valueUsd === null ? null : formatCompactUsd(row.valueUsd)}</Fact>
-        <Fact label="Size">{row.size === null ? null : formatQty(row.size, row.size < 1 ? 4 : 2)}</Fact>
-        <Fact label="Entry">{priceOrNull(row.entryPrice)}</Fact>
-        <Fact label="Mark">{priceOrNull(row.markPrice)}</Fact>
-        <Fact label="Liq. Price">{priceOrNull(row.liquidationPrice)}</Fact>
+        <Fact label={t("Value")}>{row.valueUsd === null ? null : formatCompactUsd(row.valueUsd)}</Fact>
+        <Fact label={t("Size")}>{row.size === null ? null : formatQty(row.size, row.size < 1 ? 4 : 2)}</Fact>
+        <Fact label={t("Entry")}>{priceOrNull(row.entryPrice)}</Fact>
+        <Fact label={t("Mark")}>{priceOrNull(row.markPrice)}</Fact>
+        <Fact label={t("Liq. Price")}>{priceOrNull(row.liquidationPrice)}</Fact>
       </dl>
       {actionable(row.action) && (
         <div className="mt-2 flex justify-end">
@@ -444,17 +451,17 @@ export function TradingActivity() {
   const orderColumns: Column<LedgerOrder>[] = [
     {
       key: "time",
-      header: "Time",
+      header: msg("Time"),
       width: "102px",
       render: (row) => (
         <time dateTime={row.createdAt} className="text-text-secondary">
-          {formatTimestamp(row.createdAt)}
+          {formatTimestamp(row.createdAt, t.locale)}
         </time>
       ),
     },
     {
       key: "market",
-      header: "Market",
+      header: msg("Market"),
       width: "132px",
       render: (row) => (
         <span className="block truncate" title={row.label}>
@@ -464,23 +471,23 @@ export function TradingActivity() {
     },
     {
       key: "type",
-      header: "Type",
+      header: msg("Type"),
       width: "72px",
       className: "hidden @[49rem]:table-cell",
       render: (row) => <span className="capitalize text-text-secondary">{row.type}</span>,
     },
-    { key: "side", header: "Side", width: "64px", render: (row) => <SideCell side={row.side} /> },
-    { key: "price", header: "Price", align: "right", width: "88px", render: (row) => price(row.priceUsd) },
+    { key: "side", header: msg("Side"), width: "64px", render: (row) => <SideCell side={row.side} /> },
+    { key: "price", header: msg("Price"), align: "right", width: "88px", render: (row) => price(row.priceUsd) },
     {
       key: "size",
-      header: "Size",
+      header: msg("Size"),
       align: "right",
       width: "88px",
       render: (row) => formatQty(row.quantity, row.quantity < 1 ? 4 : 2),
     },
     {
       key: "filled",
-      header: "Filled",
+      header: msg("Filled"),
       align: "right",
       width: "56px",
       className: "hidden @[49rem]:table-cell",
@@ -492,13 +499,13 @@ export function TradingActivity() {
     },
     {
       key: "status",
-      header: "Status",
+      header: msg("Status"),
       width: "72px",
       render: (row) => <span className="capitalize text-text-secondary">{row.status}</span>,
     },
     {
       key: "action",
-      header: "Action",
+      header: msg("Action"),
       align: "right",
       width: "96px",
       headerSrOnly: true,
@@ -510,17 +517,17 @@ export function TradingActivity() {
     <>
       <CardHead title={row.label} badge={<SideCell side={row.side} />}>
         <time dateTime={row.createdAt} className="type-data-sm shrink-0 text-text-secondary">
-          {formatTimestamp(row.createdAt)}
+          {formatTimestamp(row.createdAt, t.locale)}
         </time>
       </CardHead>
       <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2">
-        <Fact label="Type">
+        <Fact label={t("Type")}>
           <span className="capitalize">{row.type}</span>
         </Fact>
-        <Fact label="Price">{priceOrNull(row.priceUsd)}</Fact>
-        <Fact label="Size">{formatQty(row.quantity, row.quantity < 1 ? 4 : 2)}</Fact>
-        <Fact label="Filled">{formatPct(row.filledPct, { sign: false, decimals: 0 })}</Fact>
-        <Fact label="Status">
+        <Fact label={t("Price")}>{priceOrNull(row.priceUsd)}</Fact>
+        <Fact label={t("Size")}>{formatQty(row.quantity, row.quantity < 1 ? 4 : 2)}</Fact>
+        <Fact label={t("Filled")}>{formatPct(row.filledPct, { sign: false, decimals: 0 })}</Fact>
+        <Fact label={t("Status")}>
           <span className="capitalize">{row.status}</span>
         </Fact>
       </dl>
@@ -535,13 +542,13 @@ export function TradingActivity() {
   const historyColumns: Column<LedgerEvent>[] = [
     {
       key: "time",
-      header: "Time",
+      header: msg("Time"),
       width: "112px",
       render: eventTime,
     },
     {
       key: "summary",
-      header: "Activity",
+      header: msg("Activity"),
       width: "240px",
       render: (row) => (
         <span className="block truncate text-text-primary" title={row.summary}>
@@ -551,19 +558,19 @@ export function TradingActivity() {
     },
     {
       key: "venue",
-      header: "Venue",
+      header: msg("Venue"),
       width: "96px",
       render: (row) => <span className="text-text-secondary">{venueLabel(row.venue)}</span>,
     },
     {
       key: "status",
-      header: "Status",
+      header: msg("Status"),
       width: "88px",
       render: (row) => <EventStatus status={row.status} />,
     },
     {
       key: "link",
-      header: "Link",
+      header: msg("Link"),
       align: "right",
       width: "80px",
       headerSrOnly: true,
@@ -591,12 +598,12 @@ export function TradingActivity() {
     const copy = LEDGER_EMPTY[ledgerTab][marketType];
     if (ledgerTab === "orders" && ordersMissing && marketType !== "defi") {
       return {
-        title: "Open orders are not read yet",
-        body: `${ordersMissing.reason} Positions and balances on your connected venues are.`,
+        title: t("Open orders are not read yet"),
+        body: `${t(ordersMissing.reason)} ${t("Positions and balances on your connected venues are.")}`,
       };
     }
     if (ledgerTab === "history" && wallet.error !== null) {
-      return { title: "Transactions could not be read", body: wallet.error };
+      return { title: t("Transactions could not be read"), body: wallet.error };
     }
     return copy;
   })();
@@ -606,12 +613,12 @@ export function TradingActivity() {
   const body = (() => {
     if (!auth.available) {
       return (
-        <EmptyState icon={Wallet} title="Sign-in is not configured" body="No account can be read, so there is no ledger to show." />
+        <EmptyState icon={Wallet} title={t("Sign-in is not configured")} body={t("No account can be read, so there is no ledger to show.")} />
       );
     }
     if (!portfolio.authReady || (signedIn && portfolio.loading && snapshot === null)) {
       return (
-        <div className="flex flex-col gap-3 px-4 py-4" aria-label="Loading trading activity">
+        <div className="flex flex-col gap-3 px-4 py-4" aria-label={t("Loading trading activity")}>
           {[0, 1, 2].map((index) => (
             <span key={index} className="skeleton block h-5 w-full" />
           ))}
@@ -622,11 +629,11 @@ export function TradingActivity() {
       return (
         <EmptyState
           icon={Wallet}
-          title="Connect to see your trading activity"
-          body="Your wallet holdings, venue positions and transactions appear here, marked to the live price."
+          title={t("Connect to see your trading activity")}
+          body={t("Your wallet holdings, venue positions and transactions appear here, marked to the live price.")}
           action={
             <Button size="sm" variant="accent" onClick={auth.login}>
-              Connect wallet
+              {t("Connect wallet")}
             </Button>
           }
         />
@@ -636,11 +643,11 @@ export function TradingActivity() {
       return (
         <EmptyState
           icon={AlertTriangle}
-          title={portfolio.unconfigured ? "Balances are not configured" : "Your accounts could not be read"}
-          body={portfolio.error ?? "Try again in a moment."}
+          title={portfolio.unconfigured ? t("Balances are not configured") : t("Your accounts could not be read")}
+          body={portfolio.error ?? t("Try again in a moment.")}
           action={
             <Button size="sm" variant="quiet" onClick={portfolio.refetch}>
-              Try again
+              {t("Try again")}
             </Button>
           }
         />
@@ -653,19 +660,19 @@ export function TradingActivity() {
           icon={Inbox}
           title={
             prediction.connected
-              ? `${prediction.activeMarkets ?? 0} active prediction ${prediction.activeMarkets === 1 ? "market" : "markets"}`
-              : "Prediction markets are not connected"
+              ? prediction.activeMarkets === 1
+                ? t("1 active prediction market")
+                : t("{count} active prediction markets", { count: prediction.activeMarkets ?? 0 })
+              : t("Prediction markets are not connected")
           }
           body={
             prediction.connected
-              ? `${prediction.valueUsd === null ? "Value unavailable" : `${formatUsd(prediction.valueUsd)} at mark`}${
-                  prediction.unrealisedPnlUsd === null ? "" : `, ${formatUsd(prediction.unrealisedPnlUsd, { sign: true })} unrealised`
-                }. Each position is listed on Portfolio.`
-              : (prediction.unavailableReason ?? "Elyra cannot see prediction positions for this account.")
+              ? `${prediction.valueUsd === null ? t("Value unavailable") : t("{value} at mark", { value: formatUsd(prediction.valueUsd) })}${prediction.unrealisedPnlUsd === null ? "" : t(", {pnl} unrealised", { pnl: formatUsd(prediction.unrealisedPnlUsd, { sign: true }) })}${t(". Each position is listed on Portfolio.")}`
+              : (prediction.unavailableReason ?? t("Elyra cannot see prediction positions for this account."))
           }
           action={
             <Link href="/portfolio" className={buttonVariants({ variant: "quiet", size: "sm" })}>
-              Open Portfolio
+              {t("Open Portfolio")}
             </Link>
           }
         />
@@ -681,7 +688,7 @@ export function TradingActivity() {
           minWidth={652}
           rowClassName={markSelected}
           card={positionCard}
-          caption={`Open ${marketType === "all" ? "" : `${marketType} `}positions`}
+          caption={(marketType === "all" ? t("Open positions") : t("Open {market} positions", { market: t(marketType) }))}
         />
       );
     }
@@ -694,7 +701,7 @@ export function TradingActivity() {
           minWidth={642}
           rowClassName={markSelected}
           card={orderCard}
-          caption={`Resting ${marketType === "all" ? "" : `${marketType} `}orders`}
+          caption={(marketType === "all" ? t("Resting orders") : t("Resting {market} orders", { market: t(marketType) }))}
         />
       );
     }
@@ -706,20 +713,20 @@ export function TradingActivity() {
           getRowKey={(row) => row.id}
           minWidth={616}
           card={historyCard}
-          caption={`${marketType === "all" ? "All" : marketType} account history`}
+          caption={(marketType === "all" ? t("All account history") : t("{market} account history", { market: t(marketType) }))}
         />
       );
     }
     if (ledgerTab === "history" && wallet.isLoading) {
       return (
-        <div className="flex flex-col gap-3 px-4 py-4" aria-label="Loading history">
+        <div className="flex flex-col gap-3 px-4 py-4" aria-label={t("Loading history")}>
           {[0, 1, 2].map((index) => (
             <span key={index} className="skeleton block h-5 w-full" />
           ))}
         </div>
       );
     }
-    return <EmptyState icon={Inbox} title={empty.title} body={empty.body} />;
+    return <EmptyState icon={Inbox} title={t(empty.title)} body={t(empty.body)} />;
   })();
 
   const counts: Record<LedgerTab, number> = {
@@ -730,7 +737,7 @@ export function TradingActivity() {
 
   return (
     <Section
-      title="Trading activity"
+      title={t("Trading activity")}
       icon={<ArrowLeftRight size={16} strokeWidth={1.5} />}
       meta={snapshot === null ? undefined : `${allPositions.length} open ${allPositions.length === 1 ? "position" : "positions"}`}
       open={open}
@@ -741,7 +748,7 @@ export function TradingActivity() {
         <TabsList className="border-b border-border-subtle px-3">
           {TABS.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
-              {tab.label}
+              {t(tab.label)}
               {snapshot !== null && <span className="type-data-sm text-text-muted">{counts[tab.value]}</span>}
             </TabsTrigger>
           ))}
@@ -750,7 +757,7 @@ export function TradingActivity() {
 
       {/* Row 2 — venue filter, single select. */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-2.5">
-        <div role="radiogroup" aria-label="Market type" className="flex flex-wrap items-center gap-1">
+        <div role="radiogroup" aria-label={t("Market type")} className="flex flex-wrap items-center gap-1">
           {FILTERS.map((filter) => {
             const active = filter.value === marketType;
             return (
@@ -768,19 +775,19 @@ export function TradingActivity() {
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
                 )}
               >
-                {filter.label}
+                {t(filter.label)}
               </button>
             );
           })}
         </div>
         {selectedSymbol && snapshot !== null && ledgerTab !== "history" && (
-          <span className="type-label ml-auto shrink-0 text-text-muted">{selectedSymbol} rows first</span>
+          <span className="type-label ml-auto shrink-0 text-text-muted">{t("{selectedSymbol} rows first", { selectedSymbol })}</span>
         )}
       </div>
 
       {failedNotes.length > 0 && (
         <p role="status" className="type-label border-b border-border-subtle px-4 py-2 text-text-secondary">
-          Incomplete — {failedNotes.map((note) => `${note.scope}: ${note.reason}`).join(" · ")}
+          {t("Incomplete — {value}", { value: failedNotes.map((note) => `${note.scope}: ${note.reason}`).join(" · ") })}
         </p>
       )}
 

@@ -3,8 +3,13 @@ import { cronAuthorised } from "@/lib/notifications/cron";
 import { runArena } from "@/lib/arena/engine";
 import { runDeskTick } from "@/lib/desk/tick";
 import { runAutotrade } from "@/lib/autotrade/engine";
+import { runCopy } from "@/lib/copy/engine";
 import { runEvents } from "@/lib/events/engine";
+import { runFunds } from "@/lib/funds/run";
+import { runInsiderScan } from "@/lib/insider/server";
 import { deliverNotifications } from "@/lib/notifications/deliver";
+import { runRails } from "@/lib/rails/run";
+import { runScoutTick } from "@/lib/scout/engine";
 
 /* ---------------------------------------------------------------------------
    The delivery pass, as a scheduled endpoint — every channel at once: the
@@ -49,6 +54,17 @@ export async function GET(request: Request): Promise<Response> {
   const automation = await runAutotrade().catch((error: unknown) => ({
     error: error instanceof Error ? error.message : "Automation pass failed.",
   }));
+  /* Then copy trading (lib/copy/engine.ts): a leader's entry or exit from
+     the pass just run is copied to its followers in this same tick. */
+  const copy = await runCopy().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Copy pass failed.",
+  }));
+  /* Then the AI funds (lib/funds/run.ts), right after the trades they hold
+     have had their exits recorded: each fund marked to market, its daily
+     NAV sealed, halted at its drawdown limit, wound down when asked. */
+  const funds = await runFunds().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Funds pass failed.",
+  }));
   /* Then Arena (lib/arena/engine.ts): reviews of trades that just closed,
      calls that came due, and their cards — capped per run. */
   const arena = await runArena().catch((error: unknown) => ({
@@ -59,13 +75,38 @@ export async function GET(request: Request): Promise<Response> {
   const events = await runEvents().catch((error: unknown) => ({
     error: error instanceof Error ? error.message : "Events pass failed.",
   }));
-  /* Then the Desk (lib/desk/engine.ts): its calls that came due are
+  /* Then the Desk (lib/desk/tick.ts): its calls that came due are
      settled on Hyperliquid's close and every forecast in them scored. */
   const desk = await runDeskTick().catch((error: unknown) => ({
     error: error instanceof Error ? error.message : "Desk pass failed.",
   }));
+
+  /* Then the agent rails (lib/rails/run.ts): lapse intents nobody answered,
+     and settle open payment requests from the chain. */
+  const rails = await runRails().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Rails pass failed.",
+  }));
+
+  /* Then insider watch (lib/insider/server.ts): fresh Hyperliquid wallets
+     whose first trade is big, recorded once each. Its notifications are the
+     website's bell, read from those records — nothing is sent from here. */
+  const insider = await runInsiderScan().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Insider scan failed.",
+  }));
+
+  /* Then Scout's auto-buys (lib/scout/engine.ts): a smart-money flow or an
+     exchange's own listing announcement opens a trade for a rule that wants
+     it, through the same order path as the chart ticket, so the notice
+     reaches the person in this pass. Nothing is read unless a rule is on. */
+  const scout = await runScoutTick().catch((error: unknown) => ({
+    error: error instanceof Error ? error.message : "Scout pass failed.",
+  }));
+
   const report = await deliverNotifications();
-  return NextResponse.json({ ...report, automation, arena, events, desk }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json(
+    { ...report, automation, copy, funds, arena, events, desk, rails, insider, scout },
+    { headers: { "cache-control": "no-store" } },
+  );
 }
 
 /** Same work, for schedulers that only issue POSTs. */

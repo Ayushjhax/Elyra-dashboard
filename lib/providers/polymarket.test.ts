@@ -161,38 +161,50 @@ describe("categories", () => {
 });
 
 /* ---------------------------------------------------------------------------
-   Positions
+   Positions — Data API v2 (v1 was retired on 2 November 2026)
 --------------------------------------------------------------------------- */
 
+/** A fresh response per call: positions asks two statuses at once, and one
+    Response's body can only be read once. */
+function serve(body: unknown, status = 200) {
+  fetchMock.mockImplementation(async () => jsonResponse(body, status));
+}
+
 const POSITION = {
-  proxyWallet: ACCOUNT,
-  asset: "10007185038794667536165459137732078154750664230810424324462145820900729673259",
-  conditionId: "0xe3d76373b86e6e95e12d7eb9c1d39644317085a40ee89709cfb9ce57e8c62c08",
-  size: 969.8997,
-  avgPrice: 0.5122,
-  initialValue: 496.8214,
-  currentValue: 620.5,
-  cashPnl: 123.68,
-  percentPnl: 24.89,
-  realizedPnl: 0,
-  curPrice: 0.64,
+  proxy_wallet: ACCOUNT,
+  token_id: "10007185038794667536165459137732078154750664230810424324462145820900729673259",
+  condition_id: "0xe3d76373b86e6e95e12d7eb9c1d39644317085a40ee89709cfb9ce57e8c62c08",
+  current_size: 969.8997,
+  avg_price: 0.5122,
+  entry_cost_usdc: 496.8214,
+  current_value: 620.5,
+  unrealized_pnl: 123.68,
+  percent_pnl: 24.89,
+  realized_pnl: 0,
+  total_pnl: 123.68,
+  current_price: 0.64,
+  status: "OPEN",
   redeemable: false,
   title: "Will BTC be above $100k on Dec 31?",
   slug: "btc-100k",
-  eventId: "254600",
+  event_id: "254600",
   outcome: "Yes",
-  outcomeIndex: 0,
-  endDate: "2026-12-31",
+  outcome_index: 0,
+  end_date: "2026-12-31",
+  last_event_at: 1795556084,
 };
+
+const page = (rows: unknown[]) => ({ data: rows, pagination: { has_more: false, next_cursor: null } });
 
 describe("positions", () => {
   it("normalises a live position", async () => {
-    fetchMock.mockResolvedValue(jsonResponse([POSITION]));
+    serve(page([POSITION]));
 
     const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketPositions(ACCOUNT);
 
     const row = result.data?.[0];
+    expect(result.data).toHaveLength(1);
     expect(row?.marketTitle).toBe("Will BTC be above $100k on Dec 31?");
     expect(row?.outcome).toBe("Yes");
     expect(row?.quantity).toBeCloseTo(969.8997, 4);
@@ -200,19 +212,32 @@ describe("positions", () => {
     expect(row?.entryPrice).toBeCloseTo(0.5122, 4);
     expect(row?.currentPrice).toBeCloseTo(0.64, 4);
     expect(row?.currentValueUsd).toBeCloseTo(620.5, 2);
+    expect(row?.costBasisUsd).toBeCloseTo(496.8214, 4);
+    expect(row?.pnlUsd).toBeCloseTo(123.68, 2);
     expect(row?.status).toBe("open");
   });
 
+  it("asks v2 for open AND resolved-unclaimed positions, never v1", async () => {
+    /* v2's default status is OPEN, which leaves out a resolved market not
+       yet claimed — the row that carries unclaimed winnings. */
+    serve(page([]));
+
+    const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
+    await polymarketPositions(ACCOUNT);
+
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.startsWith("https://data-api.polymarket.com/v2/positions?"))).toBe(true);
+    expect(urls.some((url) => url.includes("status=OPEN"))).toBe(true);
+    expect(urls.some((url) => url.includes("status=REDEEMABLE"))).toBe(true);
+    expect(urls.some((url) => url.includes("offset="))).toBe(false);
+  });
+
   it("does not call a settled LOSS an unclaimed win", async () => {
-    /* Verified live: Polymarket sets redeemable:true on every position in a
-       resolved market, winners and losers alike. A losing row comes back
-       redeemable with currentValue 0 and cashPnl of minus the whole stake.
-       Trusting the flag alone announced 200 losses as unclaimed winnings. */
-    fetchMock.mockResolvedValue(
-      jsonResponse([
-        { ...POSITION, redeemable: true, currentValue: 0, curPrice: 0, cashPnl: -496.82 },
-      ]),
-    );
+    /* Verified live: Polymarket marks every position in a resolved market
+       redeemable, winners and losers alike. A losing row comes back
+       redeemable with current_value 0. Trusting the flag alone announced
+       200 losses as unclaimed winnings. */
+    serve(page([{ ...POSITION, status: "REDEEMABLE", redeemable: true, current_value: 0, current_price: 0, unrealized_pnl: -496.82 }]));
 
     const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketPositions(ACCOUNT);
@@ -222,10 +247,10 @@ describe("positions", () => {
   });
 
   it("excludes a settled loss from claimable value", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse([
-        { ...POSITION, redeemable: true, currentValue: 0, curPrice: 0, cashPnl: -496.82 },
-        { ...POSITION, asset: "t2", redeemable: true, currentValue: 250, curPrice: 1 },
+    serve(
+      page([
+        { ...POSITION, status: "REDEEMABLE", redeemable: true, current_value: 0, current_price: 0, unrealized_pnl: -496.82 },
+        { ...POSITION, token_id: "t2", status: "REDEEMABLE", redeemable: true, current_value: 250, current_price: 1 },
       ]),
     );
 
@@ -242,9 +267,7 @@ describe("positions", () => {
     /* Unclaimed winnings are the most actionable thing in a prediction
        portfolio, and rendering them as an ordinary position hides money the
        user could take today. */
-    fetchMock.mockResolvedValue(
-      jsonResponse([{ ...POSITION, redeemable: true, currentValue: 620.5, curPrice: 1 }]),
-    );
+    serve(page([{ ...POSITION, status: "REDEEMABLE", redeemable: true, current_value: 620.5, current_price: 1 }]));
 
     const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketPositions(ACCOUNT);
@@ -254,9 +277,9 @@ describe("positions", () => {
   });
 
   it("distinguishes a settled loser from a long shot still trading", async () => {
-    const settled = { ...POSITION, curPrice: 0, endDate: "2026-01-01", redeemable: false };
-    const longShot = { ...POSITION, asset: "t2", curPrice: 0.02, endDate: "2026-12-31" };
-    fetchMock.mockResolvedValue(jsonResponse([settled, longShot]));
+    const settled = { ...POSITION, current_price: 0, end_date: "2026-01-01", redeemable: false };
+    const longShot = { ...POSITION, token_id: "t2", current_price: 0.02, end_date: "2026-12-31" };
+    serve(page([settled, longShot]));
 
     const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketPositions(ACCOUNT);
@@ -265,10 +288,19 @@ describe("positions", () => {
     expect(result.data?.[1].status).toBe("open");
   });
 
+  it("hides dust under the share threshold", async () => {
+    serve(page([POSITION, { ...POSITION, token_id: "dust", current_size: 0.4, current_value: 0.2 }]));
+
+    const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
+    const result = await polymarketPositions(ACCOUNT);
+
+    expect(result.data?.map((row) => row.id)).toEqual([POSITION.token_id]);
+  });
+
   it("returns a failure, never an empty portfolio, when the API is down", async () => {
     /* The single most important rule here: "we could not read your positions"
        and "you have none" are opposite claims about someone's money. */
-    fetchMock.mockResolvedValue(new Response("upstream", { status: 503 }));
+    serve("upstream", 503);
 
     const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketPositions(ACCOUNT);
@@ -277,18 +309,28 @@ describe("positions", () => {
     expect(result.data).toBeUndefined();
   });
 
+  it("returns a failure when v1's retirement notice comes back", async () => {
+    serve({ error: "Data API v1 has been retired", migration: "https://data-api.polymarket.com/v2/" });
+
+    const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
+    const result = await polymarketPositions(ACCOUNT);
+
+    expect(result.ok).toBe(false);
+  });
+
   it("does not retry an authentication failure", async () => {
-    fetchMock.mockResolvedValue(new Response("nope", { status: 403 }));
+    serve("nope", 403);
 
     const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketPositions(ACCOUNT);
 
     expect(result.error?.code).toBe("AUTH");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    /* One call per status, and neither is retried. */
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("survives a malformed body without throwing", async () => {
-    fetchMock.mockResolvedValue(new Response("<html>nope</html>", { status: 200 }));
+    fetchMock.mockImplementation(async () => new Response("<html>nope</html>", { status: 200 }));
 
     const { polymarketPositions } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketPositions(ACCOUNT);
@@ -305,17 +347,71 @@ describe("positions", () => {
   });
 });
 
+describe("account value", () => {
+  it("reads v2's object envelope", async () => {
+    serve({ data: { proxy_wallet: ACCOUNT, value: 104547.5875 } });
+
+    const { polymarketAccountValue } = await import("@/lib/providers/polymarket-account");
+    const result = await polymarketAccountValue(ACCOUNT);
+
+    expect(result.data).toBeCloseTo(104547.5875, 4);
+    expect(String(fetchMock.mock.calls[0][0])).toBe(`https://data-api.polymarket.com/v2/value?user=${ACCOUNT.toLowerCase()}`);
+  });
+});
+
+describe("closed positions", () => {
+  it("reads exited and resolved positions with their final result", async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      jsonResponse(
+        page(
+          String(url).includes("status=CLOSED")
+            ? [{ ...POSITION, status: "CLOSED", current_size: 0, current_value: 0, realized_pnl: 71.5, total_pnl: 71.5, last_event_at: 1794780142 }]
+            : [{ ...POSITION, token_id: "t2", status: "REDEEMABLE", redeemable: true, current_value: 0, total_pnl: -40, last_event_at: 1794000000 }],
+        ),
+      ),
+    );
+
+    const { polymarketClosedPositions } = await import("@/lib/providers/polymarket-account");
+    const result = await polymarketClosedPositions(ACCOUNT, 1790000000);
+
+    expect(result.data?.map((row) => row.pnlUsd)).toEqual([71.5, -40]);
+    expect(result.data?.[0].at).toBe(new Date(1794780142 * 1000).toISOString());
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls.every((url) => url.includes("start=1790000000"))).toBe(true);
+  });
+});
+
+describe("deposits and withdrawals", () => {
+  it("asks for them explicitly and signs them", async () => {
+    serve(
+      page([
+        { timestamp: 1793809903, type: "DEPOSIT", usdc_size: 130000, transaction_hash: "0xa" },
+        { timestamp: 1793900000, type: "WITHDRAWAL", usdc_size: 5000, transaction_hash: "0xb" },
+        { timestamp: 1793900100, type: "TRADE", usdc_size: 30 },
+      ]),
+    );
+
+    const { polymarketFlows } = await import("@/lib/providers/polymarket-account");
+    const result = await polymarketFlows(ACCOUNT, 1790000000);
+
+    expect(result.data?.map((flow) => flow.usd)).toEqual([130000, -5000]);
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("exclude_deposits_withdrawals=false");
+    expect(url).toContain("type=DEPOSIT%2CWITHDRAWAL");
+  });
+});
+
 /* ---------------------------------------------------------------------------
    Activity
 --------------------------------------------------------------------------- */
 
 describe("activity", () => {
   it("maps provider verbs onto the ledger's vocabulary", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse([
-        { timestamp: 1789525482, type: "REDEEM", size: 466, usdcSize: 466, title: "A", conditionId: "0x1" },
-        { timestamp: 1789525400, type: "TRADE", side: "BUY", size: 10, usdcSize: 4, price: 0.4, title: "B", conditionId: "0x2" },
-        { timestamp: 1789525300, type: "TRADE", side: "SELL", size: 10, usdcSize: 6, price: 0.6, title: "C", conditionId: "0x3" },
+    serve(
+      page([
+        { timestamp: 1789525482, type: "REDEEM", size: 466, usdc_size: 466, title: "A", condition_id: "0x1" },
+        { timestamp: 1789525400, type: "TRADE", side: "BUY", size: 10, usdc_size: 4, price: 0.4, title: "B", condition_id: "0x2" },
+        { timestamp: 1789525300, type: "TRADE", side: "SELL", size: 10, usdc_size: 6, price: 0.6, title: "C", condition_id: "0x3" },
       ]),
     );
 
@@ -327,13 +423,12 @@ describe("activity", () => {
       "prediction_buy",
       "prediction_sell",
     ]);
+    expect(result.data?.[0].usdValue).toBe(466);
   });
 
   it("does not guess a direction for an unrecognised type", async () => {
     /* A mislabelled direction in a ledger is worse than an unlabelled row. */
-    fetchMock.mockResolvedValue(
-      jsonResponse([{ timestamp: 1789525482, type: "SOMETHING_NEW", conditionId: "0x1" }]),
-    );
+    serve(page([{ timestamp: 1789525482, type: "SOMETHING_NEW", condition_id: "0x1" }]));
 
     const { polymarketActivity } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketActivity(ACCOUNT, 10);
@@ -342,9 +437,7 @@ describe("activity", () => {
   });
 
   it("reads second-precision timestamps", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse([{ timestamp: 1789525482, type: "REDEEM", conditionId: "0x1" }]),
-    );
+    serve(page([{ timestamp: 1789525482, type: "REDEEM", condition_id: "0x1" }]));
 
     const { polymarketActivity } = await import("@/lib/providers/polymarket-account");
     const result = await polymarketActivity(ACCOUNT, 10);

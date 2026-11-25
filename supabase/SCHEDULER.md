@@ -57,3 +57,20 @@ from net._http_response order by created desc limit 5;
 ```sql
 select cron.unschedule('elyra-delivery');
 ```
+
+## The Daily Briefing
+
+`0027_daily_briefing.sql` adds a second job, `elyra-briefing`, with the same
+two Vault secrets. It calls `/api/briefing/run` at 00:02, 00:17, 00:32 and
+00:47 UTC (08:02–08:47 in Beijing). The first call writes the day's briefing;
+a later one takes over a run that died, and once the day is published the rest
+return at once. It is a job of its own rather than a step of the five-minute
+tick because the editor and the translator can take minutes, and the tick's
+300 seconds belong to trading.
+
+```sql
+select jobname, schedule, active from cron.job where jobname = 'elyra-briefing';
+select day, status, attempts, published_at, notes from public.daily_briefings order by day desc limit 5;
+-- Turn it off:
+select cron.unschedule('elyra-briefing');
+```

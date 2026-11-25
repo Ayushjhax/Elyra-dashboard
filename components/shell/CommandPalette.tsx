@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Sparkles,
   type LucideIcon,
+  LayoutGrid,
 } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { NAV_ITEMS } from "@/components/shell/NavRail";
@@ -27,6 +28,8 @@ import { useAssetSearch } from "@/lib/market/useAssetSearch";
 import type { PythAsset } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { BUILT_IN_LAYOUTS, readSavedLayouts } from "@/lib/workspaceLayouts";
 
 /* ---------------------------------------------------------------------------
    Search anything — ⌘K / Ctrl+K from anywhere.
@@ -54,6 +57,7 @@ interface Command {
 const MARKET_LIMIT = 6;
 
 export function CommandPalette() {
+  const t = useT();
   const open = useElyraStore((state) => state.commandOpen);
   const setOpen = useElyraStore((state) => state.setCommandOpen);
 
@@ -66,10 +70,9 @@ export function CommandPalette() {
         className="command-glass top-[12dvh] w-[min(600px,calc(100vw-32px))] max-h-[min(640px,calc(100dvh-24dvh))] -translate-y-0"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>Search</DialogTitle>
+          <DialogTitle>{t("Search")}</DialogTitle>
           <DialogDescription id="command-help">
-            Search markets, pages and workspace actions. Use the arrow keys to
-            move and Enter to choose.
+            {t("Search markets, pages and workspace actions. Use the arrow keys to move and Enter to choose.")}
           </DialogDescription>
         </DialogHeader>
         {/* Mounted only while open, so the query starts empty every time. */}
@@ -80,6 +83,7 @@ export function CommandPalette() {
 }
 
 function CommandBody({ onDone }: { onDone: () => void }) {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const auth = useElyraAuth();
@@ -96,6 +100,8 @@ function CommandBody({ onDone }: { onDone: () => void }) {
   const focusMode = useElyraStore((state) => state.focusMode);
   const setFocusMode = useElyraStore((state) => state.setFocusMode);
   const resetLayout = useElyraStore((state) => state.resetLayout);
+  const savedLayouts = useElyraStore((state) => state.savedLayouts);
+  const applyLayout = useElyraStore((state) => state.applyLayout);
   const revealAgent = useElyraStore((state) => state.revealAgent);
 
   const needle = query.trim().toLowerCase();
@@ -120,11 +126,15 @@ function CommandBody({ onDone }: { onDone: () => void }) {
     }));
 
     const pages: Command[] = NAV_ITEMS.filter(
-      (item) => needle === "" || item.label.toLowerCase().includes(needle),
+      /* Either language finds a page: an operator may type the English name. */
+      (item) =>
+        needle === "" ||
+        item.label.toLowerCase().includes(needle) ||
+        t(item.label).toLowerCase().includes(needle),
     ).map((item) => ({
       id: `page-${item.href}`,
       group: "Pages",
-      label: item.label,
+      label: t(item.label),
       icon: item.icon,
       run: () => router.push(item.href),
     }));
@@ -133,21 +143,21 @@ function CommandBody({ onDone }: { onDone: () => void }) {
       {
         id: "action-widgets",
         group: "Actions" as const,
-        label: widgetsOpen ? "Hide widgets" : "Show widgets",
+        label: widgetsOpen ? t("Hide widgets") : t("Show widgets"),
         icon: PanelLeft,
         run: () => setWidgetsOpen(!widgetsOpen),
       },
       {
         id: "action-agent",
         group: "Actions" as const,
-        label: agentOpen ? "Hide Elyra" : "Show Elyra",
+        label: agentOpen ? t("Hide Elyra") : t("Show Elyra"),
         icon: PanelRight,
         run: () => (agentOpen ? setAgentOpen(false) : revealAgent()),
       },
       {
         id: "action-focus",
         group: "Actions" as const,
-        label: focusMode ? "Exit focus mode" : "Focus mode",
+        label: focusMode ? t("Exit focus mode") : t("Focus mode"),
         icon: Maximize2,
         run: () => {
           setFocusMode(!focusMode);
@@ -157,10 +167,18 @@ function CommandBody({ onDone }: { onDone: () => void }) {
       {
         id: "action-reset",
         group: "Actions" as const,
-        label: "Reset layout",
+        label: t("Reset layout"),
         icon: RotateCcw,
         run: resetLayout,
       },
+      /* Every layout, built in or saved (lib/workspaceLayouts.ts), one move away. */
+      ...[...BUILT_IN_LAYOUTS, ...readSavedLayouts(savedLayouts)].map((layout) => ({
+        id: `layout-${layout.id}`,
+        group: "Actions" as const,
+        label: t("Layout: {name}", { name: layout.builtIn ? t(layout.name) : layout.name }),
+        icon: LayoutGrid,
+        run: () => applyLayout(layout),
+      })),
     ].filter((command) => needle === "" || command.label.toLowerCase().includes(needle));
 
     /* A query that is a question goes to the agent as typed. */
@@ -170,7 +188,7 @@ function CommandBody({ onDone }: { onDone: () => void }) {
             {
               id: "action-ask",
               group: "Actions",
-              label: `Ask Elyra: “${query.trim()}”`,
+              label: t("Ask Elyra: “{query}”", { query: query.trim() }),
               icon: Sparkles,
               run: () => {
                 revealAgent();
@@ -201,7 +219,10 @@ function CommandBody({ onDone }: { onDone: () => void }) {
     setFocusMode,
     setSelectedAssetId,
     setWidgetsOpen,
+    t,
     widgetsOpen,
+    savedLayouts,
+    applyLayout,
   ]);
 
   /* The active row resets whenever the list it indexes changes shape. */
@@ -233,7 +254,7 @@ function CommandBody({ onDone }: { onDone: () => void }) {
           aria-expanded="true"
           aria-controls="command-list"
           aria-activedescendant={commands[current] ? `cmd-${commands[current].id}` : undefined}
-          aria-label="Search markets, pages and actions"
+          aria-label={t("Search markets, pages and actions")}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -251,10 +272,10 @@ function CommandBody({ onDone }: { onDone: () => void }) {
               run(commands[current]);
             }
           }}
-          placeholder="Search markets, pages, or ask Elyra…"
+          placeholder={t("Search markets, pages, or ask Elyra…")}
           className="type-body h-12 min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-muted"
         />
-        <button type="button" aria-label="Close search" onClick={onDone} className="flex size-10 shrink-0 items-center justify-center rounded-control text-text-secondary hover:bg-surface-hover">
+        <button type="button" aria-label={t("Close search")} onClick={onDone} className="flex size-10 shrink-0 items-center justify-center rounded-control text-text-secondary hover:bg-surface-hover">
           <kbd className="type-data-sm rounded-chip border border-border-strong px-1.5 py-0.5">Esc</kbd>
         </button>
       </div>
@@ -264,12 +285,12 @@ function CommandBody({ onDone }: { onDone: () => void }) {
         ref={listRef}
         id="command-list"
         role="listbox"
-        aria-label="Results"
+        aria-label={t("Results")}
         className="min-h-0 flex-1 list-none overflow-y-auto px-3 pb-3"
       >
         {commands.length === 0 && (
           <li className="type-body-sm px-3 py-6 text-center text-text-secondary">
-            {status === "loading" ? "Searching…" : `Nothing matches “${query.trim()}”.`}
+            {status === "loading" ? t("Searching…") : t("Nothing matches “{query}”.", { query: query.trim() })}
           </li>
         )}
         {groups.map((group) => {
@@ -279,8 +300,8 @@ function CommandBody({ onDone }: { onDone: () => void }) {
           if (rows.length === 0) return null;
           return (
             <li key={group} role="presentation">
-              <p className="type-eyebrow px-3 pb-1 pt-2 text-text-muted">{group}</p>
-              <ul role="group" aria-label={group} className="list-none">
+              <p className="type-eyebrow px-3 pb-1 pt-2 text-text-muted">{t(group)}</p>
+              <ul role="group" aria-label={t(group)} className="list-none">
                 {rows.map(({ command, index }) => {
                   const Icon = command.icon;
                   const selected = index === current;
@@ -324,8 +345,8 @@ function CommandBody({ onDone }: { onDone: () => void }) {
         })}
       </ul>
       <div aria-hidden className="type-label flex shrink-0 items-center justify-between gap-3 border-t border-border-subtle px-6 py-3 text-text-muted">
-        <span>↑ ↓ Navigate <span className="ml-3">↵ Open</span></span>
-        <span>Elyra search</span>
+        <span>{t("↑ ↓ Navigate")}{" "}<span className="ml-3">{t("↵ Open")}</span></span>
+        <span>{t("Elyra search")}</span>
       </div>
     </div>
   );

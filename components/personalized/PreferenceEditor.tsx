@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import type { MemoryFeed } from "@/lib/personalized/client";
 import type { MemoryType, PersonalizedMemory } from "@/lib/personalized/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Saving a preference — only ever because the person pressed Save.
@@ -34,45 +36,45 @@ interface FieldSpec {
 const FIELDS: Record<MemoryType, FieldSpec> = {
   concentration_limit: {
     type: "concentration_limit",
-    label: "Most in any one asset",
-    hint: "Elyra flags when a single asset grows past this share of your portfolio.",
+    label: msg("Most in any one asset"),
+    hint: msg("Elyra flags when a single asset grows past this share of your portfolio."),
     kind: "percent",
     placeholder: "25",
   },
   stablecoin_buffer: {
     type: "stablecoin_buffer",
-    label: "Keep at least this much in stablecoins",
-    hint: "A floor of dry powder Elyra keeps in mind before suggesting you deploy it.",
+    label: msg("Keep at least this much in stablecoins"),
+    hint: msg("A floor of dry powder Elyra keeps in mind before suggesting you deploy it."),
     kind: "percent",
     placeholder: "10",
   },
   leverage_limit: {
     type: "leverage_limit",
-    label: "Highest leverage you'll use",
-    hint: "Elyra will not suggest a position above this multiple.",
+    label: msg("Highest leverage you'll use"),
+    hint: msg("Elyra will not suggest a position above this multiple."),
     kind: "multiple",
     placeholder: "3",
   },
   preferred_venue: {
     type: "preferred_venue",
-    label: "Preferred venue",
-    hint: "Where you would rather trade when there is a choice.",
+    label: msg("Preferred venue"),
+    hint: msg("Where you would rather trade when there is a choice."),
     kind: "text",
     placeholder: "Hyperliquid",
   },
   watch_symbol: {
     type: "watch_symbol",
-    label: "Watch a symbol",
-    hint: "Elyra brings it up when it matters to your portfolio.",
+    label: msg("Watch a symbol"),
+    hint: msg("Elyra brings it up when it matters to your portfolio."),
     kind: "symbol",
     placeholder: "SOL",
   },
   note: {
     type: "note",
-    label: "Something Elyra should always know",
-    hint: "In your words, up to 280 characters.",
+    label: msg("Something Elyra should always know"),
+    hint: msg("In your words, up to 280 characters."),
     kind: "text",
-    placeholder: "I'm saving for a house deposit in 2027 — keep risk modest.",
+    placeholder: msg("I'm saving for a house deposit in 2027 — keep risk modest."),
   },
 };
 
@@ -99,10 +101,10 @@ function fieldsFor(intent: EditorIntent, chosen: MemoryType): FieldSpec[] {
 }
 
 const TITLE: Record<EditorIntent["mode"], string> = {
-  risk: "Risk tolerance",
-  allocation: "Allocation limits",
-  new: "Add a preference",
-  edit: "Edit preference",
+  risk: msg("Risk tolerance"),
+  allocation: msg("Allocation limits"),
+  new: msg("Add a preference"),
+  edit: msg("Edit preference"),
 };
 
 function existingValue(memories: PersonalizedMemory[], type: MemoryType): string {
@@ -117,6 +119,7 @@ const input = cn(
 );
 
 function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: MemoryFeed; onDone: () => void }) {
+  const t = useT();
   const [chosen, setChosen] = useState<MemoryType>("concentration_limit");
   const fields = fieldsFor(intent, chosen);
   /* Pre-filled with what is already saved, so a suggestion for a type that
@@ -137,7 +140,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
 
   const save = async () => {
     if (filled.length === 0) {
-      setError("Fill in at least one value, or close without saving.");
+      setError(t("Fill in at least one value, or close without saving."));
       return;
     }
     setBusy("save");
@@ -149,7 +152,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
         intent.mode === "edit" ? await memory.update(intent.memory.id, value) : await memory.save(field.type, value);
       if (failure !== null) {
         setBusy(null);
-        setError(`${field.label}: ${failure}`);
+        setError(`${t(field.label)}: ${failure}`);
         return;
       }
     }
@@ -177,7 +180,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
     >
       {intent.mode === "new" && (
         <fieldset className="flex flex-col gap-1.5">
-          <legend className="type-label mb-1.5 text-text-secondary">What kind of preference</legend>
+          <legend className="type-label mb-1.5 text-text-secondary">{t("What kind of preference")}</legend>
           <div className="grid grid-cols-2 gap-1.5">
             {NEW_TYPES.map((type) => (
               <label
@@ -201,7 +204,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
                   }}
                   className="sr-only"
                 />
-                {FIELDS[type].label}
+                {t(FIELDS[type].label)}
               </label>
             ))}
           </div>
@@ -214,7 +217,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
         return (
           <div key={field.type} className="flex flex-col gap-1.5">
             <label htmlFor={id} className="type-body-sm font-medium text-text-primary">
-              {field.label}
+              {t(field.label)}
             </label>
             <div className="relative">
               <input
@@ -222,7 +225,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
                 value={values[field.type] ?? ""}
                 onChange={(event) => setValues((current) => ({ ...current, [field.type]: event.target.value }))}
                 inputMode={suffix === null ? "text" : "decimal"}
-                placeholder={field.placeholder}
+                placeholder={field.placeholder === undefined ? undefined : t(field.placeholder)}
                 maxLength={field.kind === "text" ? 280 : 12}
                 autoComplete="off"
                 className={cn(input, suffix !== null && "pr-8 tabular-nums", field.kind === "symbol" && "uppercase")}
@@ -233,7 +236,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
                 </span>
               )}
             </div>
-            <p className="type-label text-text-muted">{field.hint}</p>
+            <p className="type-label text-text-muted">{t(field.hint)}</p>
           </div>
         );
       })}
@@ -260,10 +263,10 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
             ) : (
               <Trash2 size={14} strokeWidth={1.5} aria-hidden />
             )}
-            {busy === "remove" ? "Removing…" : "Remove"}
+            {busy === "remove" ? t("Removing…") : t("Remove")}
           </button>
         )}
-        <span className="type-label ml-auto text-text-muted">Saved only when you choose.</span>
+        <span className="type-label ml-auto text-text-muted">{t("Saved only when you choose.")}</span>
         <button
           type="submit"
           disabled={busy !== null}
@@ -273,7 +276,7 @@ function Editor({ intent, memory, onDone }: { intent: EditorIntent; memory: Memo
           )}
         >
           {busy === "save" && <Loader2 size={14} strokeWidth={1.75} aria-hidden className="motion-safe:animate-spin" />}
-          {busy === "save" ? "Saving…" : "Save"}
+          {busy === "save" ? t("Saving…") : t("Save")}
         </button>
       </div>
     </form>
@@ -289,17 +292,18 @@ export function PreferenceEditor({
   onClose: () => void;
   memory: MemoryFeed;
 }) {
+  const t = useT();
   return (
     <Dialog open={intent !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="w-[min(440px,calc(100vw-24px))] p-0">
         {intent !== null && (
           <>
             <DialogHeader className="border-b border-border-subtle px-4 py-3">
-              <DialogTitle className="type-h2 text-text-primary">{TITLE[intent.mode]}</DialogTitle>
+              <DialogTitle className="type-h2 text-text-primary">{t(TITLE[intent.mode])}</DialogTitle>
               <DialogDescription className="type-body-sm text-text-secondary">
                 {intent.mode === "edit"
                   ? intent.memory.label
-                  : "Elyra reads these on every question and holds its suggestions to them."}
+                  : t("Elyra reads these on every question and holds its suggestions to them.")}
               </DialogDescription>
             </DialogHeader>
             {/* Keyed so each opening starts from what is saved, not from the last draft. */}

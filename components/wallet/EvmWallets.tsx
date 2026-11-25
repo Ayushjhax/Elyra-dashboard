@@ -17,6 +17,9 @@ import type { PortfolioSnapshot, SpotHolding } from "@/lib/portfolio/types";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import type { Cluster } from "@/lib/solana/cluster";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+
+import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    The account's EVM wallet, on Ethereum and on Robinhood Chain.
@@ -47,18 +50,18 @@ function byValue(a: SpotHolding, b: SpotHolding): number {
 }
 
 /** "Apple • Robinhood Token · 1.0011 shares per token", when a corporate action has moved it. */
-function nameOf(holding: SpotHolding): string {
+function nameOf(holding: SpotHolding, t: Translator): string {
   const name = holding.name ?? holding.symbol;
   const multiplier = holding.stockToken?.multiplier;
   if (multiplier === undefined || Math.abs(multiplier - 1) < 1e-6) return name;
-  return `${name} · ${formatPrice(multiplier, 4)} shares per token`;
+  return t("{name} · {shares} shares per token", { name, shares: formatPrice(multiplier, 4) });
 }
 
-function reasonFor(holding: SpotHolding): string {
+function reasonFor(holding: SpotHolding, t: Translator): string {
   if (holding.stockToken !== undefined) {
-    return `No US equity price for ${holding.stockToken.ticker} from Pyth, so this token is not counted.`;
+    return t("No US equity price for {ticker} from Pyth, so this token is not counted.", { ticker: holding.stockToken.ticker });
   }
-  return "No price for this token from Pyth right now.";
+  return t("No price for this token from Pyth right now.");
 }
 
 function ChainBalances({
@@ -73,6 +76,7 @@ function ChainBalances({
   /** Null when this browser cannot sign for the EVM wallet. */
   onAction: ((action: "send" | "swap", chain: EvmChainKey) => void) | null;
 }) {
+  const t = useT();
   const meta = EVM_CHAINS[chain];
   const scopeId = evmScopeId(chain, address);
   const scope = snapshot.scopes.find((entry) => entry.id === scopeId) ?? null;
@@ -91,15 +95,15 @@ function ChainBalances({
         <h4 className="type-body min-w-0 flex-1 truncate font-medium text-text-primary">{meta.name}</h4>
         <Money
           value={scope?.valueUsd ?? null}
-          reason={failure?.reason ?? `${meta.name} could not be read.`}
+          reason={failure?.reason ?? t("{name} could not be read.", { name: meta.name })}
           className="type-body-sm text-text-secondary"
         />
         {onAction !== null && (
           <>
-            <IconButton label={`Send on ${meta.name}`} onClick={() => onAction("send", chain)}>
+            <IconButton label={t("Send on {name}", { name: meta.name })} onClick={() => onAction("send", chain)}>
               <Send size={14} strokeWidth={1.5} aria-hidden />
             </IconButton>
-            <IconButton label={`Swap on ${meta.name}`} onClick={() => onAction("swap", chain)}>
+            <IconButton label={t("Swap on {name}", { name: meta.name })} onClick={() => onAction("swap", chain)}>
               <ArrowLeftRight size={15} strokeWidth={1.5} aria-hidden />
             </IconButton>
           </>
@@ -110,29 +114,29 @@ function ChainBalances({
               href={evmAddressUrl(chain, address)}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`View on ${meta.explorer.name} (opens in a new tab)`}
+              aria-label={t("View on {name} (opens in a new tab)", { name: meta.explorer.name })}
               className={ICON_LINK}
             >
               <ExternalLink size={14} strokeWidth={1.5} aria-hidden />
             </a>
           </TooltipTrigger>
-          <TooltipContent>View on {meta.explorer.name}</TooltipContent>
+          <TooltipContent>{t("View on {name}", { name: meta.explorer.name })}</TooltipContent>
         </Tooltip>
       </div>
 
       {scope === null ? (
         <p role="status" className="type-label mt-1 text-negative">
-          {failure?.reason ?? `${meta.name} could not be read.`}
+          {failure?.reason ?? t("{name} could not be read.", { name: meta.name })}
         </p>
       ) : holdings.length === 0 ? (
-        <p className="type-body-sm mt-1 text-text-secondary">No balances on {meta.name} yet.</p>
+        <p className="type-body-sm mt-1 text-text-secondary">{t("No balances on {name} yet.", { name: meta.name })}</p>
       ) : (
         <ul className="mt-0.5 list-none">
           {holdings.map((holding) => (
             <AssetRow
               key={holding.id}
               symbol={holding.symbol}
-              name={nameOf(holding)}
+              name={nameOf(holding, t)}
               /* A stock token wears only its own registry logo: its ticker
                  can name an unrelated coin, whose icon would be a lie. */
               logo={
@@ -142,7 +146,7 @@ function ChainBalances({
               }
               amount={holding.quantity}
               usd={holding.verified ? holding.valueUsd : null}
-              reason={holding.verified ? reasonFor(holding) : "Unverified tokens are never valued."}
+              reason={holding.verified ? reasonFor(holding, t) : t("Unverified tokens are never valued.")}
               unverified={!holding.verified}
             />
           ))}
@@ -156,6 +160,7 @@ function ChainBalances({
 }
 
 export function EvmWallets({ cluster }: { cluster: Cluster | null }) {
+  const t = useT();
   const auth = useElyraAuth();
   const feed = usePortfolio();
   const [receiving, setReceiving] = useState(false);
@@ -172,24 +177,24 @@ export function EvmWallets({ cluster }: { cluster: Cluster | null }) {
   return (
     <section aria-labelledby="evm-wallets-heading" className="mx-5 border-t border-border-subtle py-4">
       <h3 id="evm-wallets-heading" className="type-h2 font-sans text-text-secondary">
-        EVM networks
+        {t("EVM networks")}
       </h3>
 
       <div className="mt-2 flex items-center gap-0.5">
         <span className="type-mono-addr mr-1.5 text-text-primary" title={address}>
           {truncateMiddle(address, 6, 4)}
-          <span className="sr-only"> (full address: {address})</span>
+          <span className="sr-only">{" "}{t("(full address: {address})", { address })}</span>
         </span>
-        <CopyButton value={address} label="EVM wallet address" />
-        <IconButton label="Show QR code to receive on an EVM network" onClick={() => setReceiving(true)}>
+        <CopyButton value={address} label={t("EVM wallet address")} />
+        <IconButton label={t("Show QR code to receive on an EVM network")} onClick={() => setReceiving(true)}>
           <QrCode size={15} strokeWidth={1.5} aria-hidden />
         </IconButton>
       </div>
-      <p className="type-label text-text-muted">One address on {EVM_NETWORKS_LABEL}; each network keeps its own balance.</p>
+      <p className="type-label text-text-muted">{t("One address on {EVM_NETWORKS_LABEL}; each network keeps its own balance.", { EVM_NETWORKS_LABEL })}</p>
 
       {snapshot === null ? (
         feed.loading ? (
-          <div aria-busy="true" aria-label="Reading the EVM networks" className="mt-3 flex flex-col gap-3">
+          <div aria-busy="true" aria-label={t("Reading the EVM networks")} className="mt-3 flex flex-col gap-3">
             {EVM_CHAIN_KEYS.map((key) => (
               <div key={key} aria-hidden className="flex items-center gap-3">
                 <span className="skeleton size-5 rounded-pill" />
@@ -200,21 +205,21 @@ export function EvmWallets({ cluster }: { cluster: Cluster | null }) {
           </div>
         ) : (
           <p role="status" className="type-label mt-3 text-negative">
-            {feed.error ?? "These balances couldn't be read."}{" "}
+            {feed.error ?? t("These balances couldn't be read.")}{" "}
             <button
               type="button"
               onClick={feed.refetch}
               disabled={feed.refreshing}
               className="relative font-medium text-text-primary underline decoration-border-strong underline-offset-4 after:absolute after:-inset-x-1 after:-inset-y-2 hover:decoration-accent disabled:text-text-muted disabled:no-underline"
             >
-              {feed.refreshing ? "Trying…" : "Try again"}
+              {feed.refreshing ? t("Trying…") : t("Try again")}
             </button>
           </p>
         )
       ) : (
         <>
           {feed.stale && (
-            <p className="type-label mt-2 text-caution">The latest refresh failed; these are the last good balances.</p>
+            <p className="type-label mt-2 text-caution">{t("The latest refresh failed; these are the last good balances.")}</p>
           )}
           {EVM_CHAIN_KEYS.map((key) => (
             <ChainBalances
@@ -230,7 +235,7 @@ export function EvmWallets({ cluster }: { cluster: Cluster | null }) {
 
       {!embedded && (
         <p className="type-label mt-3 text-text-muted">
-          This EVM wallet is a linked external wallet, so sending and swapping happen in that wallet&rsquo;s own app.
+          {t("This EVM wallet is a linked external wallet, so sending and swapping happen in that wallet’s own app.")}
         </p>
       )}
 

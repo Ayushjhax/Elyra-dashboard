@@ -5,6 +5,7 @@ import type { PricedPortfolio, RiskLevel } from "@/lib/invest/types";
 import { onSolanaWallet } from "@/lib/portfolio/chain";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Pieces shared by the Intelligent Portfolios list, a portfolio's page and
@@ -56,6 +57,7 @@ export function walletUsdc(snapshot: PortfolioSnapshot | null): number | null {
 }
 
 export function RiskTag({ risk, className }: { risk: RiskLevel; className?: string }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -64,11 +66,12 @@ export function RiskTag({ risk, className }: { risk: RiskLevel; className?: stri
         className,
       )}
     >
-      {RISK_LABEL[risk]}
+      {t(RISK_LABEL[risk])}
     </span>
   );
 }
 
 export function CategoryEyebrow({ category }: { category: PricedPortfolio["category"] }) {
-  return <span className="type-eyebrow text-text-muted">{CATEGORY_LABEL[category]}</span>;
+  const t = useT();
+  return <span className="type-eyebrow text-text-muted">{t(CATEGORY_LABEL[category])}</span>;
 }

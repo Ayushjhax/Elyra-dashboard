@@ -14,7 +14,11 @@ import {
   PenTool,
   Pointer,
   Star,
+  Sparkles,
+  Zap,
 } from "lucide-react";
+import { TradePanel } from "@/components/trade/TradePanel";
+import { clearTicketRequest, useTicketRequest } from "@/lib/trade/ticketRequest";
 import { AssetSelectDialog } from "@/components/panels/AssetSelectDialog";
 import { ChartAlerts } from "@/components/panels/ChartAlerts";
 import { CoinMark } from "@/components/ui/CoinMark";
@@ -35,6 +39,8 @@ import { useSecond } from "@/lib/useClock";
 import { useFirstScreenFit } from "@/lib/useFirstScreenFit";
 import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { intlLocale, type Locale } from "@/lib/i18n/locales";
 
 /**
  * TradingView's free widget, in its `tv.js` form.
@@ -118,21 +124,22 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function Indicators() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const indicators = useElyraStore((state) => state.chartIndicators);
   const toggleIndicator = useElyraStore((state) => state.toggleIndicator);
   const count = Number(indicators.ema) + Number(indicators.volume) + Number(indicators.levels !== false);
 
   const rows: Array<{ key: keyof typeof indicators; label: string; hint: string }> = [
-    { key: "ema", label: "Moving average (EMA 20)", hint: "Exponential, on the price pane" },
-    { key: "volume", label: "Volume", hint: "Bars under the price" },
-    { key: "levels", label: "Pivot levels", hint: "Prior day's support and resistance, listed under the toolbar" },
+    { key: "ema", label: t("Moving average (EMA 20)"), hint: t("Exponential, on the price pane") },
+    { key: "volume", label: t("Volume"), hint: t("Bars under the price") },
+    { key: "levels", label: t("Pivot levels"), hint: t("Prior day's support and resistance, listed under the toolbar") },
   ];
 
   return (
     <Popover
       id="chart-indicators"
-      label="Indicators"
+      label={t("Indicators")}
       open={open}
       onOpenChange={setOpen}
       align="start"
@@ -144,7 +151,7 @@ function Indicators() {
           aria-controls="chart-indicators"
           aria-haspopup="dialog"
           onClick={() => setOpen(!open)}
-          aria-label={`Indicators, ${count} on`}
+          aria-label={t("Indicators, {count} on", { count })}
           className={cn(
             TOOL,
             "px-2 @4xl:px-2.5",
@@ -154,7 +161,7 @@ function Indicators() {
           )}
         >
           <SlidersHorizontal size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @4xl:inline">Indicators</span>
+          <span className="hidden @4xl:inline">{t("Indicators")}</span>
           {count > 0 && <span className="type-data-sm text-text-muted">{count}</span>}
         </button>
       }
@@ -187,6 +194,7 @@ function Indicators() {
  * operator puts a level on the chart itself.
  */
 function PivotRow({ symbol, price }: { symbol: string | null; price: number | null }) {
+  const t = useT();
   const { data, loading } = useLevels(symbol);
   if (symbol === null) return null;
 
@@ -200,7 +208,7 @@ function PivotRow({ symbol, price }: { symbol: string | null; price: number | nu
   if (!data?.levels) {
     return (
       <p className="type-label border-b border-border-subtle px-4 py-2 text-text-muted">
-        Pivot levels unavailable{data?.error ? ` — ${data.error}` : ""}.
+        {t("Pivot levels unavailable{value}.", { value: data?.error ? ` — ${data.error}` : "" })}
       </p>
     );
   }
@@ -218,9 +226,9 @@ function PivotRow({ symbol, price }: { symbol: string | null; price: number | nu
   return (
     <div
       className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border-subtle px-4 py-2"
-      title={`${data.source}, candle of ${new Date(levels.basedOn).toISOString().slice(0, 10)} UTC`}
+      title={t("{source}, candle of {value} UTC", { source: data.source, value: new Date(levels.basedOn).toISOString().slice(0, 10) })}
     >
-      <span className="type-label shrink-0 text-text-muted">Pivots · prior day</span>
+      <span className="type-label shrink-0 text-text-muted">{t("Pivots · prior day")}</span>
       {entries.map(([name, value]) => {
         const marked =
           near !== null &&
@@ -241,11 +249,14 @@ function PivotRow({ symbol, price }: { symbol: string | null; price: number | nu
 }
 
 /** Seconds since the feed last published, in words. */
-function age(publishedAt: string, now: number): string {
+function age(publishedAt: string, now: number, locale: Locale): string {
   const seconds = Math.max(0, Math.round((now - Date.parse(publishedAt)) / 1000));
-  if (seconds < 60) return `${seconds}s ago`;
+  const zh = locale === "zh-CN";
+  if (seconds < 60) return zh ? `${seconds}秒前` : `${seconds}s ago`;
   const minutes = Math.round(seconds / 60);
-  return minutes < 60 ? `${minutes}m ago` : `${Math.round(minutes / 60)}h ago`;
+  if (minutes < 60) return zh ? `${minutes}分钟前` : `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  return zh ? `${hours}小时前` : `${hours}h ago`;
 }
 
 /**
@@ -262,16 +273,17 @@ function FeedFooter({
   status: FeedStatus;
   engaged: boolean;
 }) {
+  const t = useT();
   const now = useSecond();
   const ageMs = row && now !== null ? now - Date.parse(row.publishedAt) : null;
   const stale = status === "error" || (ageMs !== null && ageMs > 60_000);
   const decimals = priceDecimals(row?.price);
   const label =
-    status === "loading" && !row ? "Connecting to Pyth" : status === "error" && !row ? "Pyth unavailable" : "Pyth";
+    status === "loading" && !row ? t("Connecting to Pyth") : status === "error" && !row ? t("Pyth unavailable") : "Pyth";
   const clock =
     now === null
       ? "—"
-      : new Date(now).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+      : new Date(now).toLocaleTimeString(intlLocale(t.locale), { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
   return (
     <div className="@container border-t border-border-subtle">
@@ -286,26 +298,32 @@ function FeedFooter({
           />
           <span className="shrink-0">
             {label}
-            {row && now !== null ? ` · ${stale ? "stale, " : ""}updated ${age(row.publishedAt, now)}` : ""}
+            {row && now !== null
+              ? stale
+                ? t(" · stale, updated {age}", { age: age(row.publishedAt, now, t.locale) })
+                : t(" · updated {age}", { age: age(row.publishedAt, now, t.locale) })
+              : ""}
           </span>
           {row && (
             <span className="hidden truncate @2xl:inline">
-              {` · ±${formatPrice(row.confidence, decimals)} confidence · ${row.publisherCount} publishers`}
-              {row.marketSession && row.marketSession !== "regular" ? ` · ${row.marketSession} session` : ""}
+              {t(" · ±{confidence} confidence · {publisherCount} publishers", { confidence: formatPrice(row.confidence, decimals), publisherCount: row.publisherCount })}
+              {row.marketSession && row.marketSession !== "regular" ? t(" · {marketSession} session", { marketSession: t(row.marketSession) }) : ""}
             </span>
           )}
         </span>
         <span className="type-label hidden shrink-0 text-text-muted pointer-fine:@4xl:inline">
-          {engaged ? "Scroll zooms · move away to release" : "Click the chart to zoom and inspect"}
+          {engaged ? t("Scroll zooms · move away to release") : t("Click the chart to zoom and inspect")}
         </span>
-        <span className="type-data-sm shrink-0 text-text-muted">{clock} UTC</span>
+        <span className="type-data-sm shrink-0 text-text-muted">{t("{clock} UTC", { clock })}</span>
       </div>
     </div>
   );
 }
 
 export function ChartPanel({ focus = false }: { focus?: boolean }) {
+  const t = useT();
   const assetId = useElyraStore((state) => state.selectedAssetId);
+  const askElyra = useElyraStore((state) => state.askElyra);
   const interval = useElyraStore((state) => state.interval);
   const setInterval = useElyraStore((state) => state.setInterval);
   const chartStyle = useElyraStore((state) => state.chartStyle);
@@ -323,6 +341,10 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
   const flash = useFlash(seq, direction);
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  /* The order ticket for the chart's market (components/trade/TradePanel), opened
+     here or asked for from elsewhere — a signal card's Paper trade (lib/trade/ticketRequest). */
+  const [trading, setTrading] = useState(false);
+  const ticketRequest = useTicketRequest();
   const [status, setStatus] = useState<Status>("loading");
   const [reloads, setReloads] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -470,7 +492,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
   return (
     <section
       ref={cardRef}
-      aria-label={`${symbol} market and chart`}
+      aria-label={t("{symbol} market and chart", { symbol })}
       className={cn(
         "flex min-w-0 flex-col rounded-panel border border-border-subtle bg-surface-panel",
         fullscreen && "h-dvh rounded-none border-0",
@@ -484,7 +506,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           type="button"
           onClick={() => setPickerOpen(true)}
           aria-haspopup="dialog"
-          aria-label={`Change market, currently ${asset?.name ?? "loading"}`}
+          aria-label={(asset === undefined || asset === null ? t("Change market, currently loading") : t("Change market, currently {name}", { name: asset.name }))}
           className="-ml-1.5 flex min-w-0 items-center gap-2.5 rounded-control px-1.5 py-1 transition-colors hover:bg-surface-hover"
         >
           <CoinMark symbol={symbol} logo={asset?.logo ?? null} size={32} />
@@ -531,16 +553,16 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
 
         <div
           className="ml-auto flex items-center gap-4"
-          title="Rolling 24 hours, from the exchange sources"
+          title={t("Rolling 24 hours, from the exchange sources")}
         >
-          <Stat label="High" value={row?.high24h ? formatPriceUsd(row.high24h) : "—"} />
-          <Stat label="Low" value={row?.low24h ? formatPriceUsd(row.low24h) : "—"} />
-          <Stat label="Volume" value={row?.volume24h ? formatCompactUsd(row.volume24h) : "—"} />
+          <Stat label={t("High")} value={row?.high24h ? formatPriceUsd(row.high24h) : "—"} />
+          <Stat label={t("Low")} value={row?.low24h ? formatPriceUsd(row.low24h) : "—"} />
+          <Stat label={t("Volume")} value={row?.volume24h ? formatCompactUsd(row.volume24h) : "—"} />
           <button
             type="button"
             role="switch"
             aria-checked={favorite}
-            aria-label={favorite ? `Remove ${symbol} from favourites` : `Add ${symbol} to favourites`}
+            aria-label={favorite ? t("Remove {symbol} from favourites", { symbol }) : t("Add {symbol} to favourites", { symbol })}
             onClick={() => toggleFavorite(assetId)}
             className={cn(
               "inline-flex size-9 shrink-0 items-center justify-center rounded-control",
@@ -555,7 +577,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
 
       {feedStatus === "error" && (
         <p role="status" className="type-label border-t border-border-subtle bg-negative-bg px-5 py-2 text-text-secondary">
-          {row ? `Showing the last price Pyth returned. ${feedError ?? ""}`.trim() : (feedError ?? "Pyth prices are unavailable.")}
+          {row ? `${t("Showing the last price Pyth returned.")} ${feedError ?? ""}`.trim() : (feedError ?? t("Pyth prices are unavailable."))}
         </p>
       )}
 
@@ -568,12 +590,17 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           The tools' labels need about 830px on one row with alerts armed, so
           they arrive at @4xl; from @3xl they pushed the reload and full-screen
           buttons onto a row of their own on a laptop. Below it the tools are
-          icons, each named by its aria-label. */}
+          icons, each named by its aria-label.
+
+          As icons, intervals and tools need about 610px on one row. The
+          intervals' own width decides the wrap, so a card a little under that
+          — a laptop with a route open beside the chart — sent the reload and
+          full-screen buttons to a row alone. The two rows hold until @2xl. */}
       <div className="@container flex flex-wrap items-center gap-2 border-y border-border-subtle px-3 py-2 compact:px-4">
         <div
           role="group"
-          aria-label="Chart interval"
-          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @xl:basis-auto @xl:flex-1 @4xl:flex-none"
+          aria-label={t("Chart interval")}
+          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @2xl:basis-auto @2xl:flex-1 @4xl:flex-none"
         >
           {INTERVALS.map((value) => {
             const active = value === interval;
@@ -597,13 +624,13 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           })}
         </div>
 
-        <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-border-subtle @xl:block" />
+        <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-border-subtle @2xl:block" />
 
-        <div role="group" aria-label="Series style" className="flex shrink-0 items-center gap-1">
+        <div role="group" aria-label={t("Series style")} className="flex shrink-0 items-center gap-1">
           {(
             [
-              ["candles", "Candles", CandlestickChart],
-              ["line", "Line", LineChart],
+              ["candles", t("Candles"), CandlestickChart],
+              ["line", t("Line"), LineChart],
             ] as const
           ).map(([value, label, Icon]) => {
             const active = chartStyle === value;
@@ -630,13 +657,35 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           })}
         </div>
 
+        <button
+          type="button"
+          onClick={() => setTrading(true)}
+          disabled={asset === undefined}
+          aria-haspopup="dialog"
+          title={t("Trade {symbol}", { symbol })}
+          className={cn(TOOL, "gap-1.5 px-2.5 text-accent")}
+        >
+          <Zap size={15} strokeWidth={1.5} aria-hidden />
+          <span className="type-label">{t("Trade")}</span>
+        </button>
+        {/* Asks Elyra for this market's whole picture — price, safety, sentiment, technicals; the person sends it. */}
+        <button
+          type="button"
+          onClick={() => askElyra(t("Analyze {symbol} right now", { symbol }))}
+          disabled={asset === undefined}
+          title={t("Ask Elyra to analyze {symbol}", { symbol })}
+          className={cn(TOOL, "gap-1.5 px-2.5")}
+        >
+          <Sparkles size={15} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+          <span className="type-label">{t("Analyze")}</span>
+        </button>
         <Indicators />
         <ChartAlerts symbol={symbol} price={row?.price ?? null} />
         <button
           type="button"
           aria-pressed={drawing}
-          aria-label={drawing ? "Hide drawing tools" : "Show drawing tools"}
-          title={drawing ? "Hide drawing tools" : "Drawing tools"}
+          aria-label={drawing ? t("Hide drawing tools") : t("Show drawing tools")}
+          title={drawing ? t("Hide drawing tools") : t("Drawing tools")}
           onClick={() => setDrawing(!drawing)}
           className={cn(
             TOOL,
@@ -647,7 +696,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           )}
         >
           <PenTool size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @4xl:inline">Draw</span>
+          <span className="hidden @4xl:inline">{t("Draw")}</span>
         </button>
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -655,14 +704,14 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Reload the chart"
+                aria-label={t("Reload the chart")}
                 onClick={() => setReloads((value) => value + 1)}
                 className={cn(TOOL, "px-2 text-text-muted hover:bg-surface-hover hover:text-text-primary")}
               >
                 <RotateCcw size={15} strokeWidth={1.5} aria-hidden />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Reload the chart</TooltipContent>
+            <TooltipContent side="bottom">{t("Reload the chart")}</TooltipContent>
           </Tooltip>
           {canFullscreen && (
             <Tooltip>
@@ -670,7 +719,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
                 <button
                   type="button"
                   aria-pressed={fullscreen}
-                  aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+                  aria-label={fullscreen ? t("Exit full screen") : t("Full screen")}
                   onClick={toggleFullscreen}
                   className={cn(TOOL, "px-2 text-text-muted hover:bg-surface-hover hover:text-text-primary")}
                 >
@@ -681,7 +730,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
                   )}
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{fullscreen ? "Exit full screen" : "Full screen"}</TooltipContent>
+              <TooltipContent side="bottom">{fullscreen ? t("Exit full screen") : t("Full screen")}</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -710,7 +759,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           key={mount}
           ref={hostRef}
           tabIndex={-1}
-          aria-label={`${symbol} ${chartStyle === "line" ? "line" : "candlestick"} chart, ${interval}`}
+          aria-label={(chartStyle === "line" ? t("{symbol} line chart, {interval}", { symbol, interval }) : t("{symbol} candlestick chart, {interval}", { symbol, interval }))}
           role="img"
           className={cn(
             "tradingview-widget-container size-full",
@@ -736,7 +785,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           <button
             type="button"
             tabIndex={-1}
-            aria-label="Interact with the chart"
+            aria-label={t("Interact with the chart")}
             onClick={() => setEngaged(true)}
             className="group/guard absolute inset-0 z-10 cursor-pointer bg-transparent"
           >
@@ -751,8 +800,8 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
             >
               <MousePointerClick size={13} strokeWidth={1.5} className="pointer-coarse:hidden" />
               <Pointer size={13} strokeWidth={1.5} className="hidden pointer-coarse:block" />
-              <span className="pointer-coarse:hidden">Click to zoom, pan and inspect</span>
-              <span className="hidden pointer-coarse:inline">Tap to zoom, pan and inspect</span>
+              <span className="pointer-coarse:hidden">{t("Click to zoom, pan and inspect")}</span>
+              <span className="hidden pointer-coarse:inline">{t("Tap to zoom, pan and inspect")}</span>
             </span>
           </button>
         )}
@@ -767,7 +816,7 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
             )}
           >
             <Check size={14} strokeWidth={1.5} aria-hidden />
-            Release chart
+            {t("Release chart")}
           </button>
         )}
 
@@ -781,11 +830,11 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           <div className="absolute inset-0">
             <EmptyState
               icon={CandlestickChart}
-              title={tvSymbol ? "Chart unavailable" : "No chart for this market"}
+              title={tvSymbol ? t("Chart unavailable") : t("No chart for this market")}
               body={
                 tvSymbol
-                  ? `The ${symbol} chart did not load. Check the connection and reload, or switch interval to retry.`
-                  : `Pyth prices ${symbol}, but TradingView has no matching market, so there is no chart to show. The live price above is unaffected.`
+                  ? t("The {symbol} chart did not load. Check the connection and reload, or switch interval to retry.", { symbol })
+                  : t("Pyth prices {symbol}, but TradingView has no matching market, so there is no chart to show. The live price above is unaffected.", { symbol })
               }
             />
           </div>
@@ -795,6 +844,19 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
       <FeedFooter row={row ?? null} status={feedStatus} engaged={engaged} />
 
       <AssetSelectDialog open={pickerOpen} onOpenChange={setPickerOpen} />
+      {(trading || ticketRequest !== null) && asset !== undefined && (
+        <TradePanel
+          key={`${asset.symbol}:${ticketRequest?.at ?? "chart"}`}
+          symbol={asset.symbol}
+          row={row}
+          initialSide={ticketRequest?.side}
+          paper={ticketRequest?.paper === true}
+          onClose={() => {
+            setTrading(false);
+            clearTicketRequest();
+          }}
+        />
+      )}
     </section>
   );
 }

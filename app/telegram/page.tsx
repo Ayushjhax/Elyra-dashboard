@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { TelegramMiniApp } from "@/components/telegram/MiniApp";
+import { getTranslator } from "@/lib/i18n/server";
 
 /* ---------------------------------------------------------------------------
    The Telegram Mini App.
@@ -14,10 +16,10 @@ import { TelegramMiniApp } from "@/components/telegram/MiniApp";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Elyra",
-  description: "Your capital, in Telegram.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslator();
+  return { title: "Elyra", description: t("Your capital, in Telegram.") };
+}
 
 export default function TelegramPage() {
   return <TelegramMiniApp />;

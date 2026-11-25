@@ -29,6 +29,9 @@ echoes a request into an error page would otherwise echo a key with it.
 | Binance | `candles`, `perp_positions` (public) | none | live spot + fapi |
 | Polymarket | markets, books, positions, activity | none | official OpenAPI specs + live |
 | DFlow | `swap_quote` | — | **not connected** |
+| CoinGecko | market cap, rank, FDV, supply, 24h/7d change (`lib/providers/coingecko.ts`) | none; optional `COINGECKO_API_KEY` demo header | live public API |
+| Rugcheck | a Solana token's risk list and its own score (`lib/providers/rugcheck.ts`) | none | live public API |
+| Sunrise | tokenized-stock list, multi-route quotes, execute, RFQ orders (`lib/providers/sunrise.ts`, its own client: its error codes each say what to do next) | `SUNRISE_API_KEY` Bearer, issued on request | published OpenAPI + docs; **not yet called with a key** |
 
 ### Why DFlow is not connected
 

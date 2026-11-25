@@ -6,6 +6,7 @@ import { serviceClient } from "@/lib/supabase/server";
 import { analysePaperTrades, type PaperAnalysis } from "@/lib/autotrade/analysis";
 import type { OrderView } from "@/lib/autotrade/types";
 import type { TradingOrderRow, TradingPositionRow, TradingRuleRow } from "@/lib/supabase/types";
+import { slippageBps, type PartialClose } from "@/lib/autotrade/manage";
 
 /* ---------------------------------------------------------------------------
    Trading automation, stored. Every read and write is scoped by user_id; the
@@ -66,6 +67,17 @@ export interface PositionView {
   error: string | null;
   openedAt: string;
   closedAt: string | null;
+  /** The mid when the entry was sent; null for positions from before 0028. */
+  expectedPrice: number | null;
+  /** What the entry cost against that mid, in basis points; positive is worse. */
+  slippageBps: number | null;
+  /** The size it opened at; `size` is what is still open. */
+  originalSize: number;
+  partialCloses: PartialClose[];
+  /** The partial closes' result after fees, so far. */
+  realisedPartialUsd: number;
+  /** An AI fund's position: its manager's, so not closed in part or moved by hand. */
+  fund: boolean;
 }
 
 export function toPosition(row: TradingPositionRow): PositionView {
@@ -90,6 +102,12 @@ export function toPosition(row: TradingPositionRow): PositionView {
     error: row.error,
     openedAt: row.opened_at,
     closedAt: row.closed_at,
+    expectedPrice: optional(row.expected_price ?? null),
+    slippageBps: slippageBps(row.side ?? "long", optional(row.expected_price ?? null), num(row.entry_price)),
+    originalSize: row.original_size === null || row.original_size === undefined ? num(row.size) : num(row.original_size),
+    partialCloses: Array.isArray(row.partial_closes) ? (row.partial_closes as PartialClose[]) : [],
+    realisedPartialUsd: Number(row.realised_partial_usd ?? 0) || 0,
+    fund: row.fund_id !== null && row.fund_id !== undefined,
   };
 }
 

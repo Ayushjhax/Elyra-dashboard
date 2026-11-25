@@ -16,6 +16,7 @@ import { txExplorerUrl } from "@/lib/solana/address";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { looksLikeAddress, sendablesFrom, signingFailure } from "@/lib/wallet/flows";
 import { useWalletDashboard } from "@/lib/wallet/useWalletDashboard";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Sending tokens to an address — and, on the same code path, emptying the
@@ -146,6 +147,7 @@ export function TransferDialog({
   onClose: () => void;
   intent?: "transfer" | "withdraw";
 }) {
+  const t = useT();
   const { wallets } = useWallets();
   const { signTransaction } = useSignTransaction();
   const authedFetch = useAuthedFetch();
@@ -191,7 +193,7 @@ export function TransferDialog({
     refetchWalletRef.current = wallet.refetch;
   }, [wallet.refetch]);
 
-  const title = intent === "withdraw" ? "Withdraw" : "Transfer";
+  const title = intent === "withdraw" ? t("Withdraw") : t("Transfer");
 
   /* Watches a pending broadcast until the chain gives a definite answer.
      Polls every three seconds. Normally the answer is `/api/transfer/status`
@@ -237,7 +239,7 @@ export function TransferDialog({
             return;
           }
           if (payload.status === "failed") {
-            setError(payload.error ?? "The transfer did not confirm.");
+            setError(payload.error ?? t("The transfer did not confirm."));
             setPendingSignature(null);
             return;
           }
@@ -260,7 +262,7 @@ export function TransferDialog({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [pendingSignature, pendingSignedBytes, pendingLastValidBlockHeight]);
+  }, [pendingSignature, pendingSignedBytes, pendingLastValidBlockHeight, t]);
 
   /* What this wallet can send, native balance first. Built from the snapshot
      the rest of the page is already reading, so the dropdown and the balance
@@ -285,17 +287,17 @@ export function TransferDialog({
         });
         const payload = (await response.json()) as BuiltTransfer;
         if (!response.ok) {
-          setError(payload.error ?? "That transfer could not be built.");
+          setError(payload.error ?? t("That transfer could not be built."));
           return;
         }
         setBuilt(payload);
       } catch {
-        setError("The server could not be reached.");
+        setError(t("The server could not be reached."));
       } finally {
         setBuilding(false);
       }
     })();
-  }, [authedFetch, recipient, mint, amount, sendMax]);
+  }, [authedFetch, recipient, mint, amount, sendMax, t]);
 
   const onConfirm = useCallback(() => {
     setError(null);
@@ -305,13 +307,13 @@ export function TransferDialog({
       try {
         const unsigned = built?.unsignedTransaction;
         if (typeof unsigned !== "string") {
-          setError("There is nothing to sign.");
+          setError(t("There is nothing to sign."));
           return;
         }
 
         const signer = wallets.find((entry) => entry.address === address) ?? wallets[0];
         if (signer === undefined) {
-          setError("No Solana wallet is connected in this browser.");
+          setError(t("No Solana wallet is connected in this browser."));
           return;
         }
 
@@ -349,14 +351,14 @@ export function TransferDialog({
           return;
         }
 
-        setError(payload.error ?? "The transfer was not accepted.");
+        setError(payload.error ?? t("The transfer was not accepted."));
       } catch (caught: unknown) {
-        setError(signingFailure(caught, "The transfer could not be completed."));
+        setError(signingFailure(caught, t("The transfer could not be completed.")));
       } finally {
         setWorking(false);
       }
     })();
-  }, [built, wallets, address, signTransaction, authedFetch, wallet]);
+  }, [built, wallets, address, signTransaction, authedFetch, wallet, t]);
 
   const canReview =
     (sendMax || amount.trim().length > 0) &&
@@ -372,7 +374,7 @@ export function TransferDialog({
             <Eyebrow>{title}</Eyebrow>
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Send tokens from your wallet to another Solana address.
+            {t("Send tokens from your wallet to another Solana address.")}
           </DialogDescription>
         </header>
 
@@ -382,7 +384,7 @@ export function TransferDialog({
               <div className="flex items-center gap-2 rounded-card border border-positive/40 bg-positive-bg px-3 py-2.5">
                 <Check size={14} className="text-positive" aria-hidden />
                 <p className="type-label text-positive">
-                  Sent {built?.amount} {built?.symbol}.
+                  {t("Sent")}{" "}{built?.amount} {built?.symbol}.
                 </p>
               </div>
               <a
@@ -392,7 +394,7 @@ export function TransferDialog({
                 className="type-label flex items-center gap-1.5 text-text-secondary hover:text-text-primary"
               >
                 <ExternalLink size={12} aria-hidden />
-                View on explorer
+                {t("View on explorer")}
               </a>
             </div>
           ) : pendingSignature !== null ? (
@@ -405,15 +407,15 @@ export function TransferDialog({
                 )}
                 <p className="type-label text-text-secondary">
                   {pendingTimedOut
-                    ? "Still not confirmed after 90 seconds."
-                    : "Broadcast — waiting for the network to confirm it."}
+                    ? t("Still not confirmed after 90 seconds.")
+                    : t("Broadcast — waiting for the network to confirm it.")}
                 </p>
               </div>
 
               <p className="type-label text-text-muted">
                 {pendingTimedOut
-                  ? "It may still land, or the transaction may have expired unconfirmed. Check the explorer with this signature before assuming either way."
-                  : "This can take a few seconds on a busy network. Keep this open until it resolves."}
+                  ? t("It may still land, or the transaction may have expired unconfirmed. Check the explorer with this signature before assuming either way.")
+                  : t("This can take a few seconds on a busy network. Keep this open until it resolves.")}
               </p>
 
               <a
@@ -423,7 +425,7 @@ export function TransferDialog({
                 className="type-label flex items-center gap-1.5 text-text-secondary hover:text-text-primary"
               >
                 <ExternalLink size={12} aria-hidden />
-                View on explorer
+                {t("View on explorer")}
               </a>
             </div>
           ) : built !== null ? (
@@ -433,7 +435,7 @@ export function TransferDialog({
               {/* In full, and breakable. A truncated address on a confirm
                   screen hides the characters a wrong one differs by. */}
               <div className="rounded-card border border-border-subtle bg-surface-raised p-3">
-                <Eyebrow>To</Eyebrow>
+                <Eyebrow>{t("To")}</Eyebrow>
                 <p className="type-mono-addr mt-1 break-all text-text-primary">
                   {built.to}
                 </p>
@@ -441,15 +443,14 @@ export function TransferDialog({
 
               {typeof built.networkFee === "string" && (
                 <p className="type-label text-text-muted">
-                  This empties the wallet — {built.networkFee} SOL of the
-                  balance pays the network fee, and nothing is left behind.
+                  {t("This empties the wallet — {networkFee} SOL of the balance pays the network fee, and nothing is left behind.", { networkFee: built.networkFee })}
                 </p>
               )}
 
               <div className="flex items-start gap-2 rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0 text-negative" aria-hidden />
                 <p className="type-label text-text-secondary">
-                  Check the address. A transfer cannot be reversed or recalled.
+                  {t("Check the address. A transfer cannot be reversed or recalled.")}
                 </p>
               </div>
 
@@ -461,7 +462,7 @@ export function TransferDialog({
             </>
           ) : (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   {/* Under Max this says "Everything" rather than showing a
                       figure, and that is deliberate. The exact amount is not
@@ -472,7 +473,7 @@ export function TransferDialog({
                       the base units that will go on-chain. */}
                   <input
                     inputMode="decimal"
-                    value={sendMax ? "Everything" : amount}
+                    value={sendMax ? t("Everything") : amount}
                     readOnly={sendMax}
                     onFocus={() => {
                       if (!sendMax) return;
@@ -484,7 +485,8 @@ export function TransferDialog({
                       setAmount(event.target.value);
                     }}
                     placeholder="0.00"
-                    aria-label="Amount to send"
+                    aria-label={t("Amount to send")}
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
 
@@ -502,7 +504,7 @@ export function TransferDialog({
                     disabled={selected === null || selected.amount <= 0}
                     className="type-label rounded-chip border border-border-subtle px-2 py-1 text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand hover:border-border-strong hover:text-text-primary disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
-                    Max
+                    {t("Max")}
                   </button>
 
                   <select
@@ -512,7 +514,7 @@ export function TransferDialog({
                       setSendMax(false);
                       setAmount("");
                     }}
-                    aria-label="Token to send"
+                    aria-label={t("Token to send")}
                     className="type-data-sm rounded-control border border-border-subtle bg-surface-base px-2 py-1 text-text-primary"
                   >
                     {sendables.map((entry) => (
@@ -527,13 +529,13 @@ export function TransferDialog({
                   <span className="type-label text-text-muted">
                     {selected === null
                       ? wallet.isLoading
-                        ? "Reading balances…"
-                        : "No balance to send"
-                      : `Balance ${formatQty(selected.amount, 6)} ${selected.label}`}
+                        ? t("Reading balances…")
+                        : t("No balance to send")
+                      : t("Balance {amount} {label}", { amount: formatQty(selected.amount, 6), label: selected.label })}
                   </span>
                   {sendMax && (
                     <span className="type-label text-accent">
-                      {mint === "SOL" ? "Less the network fee" : "The whole balance"}
+                      {mint === "SOL" ? t("Less the network fee") : t("The whole balance")}
                     </span>
                   )}
                 </div>
@@ -541,31 +543,31 @@ export function TransferDialog({
 
               {selected !== null && !selected.verified && (
                 <p className="type-label text-text-muted">
-                  Nothing has vouched for this token. Check the mint before sending it.
+                  {t("Nothing has vouched for this token. Check the mint before sending it.")}
                 </p>
               )}
 
               <div className="flex flex-col gap-1.5">
-                <Eyebrow>{intent === "withdraw" ? "Destination address" : "Recipient address"}</Eyebrow>
+                <Eyebrow>{intent === "withdraw" ? t("Destination address") : t("Recipient address")}</Eyebrow>
                 <input
                   value={recipient}
                   onChange={(event) => setRecipient(event.target.value)}
-                  placeholder="Paste your Solana address"
-                  aria-label="Destination address"
+                  placeholder={t("Paste your Solana address")}
+                  aria-label={t("Destination address")}
                   spellCheck={false}
                   autoComplete="off"
                   className="type-mono-addr w-full rounded-control border border-border-subtle bg-surface-raised px-3 py-2 text-text-primary outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 {recipient.trim().length > 0 && !looksLikeAddress(recipient) && (
                   <p className="type-label text-negative">
-                    That does not look like a Solana address.
+                    {t("That does not look like a Solana address.")}
                   </p>
                 )}
               </div>
 
               {address === null && (
                 <p className="type-label text-text-muted">
-                  Connect a Solana wallet to send.
+                  {t("Connect a Solana wallet to send.")}
                 </p>
               )}
 
@@ -589,12 +591,12 @@ export function TransferDialog({
             }
           >
             {signature !== null
-              ? "Done"
+              ? t("Done")
               : pendingSignature !== null
-                ? "Close"
+                ? t("Close")
                 : built !== null
-                  ? "Back"
-                  : "Cancel"}
+                  ? t("Back")
+                  : t("Cancel")}
           </Button>
 
           {signature === null &&
@@ -602,12 +604,12 @@ export function TransferDialog({
             (built !== null ? (
               <Button size="sm" variant="accent" disabled={working} onClick={onConfirm}>
                 {working && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {working ? "Sending" : `Confirm ${title.toLowerCase()}`}
+                {working ? t("Sending") : t("Confirm {title}", { title: title.toLowerCase() })}
               </Button>
             ) : (
               <Button size="sm" variant="accent" disabled={!canReview} onClick={onReview}>
                 {building && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {building ? "Checking" : "Review"}
+                {building ? t("Checking") : t("Review")}
               </Button>
             ))}
         </footer>

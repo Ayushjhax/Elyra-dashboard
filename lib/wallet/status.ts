@@ -1,5 +1,6 @@
 import { CLUSTER_LABEL, EXPECTED_CLUSTER } from "@/lib/solana/cluster";
 import type { Cluster } from "@/lib/solana/cluster";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Where the wallet's read stands, in words the data supports.
@@ -27,18 +28,18 @@ export type WalletTone = "positive" | "caution" | "negative" | "muted";
 
 export interface WalletStatus {
   tone: WalletTone;
-  /** Short: "Connected", "Last read failed". */
+  /** Short: "Connected", "Last read failed". English — a key for `t()`. */
   label: string;
 }
 
 export function walletStatus(wallet: WalletReadState): WalletStatus {
-  if (wallet.unconfigured) return { tone: "muted", label: "Not configured" };
-  if (wallet.wrongChain) return { tone: "negative", label: "Wrong cluster" };
+  if (wallet.unconfigured) return { tone: "muted", label: msg("Not configured") };
+  if (wallet.wrongChain) return { tone: "negative", label: msg("Wrong cluster") };
   if (wallet.snapshot === null) {
-    return wallet.isLoading ? { tone: "muted", label: "Checking…" } : { tone: "negative", label: "Unreachable" };
+    return wallet.isLoading ? { tone: "muted", label: msg("Checking…") } : { tone: "negative", label: msg("Unreachable") };
   }
-  if (wallet.stale) return { tone: "caution", label: "Last read failed" };
-  return { tone: "positive", label: "Connected" };
+  if (wallet.stale) return { tone: "caution", label: msg("Last read failed") };
+  return { tone: "positive", label: msg("Connected") };
 }
 
 export interface WalletIdentityInfo {

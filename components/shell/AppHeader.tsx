@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { Menu, Search } from "lucide-react";
+import { ModeSwitch } from "@/components/paper/Paper";
 import { ElyraMark } from "@/components/ui/ElyraMark";
 import { AccountMenu } from "@/components/shell/status/AccountMenu";
 import { ConnectionStatus } from "@/components/shell/status/ConnectionStatus";
+import { LanguageMenu } from "@/components/shell/status/LanguageMenu";
 import { NotificationsMenu } from "@/components/shell/status/NotificationsMenu";
 import { TelegramLink } from "@/components/shell/status/TelegramLink";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The application header: one row above the workspace, on every route.
@@ -30,6 +33,7 @@ const ICON_BUTTON = cn(
 );
 
 function SearchTrigger() {
+  const t = useT();
   const setCommandOpen = useElyraStore((state) => state.setCommandOpen);
 
   return (
@@ -46,7 +50,7 @@ function SearchTrigger() {
         )}
       >
         <Search size={16} strokeWidth={1.5} aria-hidden className="shrink-0" />
-        <span className="type-body-sm flex-1 truncate">Search anything</span>
+        <span className="type-body-sm flex-1 truncate">{t("Search anything")}</span>
         <kbd className="type-data-sm shrink-0 rounded-chip border border-border-strong px-1.5 text-text-muted">
           ⌘ K
         </kbd>
@@ -55,7 +59,7 @@ function SearchTrigger() {
         type="button"
         onClick={() => setCommandOpen(true)}
         aria-haspopup="dialog"
-        aria-label="Search"
+        aria-label={t("Search")}
         className={cn(ICON_BUTTON, "mid:hidden")}
       >
         <Search size={18} strokeWidth={1.5} aria-hidden />
@@ -65,6 +69,7 @@ function SearchTrigger() {
 }
 
 export function AppHeader() {
+  const t = useT();
   const setNavSheetOpen = useElyraStore((state) => state.setNavSheetOpen);
   const setAgentDrawerOpen = useElyraStore((state) => state.setAgentDrawerOpen);
   const agentPending = useElyraStore((state) => state.agentPending);
@@ -81,7 +86,7 @@ export function AppHeader() {
         type="button"
         onClick={() => setNavSheetOpen(true)}
         aria-haspopup="dialog"
-        aria-label="Open navigation"
+        aria-label={t("Open navigation")}
         className={cn(ICON_BUTTON, "-ml-1.5 compact:hidden")}
       >
         <Menu size={18} strokeWidth={1.5} aria-hidden />
@@ -89,7 +94,7 @@ export function AppHeader() {
 
       <Link
         href="/"
-        aria-label="Elyra home"
+        aria-label={t("Elyra home")}
         className="font-[family-name:var(--font-display)] text-[26px] font-semibold leading-none tracking-[-0.03em] text-text-primary"
       >
         elyra<span className="text-accent">.</span>
@@ -97,7 +102,7 @@ export function AppHeader() {
 
       <span aria-hidden className="hidden h-6 w-px bg-border-subtle full:block" />
       <span className="type-body-sm hidden whitespace-nowrap text-text-secondary full:inline">
-        Trading workspace
+        {t("Trading workspace")}
       </span>
 
       <div className="flex min-w-0 flex-1 justify-center px-2">
@@ -105,17 +110,20 @@ export function AppHeader() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1 compact:gap-2">
+        {/* Live or Paper, on every page. On a phone the account menu has it. */}
+        <ModeSwitch className="hidden compact:grid" />
         <ConnectionStatus className="hidden full:flex" />
         <div className="hidden compact:block">
           <TelegramLink />
         </div>
+        <LanguageMenu />
         <NotificationsMenu />
         {/* The agent is a column from 1280px. Below it, this opens the drawer. */}
         <button
           type="button"
           onClick={() => setAgentDrawerOpen(true)}
           aria-haspopup="dialog"
-          aria-label={agentPending ? "Open Elyra, working on a request" : "Open Elyra"}
+          aria-label={agentPending ? t("Open Elyra, working on a request") : t("Open Elyra")}
           className={cn(ICON_BUTTON, "relative full:hidden")}
         >
           <ElyraMark size={28} />

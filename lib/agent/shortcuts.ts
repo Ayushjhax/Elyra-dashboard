@@ -66,7 +66,13 @@ export const SHORTCUTS: readonly ShortcutEntry[] = [
   { command: "alerts", example: "", description: "Your price rules, and where they're sent" },
   { command: "watch", example: "add SOL", description: "Your watchlist, or add and remove" },
   { command: "report", example: "NVDA", description: "A sourced company report" },
-  { command: "research", example: "", description: "Filings, recap, signals, yield, unlocks" },
+  { command: "analyze", example: "SOL", description: "Price, safety, holders, sentiment and technicals" },
+  { command: "safe", example: "mint address", description: "Is a token safe? Authorities, holders, liquidity" },
+  { command: "sentiment", example: "BTC", description: "Fear & Greed, positioning and flows" },
+  { command: "compare", example: "ETH SOL", description: "Tokens side by side" },
+  { command: "macro", example: "", description: "US stocks, VIX, gold, oil, the dollar, yields" },
+  { command: "deep", example: "BONK", description: "A full research report, saved to come back to" },
+  { command: "research", example: "SOL", description: "A token's full picture; alone, the Research page" },
   { command: "recap", example: "", description: "What moved" },
   { command: "signals", example: "SOL", description: "Evidence-backed observations" },
   { command: "yield", example: "", description: "Kamino vault rates" },
@@ -79,6 +85,9 @@ export const SHORTCUTS: readonly ShortcutEntry[] = [
   { command: "settings", example: "", description: "Your account and settings" },
   { command: "help", example: "", description: "This list" },
 ];
+
+/** What a token analysis covers, said once so every command asks for the same picture. */
+const ANALYSIS_SCOPE = "price and market data, security, holders and liquidity, social links, sentiment and technicals.";
 
 const SYMBOL = /^[A-Za-z][A-Za-z0-9]{0,11}$/;
 const NUMBER = /^\d+(?:[.,]\d+)?$/;
@@ -188,7 +197,30 @@ export function parseShortcut(raw: string): Shortcut {
     case "ask":
       return rest.length > 0 ? { kind: "ask", prompt: rest } : { kind: "help" };
     case "research":
-      return rest.length > 0 ? { kind: "ask", prompt: `Research ${rest}.` } : { kind: "research", tab: "reports" };
+      return rest.length > 0 ? { kind: "ask", prompt: `Research ${rest}: ${ANALYSIS_SCOPE}` } : { kind: "research", tab: "reports" };
+    case "analyze":
+    case "analyse":
+      return rest.length > 0
+        ? { kind: "ask", prompt: `Analyze ${rest} right now: ${ANALYSIS_SCOPE}` }
+        : { kind: "ask", prompt: "Give me a market overview right now: the majors, sentiment, and US stocks and macro." };
+    case "safe":
+    case "safety":
+    case "rug":
+      return rest.length > 0 ? { kind: "ask", prompt: `Is this token safe? ${rest}` } : { kind: "help" };
+    case "sentiment":
+      return { kind: "ask", prompt: rest.length > 0 ? `What's the market sentiment for ${rest}?` : "What's the market sentiment right now?" };
+    case "compare": {
+      const named = words.filter((word) => !/^(vs\.?|versus|and|with|,)$/i.test(word));
+      return named.length >= 2 ? { kind: "ask", prompt: `Compare ${named.slice(0, 5).join(" and ")}.` } : { kind: "help" };
+    }
+    case "macro":
+    case "stocks":
+      return {
+        kind: "ask",
+        prompt: "What are US stocks and macro doing right now? The S&P 500, Nasdaq, Dow, VIX, gold, oil, the dollar and the 10-year yield.",
+      };
+    case "deep":
+      return rest.length > 0 ? { kind: "ask", prompt: `Give me deep research on ${rest}.` } : { kind: "help" };
     case "recap":
       return { kind: "research", tab: "recap" };
     case "yield":

@@ -1,3 +1,5 @@
+import { msg } from "@/lib/i18n/translate";
+
 /* ---------------------------------------------------------------------------
    What the Connections drawer says about each connection, decided once.
 
@@ -27,14 +29,14 @@ export type ConnectionStatus =
 export type StatusTone = "muted" | "progress" | "caution" | "positive" | "negative";
 
 export const STATUS: Record<ConnectionStatus, { label: string; tone: StatusTone }> = {
-  "not-connected": { label: "Not connected", tone: "muted" },
-  checking: { label: "Checking", tone: "progress" },
-  connecting: { label: "Connecting", tone: "progress" },
-  awaiting: { label: "Awaiting action", tone: "caution" },
-  connected: { label: "Connected", tone: "positive" },
-  expired: { label: "Expired", tone: "negative" },
-  attention: { label: "Needs attention", tone: "negative" },
-  unavailable: { label: "Unavailable", tone: "muted" },
+  "not-connected": { label: msg("Not connected"), tone: "muted" },
+  checking: { label: msg("Checking"), tone: "progress" },
+  connecting: { label: msg("Connecting"), tone: "progress" },
+  awaiting: { label: msg("Awaiting action"), tone: "caution" },
+  connected: { label: msg("Connected"), tone: "positive" },
+  expired: { label: msg("Expired"), tone: "negative" },
+  attention: { label: msg("Needs attention"), tone: "negative" },
+  unavailable: { label: msg("Unavailable"), tone: "muted" },
 };
 
 /* --- Input shapes ---------------------------------------------------------- */

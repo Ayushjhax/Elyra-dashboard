@@ -14,6 +14,8 @@ import { formatRelativeTime } from "@/lib/format";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Events: crypto's history and what is happening now, as a feed.
@@ -28,8 +30,8 @@ import { cn } from "@/lib/utils";
 
 const SOURCE_LINE: Record<EventItem["source"], string> = {
   ai: "Elyra",
-  defillama: "Hack record",
-  history: "Elyra history",
+  defillama: msg("Hack record"),
+  history: msg("Elyra history"),
 };
 
 const CATEGORY_TONE: Partial<Record<EventItem["category"], string>> = {
@@ -63,6 +65,7 @@ function Post({
   now: number | null;
   onMark: (item: EventItem, mark: "like" | "save") => void;
 }) {
+  const t = useT();
   const { state, copy } = useCopy();
   const shareText = `${item.title} — ${dateOf(item.at)}${item.link !== null ? ` ${item.link.url}` : ""}`;
   return (
@@ -70,16 +73,16 @@ function Post({
       <Avatar item={item} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="type-body-sm font-medium text-text-primary">{SOURCE_LINE[item.source]}</span>
+          <span className="type-body-sm font-medium text-text-primary">{t(SOURCE_LINE[item.source])}</span>
           {item.source === "ai" && (
-            <span className="type-label rounded-chip border border-accent-quiet px-1.5 text-text-secondary" title={item.model === "fallback" ? "Written by Elyra's code from the facts" : "Written by Elyra's AI from the facts"}>
+            <span className="type-label rounded-chip border border-accent-quiet px-1.5 text-text-secondary" title={item.model === "fallback" ? t("Written by Elyra's code from the facts") : t("Written by Elyra's AI from the facts")}>
               AI
             </span>
           )}
           <span className="type-label text-text-muted">
             ·{" "}
             {item.source === "ai" && now !== null ? (
-              <time dateTime={item.at}>{formatRelativeTime(item.at, now)}</time>
+              <time dateTime={item.at}>{formatRelativeTime(item.at, now, t.locale)}</time>
             ) : (
               <time dateTime={item.at}>{dateOf(item.at)}</time>
             )}
@@ -96,25 +99,25 @@ function Post({
           <dl className="flex flex-wrap gap-x-4 gap-y-1">
             {item.amountUsd !== null && (
               <div className="flex gap-1.5">
-                <dt className="type-label text-text-muted">{item.category === "hack" ? "Taken" : "Amount"}</dt>
+                <dt className="type-label text-text-muted">{item.category === "hack" ? t("Taken") : t("Amount")}</dt>
                 <dd className="type-data-sm text-text-primary">{formatAmountUsd(item.amountUsd)}</dd>
               </div>
             )}
             {item.returnedUsd !== null && (
               <div className="flex gap-1.5">
-                <dt className="type-label text-text-muted">Returned</dt>
+                <dt className="type-label text-text-muted">{t("Returned")}</dt>
                 <dd className="type-data-sm text-positive">{formatAmountUsd(item.returnedUsd)}</dd>
               </div>
             )}
             {item.detail !== null && (
               <div className="flex min-w-0 gap-1.5">
-                <dt className="type-label text-text-muted">How</dt>
+                <dt className="type-label text-text-muted">{t("How")}</dt>
                 <dd className="type-label min-w-0 text-text-secondary">{item.detail}</dd>
               </div>
             )}
             {item.chains.length > 0 && (
               <div className="flex min-w-0 gap-1.5">
-                <dt className="type-label text-text-muted">{item.chains.length === 1 ? "Chain" : "Chains"}</dt>
+                <dt className="type-label text-text-muted">{item.chains.length === 1 ? t("Chain") : t("Chains")}</dt>
                 <dd className="type-label min-w-0 text-text-secondary">{item.chains.slice(0, 6).join(", ")}</dd>
               </div>
             )}
@@ -127,7 +130,7 @@ function Post({
             rel="noopener noreferrer"
             className="type-label inline-flex w-fit items-center gap-1 text-text-secondary underline-offset-2 hover:text-text-primary hover:underline"
           >
-            Source: {item.link.label}
+            {t("Source: {label}", { label: item.link.label })}
             <ExternalLink size={12} strokeWidth={1.5} aria-hidden />
           </a>
         )}
@@ -135,7 +138,7 @@ function Post({
           <button
             type="button"
             aria-pressed={item.liked}
-            aria-label={`${item.liked ? "Unlike" : "Like"}: ${item.title}`}
+            aria-label={`${item.liked ? t("Unlike") : t("Like")}: ${item.title}`}
             onClick={() => onMark(item, "like")}
             className={cn(
               "type-label inline-flex h-9 items-center gap-1.5 rounded-control px-2 transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
@@ -148,7 +151,7 @@ function Post({
           <button
             type="button"
             aria-pressed={item.saved}
-            aria-label={`${item.saved ? "Remove from saved" : "Save"}: ${item.title}`}
+            aria-label={`${item.saved ? "Remove from saved" : t("Save")}: ${item.title}`}
             onClick={() => onMark(item, "save")}
             className={cn(
               "type-label inline-flex h-9 items-center gap-1.5 rounded-control px-2 transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
@@ -156,16 +159,16 @@ function Post({
             )}
           >
             <Bookmark size={15} strokeWidth={1.5} aria-hidden className={cn(item.saved && "fill-current")} />
-            {item.saved ? "Saved" : "Save"}
+            {item.saved ? t("Saved") : t("Save")}
           </button>
           <button
             type="button"
-            aria-label={`Copy: ${item.title}`}
+            aria-label={t("Copy: {title}", { title: item.title })}
             onClick={() => void copy(shareText)}
             className="type-label inline-flex h-9 items-center gap-1.5 rounded-control px-2 text-text-muted transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary"
           >
             <Link2 size={15} strokeWidth={1.5} aria-hidden />
-            {state === "copied" ? "Copied" : "Share"}
+            {state === "copied" ? t("Copied") : t("Share")}
           </button>
         </footer>
       </div>
@@ -174,6 +177,7 @@ function Post({
 }
 
 export function EventsFeed() {
+  const t = useT();
   const auth = useElyraAuth();
   const authedFetch = useAuthedFetch();
   const now = useMinute();
@@ -230,7 +234,7 @@ export function EventsFeed() {
 
   const mark = async (item: EventItem, kind: "like" | "save") => {
     if (!auth.authenticated) {
-      setNotice(kind === "like" ? "Sign in to like posts." : "Sign in to save posts.");
+      setNotice(kind === "like" ? t("Sign in to like posts.") : t("Sign in to save posts."));
       return;
     }
     const on = kind === "like" ? !item.liked : !item.saved;
@@ -249,17 +253,16 @@ export function EventsFeed() {
     const response = await authedFetch("/api/events/marks", { method: "POST", body: JSON.stringify({ itemKey: item.key, mark: kind, on }) }).catch(() => null);
     if (response === null || !response.ok) {
       apply(!on);
-      setNotice("That could not be saved. Try again.");
+      setNotice(t("That could not be saved. Try again."));
     }
   };
 
   return (
     <div className="flex flex-col gap-3">
       <p className="type-label text-text-secondary">
-        Elyra&apos;s AI posts here when something happens — a hack as it is recorded, a large move in BTC, ETH or SOL, and on this day in crypto. Below
-        is the history.
+        {t("Elyra's AI posts here when something happens — a hack as it is recorded, a large move in BTC, ETH or SOL, and on this day in crypto. Below is the history.")}
       </p>
-      <div role="group" aria-label="Show" className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label={t("Show")} className="flex flex-wrap gap-1.5">
         {FILTERS.map((option) => (
           <button
             key={option.id}
@@ -284,7 +287,7 @@ export function EventsFeed() {
           {notice}
           {!auth.authenticated && auth.available && (
             <Button size="xs" variant="accent" onClick={auth.login}>
-              Sign in
+              {t("Sign in")}
             </Button>
           )}
         </p>
@@ -294,23 +297,23 @@ export function EventsFeed() {
       {state === "loading" ? (
         <SkeletonRows rows={6} />
       ) : state === "failed" ? (
-        <EmptyState icon={Newspaper} title="The feed is unavailable" body="It could not be read just now. Try again shortly." />
+        <EmptyState icon={Newspaper} title={t("The feed is unavailable")} body={t("It could not be read just now. Try again shortly.")} />
       ) : items.length === 0 ? (
         filter === "saved" ? (
           <EmptyState
             icon={Bookmark}
-            title={auth.authenticated ? "Nothing saved yet" : "Sign in to see what you saved"}
-            body={auth.authenticated ? "Save a post and it appears here." : "Saved posts follow your account."}
+            title={auth.authenticated ? t("Nothing saved yet") : t("Sign in to see what you saved")}
+            body={auth.authenticated ? t("Save a post and it appears here.") : t("Saved posts follow your account.")}
             action={
               !auth.authenticated && auth.available ? (
                 <Button size="sm" variant="accent" onClick={auth.login}>
-                  Sign in
+                  {t("Sign in")}
                 </Button>
               ) : undefined
             }
           />
         ) : (
-          <EmptyState icon={Newspaper} title="Nothing here yet" body="No events in this view." />
+          <EmptyState icon={Newspaper} title={t("Nothing here yet")} body={t("No events in this view.")} />
         )
       ) : (
         <>
@@ -323,7 +326,7 @@ export function EventsFeed() {
           </ol>
           {next !== null && (
             <Button variant="quiet" onClick={() => void loadOlder()} disabled={more} className="self-center">
-              {more ? "Loading…" : "Older events"}
+              {more ? t("Loading…") : t("Older events")}
             </Button>
           )}
         </>

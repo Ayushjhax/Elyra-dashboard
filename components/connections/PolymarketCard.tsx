@@ -23,6 +23,7 @@ import { isEvmAddress, type ConnectionStatus } from "@/lib/connections/state";
 import { formatUsd, truncateMiddle } from "@/lib/format";
 import type { PortfolioFeed } from "@/lib/portfolio/usePortfolio";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    Polymarket: positions held in a contract wallet, not the signer.
@@ -85,6 +86,7 @@ export function PolymarketCard({
   onChanged: () => Promise<void>;
   feed: PortfolioFeed;
 }) {
+  const t = useT();
   const accountFetch = useAccountFetch();
   const [search, setSearch] = useState<Search>({ phase: "idle" });
   const [check, setCheck] = useState<Check>({ phase: "idle" });
@@ -124,7 +126,7 @@ export function PolymarketCard({
           error: string;
         }>(response);
         if (!response.ok) {
-          setSearch({ phase: "failed", error: body.error ?? "Could not search for your account. Try again." });
+          setSearch({ phase: "failed", error: body.error ?? t("Could not search for your account. Try again.") });
           return;
         }
         if (body.detected === true) {
@@ -136,9 +138,9 @@ export function PolymarketCard({
           setSearch({ phase: "many", candidates: body.candidates });
           return;
         }
-        setSearch({ phase: "none", reason: body.reason ?? "No Polymarket account was found for your wallet." });
+        setSearch({ phase: "none", reason: body.reason ?? t("No Polymarket account was found for your wallet.") });
       } catch {
-        setSearch({ phase: "failed", error: "Could not reach Elyra to search. Check your connection and try again." });
+        setSearch({ phase: "failed", error: t("Could not reach Elyra to search. Check your connection and try again.") });
       }
     });
 
@@ -154,12 +156,12 @@ export function PolymarketCard({
         });
         const body = await readJson<{ found: Found; error: string }>(response);
         if (!response.ok || body.found === undefined) {
-          setCheck({ phase: "failed", source, error: body.error ?? "Could not check that address. Try again." });
+          setCheck({ phase: "failed", source, error: body.error ?? t("Could not check that address. Try again.") });
           return;
         }
         setCheck({ phase: "found", source, found: body.found });
       } catch {
-        setCheck({ phase: "failed", source, error: "Could not reach Elyra to check that address." });
+        setCheck({ phase: "failed", source, error: t("Could not reach Elyra to check that address.") });
       }
     });
 
@@ -174,14 +176,14 @@ export function PolymarketCard({
         });
         const body = await readJson<{ error: string }>(response);
         if (!response.ok) {
-          setError(body.error ?? "Could not link that account. Nothing was changed.");
+          setError(body.error ?? t("Could not link that account. Nothing was changed."));
           return;
         }
         setCheck({ phase: "idle" });
         setSearch({ phase: "idle" });
         await onChanged();
       } catch {
-        setError("Could not link that account. Nothing was changed.");
+        setError(t("Could not link that account. Nothing was changed."));
       } finally {
         setLinking(null);
       }
@@ -194,12 +196,12 @@ export function PolymarketCard({
       try {
         const response = await accountFetch("/api/prediction/account", { method: "DELETE" });
         if (!response.ok) {
-          setError("Could not unlink. The account is still linked.");
+          setError(t("Could not unlink. The account is still linked."));
           return;
         }
         await onChanged();
       } catch {
-        setError("Could not unlink. The account is still linked.");
+        setError(t("Could not unlink. The account is still linked."));
       } finally {
         setUnlinking(false);
       }
@@ -215,33 +217,33 @@ export function PolymarketCard({
 
   const [badge, label]: [ConnectionStatus, string] =
     state === null
-      ? ["checking", "Checking"]
+      ? ["checking", t("Checking")]
       : state === "failed"
         ? ["attention", "Couldn't check"]
         : state.connected
           ? state.verifiedAt === null
-            ? ["attention", "Unverified"]
+            ? ["attention", t("Unverified")]
             : readFailed !== null
-              ? ["attention", "Needs attention"]
-              : ["connected", "Connected"]
+              ? ["attention", t("Needs attention")]
+              : ["connected", t("Connected")]
           : busy
-            ? ["connecting", search.phase === "searching" ? "Searching" : "Checking"]
-            : ["not-connected", "Not connected"];
+            ? ["connecting", search.phase === "searching" ? t("Searching") : t("Checking")]
+            : ["not-connected", t("Not connected")];
 
   return (
     <ConnectionCard
       mark={<MarkTile icon={TrendingUp} />}
       title="Polymarket"
-      subtitle="See your positions alongside the rest of your capital."
+      subtitle={t("See your positions alongside the rest of your capital.")}
       status={<StatusBadge name="Polymarket" status={badge} label={label} />}
     >
       {state === null ? (
-        <p className="type-body-sm text-text-muted">Checking for a linked account…</p>
+        <p className="type-body-sm text-text-muted">{t("Checking for a linked account…")}</p>
       ) : state === "failed" ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <InlineError className="min-w-0 flex-1">Could not check whether an account is linked.</InlineError>
+          <InlineError className="min-w-0 flex-1">{t("Could not check whether an account is linked.")}</InlineError>
           <button type="button" onClick={() => void onChanged()} className={textAction}>
-            Try again
+            {t("Try again")}
           </button>
         </div>
       ) : state.connected && state.address !== null ? (
@@ -259,7 +261,7 @@ export function PolymarketCard({
         <>
           <button type="button" onClick={() => void find()} disabled={busy} className={cn(outlinedAction, "w-full")}>
             <Search size={15} strokeWidth={1.5} aria-hidden />
-            {search.phase === "searching" ? "Searching your wallet…" : "Find my account"}
+            {search.phase === "searching" ? t("Searching your wallet…") : t("Find my account")}
           </button>
 
           <SearchOutcome search={search} busy={busy} linking={linking} onLink={(address) => void link(address)} />
@@ -277,7 +279,7 @@ export function PolymarketCard({
               )}
             </>
           ) : (
-            <InlineNote>This account has no EVM wallet, so enter the address that holds your positions.</InlineNote>
+            <InlineNote>{t("This account has no EVM wallet, so enter the address that holds your positions.")}</InlineNote>
           )}
 
           <ManualAddress
@@ -312,6 +314,7 @@ function LinkedAccount({
   unlinking: boolean;
   onUnlink: () => void;
 }) {
+  const t = useT();
   return (
     <>
       <div className="flex items-center gap-2 rounded-card border border-border-subtle bg-surface-base py-1 pl-3 pr-1">
@@ -319,14 +322,14 @@ function LinkedAccount({
           <span aria-hidden>{truncateMiddle(address, 6, 4)}</span>
           <span className="sr-only">{address}</span>
         </span>
-        <CopyButton value={address} label="Polymarket address" />
+        <CopyButton value={address} label={t("Polymarket address")} />
       </div>
 
       {summary !== null && summary.activeMarkets !== null && (
         <p className="type-body-sm text-text-secondary">
           {summary.activeMarkets === 0
-            ? "No open positions right now."
-            : `${summary.activeMarkets} open market${summary.activeMarkets === 1 ? "" : "s"}`}
+            ? t("No open positions right now.")
+            : (summary.activeMarkets === 1 ? t("{activeMarkets} open market", { activeMarkets: summary.activeMarkets }) : t("{activeMarkets} open markets", { activeMarkets: summary.activeMarkets }))}
           {summary.valueUsd !== null && summary.activeMarkets > 0 && (
             <>
               {" · "}
@@ -341,15 +344,14 @@ function LinkedAccount({
            loud, because the likeliest explanation is a typo and the second
            likeliest is a brand-new account — and only the person can tell. */
         <InlineNote tone="caution">
-          Nothing was found at this address when it was linked. That is normal for a new account; if you expected
-          positions, check the address.
+          {t("Nothing was found at this address when it was linked. That is normal for a new account; if you expected positions, check the address.")}
         </InlineNote>
       )}
-      {readFailed !== null && <InlineNote tone="caution">Positions could not be read: {readFailed}</InlineNote>}
+      {readFailed !== null && <InlineNote tone="caution">{t("Positions could not be read: {readFailed}", { readFailed })}</InlineNote>}
 
       <div className="flex justify-end">
         <button type="button" onClick={onUnlink} disabled={unlinking} className={cn(quietAction, "h-9 px-3")}>
-          {unlinking ? "Unlinking…" : "Unlink"}
+          {unlinking ? t("Unlinking…") : t("Unlink")}
         </button>
       </div>
     </>
@@ -369,15 +371,15 @@ function SearchOutcome({
   linking: string | null;
   onLink: (address: string) => void;
 }) {
+  const t = useT();
   if (search.phase === "none") return <InlineNote>{search.reason}</InlineNote>;
   if (search.phase === "failed") return <InlineError>{search.error}</InlineError>;
   if (search.phase !== "many") return null;
 
   return (
-    <div className="flex flex-col gap-2" role="group" aria-label="Accounts found for your wallet">
+    <div className="flex flex-col gap-2" role="group" aria-label={t("Accounts found for your wallet")}>
       <p className="type-body-sm text-text-secondary">
-        {search.candidates.length} accounts hold positions for your wallet. Choose yours — nothing is linked until you
-        do.
+        {t("{count} accounts hold positions for your wallet. Choose yours — nothing is linked until you do.", { count: search.candidates.length })}
       </p>
       {search.candidates.map((candidate) => (
         <div key={candidate.address} className="rounded-card border border-border-subtle bg-surface-base p-3">
@@ -388,7 +390,7 @@ function SearchOutcome({
             disabled={busy}
             className={cn(quietAction, "mt-3 h-9 w-full")}
           >
-            {linking === candidate.address ? "Linking…" : "Link this account"}
+            {linking === candidate.address ? t("Linking…") : t("Link this account")}
           </button>
         </div>
       ))}
@@ -408,12 +410,13 @@ function WalletRow({
   disabled: boolean;
   onCheck: () => void;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
       onClick={onCheck}
       disabled={disabled}
-      aria-label={`Check your connected wallet, ${address}, for Polymarket positions`}
+      aria-label={t("Check your connected wallet, {address}, for Polymarket positions", { address })}
       className={cn(
         "group flex min-h-12 w-full items-center gap-3 rounded-card border border-border-subtle bg-surface-base px-3 py-2 text-left",
         "transition-colors duration-[var(--dur-fast)] ease-brand",
@@ -423,7 +426,7 @@ function WalletRow({
       <Wallet size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-secondary" />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="type-body-sm font-medium text-text-primary">
-          {checking ? "Checking your wallet…" : "Use connected wallet"}
+          {checking ? t("Checking your wallet…") : t("Use connected wallet")}
         </span>
         <span className="type-mono-addr truncate text-text-muted">{truncateMiddle(address, 6, 4)}</span>
       </span>
@@ -440,6 +443,7 @@ function WalletRow({
 /* --- Checking ------------------------------------------------------------ */
 
 function FoundSummary({ found, detail }: { found: Found; detail?: string }) {
+  const t = useT();
   const empty = found.positionCount === 0;
   return (
     <div className="flex flex-col gap-1">
@@ -450,13 +454,13 @@ function FoundSummary({ found, detail }: { found: Found; detail?: string }) {
       <p className="type-body-sm text-text-primary">
         {empty ? (
           found.activityCount > 0 ? (
-            "No open positions, but recent activity"
+            t("No open positions, but recent activity")
           ) : (
-            "No positions or activity at this address"
+            t("No positions or activity at this address")
           )
         ) : (
           <>
-            {found.positionCount} position{found.positionCount === 1 ? "" : "s"} worth{" "}
+            {(found.positionCount === 1 ? t("{positionCount} position worth ", { positionCount: found.positionCount }) : t("{positionCount} positions worth ", { positionCount: found.positionCount }))}
             <span className="tabular-nums">{formatUsd(found.valueUsd)}</span>
           </>
         )}
@@ -492,10 +496,11 @@ function CheckOutcome({
   linking: string | null;
   onLink: (address: string) => void;
 }) {
+  const t = useT();
   if (check.phase === "checking") {
     return (
       <p role="status" className="type-body-sm text-text-muted">
-        Checking {truncateMiddle(check.address, 6, 4)}…
+        {t("Checking {address}…", { address: truncateMiddle(check.address, 6, 4) })}
       </p>
     );
   }
@@ -510,7 +515,7 @@ function CheckOutcome({
       <FoundSummary found={found} />
       {empty && (
         <p className="type-label mt-2 text-text-muted">
-          Link it anyway if the account is new. Otherwise, check the address.
+          {t("Link it anyway if the account is new. Otherwise, check the address.")}
         </p>
       )}
       <button
@@ -519,7 +524,7 @@ function CheckOutcome({
         disabled={busy}
         className={cn(empty ? quietAction : primaryAction, "mt-3 h-9 w-full")}
       >
-        {linking === found.address ? "Linking…" : empty ? "Link anyway" : "This is mine — link it"}
+        {linking === found.address ? t("Linking…") : empty ? t("Link anyway") : t("This is mine — link it")}
       </button>
     </div>
   );
@@ -538,6 +543,7 @@ function ManualAddress({
   onCheck: (address: string) => void;
   onLink: (address: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -555,7 +561,7 @@ function ManualAddress({
   return (
     <>
       <CardRule />
-      <Disclosure open={open} onOpenChange={setOpen} label="Enter an address manually">
+      <Disclosure open={open} onOpenChange={setOpen} label={t("Enter an address manually")}>
         <form
           className="flex flex-col gap-2"
           onSubmit={(event) => {
@@ -564,7 +570,7 @@ function ManualAddress({
           }}
         >
           <label htmlFor={inputId} className="type-label text-text-secondary">
-            Position-holding address
+            {t("Position-holding address")}
           </label>
           <div className="flex gap-2">
             <input
@@ -582,16 +588,16 @@ function ManualAddress({
               className={cn(fieldInput, "type-mono-addr flex-1")}
             />
             <button type="submit" disabled={!valid || busy} className={cn(quietAction, "shrink-0 px-4")}>
-              {check.phase === "checking" && check.source === "manual" ? "Checking…" : "Check"}
+              {check.phase === "checking" && check.source === "manual" ? t("Checking…") : t("Check")}
             </button>
           </div>
           {invalid && (
             <p id={errorId} className="type-label text-negative">
-              An address starts 0x and is 42 characters long.
+              {t("An address starts 0x and is 42 characters long.")}
             </p>
           )}
           <p id={hintId} className="type-label text-text-muted">
-            Use the address that holds your Polymarket positions.{" "}
+            {t("Use the address that holds your Polymarket positions. ")}
             <button
               type="button"
               aria-expanded={helpOpen}
@@ -600,7 +606,7 @@ function ManualAddress({
               className={cn(textAction, "align-baseline text-text-secondary")}
             >
               <CircleHelp size={12} strokeWidth={1.5} aria-hidden />
-              Where do I find it?
+              {t("Where do I find it?")}
             </button>
           </p>
           <div
@@ -608,8 +614,7 @@ function ManualAddress({
             hidden={!helpOpen}
             className="type-body-sm rounded-card border border-border-subtle bg-surface-base p-3 text-text-secondary"
           >
-            On polymarket.com, open your profile and copy the address shown under your name. Polymarket holds positions
-            in a wallet it creates for you, so this is usually not the wallet you sign in with.
+            {t("On polymarket.com, open your profile and copy the address shown under your name. Polymarket holds positions in a wallet it creates for you, so this is usually not the wallet you sign in with.")}
           </div>
         </form>
 

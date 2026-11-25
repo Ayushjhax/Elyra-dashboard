@@ -83,12 +83,17 @@ export interface SystemPrompt {
   volatile: string;
 }
 
+/** How hard the model thinks before it answers (lib/agent/effort.ts). */
+export type Effort = "low" | "medium" | "high";
+
 export interface ProviderRequest {
   system: SystemPrompt;
   messages: AgentMessage[];
   tools: ToolDef[];
   maxTokens?: number;
   timeoutMs?: number;
+  /** Absent: the model's own default. Only Anthropic reads it. */
+  effort?: Effort;
 }
 
 export interface ProviderResult {

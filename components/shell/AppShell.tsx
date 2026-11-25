@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { trackMetallicPointer } from "@/lib/metallic";
 import { usePathname } from "next/navigation";
+import { PaperBanner, PaperDialogs } from "@/components/paper/Paper";
 import { AppHeader } from "@/components/shell/AppHeader";
 import { CommandPalette } from "@/components/shell/CommandPalette";
 import { AgentDrawer, NavSheet } from "@/components/shell/Drawers";
@@ -104,6 +105,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex min-h-0 min-w-0 flex-col">
           <AppHeader />
+          {/* While Paper is on, a band says so on every page (components/paper). */}
+          <PaperBanner />
 
           {/* The one scroll container. The document never scrolls, so the
               header stays put and the agent can stick under it. Positioned,
@@ -136,6 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <AgentDrawer />
       <NavSheet />
+      <PaperDialogs />
       <CommandPalette />
       {/* Opened from the account menu or the rail's profile. */}
       <WalletSheet />

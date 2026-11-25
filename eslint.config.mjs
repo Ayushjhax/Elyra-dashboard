@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "mobile/**",
     // The teaser film (marketing/elyra-teaser) is a standalone Remotion project.
     "marketing/**",
+    // Git worktrees of other branches, each a whole checkout of its own.
+    ".claude/**",
   ]),
 ]);
 

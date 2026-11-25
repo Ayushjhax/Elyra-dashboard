@@ -8,7 +8,8 @@ import { runAgentTool } from "@/lib/agentApi/tools";
 
      200 { ok: true,  result }   the tool ran
      200 { ok: false, result }   the tool ran and its source failed — `result.error` says why
-     403  the key lacks the scope   404  no such tool   429  over a limit
+     403  the key lacks the scope, or its mandate does not grant a rails tool
+     404  no such tool   429  over a limit
 --------------------------------------------------------------------------- */
 
 export const runtime = "nodejs";
@@ -45,6 +46,8 @@ export async function POST(request: Request, context: Context): Promise<Response
   switch (outcome.kind) {
     case "unknown":
       return NextResponse.json({ error: `No tool named ${name}. GET /api/v1/tools lists them.` }, { status: 404, headers: NO_STORE });
+    case "denied":
+      return NextResponse.json({ error: outcome.reason }, { status: 403, headers: NO_STORE });
     case "forbidden":
       return NextResponse.json(
         { error: `${name} reads the key owner's account; this key was created without account access.` },

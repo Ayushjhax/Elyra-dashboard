@@ -13,6 +13,7 @@ import type { PricedPortfolio } from "@/lib/invest/types";
 import { useInvest } from "@/lib/invest/useInvest";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    The Intelligent Portfolios list: seven published recipes, steadiest first.
@@ -33,6 +34,7 @@ function PortfolioRow({
   held: boolean;
   outOfBand: boolean;
 }) {
+  const t = useT();
   const move = weightedMove(portfolio);
   const partial = move.pct !== null && move.coveredBps < 10_000;
   const tickers = portfolio.holdings.map((holding) => holding.ticker);
@@ -49,32 +51,33 @@ function PortfolioRow({
       >
         <div className="flex min-w-0 items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="type-panel-title truncate text-text-primary">{portfolio.name}</span>
-            <span className="type-body-sm text-text-secondary">{portfolio.summary}</span>
+            <span className="type-panel-title truncate text-text-primary">{t(portfolio.name)}</span>
+            <span className="type-body-sm text-text-secondary">{t(portfolio.summary)}</span>
           </div>
           <ChevronRight size={16} aria-hidden className="mt-0.5 shrink-0 text-text-muted group-hover:text-text-secondary" />
         </div>
 
         <p className="type-label truncate text-text-muted" title={tickers.join(", ")}>
-          {portfolio.holdings.length} holdings · {tickers.slice(0, 5).join(", ")}
-          {tickers.length > 5 ? ` and ${tickers.length - 5} more` : ""}
+          {(tickers.length > 5
+              ? t("{count} holdings · {tickers} and {more} more", { count: portfolio.holdings.length, tickers: tickers.slice(0, 5).join(", "), more: tickers.length - 5 })
+              : t("{count} holdings · {tickers}", { count: portfolio.holdings.length, tickers: tickers.join(", ") }))}
         </p>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <RiskTag risk={portfolio.risk} />
-          <span className="type-label text-text-muted">From ${minimumInvestmentUsd(portfolio)}</span>
+          <span className="type-label text-text-muted">{t("From ${portfolio}", { portfolio: minimumInvestmentUsd(portfolio) })}</span>
           <span className="type-data-sm inline-flex items-center gap-1 text-text-muted">
             24h{" "}
             <Delta
               pct={move.pct}
-              reason="None of this portfolio's holdings report a 24-hour change right now."
+              reason={t("None of this portfolio's holdings report a 24-hour change right now.")}
             />
-            {partial && <span className="text-text-muted">· {Math.round(move.coveredBps / 100)}% of holdings</span>}
+            {partial && <span className="text-text-muted">{t("· {value}% of holdings", { value: Math.round(move.coveredBps / 100) })}</span>}
           </span>
           {held && (
             <span className="type-data-sm ml-auto inline-flex items-center gap-2 text-text-primary">
-              <Money value={valueUsd} reason="A holding in this portfolio has no price right now." />
-              {outOfBand ? <StatusDot tone="caution">Drifted</StatusDot> : <StatusDot tone="positive">On target</StatusDot>}
+              <Money value={valueUsd} reason={t("A holding in this portfolio has no price right now.")} />
+              {outOfBand ? <StatusDot tone="caution">{t("Drifted")}</StatusDot> : <StatusDot tone="positive">{t("On target")}</StatusDot>}
             </span>
           )}
         </div>
@@ -84,6 +87,7 @@ function PortfolioRow({
 }
 
 export function InvestList() {
+  const t = useT();
   const invest = useInvest();
   const wallet = usePortfolio();
 
@@ -100,27 +104,27 @@ export function InvestList() {
 
   return (
     <>
-      <DrawerCard icon={ShieldCheck} title="How these work">
+      <DrawerCard icon={ShieldCheck} title={t("How these work")}>
         <ol className="flex flex-col gap-2">
           {HOW_IT_WORKS.map((line, index) => (
             <li key={line} className="flex items-start gap-2.5">
               <span className="type-data-sm mt-px w-4 shrink-0 text-text-muted">{index + 1}</span>
-              <p className="type-body-sm text-text-secondary">{line}</p>
+              <p className="type-body-sm text-text-secondary">{t(line)}</p>
             </li>
           ))}
         </ol>
-        <p className="type-label mt-3 text-text-muted">{NOT_ADVICE_NOTE}</p>
+        <p className="type-label mt-3 text-text-muted">{t(NOT_ADVICE_NOTE)}</p>
       </DrawerCard>
 
       {invest.loading && invest.portfolios.length === 0 ? (
-        <DrawerCard icon={Layers} title="Portfolios">
+        <DrawerCard icon={Layers} title={t("Portfolios")}>
           <SkeletonRows rows={5} />
         </DrawerCard>
       ) : invest.portfolios.length === 0 ? (
         <EmptyState
           icon={Layers}
-          title="Portfolios are unavailable"
-          body={invest.error ?? "The catalog could not be read. It will try again shortly."}
+          title={t("Portfolios are unavailable")}
+          body={invest.error ?? t("The catalog could not be read. It will try again shortly.")}
         />
       ) : (
         CATEGORY_ORDER.map((category) => {
@@ -151,7 +155,7 @@ export function InvestList() {
       {invest.error !== null && invest.portfolios.length > 0 && (
         <Tip openOnTap label={invest.error}>
           <span tabIndex={0} className="self-start rounded-chip">
-            <StatusDot tone="caution">Some prices are missing</StatusDot>
+            <StatusDot tone="caution">{t("Some prices are missing")}</StatusDot>
           </span>
         </Tip>
       )}

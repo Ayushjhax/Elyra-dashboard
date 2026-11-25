@@ -14,6 +14,8 @@ import { formatQty, formatUsd, truncateMiddle } from "@/lib/format";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
 import { runEvmTx, type EvmTxRun } from "@/lib/wallet/runEvmTx";
+import { useT } from "@/lib/i18n/client";
+import { msg } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Sending and swapping on Ethereum and Robinhood Chain.
@@ -92,7 +94,8 @@ export function ErrorBox({ error }: { error: string | null }) {
   );
 }
 
-export function ExplorerLink({ href, label = "View on explorer" }: { href: string | null | undefined; label?: string }) {
+export function ExplorerLink({ href, label = msg("View on explorer") }: { href: string | null | undefined; label?: string }) {
+  const t = useT();
   if (href === null || href === undefined) return null;
   return (
     <a
@@ -102,13 +105,14 @@ export function ExplorerLink({ href, label = "View on explorer" }: { href: strin
       className="type-label flex items-center gap-1.5 text-text-secondary hover:text-text-primary"
     >
       <ExternalLink size={12} aria-hidden />
-      {label}
+      {t(label)}
     </a>
   );
 }
 
 /** What happened, once something was signed. */
 function Outcome({ run, pending, done }: { run: EvmTxRun | null; pending: { href: string | null } | null; done: string }) {
+  const t = useT();
   if (run?.ok === true) {
     return (
       <div className="flex flex-col gap-3">
@@ -136,10 +140,10 @@ function Outcome({ run, pending, done }: { run: EvmTxRun | null; pending: { href
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 rounded-card border border-border-subtle bg-surface-raised px-3 py-2.5">
           <Loader2 size={14} className="shrink-0 animate-spin text-text-secondary" aria-hidden />
-          <p className="type-label text-text-secondary">Broadcast — waiting for the network to confirm it.</p>
+          <p className="type-label text-text-secondary">{t("Broadcast — waiting for the network to confirm it.")}</p>
         </div>
         <p className="type-label text-text-muted">
-          Ethereum blocks come every twelve seconds and a busy network can take longer. Keep this open until it resolves.
+          {t("Ethereum blocks come every twelve seconds and a busy network can take longer. Keep this open until it resolves.")}
         </p>
         <ExplorerLink href={pending.href} />
       </div>
@@ -149,10 +153,10 @@ function Outcome({ run, pending, done }: { run: EvmTxRun | null; pending: { href
 }
 
 function NotSignable({ chain }: { chain: EvmChainKey }) {
+  const t = useT();
   return (
     <p className="type-body-sm text-text-secondary">
-      Your EVM wallet on this account is a linked external wallet. Elyra signs only with its own embedded wallet, so send
-      or swap on {EVM_CHAINS[chain].name} from that wallet&rsquo;s own app.
+      {t("Your EVM wallet on this account is a linked external wallet. Elyra signs only with its own embedded wallet, so send or swap on {name} from that wallet’s own app.", { name: EVM_CHAINS[chain].name })}
     </p>
   );
 }
@@ -179,6 +183,7 @@ export function EvmSendDialog({
   initialAsset?: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const network = EVM_CHAINS[chain].name;
   const gas = EVM_CHAINS[chain].nativeSymbol;
   const wallet = useEvmWallet();
@@ -224,17 +229,17 @@ export function EvmSendDialog({
         });
         const payload = (await response.json().catch(() => ({}))) as Partial<BuiltSend> & { error?: string };
         if (!response.ok || payload.tx === undefined) {
-          setError(payload.error ?? "That send could not be prepared.");
+          setError(payload.error ?? t("That send could not be prepared."));
           return;
         }
         setBuilt(payload as BuiltSend);
       } catch {
-        setError("The server could not be reached.");
+        setError(t("The server could not be reached."));
       } finally {
         setBusy(null);
       }
     })();
-  }, [authedFetch, chain, asset, recipient, sendMax, amount]);
+  }, [authedFetch, chain, asset, recipient, sendMax, amount, t]);
 
   const confirm = useCallback(() => {
     if (built === null) return;
@@ -272,51 +277,49 @@ export function EvmSendDialog({
       <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
-            <Eyebrow>Send on {network}</Eyebrow>
+            <Eyebrow>{t("Send on {network}", { network })}</Eyebrow>
           </DialogTitle>
-          <DialogDescription className="sr-only">Send {gas} or a token from your EVM wallet on {network}.</DialogDescription>
+          <DialogDescription className="sr-only">{t("Send {gas} or a token from your EVM wallet on {network}.", { gas, network })}</DialogDescription>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           {!wallet.embedded ? (
             <NotSignable chain={chain} />
           ) : finished ? (
-            <Outcome run={run} pending={pending} done={`Sent ${built?.amount ?? ""} ${built?.symbol ?? ""} on ${network}.`} />
+            <Outcome run={run} pending={pending} done={t("Sent {amount} {symbol} on {network}.", { amount: built?.amount ?? "", symbol: built?.symbol ?? "", network })} />
           ) : built !== null ? (
             <>
               <p className="type-body-sm text-text-secondary">{built.summary}</p>
               <div className="rounded-card border border-border-subtle bg-surface-raised p-3">
-                <Eyebrow>To</Eyebrow>
+                <Eyebrow>{t("To")}</Eyebrow>
                 <p className="type-mono-addr mt-1 break-all text-text-primary">{built.to}</p>
               </div>
               {built.toIsContract && (
                 <p className="type-label text-caution">
-                  This address is a contract, not a personal wallet. Send only if it is set up to receive {built.symbol} on{" "}
-                  {network} — an exchange deposit or a multisig, say.
+                  {t("This address is a contract, not a personal wallet. Send only if it is set up to receive {symbol} on {network} — an exchange deposit or a multisig, say.", { symbol: built.symbol, network })}
                 </p>
               )}
               {!built.verified && (
                 <p className="type-label text-text-muted">
-                  {built.symbol} is not on Elyra&rsquo;s verified list. Check the token before sending it.
+                  {t("{symbol} is not on Elyra’s verified list. Check the token before sending it.", { symbol: built.symbol })}
                 </p>
               )}
-              <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} {gas}, paid on {network}.</p>
+              <p className="type-label text-text-muted">{t("Network fee: up to {networkFeeMax} {gas}, paid on {network}.", { networkFeeMax: built.networkFeeMax, gas, network })}</p>
               <div className="flex items-start gap-2 rounded-card border border-negative/40 bg-negative-bg px-3 py-2.5">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0 text-negative" aria-hidden />
                 <p className="type-label text-text-secondary">
-                  Check the address and the network. A send cannot be reversed, and funds sent on {network} arrive only on{" "}
-                  {network}.
+                  {t("Check the address and the network. A send cannot be reversed, and funds sent on {network} arrive only on {network2}.", { network, network2: network })}
                 </p>
               </div>
               <ErrorBox error={error} />
             </>
           ) : (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   <input
                     inputMode="decimal"
-                    value={sendMax ? "Everything" : amount}
+                    value={sendMax ? t("Everything") : amount}
                     readOnly={sendMax}
                     onFocus={() => {
                       if (!sendMax) return;
@@ -328,7 +331,8 @@ export function EvmSendDialog({
                       setAmount(event.target.value);
                     }}
                     placeholder="0.00"
-                    aria-label="Amount to send"
+                    aria-label={t("Amount to send")}
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
                   <button
@@ -340,7 +344,7 @@ export function EvmSendDialog({
                     disabled={selected === null || selected.quantity <= 0}
                     className="type-label rounded-chip border border-border-subtle px-2 py-1 text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand hover:border-border-strong hover:text-text-primary disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                   >
-                    Max
+                    {t("Max")}
                   </button>
                   <select
                     value={selected?.value ?? asset}
@@ -349,7 +353,7 @@ export function EvmSendDialog({
                       setSendMax(false);
                       setAmount("");
                     }}
-                    aria-label="Token to send"
+                    aria-label={t("Token to send")}
                     className={SELECT}
                   >
                     {options.map((option) => (
@@ -363,31 +367,31 @@ export function EvmSendDialog({
                   <span className="type-label text-text-muted">
                     {selected === null
                       ? feed.loading
-                        ? "Reading balances…"
-                        : "No balance to send"
-                      : `Balance ${formatQty(selected.quantity, 6)} ${selected.label} on ${network}`}
+                        ? t("Reading balances…")
+                        : t("No balance to send")
+                      : t("Balance {quantity} {label} on {network}", { quantity: formatQty(selected.quantity, 6), label: selected.label, network })}
                   </span>
                   {sendMax && (
-                    <span className="type-label text-accent">{asset === "native" ? "Less the network fee" : "The whole balance"}</span>
+                    <span className="type-label text-accent">{asset === "native" ? t("Less the network fee") : t("The whole balance")}</span>
                   )}
                 </div>
               </div>
               {selected !== null && !selected.verified && (
-                <p className="type-label text-text-muted">Nothing has vouched for this token. Check the contract before sending it.</p>
+                <p className="type-label text-text-muted">{t("Nothing has vouched for this token. Check the contract before sending it.")}</p>
               )}
               <div className="flex flex-col gap-1.5">
-                <Eyebrow>Recipient address</Eyebrow>
+                <Eyebrow>{t("Recipient address")}</Eyebrow>
                 <input
                   value={recipient}
                   onChange={(event) => setRecipient(event.target.value)}
                   placeholder="0x…"
-                  aria-label="Recipient address"
+                  aria-label={t("Recipient address")}
                   spellCheck={false}
                   autoComplete="off"
                   className={FIELD}
                 />
                 {addressTyped.length > 0 && !isEvmAddress(addressTyped) && (
-                  <p className="type-label text-negative">That does not look like an EVM address (0x followed by 40 hex characters).</p>
+                  <p className="type-label text-negative">{t("That does not look like an EVM address (0x followed by 40 hex characters).")}</p>
                 )}
               </div>
               <ErrorBox error={error} />
@@ -397,18 +401,18 @@ export function EvmSendDialog({
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-4 py-3">
           <Button size="sm" variant="quiet" onClick={built !== null && !finished && busy === null ? () => setBuilt(null) : close}>
-            {run?.ok === true ? "Done" : finished ? "Close" : built !== null ? "Back" : "Cancel"}
+            {run?.ok === true ? t("Done") : finished ? t("Close") : built !== null ? t("Back") : t("Cancel")}
           </Button>
           {wallet.embedded && !finished &&
             (built !== null ? (
               <Button size="sm" variant="accent" disabled={busy !== null} onClick={confirm}>
                 {busy === "sending" && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "sending" ? "Sending" : "Confirm send"}
+                {busy === "sending" ? t("Sending") : t("Confirm send")}
               </Button>
             ) : (
               <Button size="sm" variant="accent" disabled={!canReview} onClick={review}>
                 {busy === "building" && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "building" ? "Checking" : "Review"}
+                {busy === "building" ? t("Checking") : t("Review")}
               </Button>
             ))}
         </footer>
@@ -457,6 +461,7 @@ export function EvmSwapDialog({
   initialAmount?: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const network = EVM_CHAINS[chain].name;
   const gas = EVM_CHAINS[chain].nativeSymbol;
   const wallet = useEvmWallet();
@@ -534,11 +539,11 @@ export function EvmSwapDialog({
     });
     const payload = (await response.json().catch(() => ({}))) as Partial<BuiltSwapStep> & { error?: string };
     if (!response.ok || payload.tx === undefined) {
-      setError(payload.error ?? "That swap could not be quoted.");
+      setError(payload.error ?? t("That swap could not be quoted."));
       return null;
     }
     return payload as BuiltSwapStep;
-  }, [authedFetch, chain, from, target, amount, needsAcknowledgement, acknowledged]);
+  }, [authedFetch, chain, from, target, amount, needsAcknowledgement, acknowledged, t]);
 
   const review = useCallback(() => {
     setError(null);
@@ -547,12 +552,12 @@ export function EvmSwapDialog({
       try {
         setBuilt(await quote());
       } catch {
-        setError("The server could not be reached.");
+        setError(t("The server could not be reached."));
       } finally {
         setBusy(null);
       }
     })();
-  }, [quote]);
+  }, [quote, t]);
 
   const confirm = useCallback(() => {
     if (built === null) return;
@@ -579,7 +584,7 @@ export function EvmSwapDialog({
         try {
           setBuilt(await quote());
         } catch {
-          setError("The approval landed, but a fresh quote could not be fetched. Review again to continue.");
+          setError(t("The approval landed, but a fresh quote could not be fetched. Review again to continue."));
           setBuilt(null);
         } finally {
           setBusy(null);
@@ -590,7 +595,7 @@ export function EvmSwapDialog({
       setRun(result);
       feed.refetch();
     })();
-  }, [built, authedFetch, sign, quote, feed]);
+  }, [built, authedFetch, sign, quote, feed, t]);
 
   const close = () => {
     abort.current?.abort();
@@ -612,9 +617,9 @@ export function EvmSwapDialog({
       <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
-            <Eyebrow>Swap on {network}</Eyebrow>
+            <Eyebrow>{t("Swap on {network}", { network })}</Eyebrow>
           </DialogTitle>
-          <DialogDescription className="sr-only">Swap between {gas}, listed tokens and any token by contract on {network}.</DialogDescription>
+          <DialogDescription className="sr-only">{t("Swap between {gas}, listed tokens and any token by contract on {network}.", { gas, network })}</DialogDescription>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
@@ -624,61 +629,60 @@ export function EvmSwapDialog({
             <Outcome
               run={run}
               pending={pending}
-              done={`Swapped ${built?.quote.sellAmount ?? ""} ${built?.quote.sellSymbol ?? ""} for ${built?.quote.buySymbol ?? ""} on ${network}.`}
+              done={t("Swapped {sellAmount} {sellSymbol} for {buySymbol} on {network}.", { sellAmount: built?.quote.sellAmount ?? "", sellSymbol: built?.quote.sellSymbol ?? "", buySymbol: built?.quote.buySymbol ?? "", network })}
             />
           ) : built !== null ? (
             <>
               {built.step === "approve" ? (
                 <>
-                  <p className="type-body-sm text-text-primary">Step 1 of 2 — {built.summary}.</p>
+                  <p className="type-body-sm text-text-primary">{t("Step 1 of 2 — {summary}.", { summary: built.summary })}</p>
                   <p className="type-label text-text-muted">
-                    The swap router needs permission to move exactly {built.quote.sellAmount} {built.quote.sellSymbol}. Once that
-                    confirms, Elyra fetches a fresh quote for the swap itself, which you sign separately.
+                    {t("The swap router needs permission to move exactly {sellAmount} {sellSymbol}. Once that confirms, Elyra fetches a fresh quote for the swap itself, which you sign separately.", { sellAmount: built.quote.sellAmount, sellSymbol: built.quote.sellSymbol })}
                   </p>
                 </>
               ) : (
                 <>
-                  {approved && <p className="type-label text-positive">Approval confirmed. Step 2 of 2 — the swap.</p>}
+                  {approved && <p className="type-label text-positive">{t("Approval confirmed. Step 2 of 2 — the swap.")}</p>}
                   <dl className="flex flex-col gap-1.5 rounded-card border border-border-subtle bg-surface-raised p-3">
-                    <Row label="You sell" value={`${built.quote.sellAmount} ${built.quote.sellSymbol}`} />
-                    <Row label="You receive" value={`≈ ${built.quote.buyAmount} ${built.quote.buySymbol}`} />
-                    <Row label="At least" value={`${built.quote.buyAmountMin} ${built.quote.buySymbol} (${built.quote.slippagePct}% slippage)`} />
-                    <Row label="Route" value={`${built.quote.route} via LI.FI`} />
+                    <Row label={t("You sell")} value={`${built.quote.sellAmount} ${built.quote.sellSymbol}`} />
+                    <Row label={t("You receive")} value={`≈ ${built.quote.buyAmount} ${built.quote.buySymbol}`} />
+                    <Row label={t("At least")} value={t("{amount} {symbol} ({slippage}% slippage)", { amount: built.quote.buyAmountMin, symbol: built.quote.buySymbol, slippage: built.quote.slippagePct })} />
+                    <Row label={t("Route")} value={t("{route} via LI.FI", { route: built.quote.route })} />
                     {built.quote.routeFeeUsd !== null && (
-                      <Row label="Route fee" value={`${formatUsd(built.quote.routeFeeUsd)}, taken from the swap`} />
+                      <Row label={t("Route fee")} value={t("{fee}, taken from the swap", { fee: formatUsd(built.quote.routeFeeUsd) })} />
                     )}
                   </dl>
                   {!built.quote.buyVerified && (
                     <p className="type-label text-caution">
-                      {built.quote.buySymbol} at {truncateMiddle(built.quote.buyAddress, 6, 4)} is not on Elyra&rsquo;s verified list. It
-                      will show in your wallet unverified, and is never valued or counted.
+                      {t("{buySymbol} at {buyAddress} is not on Elyra’s verified list. It will show in your wallet unverified, and is never valued or counted.", { buySymbol: built.quote.buySymbol, buyAddress: truncateMiddle(built.quote.buyAddress, 6, 4) })}
                     </p>
                   )}
                 </>
               )}
-              <p className="type-label text-text-muted">Network fee: up to {built.networkFeeMax} {gas}, paid on {network}.</p>
+              <p className="type-label text-text-muted">{t("Network fee: up to {networkFeeMax} {gas}, paid on {network}.", { networkFeeMax: built.networkFeeMax, gas, network })}</p>
               <ErrorBox error={error} />
             </>
           ) : (
             <>
-              <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
+              <div data-amount-field className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center gap-2">
                   <input
                     inputMode="decimal"
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
                     placeholder="0.00"
-                    aria-label="Amount to sell"
+                    aria-label={t("Amount to sell")}
+                    data-amount-input
                     className="type-data min-w-0 flex-1 bg-transparent text-text-primary outline-none placeholder:text-text-muted"
                   />
-                  <select value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Token to sell" className={SELECT}>
+                  <select value={from} onChange={(event) => setFrom(event.target.value)} aria-label={t("Token to sell")} className={SELECT}>
                     {tokens.map((token) => (
                       <option key={token.symbol} value={token.symbol}>
                         {token.symbol}
                       </option>
                     ))}
                     {unlistedHeld.length > 0 && (
-                      <optgroup label="Unverified, held">
+                      <optgroup label={t("Unverified, held")}>
                         {unlistedHeld.map((holding) => (
                           <option key={holding.id} value={holding.address ?? ""}>
                             {holding.symbol} · {truncateMiddle(holding.address ?? "", 6, 4)}
@@ -692,20 +696,20 @@ export function EvmSwapDialog({
                   </select>
                 </div>
                 <span className="type-label text-text-muted">
-                  {held === null ? "Reading balances…" : `Balance ${formatQty(held, 6)} ${fromLabel} on ${network}`}
+                  {held === null ? t("Reading balances…") : t("Balance {held} {fromLabel} on {network}", { held: formatQty(held, 6), fromLabel, network })}
                 </span>
               </div>
               <ArrowDown size={14} className="mx-auto text-text-muted" aria-hidden />
               <div className="flex flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="type-body-sm text-text-secondary">Receive</span>
-                  <select value={to} onChange={(event) => setTo(event.target.value)} aria-label="Token to buy" className={SELECT}>
+                  <span className="type-body-sm text-text-secondary">{t("Receive")}</span>
+                  <select value={to} onChange={(event) => setTo(event.target.value)} aria-label={t("Token to buy")} className={SELECT}>
                     {tokens.map((token) => (
                       <option key={token.symbol} value={token.symbol}>
                         {token.symbol}
                       </option>
                     ))}
-                    <option value={OTHER_TOKEN}>Other token…</option>
+                    <option value={OTHER_TOKEN}>{t("Other token…")}</option>
                   </select>
                 </div>
                 {to === OTHER_TOKEN && (
@@ -713,29 +717,27 @@ export function EvmSwapDialog({
                     <input
                       value={otherToken}
                       onChange={(event) => setOtherToken(event.target.value)}
-                      placeholder="Token contract, 0x…"
-                      aria-label="Contract of the token to buy"
+                      placeholder={t("Token contract, 0x…")}
+                      aria-label={t("Contract of the token to buy")}
                       spellCheck={false}
                       autoComplete="off"
                       className={FIELD}
                     />
                     {otherToken.trim().length > 0 && !isEvmAddress(otherToken.trim()) && (
-                      <p className="type-label text-negative">That is not a contract address (0x followed by 40 hex characters).</p>
+                      <p className="type-label text-negative">{t("That is not a contract address (0x followed by 40 hex characters).")}</p>
                     )}
                   </>
                 )}
               </div>
-              {from.toLowerCase() === target.toLowerCase() && <p className="type-label text-negative">Choose two different tokens.</p>}
+              {from.toLowerCase() === target.toLowerCase() && <p className="type-label text-negative">{t("Choose two different tokens.")}</p>}
               {needsAcknowledgement && (
                 <label className="type-label flex items-start gap-2 text-text-secondary">
                   <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-0.5" />
-                  I have checked this token&rsquo;s contract on {EVM_CHAINS[chain].explorer.name}. Anyone can deploy a token under any
-                  name; Elyra has not verified this one and will not value or count it.
+                  {t("I have checked this token’s contract on {name}. Anyone can deploy a token under any name; Elyra has not verified this one and will not value or count it.", { name: EVM_CHAINS[chain].explorer.name })}
                 </label>
               )}
               <p className="type-label text-text-muted">
-                Quoted by LI.FI, which charges its own fee; the quote shows it. Robinhood Stock Tokens are not swappable in Elyra
-                — they are securities with sale restrictions Elyra cannot check.
+                {t("Quoted by LI.FI, which charges its own fee; the quote shows it. Robinhood Stock Tokens are not swappable in Elyra — they are securities with sale restrictions Elyra cannot check.")}
               </p>
               <ErrorBox error={error} />
             </>
@@ -744,18 +746,18 @@ export function EvmSwapDialog({
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-4 py-3">
           <Button size="sm" variant="quiet" onClick={built !== null && !finished && busy === null ? () => setBuilt(null) : close}>
-            {run?.ok === true ? "Done" : finished ? "Close" : built !== null ? "Back" : "Cancel"}
+            {run?.ok === true ? t("Done") : finished ? t("Close") : built !== null ? t("Back") : t("Cancel")}
           </Button>
           {wallet.embedded && !finished &&
             (built !== null ? (
               <Button size="sm" variant="accent" disabled={busy !== null} onClick={confirm}>
                 {busy !== null && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "quoting" ? "Quoting" : busy === "signing" ? "Signing" : built.step === "approve" ? "Approve" : "Confirm swap"}
+                {busy === "quoting" ? t("Quoting") : busy === "signing" ? t("Signing") : built.step === "approve" ? t("Approve") : t("Confirm swap")}
               </Button>
             ) : (
               <Button size="sm" variant="accent" disabled={!canReview} onClick={review}>
                 {busy === "quoting" && <Loader2 size={14} className="animate-spin" aria-hidden />}
-                {busy === "quoting" ? "Quoting" : "Review"}
+                {busy === "quoting" ? t("Quoting") : t("Review")}
               </Button>
             ))}
         </footer>

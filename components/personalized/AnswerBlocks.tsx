@@ -26,6 +26,7 @@ import type {
   PersonalizedAnswer,
   PreparedAction,
 } from "@/lib/personalized/types";
+import { useT } from "@/lib/i18n/client";
 
 /* ---------------------------------------------------------------------------
    How an answer is drawn.
@@ -52,7 +53,7 @@ function MetricRow({ metrics }: { metrics: AnswerMetric[] }) {
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border-subtle bg-border-subtle @[30rem]:grid-cols-4">
       {metrics.map((metric) => (
         <div key={metric.label} className="flex flex-col gap-0.5 bg-surface-panel px-3 py-2">
-          <span className="type-label truncate uppercase tracking-[0.08em] text-text-muted">
+          <span className="type-eyebrow truncate text-text-muted">
             {metric.label}
           </span>
           <span className="type-data truncate tabular-nums text-text-primary">
@@ -122,20 +123,21 @@ export function ActionPreview({
   action: PreparedAction;
   onConfirm?: (action: PreparedAction) => void;
 }) {
+  const t = useT();
   const ready = action.readiness === "ready";
   const rejected = action.readiness === "rejected";
 
   return (
     <section
-      aria-label={`Prepared action: ${action.summary}`}
+      aria-label={t("Prepared action: {summary}", { summary: action.summary })}
       className={cn(
         "flex flex-col overflow-hidden rounded-card border",
         rejected ? "border-negative/40" : "border-accent-quiet",
       )}
     >
       <header className="flex items-center gap-2 border-b border-border-subtle bg-surface-raised px-3 py-2">
-        <span className="type-label uppercase tracking-[0.08em] text-text-muted">
-          Prepared action
+        <span className="type-eyebrow text-text-muted">
+          {t("Prepared action")}
         </span>
         <span className="type-data-sm ml-auto min-w-0 truncate text-text-primary">
           {action.summary}
@@ -152,7 +154,7 @@ export function ActionPreview({
                   <Check
                     size={9}
                     strokeWidth={2.5}
-                    aria-label="Resolved from your live balance"
+                    aria-label={t("Resolved from your live balance")}
                     className="text-positive"
                   />
                 )}
@@ -192,10 +194,10 @@ export function ActionPreview({
           size="sm"
           variant="accent"
           disabled={!ready}
-          title={ready ? undefined : (action.reason ?? "Not available")}
+          title={ready ? undefined : (action.reason ?? t("Not available"))}
           onClick={() => onConfirm?.(action)}
         >
-          Confirm
+          {t("Confirm")}
         </Button>
       </footer>
     </section>
@@ -207,8 +209,9 @@ export function ActionPreview({
 --------------------------------------------------------------------------- */
 
 function SentFiles({ files }: { files: SentAttachment[] }) {
+  const t = useT();
   return (
-    <ul aria-label="Attached" className="flex list-none flex-wrap justify-end gap-1.5">
+    <ul aria-label={t("Attached")} className="flex list-none flex-wrap justify-end gap-1.5">
       {files.map((file, index) => (
         <li
           key={`${file.name}-${index}`}
@@ -242,6 +245,7 @@ export function UserTurn({
   onRetry?: () => void;
   canRetry?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-end gap-1.5">
       {turn.attachments !== undefined && turn.attachments.length > 0 && <SentFiles files={turn.attachments} />}
@@ -257,7 +261,7 @@ export function UserTurn({
         >
           <span className={cn("type-label inline-flex items-center gap-1.5", turn.outcome.state === "failed" ? "text-negative" : "text-text-muted")}>
             {turn.outcome.state === "failed" && <AlertTriangle size={12} strokeWidth={1.75} aria-hidden className="shrink-0" />}
-            {turn.outcome.state === "failed" ? (turn.outcome.error ?? "That didn't finish.") : "Stopped before an answer."}
+            {turn.outcome.state === "failed" ? (turn.outcome.error ?? t("That didn't finish.")) : t("Stopped before an answer.")}
           </span>
           {onRetry !== undefined && (
             <button
@@ -267,7 +271,7 @@ export function UserTurn({
               className="type-label inline-flex h-7 items-center gap-1 rounded-control border border-border-strong px-2 text-text-primary transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover disabled:opacity-50"
             >
               <RotateCcw size={12} strokeWidth={1.75} aria-hidden />
-              Retry
+              {t("Retry")}
             </button>
           )}
         </div>
@@ -285,6 +289,7 @@ export function AssistantTurn({
   content: string;
   onPrompt?: (prompt: string) => void;
 }) {
+  const t = useT();
   const [showContext, setShowContext] = useState(false);
 
   return (
@@ -339,8 +344,7 @@ export function AssistantTurn({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
             )}
           >
-            Grounded in {answer.contextUsed.length} source
-            {answer.contextUsed.length === 1 ? "" : "s"}
+            {(answer.contextUsed.length === 1 ? t("Grounded in {count} source", { count: answer.contextUsed.length }) : t("Grounded in {count} sources", { count: answer.contextUsed.length }))}
             <ChevronDown
               size={10}
               strokeWidth={1.5}

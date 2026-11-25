@@ -464,6 +464,39 @@ close for its minute, or is void. `runArena` runs on the tick after the
 trading pass, capped per run (`REVIEW_CAP`, `SETTLE_CAP`, `CARD_CAP`). A
 person is shown by handle or not at all, never by wallet.
 
+Scout (`/scout`, `lib/scout/`, `lib/poly/`, `docs/SCOUT.md`) reads any
+YouTube video, post on X or article and grades every claim by evidence. It
+runs on free sources only: Gemini Flash's free tier and public data. A
+video is read by Gemini from its address, a post through X's public embed,
+and an article by `fetchPage`, which checks every resolved address and
+redirect hop and never fetches inside a network. A site that blocks servers
+is read through Gemini's URL context instead (`copyPage`, labelled
+`page_copy`).
+
+The model only lists claims, each with its quote. A claim is kept only when
+its quote is in the source (`quoteFound`), and every number must pass
+`staysOnFacts`. The grade is code's (`gradeOf`):
+
+- who speaks comes from the fetched host or the author X reports, never from
+  the text;
+- a hedged quote is speculation;
+- a listing claim is confirmed only by Bybit, OKX or Upbit's own feed, and
+  only by the exchange the claim names.
+
+The smart-money check reads the leaderboard cohort's public fills
+(`lib/scout/flows.ts`), counted by wallet.
+
+Auto-buys (`runScoutTick`, on the tick after insider watch) fire only on
+code-detected signals: a cohort flow, or an official listing. A read never
+triggers one. Each fire is written first, and a rule acts on a coin at
+most once per UTC day for each trigger (unique on rule and signal key). The
+order goes out through `openMarketTrade`. Rules are paper unless the person
+chooses live.
+
+Poly scan and Poly baskets read Polymarket's Data API v2 and Gamma. Baskets
+are paper only: entries walk the ask, values walk the bids. Elyra places no
+Polymarket orders.
+
 Wallets are read on seven networks: Solana; the account's one EVM address on
 Ethereum, Base, Arbitrum, BNB Chain and Robinhood Chain (`lib/evm/`,
 `EVM_CHAIN_KEYS`, chain ids 1, 8453, 42161, 56 and 4663 — BNB Chain's gas

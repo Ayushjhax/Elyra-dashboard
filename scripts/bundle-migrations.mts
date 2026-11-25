@@ -63,6 +63,7 @@ const SOURCES = [
   "supabase/migrations/0023_events.sql",
   "supabase/migrations/0027_daily_briefing.sql",
   "supabase/migrations/0028_trading_fills.sql",
+  "supabase/migrations/0035_scout.sql",
 ];
 
 const TARGET = "supabase/migrations/_apply_all.sql";

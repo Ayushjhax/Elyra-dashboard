@@ -865,7 +865,7 @@ export interface ScoutSourceRow {
   published_at: string | null;
   tier: "primary" | "newsroom" | "unverified";
   party: string | null;
-  text_origin: "page" | "post" | "transcript";
+  text_origin: "page" | "page_copy" | "post" | "transcript";
   attention: unknown;
   summary: string | null;
   claims: unknown;

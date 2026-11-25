@@ -43,6 +43,7 @@ export function tickersInTitle(title: string): string[] {
     if (/^[A-Z0-9]{2,12}$/.test(ticker) && !/^\d+$/.test(ticker) && !IGNORE.has(ticker) && !found.includes(ticker)) found.push(ticker);
   };
   for (const match of title.matchAll(/\(([A-Z0-9]{2,12})\)/g)) add(match[1]);
+  for (const match of title.matchAll(/\b(?:[Tt]o|[Ww]ill)\s+[Ll]ist\s+([A-Z0-9]{2,12})\b/g)) add(match[1]);
   for (const match of title.matchAll(new RegExp(`\\b([A-Z0-9]{2,12}?)(?:${QUOTES})\\b`, "g"))) add(match[1]);
   for (const match of title.matchAll(new RegExp(`\\b([A-Z0-9]{2,12})\\/(?:${QUOTES})\\b`, "g"))) add(match[1]);
   const list = /\bfor ((?:[A-Z0-9]{2,12})(?:(?:, | and |, and )[A-Z0-9]{2,12})*)\b/.exec(title);
@@ -53,7 +54,8 @@ export function tickersInTitle(title: string): string[] {
 export function kindOfTitle(exchange: Exchange, title: string): AnnouncementKind {
   if (NOT_CRYPTO.test(title)) return "other";
   if (exchange === "Upbit") {
-    if (/거래지원 종료|유의 종목|end of (?:trading )?support|delist/i.test(title)) return "delisting";
+    /* "유의 종목" is an investment warning, not a delisting: it is left out rather than mislabelled. */
+    if (/거래지원 종료|end of (?:trading )?support|delist/i.test(title)) return "delisting";
     if (/신규 거래지원|디지털 자산 추가|market support for|new digital asset/i.test(title)) return "listing";
     return "other";
   }
@@ -111,14 +113,36 @@ export function parseUpbit(body: unknown): Announcement[] {
   });
 }
 
+/** Exchanges a claim may name, and the name each is read under. */
+const NAMED_EXCHANGES: ReadonlyArray<[RegExp, string]> = [
+  [/\bbinance\b/i, "Binance"],
+  [/\bcoinbase\b/i, "Coinbase"],
+  [/\bkraken\b/i, "Kraken"],
+  [/\bokx\b/i, "OKX"],
+  [/\bbybit\b/i, "Bybit"],
+  [/\bupbit\b/i, "Upbit"],
+  [/\bbitget\b/i, "Bitget"],
+  [/\bkucoin\b/i, "KuCoin"],
+  [/\brobinhood\b/i, "Robinhood"],
+  [/\bbithumb\b/i, "Bithumb"],
+];
+
+/** The exchange a claim names, if exactly one. */
+export function exchangeNamed(text: string): string | null {
+  const named = NAMED_EXCHANGES.filter(([pattern]) => pattern.test(text)).map(([, name]) => name);
+  return named.length === 1 ? named[0] : null;
+}
+
+export const READ_FEEDS: readonly Exchange[] = ["Bybit", "OKX", "Upbit"];
+
 /** How long a listing claim looks back for its announcement. */
 export const CONFIRM_WINDOW_MS = 21 * 86_400_000;
 
 /** The official listing that confirms a claim about `ticker`, newest first, if any. */
-export function confirmingListing(ticker: string, announcements: readonly Announcement[], now: number): Announcement | null {
+export function confirmingListing(ticker: string, announcements: readonly Announcement[], now: number, exchange: string | null = null): Announcement | null {
   return (
     [...announcements]
-      .filter((entry) => entry.kind === "listing" && entry.tickers.includes(ticker) && now - entry.at <= CONFIRM_WINDOW_MS && entry.at <= now + 60_000)
+      .filter((entry) => entry.kind === "listing" && (exchange === null || entry.exchange === exchange) && entry.tickers.includes(ticker) && now - entry.at <= CONFIRM_WINDOW_MS && entry.at <= now + 60_000)
       .sort((a, b) => b.at - a.at)[0] ?? null
   );
 }

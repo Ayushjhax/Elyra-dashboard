@@ -3,7 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { normalizeBook } from "@/lib/prediction/book";
 import { estimateExecution } from "@/lib/prediction/execution";
-import { polymarketOrderbook } from "@/lib/providers/polymarket";
+import { polymarketBooks, polymarketOrderbook } from "@/lib/providers/polymarket";
 import { serviceClient } from "@/lib/supabase/server";
 import type { PolyBasketLegRow } from "@/lib/supabase/types";
 import { BASKET_LIMITS, basketTotals, payoutOf, splitStake, type BasketInput } from "@/lib/poly/basketMath";
@@ -104,18 +104,20 @@ export async function listBaskets(userId: string): Promise<BasketsResponse> {
       await db.from("poly_basket_legs").update({ settled: payout, settled_at: new Date().toISOString() }).eq("id", String(row.id)).eq("user_id", userId);
     }
   }
+  /* Every open leg's book in one request (the venue takes up to 500), not one request per leg. */
   const values = new Map<string, number | null>();
-  await Promise.all(
-    open
-      .filter((row) => !settledNow.has(String(row.id)))
-      .map(async (row) => {
-        const book = await bookFor(String(row.token_id)).catch(() => null);
-        if (book === null) return values.set(String(row.id), null);
-        const exit = estimateExecution(book, { side: "sell", shares: Number(row.shares) });
-        /* A book that cannot take every share values the rest at nothing, and says less than it could. */
-        values.set(String(row.id), round(exit.notionalUsd, 2));
-      }),
-  );
+  const unsettled = open.filter((row) => !settledNow.has(String(row.id)));
+  const books = unsettled.length === 0 ? null : await polymarketBooks([...new Set(unsettled.map((row) => String(row.token_id)))]).catch(() => null);
+  for (const row of unsettled) {
+    const wire = books?.ok === true ? books.data?.get(String(row.token_id)) : undefined;
+    if (wire === undefined) {
+      values.set(String(row.id), null);
+      continue;
+    }
+    const exit = estimateExecution(normalizeBook(wire), { side: "sell", shares: Number(row.shares) });
+    /* A book that cannot take every share values the rest at nothing, and says less than it could. */
+    values.set(String(row.id), round(exit.notionalUsd, 2));
+  }
 
   const views: BasketView[] = ((baskets.data ?? []) as Array<Record<string, unknown>>).map((basket) => {
     const mine: BasketLegView[] = legRows

@@ -63,7 +63,7 @@ export function youtubeIdOf(url: URL): string | null {
 
 export function xStatusOf(url: URL): { handle: string; id: string } | null {
   if (!X_HOSTS.has(url.hostname.toLowerCase())) return null;
-  const match = /^\/([A-Za-z0-9_]{1,15})\/status(?:es)?\/(\d{5,25})(?:\/|$)/.exec(url.pathname);
+  const match = /^\/([A-Za-z0-9_]{1,15})\/status(?:es)?\/(\d{1,25})(?:\/|$)/.exec(url.pathname);
   return match === null ? null : { handle: match[1], id: match[2] };
 }
 
@@ -114,6 +114,18 @@ export function parseLink(input: string): { ok: true; link: ParsedLink } | { ok:
   for (const name of [...canonical.searchParams.keys()]) if (TRACKING.test(name)) canonical.searchParams.delete(name);
   const text = canonical.toString();
   return { ok: true, link: { kind: "article", url: text, key: `url:${text}`, host: host.replace(/^www\./, ""), videoId: null, statusId: null } };
+}
+
+/** X's epoch for status ids (snowflakes), in ms. */
+const SNOWFLAKE_EPOCH = BigInt(1_288_834_974_657);
+/** Ids from before snowflakes (counters up to about 3e10) decode to within seconds of the epoch: not times. */
+const SNOWFLAKE_FROM = Number(SNOWFLAKE_EPOCH) + 60_000;
+
+/** When a post on X was made, to the millisecond, from its id; null for an id older than snowflakes. */
+export function snowflakeTime(statusId: string, now: number = Date.now()): string | null {
+  if (!/^\d{1,25}$/.test(statusId)) return null;
+  const ms = Number((BigInt(statusId) >> BigInt(22)) + SNOWFLAKE_EPOCH);
+  return ms >= SNOWFLAKE_FROM && ms <= now + 86_400_000 ? new Date(ms).toISOString() : null;
 }
 
 /** Up to `max` links from a box that holds one per line (or separated by spaces). */

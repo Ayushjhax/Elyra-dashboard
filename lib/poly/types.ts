@@ -10,6 +10,8 @@ export interface PolyScanResponse {
   category: PolyCategory;
   smartMoney: PolyConsensus[];
   wallets: { read: number; asked: number };
+  /** Which of the three reads answered, so an empty list is told from an unread one. */
+  read: { smartMoney: boolean; markets: boolean; events: boolean };
   movers: Mover[];
   bookSums: BookSum[];
   at: string;

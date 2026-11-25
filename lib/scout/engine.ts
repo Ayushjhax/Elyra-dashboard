@@ -50,7 +50,7 @@ async function detect(triggers: Set<string>, now: number, notes: string[]): Prom
       if (!AUTOBUY_COINS.includes(signal.coin)) continue;
       const label = marketFor(signal.coin)?.label ?? signal.coin;
       signals.push({
-        key: flowKey(signal.coin, signal.side, now),
+        key: flowKey(signal.coin, now),
         trigger: "smart_money",
         coin: signal.coin,
         side: signal.side,
@@ -69,7 +69,7 @@ async function detect(triggers: Set<string>, now: number, notes: string[]): Prom
         const coin = coinForTicker(ticker, AUTOBUY_COINS);
         if (coin === null) continue;
         signals.push({
-          key: listingKey(entry.exchange, entry.id, coin),
+          key: listingKey(coin, now),
           trigger: "listing",
           coin,
           side: "long",

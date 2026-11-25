@@ -95,6 +95,9 @@ const eventsRead = shared(MARKET_TTL_MS, async () => {
   });
 });
 
+const MARKETS_FAILED = "Polymarket's markets could not be read.";
+const EVENTS_FAILED = "Polymarket's events could not be read.";
+
 export async function polyScan(category: PolyCategory): Promise<PolyScanResponse> {
   const now = Date.now();
   const errors: string[] = [];
@@ -104,11 +107,11 @@ export async function polyScan(category: PolyCategory): Promise<PolyScanResponse
       return null;
     }),
     marketsRead("all").catch(() => {
-      errors.push("Polymarket's markets could not be read.");
+      errors.push(MARKETS_FAILED);
       return [] as GammaMarketLite[];
     }),
     eventsRead("all").catch(() => {
-      errors.push("Polymarket's events could not be read.");
+      errors.push(EVENTS_FAILED);
       return [] as GammaEventLite[];
     }),
   ]);
@@ -116,7 +119,8 @@ export async function polyScan(category: PolyCategory): Promise<PolyScanResponse
     category,
     smartMoney: smart === null ? [] : polyConsensus(smart.positions, now).slice(0, 20),
     wallets: { read: smart?.read ?? 0, asked: smart?.asked ?? 0 },
-    movers: movers(markets),
+    read: { smartMoney: smart !== null && smart.read > 0, markets: !errors.includes(MARKETS_FAILED), events: !errors.includes(EVENTS_FAILED) },
+    movers: movers(markets, now),
     bookSums: bookSums(events),
     at: new Date(now).toISOString(),
     errors,

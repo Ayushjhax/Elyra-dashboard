@@ -137,6 +137,8 @@ export async function holdings(): Promise<{ holdings: HoldingView[]; wallets: nu
       coin: signal.symbol,
       side: signal.side === "SHORT" ? "SHORT" : "LONG",
       wallets: signal.walletCount,
+      /* The consensus writes "4 of 6 wallets"; the page words it in the reader's language. */
+      of: Number(/\d+ of (\d+)/.exec(signal.status)?.[1] ?? NaN) || null,
       status: signal.status,
       sharePct: signal.weightedScore,
     })),

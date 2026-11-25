@@ -10,10 +10,10 @@ import { CLAIMS_SCHEMA, CLAIMS_SYSTEM, claimsPrompt, parseClaims, type Claim, ty
 import { ScoutError } from "@/lib/scout/errors";
 import { readArticle, readPost, readVideoMeta } from "@/lib/scout/fetch";
 import { coinForTicker, readOf } from "@/lib/scout/flows";
-import { geminiText, transcribe } from "@/lib/scout/gemini";
+import { copyPage, geminiText, transcribe } from "@/lib/scout/gemini";
 import { attentionCues, gradeOf, gradeRank, sourceStanding, type Direction, type SourceTier } from "@/lib/scout/grade";
-import { parseLink } from "@/lib/scout/link";
-import { confirmingListing, type Announcement, type Exchange } from "@/lib/scout/listings";
+import { parseLink, snowflakeTime } from "@/lib/scout/link";
+import { confirmingListing, exchangeNamed, READ_FEEDS, type Announcement, type Exchange } from "@/lib/scout/listings";
 import { allMids, DAY_MS, flowsFor, holdings, perpCoins } from "@/lib/scout/smartMoney";
 import type { AssetCheck, ClaimView, ReadView, SourceKind } from "@/lib/scout/types";
 
@@ -134,7 +134,9 @@ async function freshSource(userId: string, input: { url?: string; text?: string 
   if (link.kind === "x") {
     const post = await readPost(link.url);
     await claimAgentRun(userId);
-    const meta: SourceMeta = { kind: "x", title: null, author: post.handle !== null ? `@${post.handle}` : post.author, publishedAt: post.publishedAt };
+    /* The embed dates a post to the day; its id dates it to the millisecond. */
+    const publishedAt = (link.statusId !== null ? snowflakeTime(link.statusId) : null) ?? post.publishedAt;
+    const meta: SourceMeta = { kind: "x", title: null, author: post.handle !== null ? `@${post.handle}` : post.author, publishedAt };
     const read = await claimsFrom(meta, post.text);
     return {
       key: link.key,
@@ -142,7 +144,7 @@ async function freshSource(userId: string, input: { url?: string; text?: string 
       url: post.handle !== null ? `https://x.com/${post.handle}/status/${link.statusId}` : link.url,
       title: null,
       author: meta.author,
-      publishedAt: post.publishedAt,
+      publishedAt,
       ...sourceStanding({ kind: "x", host: null, handle: post.handle }),
       textOrigin: "post",
       attention: attentionCues(post.text),
@@ -170,8 +172,20 @@ async function freshSource(userId: string, input: { url?: string; text?: string 
     };
   }
 
-  const article = await readArticle(link.url);
+  /* Read directly when the site allows it; when it refuses servers (most newsrooms sit behind bot walls), Google fetches it for Gemini.
+     The copy is credited to the host that refused Scout after following the link's redirects — never to the pasted address alone,
+     so an open redirect on an official site cannot lend its standing to another page. A refusal before any page answered
+     (the site did not respond) credits nobody. */
+  let direct: Awaited<ReturnType<typeof readArticle>> | null = null;
+  let refusedBy: string | null = null;
+  try {
+    direct = await readArticle(link.url);
+  } catch (error) {
+    if (!(error instanceof ScoutError) || (error.status !== 502 && error.status !== 422)) throw error;
+    refusedBy = error.host;
+  }
   await claimAgentRun(userId);
+  const article = direct ?? { ...(await copyPage(link.url)), site: null, author: null, publishedAt: null, host: refusedBy ?? "" };
   const meta: SourceMeta = { kind: "article", title: article.title, author: article.author ?? article.site, publishedAt: article.publishedAt };
   const read = await claimsFrom(meta, article.text);
   const standing = sourceStanding({ kind: "article", host: article.host, handle: null });
@@ -184,7 +198,7 @@ async function freshSource(userId: string, input: { url?: string; text?: string 
     publishedAt: article.publishedAt,
     tier: standing.tier,
     party: standing.party ?? article.site,
-    textOrigin: "page",
+    textOrigin: direct !== null ? "page" : "page_copy",
     attention: attentionCues(`${article.title ?? ""}\n${article.text}`),
     ...read,
   };
@@ -230,13 +244,20 @@ export function claimViews(
   return claims
     .map((claim) => {
       const isListing = claim.event === "listing" && claim.asset !== null;
-      const confirming = isListing ? confirmingListing(claim.asset as string, feeds.announcements, now) : null;
+      /* A claim about one exchange is settled only by that exchange's own feed; one Scout cannot read is said so, never settled by another. */
+      const named = isListing ? exchangeNamed(`${claim.statement} ${claim.quote}`) : null;
+      const readable = named === null || (READ_FEEDS as readonly string[]).includes(named);
+      const confirming = isListing && readable ? confirmingListing(claim.asset as string, feeds.announcements, now, named) : null;
+      const grade = gradeOf(claim.kind, tier, claim.hedged, confirming !== null);
+      const checked = named === null ? answered : answered.filter((exchange) => exchange === named);
       return {
         ...claim,
         coin: claim.asset !== null ? coinForTicker(claim.asset, coins) : null,
-        grade: gradeOf(claim.kind, tier, claim.hedged, confirming !== null),
+        grade,
         confirmedBy: confirming === null ? null : { exchange: confirming.exchange, title: confirming.title, url: confirming.url, at: new Date(confirming.at).toISOString() },
-        notInFeeds: isListing && confirming === null && answered.length > 0 ? answered : null,
+        /* Said only when it matters: a listing the party itself announced needs no other feed. */
+        notInFeeds: isListing && readable && confirming === null && grade !== "confirmed" && checked.length > 0 ? checked : null,
+        unreadable: isListing && !readable && grade !== "confirmed" ? named : null,
       };
     })
     .sort((a, b) => gradeRank(a.grade) - gradeRank(b.grade));
@@ -286,7 +307,7 @@ export async function assetChecks(claims: readonly ClaimView[], publishedAt: str
             ? null
             : { openedLong: flow.openedLong, openedShort: flow.openedShort, closedLong: flow.closedLong, closedShort: flow.closedShort, boughtUsd: flow.boughtUsd, soldUsd: flow.soldUsd },
         read,
-        holding: holding === null ? null : { side: holding.side, wallets: holding.wallets, status: holding.status },
+        holding: holding === null ? null : { side: holding.side, wallets: holding.wallets, of: holding.of, status: holding.status },
         verdict,
         lean,
       };

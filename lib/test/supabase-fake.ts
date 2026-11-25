@@ -359,6 +359,9 @@ function collides(a: Row, b: Row): boolean {
   /* ai_fund_marks (0025): primary key (fund, hour). */
   if (a.bucket !== undefined && a.fund_id === b.fund_id && a.bucket === b.bucket) return true;
 
+  /* scout_fires (0035): a rule acts on a signal once. */
+  if (a.signal_key !== undefined && a.rule_id !== undefined && a.rule_id === b.rule_id && a.signal_key === b.signal_key) return true;
+
   /* portfolio_fills (0017): one row per token a swap moved. */
   if (a.signature !== undefined && a.signature === b.signature && a.mint !== undefined && a.mint === b.mint) {
     return true;

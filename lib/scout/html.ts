@@ -88,13 +88,31 @@ function authorName(value: unknown): string | undefined {
   return undefined;
 }
 
+/** The bodies of the page's JSON-LD scripts, by indexOf (see the note on linear scans below). */
+function ldScripts(html: string): string[] {
+  const lower = html.toLowerCase();
+  const bodies: string[] = [];
+  let from = 0;
+  let shut = -2;
+  for (;;) {
+    const at = lower.indexOf("<script", from);
+    if (at === -1) return bodies;
+    const tagEnd = lower.indexOf(">", at);
+    if (tagEnd === -1) return bodies;
+    if (shut !== -1 && shut < tagEnd) shut = lower.indexOf("</script", tagEnd);
+    if (shut === -1) return bodies;
+    if (/type\s*=\s*["']?application\/ld\+json/.test(lower.slice(at, tagEnd))) bodies.push(html.slice(tagEnd + 1, shut));
+    from = shut + 8;
+  }
+}
+
 /** The page's own JSON-LD article, if it declares one. */
 export function linkedData(html: string): LinkedData {
   const found: LinkedData = {};
-  for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+  for (const body of ldScripts(html)) {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(match[1].trim());
+      parsed = JSON.parse(body.trim());
     } catch {
       continue;
     }
@@ -120,16 +138,104 @@ export function linkedData(html: string): LinkedData {
   return found;
 }
 
-const NOISE = /<(script|style|noscript|svg|template|iframe|form|nav|header|footer|aside|figure|button|select)\b[\s\S]*?<\/\1>/gi;
+/* Elements whose text is never the article. */
+const NOISE_TAGS = ["script", "style", "noscript", "svg", "template", "iframe", "form", "nav", "header", "footer", "aside", "figure", "button", "select"];
 
-function paragraphs(html: string): string[] {
-  const out: string[] = [];
-  for (const match of html.matchAll(/<(p|h2|h3|li|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
-    const text = textOf(match[2]).replace(/\n+/g, " ").trim();
-    const isHeading = match[1].toLowerCase().startsWith("h");
-    if (text.length >= (isHeading ? 12 : MIN_PARAGRAPH)) out.push(text);
+/*
+ * Everything below scans with indexOf, never a lazy regex across the page:
+ * `<p>([\s\S]*?)</p>` re-scans to the end of the page for every unclosed <p>
+ * (valid HTML, and common), which is quadratic on a 2.5 MB page.
+ */
+
+/** The page with each noise element removed, open tag to its close; an unclosed one loses only its tag. */
+export function stripBlocks(html: string, tags: readonly string[] = NOISE_TAGS): string {
+  let out = html;
+  for (const tag of tags) {
+    const lower = out.toLowerCase();
+    const open = `<${tag}`;
+    const close = `</${tag}`;
+    let result = "";
+    let from = 0;
+    /* The next closing tag, searched only when the scan passes it: once none is left, none is searched for again. */
+    let shut = -2;
+    for (;;) {
+      let at = lower.indexOf(open, from);
+      /* "<header" is not "<head", "<figure" is not "<figcaption": the name must end there. */
+      while (at !== -1 && /[a-z0-9-]/.test(lower[at + open.length] ?? "")) at = lower.indexOf(open, at + 1);
+      if (at === -1) break;
+      result += out.slice(from, at);
+      if (shut !== -1 && shut < at + open.length) shut = lower.indexOf(close, at + open.length);
+      if (shut === -1) {
+        const tagEnd = lower.indexOf(">", at);
+        from = tagEnd === -1 ? out.length : tagEnd + 1;
+        continue;
+      }
+      const shutEnd = lower.indexOf(">", shut);
+      from = shutEnd === -1 ? out.length : shutEnd + 1;
+      result += " ";
+    }
+    out = result + out.slice(from);
   }
   return out;
+}
+
+/** Comments out, in one pass. */
+function stripComments(html: string): string {
+  let result = "";
+  let from = 0;
+  for (;;) {
+    const at = html.indexOf("<!--", from);
+    if (at === -1) return result + html.slice(from);
+    result += html.slice(from, at);
+    const end = html.indexOf("-->", at + 4);
+    if (end === -1) return result;
+    from = end + 3;
+  }
+}
+
+const BLOCK = /<(\/?)(p|h2|h3|li|blockquote|div|section|article|br|tr|td|ul|ol|table)\b[^>]*>/gi;
+
+/**
+ * The page's paragraphs: the text between one block boundary and the next,
+ * kept when a paragraph, heading, list item or quote opened it and it is long
+ * enough to be prose. One pass over the tags.
+ */
+function paragraphs(html: string): string[] {
+  const out: string[] = [];
+  let openTag: string | null = null;
+  let from = 0;
+  const flush = (to: number) => {
+    if (openTag === null) return;
+    const text = textOf(html.slice(from, to)).replace(/\n+/g, " ").trim();
+    const isHeading = openTag === "h2" || openTag === "h3";
+    if (text.length >= (isHeading ? 12 : MIN_PARAGRAPH)) out.push(text);
+  };
+  for (const match of html.matchAll(BLOCK)) {
+    const tag = match[2].toLowerCase();
+    if (tag === "br") continue;
+    flush(match.index ?? 0);
+    openTag = match[1] === "" && ["p", "h2", "h3", "li", "blockquote"].includes(tag) ? tag : null;
+    from = (match.index ?? 0) + match[0].length;
+  }
+  flush(html.length);
+  return out;
+}
+
+/** The inner HTML of every <article>, by indexOf. */
+function articleBlocks(html: string): string[] {
+  const lower = html.toLowerCase();
+  const blocks: string[] = [];
+  let from = 0;
+  for (;;) {
+    const at = lower.indexOf("<article", from);
+    if (at === -1) return blocks;
+    const open = lower.indexOf(">", at);
+    if (open === -1) return blocks;
+    const shut = lower.indexOf("</article", open);
+    if (shut === -1) return blocks;
+    blocks.push(html.slice(open + 1, shut));
+    from = shut + 9;
+  }
 }
 
 function isoOrNull(value: string | undefined | null): string | null {
@@ -159,10 +265,11 @@ export function extractArticle(html: string): Article {
     metas.get("article:published_time") ?? ld.datePublished ?? metas.get("parsely-pub-date") ?? metas.get("date") ?? metas.get("pubdate") ?? metas.get("sailthru.date") ?? timeTag,
   );
 
-  const cleaned = html.replace(/<!--[\s\S]*?-->/g, "").replace(NOISE, " ");
+  const cleaned = stripBlocks(stripComments(html));
   /* The article element when the page has one; the body otherwise. */
-  const articles = [...cleaned.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/gi)].map((match) => match[1]);
-  const region = articles.length > 0 ? articles.reduce((a, b) => (b.length > a.length ? b : a)) : (/<body\b[^>]*>([\s\S]*)<\/body>/i.exec(cleaned)?.[1] ?? cleaned);
+  const articles = articleBlocks(cleaned);
+  const bodyAt = cleaned.toLowerCase().indexOf("<body");
+  const region = articles.length > 0 ? articles.reduce((a, b) => (b.length > a.length ? b : a)) : bodyAt === -1 ? cleaned : cleaned.slice(bodyAt);
   let text = paragraphs(region).join("\n\n");
   if (text.length < 400 && articles.length > 0) text = paragraphs(cleaned).join("\n\n");
   if (ld.body !== undefined && ld.body.length > text.length) text = textOf(ld.body);

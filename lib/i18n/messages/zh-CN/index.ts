@@ -29,6 +29,7 @@ import { wallet } from "./wallet";
 import { workspace } from "./workspace";
 import { strategies } from "./strategies";
 import { insider } from "./insider";
+import { scout } from "./scout";
 
 /* ---------------------------------------------------------------------------
    Simplified Chinese.
@@ -48,6 +49,7 @@ export const zhCN: Messages = {
   ...analysis,
   ...strategies,
   ...insider,
+  ...scout,
   ...agent,
   ...arena,
   ...assets,

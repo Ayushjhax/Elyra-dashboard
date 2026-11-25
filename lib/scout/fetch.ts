@@ -112,8 +112,10 @@ export async function fetchPage(url: string): Promise<{ html: string; finalUrl: 
       current = new URL(location, current).toString();
       continue;
     }
-    if (response.status === 401 || response.status === 403) throw new ScoutError("That page refused to be read (it may need a login or block readers).", 502);
-    if (!response.ok) throw new ScoutError(`That page answered ${response.status}.`, 502);
+    const host = target.hostname.toLowerCase().replace(/^www\./, "");
+    if (response.status === 401 || response.status === 403) throw new ScoutError("That page refused to be read (it may need a login or block readers).", 502, host);
+    if (response.status === 404 || response.status === 410) throw new ScoutError("That page does not exist.", 404);
+    if (!response.ok) throw new ScoutError(`That page answered ${response.status}.`, 502, host);
     const type = response.headers.get("content-type") ?? "";
     if (!/text\/html|application\/xhtml\+xml/i.test(type)) throw new ScoutError("That link is not a web page Scout can read.", 415);
     return { html: await cappedText(response, MAX_HTML_BYTES), finalUrl: current };
@@ -124,8 +126,9 @@ export async function fetchPage(url: string): Promise<{ html: string; finalUrl: 
 export async function readArticle(url: string): Promise<Article & { host: string }> {
   const page = await fetchPage(url);
   const article = extractArticle(page.html);
-  if (article.text.length < 200) throw new ScoutError("Scout could not find the article's text on that page. Paste the text instead.", 422);
-  return { ...article, host: new URL(page.finalUrl).hostname.toLowerCase().replace(/^www\./, "") };
+  const host = new URL(page.finalUrl).hostname.toLowerCase().replace(/^www\./, "");
+  if (article.text.length < 200) throw new ScoutError("Scout could not find the article's text on that page. Paste the text instead.", 422, host);
+  return { ...article, host };
 }
 
 async function embedJson(url: string): Promise<unknown> {

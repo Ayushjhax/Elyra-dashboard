@@ -101,7 +101,7 @@ export function validateRule(input: Record<string, unknown>): { rule: AutoBuyRul
 
 /** A detected signal, as the tick sees it. */
 export interface DetectedSignal {
-  /** Unique per event: `sm:SOL:long:2026-11-25`, `listing:OKX:<id>:SOL`. */
+  /** One per coin and UTC day for each trigger: `sm:SOL:2026-11-25`, `listing:SOL:2026-11-25`. */
   key: string;
   trigger: Trigger;
   coin: string;
@@ -117,13 +117,17 @@ export function utcDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-/** A smart-money signal fires a rule once per market, side and UTC day. */
-export function flowKey(coin: string, side: "long" | "short", at: number): string {
-  return `sm:${coin}:${side}:${utcDay(at)}`;
+/**
+ * A rule acts on a coin at most once a UTC day per trigger: a second exchange
+ * listing the same coin, or the cohort flipping to the other side later that
+ * day, does not buy it again or open the opposite position beside it.
+ */
+export function flowKey(coin: string, at: number): string {
+  return `sm:${coin}:${utcDay(at)}`;
 }
 
-export function listingKey(exchange: string, id: string, coin: string): string {
-  return `listing:${exchange}:${id}:${coin}`;
+export function listingKey(coin: string, at: number): string {
+  return `listing:${coin}:${utcDay(at)}`;
 }
 
 /** Whether a rule wants this signal. The day's count and the account's limits are checked by the caller. */

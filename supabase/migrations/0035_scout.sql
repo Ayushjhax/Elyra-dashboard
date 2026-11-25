@@ -31,7 +31,7 @@ create table if not exists public.scout_sources (
   published_at  timestamptz,
   tier          text not null check (tier in ('primary', 'newsroom', 'unverified')),
   party         text,
-  text_origin   text not null check (text_origin in ('page', 'post', 'transcript')),
+  text_origin   text not null check (text_origin in ('page', 'page_copy', 'post', 'transcript')),
   attention     jsonb not null default '[]'::jsonb,
   summary       text,
   claims        jsonb not null default '[]'::jsonb,

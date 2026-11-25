@@ -95,14 +95,20 @@ export function useScoutFeed<T>(url: string | null, options: { pollMs?: number; 
   const account = accountKey(auth);
   const active = url !== null && auth.ready && (options.needsAuth !== true || signedIn);
 
+  /* Stable per address, so React subscribes once rather than on every render. */
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!active) return NOOP();
+      const entry = entryFor(url);
+      entry.listeners.add(listener);
+      return () => {
+        entry.listeners.delete(listener);
+      };
+    },
+    [active, url],
+  );
   const store = useSyncExternalStore(
-    active
-      ? (listener) => {
-          const entry = entryFor(url);
-          entry.listeners.add(listener);
-          return () => entry.listeners.delete(listener);
-        }
-      : NOOP,
+    subscribe,
     () => (active ? (entryFor(url).state as FeedState<T>) : (INITIAL as FeedState<T>)),
     () => INITIAL as FeedState<T>,
   );
@@ -128,8 +134,12 @@ export function useScoutFeed<T>(url: string | null, options: { pollMs?: number; 
     return () => clearInterval(timer);
   }, [active, url, options.pollMs]);
 
+  /* A refresh asked for after a write must see it: a read already in flight may have started before the write landed, so wait it out and read again. */
   const refresh = useCallback(async () => {
-    if (url !== null) await read(url);
+    if (url === null) return;
+    const entry = entryFor(url);
+    if (entry.inFlight !== null) await entry.inFlight;
+    await read(url);
   }, [url]);
 
   const write = useCallback(

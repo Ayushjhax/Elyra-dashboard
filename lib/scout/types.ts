@@ -22,6 +22,8 @@ export interface ClaimView {
   confirmedBy: { exchange: Exchange; title: string; url: string; at: string } | null;
   /** A listing claim the official feeds were checked for and did not show: the feeds read. */
   notInFeeds: Exchange[] | null;
+  /** A listing claim about an exchange whose feed Scout cannot read for free (Binance, Coinbase…). */
+  unreadable: string | null;
 }
 
 export interface AssetCheck {
@@ -34,7 +36,7 @@ export interface AssetCheck {
   flow: Omit<CoinFlow, "coin" | "lastAt"> | null;
   read: SmartMoneyRead;
   /** The cohort's open positions in the market, when three or more agree. */
-  holding: { side: "LONG" | "SHORT"; wallets: number; status: string } | null;
+  holding: { side: "LONG" | "SHORT"; wallets: number; of: number | null; status: string } | null;
   /** The source's lean against what smart money did. */
   verdict: "agrees" | "disagrees" | "no_read";
   lean: Direction;
@@ -51,8 +53,8 @@ export interface ReadView {
   readAt: string;
   tier: SourceTier;
   party: string | null;
-  /** Where the text came from: the page, the post, a transcript Gemini wrote, or the reader's paste. */
-  textOrigin: "page" | "post" | "transcript" | "pasted";
+  /** Where the text came from: the page, Gemini's copy of a page that blocks servers, the post, a transcript Gemini wrote, or the reader's paste. */
+  textOrigin: "page" | "page_copy" | "post" | "transcript" | "pasted";
   attention: string[];
   summary: string | null;
   claims: ClaimView[];
@@ -86,6 +88,8 @@ export interface HoldingView {
   coin: string;
   side: "LONG" | "SHORT";
   wallets: number;
+  /** Cohort wallets in the market on either side, when known. */
+  of: number | null;
   status: string;
   /** Share of the cohort's money in the market on this side, 0–100. */
   sharePct: number;

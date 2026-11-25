@@ -22,8 +22,13 @@ export const VIDEO_CLIP_SECONDS = 1_200;
 
 type Part = { text: string } | { fileData: { fileUri: string }; videoMetadata?: { endOffset: string } };
 
+interface UrlMetadata {
+  retrievedUrl?: string;
+  urlRetrievalStatus?: string;
+}
+
 interface Reply {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string }>;
+  candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string; urlContextMetadata?: { urlMetadata?: UrlMetadata[] } }>;
   promptFeedback?: { blockReason?: string };
   error?: { message?: string; status?: string };
 }
@@ -42,7 +47,9 @@ export async function geminiText(input: {
   schema?: Record<string, unknown>;
   timeoutMs: number;
   video?: boolean;
-}): Promise<{ text: string; model: string }> {
+  /** Let Gemini fetch the addresses in the prompt itself (its URL context tool). */
+  urlContext?: boolean;
+}): Promise<{ text: string; model: string; retrieved: UrlMetadata[] }> {
   const key = optional("GEMINI_API_KEY")?.trim();
   if (key === undefined || key === "") throw new ScoutError("Scout's AI is not set up on this server (GEMINI_API_KEY).", 503);
 
@@ -56,6 +63,7 @@ export async function geminiText(input: {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: input.system }] },
           contents: [{ role: "user", parts: input.parts }],
+          ...(input.urlContext === true ? { tools: [{ url_context: {} }] } : {}),
           generationConfig: {
             maxOutputTokens: input.maxTokens,
             /* Thinking counts against the budget; a little is enough to read carefully. */
@@ -98,13 +106,30 @@ export async function geminiText(input: {
       last = "Elyra's free AI returned nothing. Try again.";
       continue;
     }
-    return { text, model };
+    return { text, model, retrieved: candidate?.urlContextMetadata?.urlMetadata ?? [] };
   }
   throw new ScoutError(last, 503);
 }
 
 export const TRANSCRIBE_SYSTEM =
   "You transcribe videos for Elyra, a trading app. Write the spoken words of the video verbatim, as plain text in the language spoken, with no timestamps, headings or commentary. Where words are unclear, leave them out rather than guess. If no one speaks, write exactly: NO SPEECH.";
+
+export const COPY_PAGE_SYSTEM =
+  "You copy web articles for Elyra, a trading app. Return the article's headline on the first line, then its main text verbatim as plain paragraphs. Leave out navigation, adverts, related links and comments, and add nothing of your own. If the page cannot be read, write exactly: UNREADABLE.";
+
+/**
+ * An article a site will not serve to a server, fetched by Google for Gemini
+ * (the URL context tool) and copied out. Used only after the direct read was
+ * refused; the copy is the model's, and is labelled so.
+ */
+export async function copyPage(url: string): Promise<{ title: string | null; text: string; model: string }> {
+  const result = await geminiText({ system: COPY_PAGE_SYSTEM, parts: [{ text: `Copy this article: ${url}` }], maxTokens: 14_000, timeoutMs: 100_000, urlContext: true });
+  const fetched = result.retrieved.some((entry) => entry.urlRetrievalStatus === "URL_RETRIEVAL_STATUS_SUCCESS");
+  const body = result.text.trim();
+  if (!fetched || /^UNREADABLE\.?$/i.test(body) || body.length < 200) throw new ScoutError("That site blocks readers, and Gemini could not open it either. Paste the article's text instead.", 422);
+  const [first, ...rest] = body.split("\n");
+  return { title: first.trim().slice(0, 300) || null, text: rest.join("\n").trim(), model: result.model };
+}
 
 /** The words of a public YouTube video, up to its first 20 minutes. */
 export async function transcribe(videoUrl: string): Promise<{ text: string; model: string }> {

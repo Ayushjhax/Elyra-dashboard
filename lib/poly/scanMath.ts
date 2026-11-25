@@ -127,9 +127,14 @@ export interface Mover {
   changePts: number;
 }
 
-export function movers(markets: readonly GammaMarketLite[], { minVolume = 25_000, minPts = 4, max = 15 } = {}): Mover[] {
+/**
+ * The day's largest moves. A market ending within a day is left out: a game in
+ * play or a deadline arriving moves to 0 or 100 by settling, not by news.
+ */
+export function movers(markets: readonly GammaMarketLite[], now: number, { minVolume = 25_000, minPts = 4, max = 15, minRunwayMs = 86_400_000 } = {}): Mover[] {
   return markets
     .filter((market) => !market.closed && market.dayChange !== null && market.volume24h >= minVolume)
+    .filter((market) => market.endDate === null || Date.parse(market.endDate) - now > minRunwayMs)
     .map((market) => ({ market, changePts: Math.round((market.dayChange as number) * 1000) / 10 }))
     .filter((mover) => Math.abs(mover.changePts) >= minPts)
     .sort((a, b) => Math.abs(b.changePts) - Math.abs(a.changePts))

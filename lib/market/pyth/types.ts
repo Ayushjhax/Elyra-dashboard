@@ -1,3 +1,5 @@
+import type { SourceId } from "@/lib/market/types";
+
 /* ---------------------------------------------------------------------------
    Pyth as the price source of truth.
 
@@ -81,14 +83,15 @@ export interface PythPrice {
   /** When Pyth last updated the feed. */
   publishedAt: string;
   /**
-   * Where the price came from. Absent means Pyth. "yahoo" is a stand-in for
-   * a feed Pyth's plan does not cover (lib/market/pyth/standIn.ts), and is
-   * labelled as Yahoo wherever a source is shown.
+   * Where the price came from. Absent means Pyth. Anything else is a
+   * stand-in for a feed Pyth's plan does not cover (lib/market/pyth/standIn.ts):
+   * Yahoo's quote, or an exchange's last price for a refused coin. It is
+   * named wherever a source is shown.
    */
   source?: PriceSource;
 }
 
-export type PriceSource = "pyth" | "yahoo";
+export type PriceSource = "pyth" | "yahoo" | SourceId;
 
 /** Raw `/v1/latest_price` row, before decoding. */
 export interface RawPriceFeed {
@@ -177,7 +180,7 @@ export interface PriceRow {
   symbol: string;
   /** From Pyth, or Yahoo's quote where Pyth's plan does not cover the feed (`source`). */
   price: number;
-  /** Absent or "pyth" for Pyth; "yahoo" for a stand-in. */
+  /** Absent or "pyth" for Pyth; otherwise the stand-in it came from. */
   source?: PriceSource;
   /** From the exchange sources, null when none of them list the asset. */
   change24hPct: number | null;

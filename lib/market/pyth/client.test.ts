@@ -11,11 +11,23 @@ vi.mock("@/lib/market/pyth/catalog", () => ({
     byId: new Map([
       [1, { symbol: "BTC", assetType: "crypto", pythSymbol: "Crypto.BTC/USD" }],
       [2, { symbol: "ETH", assetType: "crypto", pythSymbol: "Crypto.ETH/USD" }],
+      [6, { symbol: "SOL", assetType: "crypto", pythSymbol: "Crypto.SOL/USD" }],
+      [92, { symbol: "JUP", assetType: "crypto", pythSymbol: "Crypto.JUP/USD" }],
+      [110, { symbol: "HYPE", assetType: "crypto", pythSymbol: "Crypto.HYPE/USD" }],
+      [777, { symbol: "XYZ", assetType: "crypto", pythSymbol: "Crypto.XYZ/USD" }],
       [922, { symbol: "AAPL", assetType: "equity", pythSymbol: "Equity.US.AAPL/USD" }],
       [923, { symbol: "MSFT", assetType: "equity", pythSymbol: "Equity.US.MSFT/USD" }],
       [3290, { symbol: "US500", assetType: "equity", pythSymbol: "Equity.Index.US500/USD" }],
     ]),
   }),
+}));
+
+/* The exchanges' snapshot, which stands in for a refused coin: Binance lists JUP, nobody lists XYZ. */
+vi.mock("@/lib/market/router", () => ({
+  snapshots: async (symbols: string[]) =>
+    symbols
+      .filter((symbol) => symbol === "JUP")
+      .map((symbol) => ({ symbol, price: 0.4123, change24hPct: 1, high24h: 0.42, low24h: 0.4, volume24h: 1, markPrice: null, source: "binance", fetchedAt: "2026-11-26T11:00:00.000Z" })),
 }));
 
 import { PRICE_URL, grantGroup, latestPriceBody, pricesForIds, refusedFeed, unwrapLatest } from "@/lib/market/pyth/client";
@@ -142,6 +154,33 @@ describe("a plan that covers only some feeds", () => {
     expect(prices).toEqual([expect.objectContaining({ id: 3290, symbol: "US500", price: 7182.78, source: "yahoo" })]);
   });
 
+});
+
+describe("a plan that refuses single coins inside crypto", () => {
+  it("remembers only the coins Pyth names, keeps every other price, and stands in for the refused ones", async () => {
+    /* The production failure of 26 November: JUP and one more coin refused in a watchlist batch. */
+    fetchMock.mockImplementation(async (_url: string, init: { body: string }) => {
+      const ids = (JSON.parse(init.body) as { priceFeedIds: number[] }).priceFeedIds;
+      if (ids.includes(92)) return refusal(92);
+      if (ids.includes(777)) return refusal(777);
+      return answer(...ids.map((id) => feed(id, "7000000000")));
+    });
+    const prices = await pricesForIds([6, 110, 1, 2, 92, 777]);
+    expect(prices.map((p) => [p.symbol, p.source ?? "pyth"]).sort()).toEqual([
+      ["BTC", "pyth"],
+      ["ETH", "pyth"],
+      ["HYPE", "pyth"],
+      ["JUP", "binance"],
+      ["SOL", "pyth"],
+    ]);
+    expect(prices.find((p) => p.symbol === "JUP")?.price).toBe(0.4123);
+
+    /* The next read asks Pyth for the coins it covers and nothing else — SOL is never remembered as refused. */
+    fetchMock.mockClear();
+    await pricesForIds([6, 110, 1, 2, 92, 777]);
+    expect(fetchMock.mock.calls.filter(isPyth).flatMap(askedFor).sort((a, b) => a - b)).toEqual([1, 2, 6, 110]);
+    expect((await pricesForIds([6])).map((p) => [p.symbol, p.source ?? "pyth"])).toEqual([["SOL", "pyth"]]);
+  });
 });
 
 describe("a slow Pyth", () => {

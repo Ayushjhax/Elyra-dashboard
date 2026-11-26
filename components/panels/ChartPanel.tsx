@@ -33,7 +33,7 @@ import { INTERVALS, TV_SCRIPT, chartWidgetConfig } from "@/lib/market/chartWidge
 import { nearestLevels } from "@/lib/market/levels";
 import { useLevels } from "@/lib/market/useLevels";
 import { useAssets, usePrice, type FeedStatus } from "@/lib/market/usePrices";
-import type { PriceRow } from "@/lib/market/pyth/types";
+import type { PriceRow, PriceSource } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
 import { useSecond } from "@/lib/useClock";
 import { useFirstScreenFit } from "@/lib/useFirstScreenFit";
@@ -107,6 +107,15 @@ function useCanFullscreen(): boolean {
 }
 
 type Status = "loading" | "ready" | "error";
+
+/** Each price source's own name, untranslated, like "Pyth". */
+const SOURCE_NAME: Record<PriceSource, string> = {
+  pyth: "Pyth",
+  yahoo: "Yahoo Finance",
+  binance: "Binance",
+  okx: "OKX",
+  hyperliquid: "Hyperliquid",
+};
 
 const TOOL = cn(
   "metallic chart-control type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2.5",
@@ -278,9 +287,9 @@ function FeedFooter({
   const ageMs = row && now !== null ? now - Date.parse(row.publishedAt) : null;
   const stale = status === "error" || (ageMs !== null && ageMs > 60_000);
   const decimals = priceDecimals(row?.price);
-  /* A feed Pyth's plan does not cover is priced from Yahoo Finance and says so (lib/market/pyth/standIn.ts). */
+  /* A feed Pyth's plan does not cover is priced from a stand-in, named here (lib/market/pyth/standIn.ts). */
   const label =
-    status === "loading" && !row ? t("Connecting to Pyth") : status === "error" && !row ? t("Pyth unavailable") : row?.source === "yahoo" ? "Yahoo Finance" : "Pyth";
+    status === "loading" && !row ? t("Connecting to Pyth") : status === "error" && !row ? t("Pyth unavailable") : SOURCE_NAME[row?.source ?? "pyth"];
   const clock =
     now === null
       ? "—"

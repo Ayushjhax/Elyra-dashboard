@@ -407,8 +407,8 @@ export const workspace: Messages = {
     "无法连接 Pyth。请检查 PYTH_API_KEY 后重试。",
   "Pyth live":
     "Pyth 实时",
-  "Pyth and Yahoo Finance live":
-    "Pyth 与 Yahoo Finance 实时",
+  "Pyth and other sources live":
+    "Pyth 与其他来源实时",
   "Pyth prices {symbol}, but TradingView has no matching market, so there is no chart to show. The live price above is unaffected.":
     "Pyth 为 {symbol} 报价，但 TradingView 没有对应的市场，因此无法显示图表。上方的实时价格不受影响。",
   "Pyth prices are unavailable.":

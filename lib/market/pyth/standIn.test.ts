@@ -6,7 +6,12 @@ vi.mock("@/lib/market/cache", () => ({
   cached: async (_key: string, _ttl: number, load: () => Promise<unknown>) => ({ value: await load() }),
 }));
 
-import { sessionAt, standInPrices } from "@/lib/market/pyth/standIn";
+vi.mock("@/lib/market/router", () => ({
+  snapshots: async (symbols: string[]) =>
+    symbols.filter((symbol) => symbol === "JUP").map((symbol) => ({ symbol, price: 0.4123, source: "okx", fetchedAt: "2026-11-26T11:00:00.000Z" })),
+}));
+
+import { cryptoBase, sessionAt, standInPrices } from "@/lib/market/pyth/standIn";
 
 /* ---------------------------------------------------------------------------
    Yahoo stands in for the feeds Pyth's plan refuses: the right Yahoo symbol
@@ -74,6 +79,15 @@ describe("Yahoo as a stand-in", () => {
   it("is quiet, not broken, when Yahoo fails", async () => {
     fetchMock.mockResolvedValue(new Response("busy", { status: 503 }));
     expect(await standInPrices([{ id: 922, symbol: "AAPL", pythSymbol: "Equity.US.AAPL/USD" }])).toEqual([]);
+  });
+
+  it("stands in for a refused coin with the exchange price, named by its exchange, and never asks Yahoo for crypto", async () => {
+    answer({});
+    expect(cryptoBase("Crypto.JUP/USD")).toBe("JUP");
+    expect(cryptoBase("Crypto.Index.GML2/USD")).toBeNull();
+    const prices = await standInPrices([{ id: 92, symbol: "JUP", pythSymbol: "Crypto.JUP/USD" }]);
+    expect(prices).toEqual([expect.objectContaining({ id: 92, symbol: "JUP", price: 0.4123, source: "okx", marketSession: "regular" })]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("calls a price outside the regular session the last close, never pre- or post-market", () => {

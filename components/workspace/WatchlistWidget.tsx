@@ -308,8 +308,8 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
           )}
         />
         {feed.status === "live"
-          ? [...feed.rows.values()].some((row) => row.source === "yahoo")
-            ? t("Pyth and Yahoo Finance live")
+          ? [...feed.rows.values()].some((row) => row.source !== undefined && row.source !== "pyth")
+            ? t("Pyth and other sources live")
             : t("Pyth live")
           : feed.status === "error"
             ? t("Prices delayed")

@@ -3,6 +3,7 @@ import "server-only";
 import { TTL, cached } from "@/lib/market/cache";
 import { UpstreamError, fetchJson } from "@/lib/market/http";
 import type { PythPrice } from "@/lib/market/pyth/types";
+import * as router from "@/lib/market/router";
 import { yahooCandidates } from "@/lib/markets/exchanges";
 
 /* ---------------------------------------------------------------------------
@@ -28,6 +29,12 @@ import { yahooCandidates } from "@/lib/markets/exchanges";
    Outside the regular session its price is the last close, so the session
    is reported as "closed" then — never as pre- or post-market, which would
    claim a price this source does not give.
+
+   A plan can also refuse a single coin inside a class it covers (this one
+   refuses JUP). A refused crypto feed quoted in dollars stands in with the
+   exchange price Elyra already reads for the 24h change
+   (lib/market/router.ts: Binance, then OKX, then Hyperliquid), against
+   USDT, and is marked with that exchange's name.
 --------------------------------------------------------------------------- */
 
 const SPARK = "https://query1.finance.yahoo.com/v7/finance/spark";
@@ -101,12 +108,57 @@ function usable(meta: SparkMeta | undefined): meta is SparkMeta & { regularMarke
   return meta !== undefined && typeof meta.regularMarketPrice === "number" && Number.isFinite(meta.regularMarketPrice) && meta.regularMarketPrice > 0 && typeof meta.regularMarketTime === "number";
 }
 
+/** "Crypto.JUP/USD" → "JUP": a dollar-quoted crypto feed, which the exchanges list against USDT. */
+export function cryptoBase(pythSymbol: string): string | null {
+  const match = /^Crypto\.([A-Z0-9]+)\/USD$/.exec(pythSymbol);
+  return match === null ? null : match[1];
+}
+
+/** The exchanges' last price for refused crypto feeds, marked with the exchange it came from. */
+async function exchangePrices(feeds: readonly StandInFeed[]): Promise<PythPrice[]> {
+  if (feeds.length === 0) return [];
+  const bases = [...new Set(feeds.map((feed) => cryptoBase(feed.pythSymbol) as string))].sort();
+  const result = await cached(`standin:exchange:${bases.join(",")}`, TTL.price, () => router.snapshots(bases)).catch(() => ({ value: [] as Awaited<ReturnType<typeof router.snapshots>> }));
+  const bySymbol = new Map(result.value.map((row) => [row.symbol.toUpperCase(), row]));
+  const prices: PythPrice[] = [];
+  for (const feed of feeds) {
+    const row = bySymbol.get(cryptoBase(feed.pythSymbol) as string);
+    if (row === undefined || !Number.isFinite(row.price) || row.price <= 0) continue;
+    prices.push({
+      id: feed.id,
+      symbol: feed.symbol,
+      price: row.price,
+      confidence: 0,
+      emaPrice: row.price,
+      bestBid: null,
+      bestAsk: null,
+      publisherCount: 0,
+      /* Crypto trades around the clock. */
+      marketSession: "regular",
+      publishedAt: row.fetchedAt,
+      source: row.source,
+    });
+  }
+  return prices;
+}
+
 /**
- * Yahoo's prices for feeds Pyth refused, shaped like Pyth's so every caller
- * reads them the same way, and marked `source: "yahoo"`. A Korean share is
- * asked on KOSPI first and on KOSDAQ when KOSPI has no such ticker.
+ * Stand-in prices for feeds Pyth refused, shaped like Pyth's so every caller
+ * reads them the same way and marked with where they came from: an
+ * exchange's for a crypto feed, Yahoo's for everything else.
  */
 export async function standInPrices(feeds: readonly StandInFeed[], now: number = Date.now()): Promise<PythPrice[]> {
+  const crypto = feeds.filter((feed) => cryptoBase(feed.pythSymbol) !== null);
+  const rest = feeds.filter((feed) => cryptoBase(feed.pythSymbol) === null);
+  const [fromExchanges, fromYahoo] = await Promise.all([exchangePrices(crypto).catch((): PythPrice[] => []), yahooPrices(rest, now)]);
+  return [...fromExchanges, ...fromYahoo];
+}
+
+/**
+ * Yahoo's prices for feeds Pyth refused, marked `source: "yahoo"`. A Korean
+ * share is asked on KOSPI first and on KOSDAQ when KOSPI has no such ticker.
+ */
+async function yahooPrices(feeds: readonly StandInFeed[], now: number): Promise<PythPrice[]> {
   const candidates = new Map(feeds.map((feed) => [feed.id, yahooCandidates(feed.pythSymbol)]));
   const prices: PythPrice[] = [];
   let pending = feeds.filter((feed) => (candidates.get(feed.id) ?? []).length > 0);

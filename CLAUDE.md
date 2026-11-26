@@ -96,13 +96,16 @@ Every price shown with a currency sign goes through `formatPriceUsd` in
 — a small token must never render as `$0.00` or in exponent notation.
 
 Pyth is the price of record. A feed the key's plan refuses — on the current
-plan, equities and equity indices — is priced from Yahoo Finance's free
-quote instead (`lib/market/pyth/standIn.ts`, through `pricesForIds` and
-`pricesForLabelledIds`, so every caller gets it), marked `source: "yahoo"`
-and labelled as Yahoo wherever a source is shown. Outside the regular
-session its price is the last close and its session says "closed". Once the
-plan covers a class, Pyth answers again by itself (a refusal is forgotten
-after 15 minutes). A timed-out Pyth call is asked once more before a feed
+plan, equities, equity indices and single coins such as JUP — is priced
+from a stand-in instead (`lib/market/pyth/standIn.ts`, through
+`pricesForIds` and `pricesForLabelledIds`, so every caller gets it): Yahoo
+Finance's free quote for a share or an index, and the exchanges' last price
+(`lib/market/router.ts`) for a coin. The row's `source` names it, and so
+does every place that shows a source. Outside the regular session a Yahoo
+price is the last close and its session says "closed". A refusal names one
+feed, and only that feed is remembered as refused — never the rest of its
+batch — and forgotten after 15 minutes, so Pyth answers again by itself once
+the plan covers it. A timed-out Pyth call is asked once more before a feed
 goes blank.
 
 The workspace shows no sample data — `lib/mock/` is gone and must not come

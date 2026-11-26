@@ -199,13 +199,20 @@ async function loadBatch(ids: number[]): Promise<PythPrice[]> {
    a whole request when any one feed in it is not granted ("Not entitled:
    feed 922 …"). So feeds are batched by the grant they fall under — the
    asset class, and for equities the market (`Equity.US`, `Equity.HK`,
-   `Equity.Index`) — and a refused group cannot blank the others. A single
-   refused feed is dropped and its batch asked again once; a batch refused
-   twice is a group the plan does not cover, and its feeds are not asked for
-   again for a while.
+   `Equity.Index`) — and a refused group cannot blank the others.
+
+   Inside a batch, the refusal names one feed. That feed — and only that
+   feed — is remembered as refused and dropped, and the rest is asked again,
+   until the batch answers. A plan can refuse single feeds inside a class it
+   otherwise covers (this one refuses JUP among its crypto), so a second
+   refusal names a second feed; it never means the whole batch is refused.
+   (It used to: two refused coins in one watchlist blanked SOL, BTC and ETH
+   for fifteen minutes at a time.)
 --------------------------------------------------------------------------- */
 
 const NOT_ENTITLED_MS = 15 * 60_000;
+/** Refusals one read will learn from before it stops; the next read carries on from what was learned. */
+const MAX_REFUSALS = 12;
 const notEntitled = new Map<number, number>();
 
 /** The feed a refusal names, from "Not entitled: feed 922 (…)". */
@@ -227,23 +234,24 @@ export function grantGroupOfSymbol(pythSymbol: string): string {
   return parts[0] === "Equity" ? parts.slice(0, 2).join(".") : (parts[0] ?? "unknown").toLowerCase();
 }
 
-/** One batch, with a single refused feed dropped and the rest asked again. */
+/** One batch: each feed the refusal names is remembered and dropped, and the rest asked again, until it answers. */
 async function loadGranted(ids: number[], load: (ids: number[]) => Promise<PythPrice[]> = loadBatch): Promise<PythPrice[]> {
-  try {
-    return await load(ids);
-  } catch (error) {
-    const refused = refusedFeed(error);
-    if (refused === null) throw error;
-    notEntitled.set(refused, Date.now() + NOT_ENTITLED_MS);
-    const rest = ids.filter((id) => id !== refused);
-    if (rest.length === 0) throw error;
+  let batch = ids;
+  for (let refusals = 0; refusals < MAX_REFUSALS; refusals += 1) {
     try {
-      return await load(rest);
-    } catch (again) {
-      if (refusedFeed(again) !== null) for (const id of rest) notEntitled.set(id, Date.now() + NOT_ENTITLED_MS);
-      throw again;
+      return await load(batch);
+    } catch (error) {
+      const named = refusedFeed(error);
+      if (named === null) throw error;
+      /* Remember exactly the feed Pyth named; a refusal naming a feed outside the batch says nothing about this one. */
+      const refused = batch.includes(named) ? named : batch.length === 1 ? batch[0] : null;
+      if (refused === null) throw error;
+      notEntitled.set(refused, Date.now() + NOT_ENTITLED_MS);
+      batch = batch.filter((id) => id !== refused);
+      if (batch.length === 0) return [];
     }
   }
+  throw new PythError("upstream", `Pyth refused more than ${MAX_REFUSALS} feeds in one request; the rest are asked again on the next read.`);
 }
 
 const refusedNow = (id: number, now = Date.now()) => (notEntitled.get(id) ?? 0) > now;

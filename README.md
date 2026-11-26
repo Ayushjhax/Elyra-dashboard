@@ -6,9 +6,12 @@ An agentic crypto trading terminal, on the web and on Android.
 
 Elyra is one product with two clients and one backend:
 
-- **The website** (`getelyra.xyz`) — a Next.js trading workspace: a live
-  chart, the account's own ledger, price alerts, research, and **Ask Elyra**,
-  the agent, in a column beside the chart. It also runs the Telegram bot.
+- **The website** (`getelyra.xyz`, served from `try.getelyra.xyz` and
+  `api.getelyra.xyz`) — a Next.js trading workspace: a live chart, the
+  account's own ledger across seven networks, trading automation and copy
+  trading on Hyperliquid, research and market intelligence, the Arena and the
+  Desk, and **Ask Elyra**, the agent, in a column beside the chart. It speaks
+  English and Simplified Chinese, and also runs the Telegram bot.
 - **The Android app** (`mobile/`) — an Expo app published on the Solana dApp
   Store as **Elyra** (`xyz.getelyra.app`). It talks only to the website's API
   (`https://api.getelyra.xyz`), so a person has the same login, embedded
@@ -20,6 +23,7 @@ the same pure modules in `lib/` — one source of truth for every rule.
 ## Contents
 
 - [At a glance](#at-a-glance)
+- [What's new](#whats-new)
 - [What Elyra will and will not do](#what-elyra-will-and-will-not-do)
 - [Features](#features)
 - [Architecture](#architecture)
@@ -53,41 +57,83 @@ the same pure modules in `lib/` — one source of truth for every rule.
 | Backend | This repo's Next app — `app/api` and `lib/` — on Vercel, functions in `hnd1` (Tokyo) |
 | Database | Supabase Postgres, read and written only by the server's service-role client |
 | Identity | Privy — email, Google, passkeys, Solana wallets; an embedded Solana wallet for accounts without one |
-| Agent | `runAgent` in `lib/agent/` — Anthropic first, Gemini as fallback |
-| Prices | Pyth, with Binance, OKX and Hyperliquid for candles, funding and open interest |
-| On-chain | Solana — balances and history over RPC, swaps routed through Jupiter |
+| Agent | The website's chat is answered by a team (`runTeam` in `lib/agent/team/`); the app, Telegram and voice run `runAgent`. Both are Anthropic first, Gemini as fallback |
+| The Desk | A committee of models from Anthropic, Cohere, Google, Groq, OpenRouter and Mistral (OpenAI when a model is set); a seat is filled only when its key is set |
+| Prices | Pyth, with Yahoo Finance (shares, indices) and the exchanges (single coins) standing in for any feed Pyth's plan refuses; Binance, OKX and Hyperliquid for candles, funding and open interest |
+| Trading | Hyperliquid perps through an API wallet the person approved — paper by default, live only with `AUTOTRADE_LIVE=1` |
+| On-chain | Solana (swaps through Jupiter), one EVM address on Ethereum, Base, Arbitrum, BNB Chain and Robinhood Chain (swaps through LI.FI), and a Sui wallet |
 | Notifications | Telegram (website), push and an in-app inbox (Android), every five minutes |
 | Node | 24.x, pnpm 10 |
 
+## What's new
+
+Twenty features first landed on `main` between 18 and 25 November 2026 — the
+dates are each feature's first commit — followed by price fixes and launch
+hardening on 26 November. Each is described under [Features](#features).
+
+| Date | What shipped |
+|---|---|
+| 18 Nov | An AI team behind every website answer · AI funds (`/funds`) · Agent rails (`/agents`) |
+| 21 Nov | Trade from the chart · your trading record, with what-ifs, in Ask Elyra · the Daily Briefing (`/briefing`) · copy trading (`/automation/copy`) · Tokenized stocks (`/stocks`) · Simplified Chinese · Research's Arbitrage and Sentiment tabs · saved workspace layouts · voice conversations |
+| 23 Nov | The Strategy lab (`/strategies`): a designer, a library and an AI lab |
+| 25 Nov | Arena leagues · the Desk (`/desk`) · Insider watch · Paper and Live accounts · Scout (`/scout`) · Polymarket scan and baskets |
+| 26 Nov | Shares and indices priced from Yahoo Finance, and single coins from the exchanges, wherever Pyth's plan refuses a feed; one refused coin no longer blanks every crypto price; a slow Pyth call is asked twice · the Desk and leagues hardened before launch (migrations 0036 and 0037) |
+
+A 37-second film of the twenty is in `marketing/elyra-update`.
+
 ## What Elyra will and will not do
 
-**There is no order execution.** The agent reads market data and account state
-and writes analysis. No tool, route or code path places, modifies or cancels
-an order — that is enforced structurally, not by convention: `lib/exchange/`
-exposes only signed GETs and address-keyed reads, and adding execution would
-mean changing those files rather than calling them differently. Venue
-connections are read-only: a perp, an order or an exchange balance links to
-its venue.
+**Elyra's own model never moves money.** No tool in the agent's registry
+places an order or builds a transaction, and a prepared action is rebuilt by
+the server from live state, never taken from what a model wrote. The only
+tools that change anything — creating or deleting a prediction alert — run
+only when the operator's own message asks for it.
 
-The one thing Elyra finishes is a **swap or a transfer the person signs**. The
-server builds the transaction, the person's own wallet signs it, the server
-submits and confirms it — and a prepared action becomes `confirmed` only with
-that signature.
+Money moves in three ways, each with one path in the code:
+
+- **Swaps and transfers the person signs.** The server builds the
+  transaction, the person's own wallet signs it, and the server submits and
+  confirms it; a prepared action becomes `confirmed` only with that
+  signature. Solana goes through `lib/wallet/runSwap.ts`, the EVM chains
+  through `lib/wallet/runEvmTx.ts`, and Sui through `lib/wallet/runSuiTx.ts`.
+  No Solana swap reaches the wallet until the swap guard has simulated it.
+- **Hyperliquid perps through trading automation.** The person approves an
+  API wallet from their own wallet: a key that can place and cancel orders
+  and cannot withdraw. Rules, the chart's ticket, limit orders, copy trading,
+  Scout's auto-buys, AI funds and agent rails all trade through
+  `lib/autotrade/` — market orders through `openMarketTrade`, resting limit
+  orders through `orders.ts` — and every close goes through `closeTrade`.
+  Every entry carries its take-profit and stop-loss and is held to limits
+  that are constants, not settings (`LIMITS`, `accountGate`), and
+  everything starts on paper. Live orders need `AUTOTRADE_LIVE=1`, and go to
+  testnet unless `HYPERLIQUID_NETWORK=mainnet`.
+- **Outside agents, held to the person's terms.** An agent key reaches
+  `/api/mcp` and `/api/v1/tools`. It reads market data, and account data only
+  with that scope. It can ask for a swap or a payment through agent rails,
+  which the person signs, or manage an AI fund inside the charter its owner
+  wrote.
+
+Venue connections are read-only: a Binance balance, an exchange order or a
+perp elsewhere links to its venue, and nothing in `lib/exchange/` places,
+closes or cancels one. Price alerts tell you; they never trade. The Arena,
+Polymarket baskets and the Desk are points, paper and words: nothing in them
+moves money.
 
 Nothing on either client is sample data:
 
-- **The agent is live.** `runAgent` in `lib/agent/` reads real prices, funding,
-  open interest and — where an exchange is connected — real positions and
-  equity. It is reached from the web's chat panel and the app's Elyra tab,
-  where the reply streams, and from Telegram.
+- **The agent is live.** It reads real prices, funding, open interest and —
+  where an exchange is connected — real positions and equity. The website's
+  chat is answered by a team of agents; the app's Elyra tab, voice and
+  Telegram call `runAgent`. Replies stream, and their sources come from what
+  the tools returned.
 - **The ledger is the account's own.** Holdings, venue perps and DeFi
-  deposits come from `/api/portfolio`, marked to the live Pyth price, and
-  History reads the wallet's transactions. Signed out, a surface asks you to
-  connect; an empty list means the read succeeded and found nothing.
-- **Automation is price alerts.** Set on the chart, in Telegram or in the app,
-  checked every five minutes by the delivery worker, and sent to a linked
-  Telegram chat and to the app as a push and an inbox entry. A rule tells you;
-  it never trades.
+  deposits come from `/api/portfolio`, marked to live prices, and History
+  reads the wallets' transactions. Signed out, a surface asks you to connect;
+  an empty list means the read succeeded and found nothing.
+- **A record is only what happened.** A copy-trading set, an AI fund, the
+  Desk's scoreboard and the Arena's ladders show only what was traded,
+  settled or scored. Elyra's own copy-trading sets trade on paper and say
+  so, and a backtest is always labelled as one.
 
 `docs/ELYRA_BRAND.md` is the source of truth for colour, type, spacing and
 voice, on both clients. Every token is declared once in `app/globals.css`;
@@ -124,6 +170,14 @@ holds a colour value.
   whichever account is on, and a signal card's Paper trade tries a signal
   without a fill. The balance is the trades it is made of, and it resets to
   $100,000 when nothing is open.
+- **Trading automation** (`/automation`). Rules that trade Hyperliquid perps
+  by themselves: a strategy, a market and a timeframe, read on Hyperliquid's
+  own candles every five minutes, each entry with its take-profit and
+  stop-loss, inside limits that are constants, not settings (`LIMITS` in
+  `lib/autotrade/rules.ts`). Limit orders rest on the book, and Trade now
+  places a market order. The markets are Hyperliquid's crypto and memecoin
+  perps and trade[XYZ]'s Nasdaq stock perps. Every rule starts on paper and
+  goes live only from its own switch, with `AUTOTRADE_LIVE` set.
 - **Copy trading** (`/automation/copy`). Group your automation rules into
   sets and share one under your Arena handle, or copy someone else's. When a
   copied set's rule enters, the same trade opens in your account on the same
@@ -136,7 +190,11 @@ holds a colour value.
   1280px). It leads with a decision brief for the selected market — range,
   EMA, pivots, your exposure, your nearest alert — and answers questions with
   streamed replies, the tools it used, and sources taken from what those
-  tools returned. It accepts images, PDFs and text files, and dictation.
+  tools returned. It accepts images, PDFs and text files, and dictation. On
+  the website a team answers: Research gathers figures with the tools,
+  Strategy reviews them, Execution checks any request to move capital, and
+  an orchestrator writes the one reply, with every figure traced to a tool
+  result (`lib/agent/team/`).
   Ask about any token and it pulls several sources into one summary:
   - "Tell me about SOL": price (Pyth), market cap, rank, FDV, volume and
     supply (CoinGecko). For a Solana token it adds holders, liquidity, flows
@@ -160,6 +218,12 @@ holds a colour value.
   trades. For a what-if, it replays them on Hyperliquid's candles with the
   exits you name, liquidation included, and says what the replay assumes.
   Each rule on `/automation` offers both questions.
+
+  **Voice conversations.** Start one and talk; Elyra answers aloud in the
+  voice you pick, the microphone is off while it speaks, and three silent
+  turns pause it. A spoken order is read by code, not the model: it becomes
+  a ticket, read back to you, and a spoken "confirm" may place paper only —
+  live money needs a tap (`lib/voice/`).
 - **Capital Intelligence** (`/personalized`). Questions about your own money,
   answered from a context assembled deterministically before any model is
   called: holdings, venues, DeFi, preferences you have saved ("keep any one
@@ -167,14 +231,24 @@ holds a colour value.
   numbers it was given — and a reasoning question is checked by a second
   model for unsupported figures before it is answered
   (`lib/personalized/orchestrator.ts`).
-- **Portfolio and assets** (`/portfolio`, `/assets`). The wallet, Hyperliquid
-  and Binance in one ledger, with holdings, DeFi deposits and history. Swaps
-  and transfers are built by the server and signed in your wallet.
+- **Portfolio and assets** (`/portfolio`, `/assets`). Your wallets on seven
+  networks — Solana, one EVM address on Ethereum, Base, Arbitrum, BNB Chain
+  and Robinhood Chain, and a Sui wallet — with Hyperliquid and Binance in one
+  ledger: holdings, DeFi deposits, history, and the equity curve, returns,
+  drawdown and a daily P&L calendar, from a daily close written for every
+  account with a wallet. Tokens outside Elyra's verified lists are shown as
+  unverified and never counted. Swaps and transfers are built by the server
+  and signed in your wallet.
+- **Intelligent Portfolios** (`/invest`). Published model portfolios —
+  Treasury income, balanced income and more — that you buy holding by
+  holding into your own wallet. What a portfolio holds is counted only from
+  proven fills, and held to the real wallet balance (`lib/invest/`).
 - **Tokenized stocks** (`/stocks`). Every tokenized stock and ETF Elyra knows,
   grouped by the share behind it. The issuers are Sunrise (Backpack/Trek
   tokens), Backed's xStocks and Ondo on Solana, and Robinhood on Robinhood
   Chain. For each share it shows:
-  - the share's price, from Pyth;
+  - the share's price, from Pyth — or from Yahoo Finance while Pyth's plan
+    does not cover equities, labelled as such;
   - each token's on-chain price and its premium to one share;
   - how that issuer mints and redeems (the primary market);
   - where the token trades (the secondary market).
@@ -185,7 +259,7 @@ holds a colour value.
   confirmation clear their eligibility rules: no US persons, PRC residents
   or sanctioned jurisdictions. Robinhood's are shown, not traded. See
   `lib/sunrise/` and `lib/equities/`.
-- **Research** (`/research`). Nine tabs:
+- **Research** (`/research`). Ten tabs:
   - Reports: PDFs, stored privately.
   - Backtests: a strategy engine with robustness checks and PDF results. A
     result on a market and timeframe that a rule can trade offers "Run on
@@ -193,6 +267,11 @@ holds a colour value.
     strategy and parameters.
   - Prediction Markets: Polymarket, read-only.
   - Market Recap and Signals.
+  - Insider watch: fresh Hyperliquid wallets whose first trade is big, found
+    in Hyperliquid's public records every five minutes, with where the entry
+    sat in the week before and how the bet has gone since. A flag is a
+    pattern, never proof or an accusation. A watch lights the bell when one
+    is flagged (`lib/insider/`).
   - Arbitrage: Hyperliquid's perps against Binance's spot and perps. It shows
     the basis and the funding gap net of taker fees, and how many days a
     funding gap takes to pay its fees. These are observations; Elyra trades
@@ -206,6 +285,58 @@ holds a colour value.
   from EDGAR.
 - **Signals.** Elyra's own market signals, smart-money consensus from the
   Hyperliquid leaderboard, and the external signal engine when it is running.
+- **Strategies** (`/strategies`). Trading rules as data: a designer for entry
+  and exit conditions over prices, averages, RSI, MACD, Bollinger bands and
+  more, with risk limits; a library of well-known strategies, each written
+  with how it tends to fail; and an AI lab that proposes strategies in the
+  same vocabulary, checks each one and backtests what survives. Every design
+  is backtested on Binance's candles, and a result can become a new paper
+  rule. Nothing here trades (`lib/strategies/`).
+- **Scout** (`/scout`). Paste a YouTube video, a post on X or an article, and
+  Scout lists its claims, keeps only those whose quote is really in the
+  source, and grades each by its evidence — a listing claim is confirmed only
+  by the named exchange's own feed. Smart money shows what the leaderboard's
+  wallets actually did, counted by wallet. Auto-buys fire only on signals
+  code detects, never on a read, and are paper unless you choose live. Poly
+  scan and Poly baskets read Polymarket; baskets are paper only. It runs on
+  free sources (`docs/SCOUT.md`).
+- **The Desk** (`/desk`). A committee of AI models from several labs —
+  Anthropic's chair and seats, Cohere, Gemini, and open models on Groq,
+  OpenRouter and Mistral — forecasts one question the market settles: will
+  this market close above its price now, in four hours, a day or a week?
+  Members read one fact sheet built by code, work independently, review each
+  other's views anonymised, and vote; code pools the vote, weighted by each
+  seat's measured accuracy, and the chair writes the memo with the dissent.
+  Every forecast is scored when the market settles, and the scoreboard shows
+  whether the committee beats its best member. Words only — it never trades
+  (`docs/DESK.md`).
+- **Arena** (`/arena`). Trading as a game and a sport, in six tabs: Today, a
+  daily chart puzzle, leagues — friends snake-draft markets and play a season
+  of head-to-head rounds scored on Hyperliquid's daily opens — calls with
+  tamper-evident receipts, your closed trades reviewed beside a paper
+  ticket, and ladders ranked on judgment (the puzzle rating and the calls'
+  Brier score, never profit). Points and paper only: no buy-in, no prize,
+  nothing staked (`docs/ARENA.md`).
+- **AI funds** (`/funds`). An autonomous fund over your own capital: you
+  write the charter, an agent key manages it, and Elyra is the administrator
+  and risk officer — every order is checked against the charter on a fresh
+  price, and a fund that hits its drawdown limit is halted and flattened.
+  Every fund starts on paper and reaches live only by graduating; Elyra holds
+  no key that can withdraw (`docs/AI_FUNDS.md`).
+- **Agents** (`/agents`). Agent keys for outside AI agents, over MCP and a
+  REST mirror, and agent rails: a mandate you grant lets an agent ask for a
+  swap, a payment or a perp order. Each ask is priced, its payee screened
+  against the OFAC list, decided and recorded in a hash-chained ledger; swaps
+  and payments are signed in your own wallet, and payment requests are
+  Solana Pay links with a public page at `/pay/[id]`
+  (`docs/AGENT_API.md`, `docs/AGENT_RAILS.md`).
+- **World markets** (`/markets`). Every exchange priced in its own currency,
+  with its session hours and holidays from the schedule Pyth publishes, and
+  a short brief written from the prices. A market whose local feeds are not
+  live shows through funds and New York listings, labelled as such.
+- **Events** (`/events`). A feed only Elyra's AI posts to: a new hack from
+  DefiLlama's record, an 8% move in BTC, ETH or SOL, or an anniversary from a
+  reviewed history, each written from its facts. You like, save and share.
 - **Daily briefing** (`/briefing`). Ten crypto developments every morning at
   08:00 Beijing time (00:00 UTC), in English and Simplified Chinese, each with
   its sources linked. Each item comes from six newsrooms' RSS feeds, Snapshot
@@ -231,32 +362,38 @@ Adapter, and everything Telegram does on the website happens natively. See
 ## Architecture
 
 ```
-   Website (browser)         Android app (Expo)          Telegram
-   Next.js pages             Expo Router screens         bot + Mini App
+   Website (browser)         Android app (Expo)          Telegram · outside agents
+   Next.js pages             Expo Router screens         bot + Mini App · MCP and REST
           │                          │                        │
-          │      HTTPS, Privy access token on every call      │ webhook
+          │      HTTPS, Privy access token on every call      │ webhook · agent key
           └──────────────┬───────────┴────────────────────────┘
                          ▼
          app/api — one API for every client (Vercel, hnd1)
          lib/    — shared logic; its pure half is imported by the app
                          │
-   ┌───────────┬─────────┼───────────┬──────────────┬─────────────────┐
-   ▼           ▼         ▼           ▼              ▼                 ▼
- Supabase    Privy    runAgent    Market data     Solana            Companion
- Postgres    verify   Anthropic   Pyth, Binance,  RPC, Jupiter,     services
- (+ pg_cron  tokens   → Gemini    OKX,            Birdeye           signal engine,
- delivery)                        Hyperliquid                       smart-money tracker
+   ┌─────────┬───────────┼───────────┬─────────────┬─────────────┬─────────────┬──────────────┐
+   ▼         ▼           ▼           ▼             ▼             ▼             ▼              ▼
+ Supabase  Privy       runAgent,   The Desk      Market data   Chains        Hyperliquid    Companion
+ Postgres  verify      runTeam     Anthropic,    Pyth; Yahoo   Solana, EVM,  /exchange      services
+ (+ pg_cron tokens     Anthropic   Cohere,       stand-ins;    Sui; Jupiter, (automation    signal engine,
+ jobs)                 → Gemini    Gemini, …     Binance, OKX, LI.FI         only)          smart-money
+                                                 Hyperliquid                                tracker
 ```
 
 - **One API.** Every client goes through `app/api`. The app never talks to
   Supabase, an RPC, Pyth, Jupiter, an exchange or a model provider directly.
-- **One agent.** `runAgent` is the whole system; the website, the app and
-  Telegram each call it and hold no prompt text or tool definitions.
+- **One agent loop.** `runAgent` and the website's team (`runTeam`) share
+  `toolLoop` (`lib/agent/loop.ts`) and the conversation's storage; no surface
+  holds prompt text or tool definitions.
+- **One path for each kind of money.** Orders through `lib/autotrade/`, with
+  one close path (`closeTrade`); swaps through `runSwap`, `runEvmTx` and
+  `runSuiTx`. See [What Elyra will and will not do](#what-elyra-will-and-will-not-do).
 - **One delivery pass.** Each notification event is claimed once and fanned
   out per channel: Telegram for a linked chat, a push and the inbox for an
   app device.
-- **Keys stay on the server.** Every upstream key — Pyth, the paid RPC,
-  Jupiter, Birdeye, the models — is attached server-side. The only values a
+- **Keys stay on the server.** Every upstream key — Pyth, the paid RPCs,
+  Jupiter, Birdeye, the models, a person's encrypted Hyperliquid API wallet —
+  is attached server-side. The only values a
   client sees are `NEXT_PUBLIC_` (website) and `EXPO_PUBLIC_` (app) ones.
 
 ## Tech stack
@@ -269,7 +406,7 @@ Adapter, and everything Telegram does on the website happens natively. See
 | UI primitives | Radix (dialog, tabs, tooltip, scroll area), lucide-react | @gorhom/bottom-sheet, lucide-react-native, react-native-svg |
 | State | zustand 5 | zustand 5 over AsyncStorage |
 | Auth | `@privy-io/react-auth`, `@privy-io/node` | `@privy-io/expo`, react-native-passkeys, Mobile Wallet Adapter |
-| Solana | `@solana/kit` and `@solana-program/*` | signing only — the server builds every transaction |
+| Chains | `@solana/kit` and `@solana-program/*` (Solana), `viem` (EVM), `@mysten/sui` (Sui) | Solana signing only — the server builds every transaction |
 | Data | `@supabase/supabase-js` (server only) | the API only |
 | Charts | TradingView `tv.js` widget | TradingView widget in an allowlisted WebView |
 | PDFs | `@react-pdf/renderer` | expo-sharing |
@@ -283,9 +420,11 @@ Adapter, and everything Telegram does on the website happens natively. See
 ```
 app/                 the Next.js app
   page.tsx             returns null — Home *is* the workspace AppShell mounts
-  agent/ dashboard/ portfolio/        routes that open beside the chart
+  agent/ dashboard/ portfolio/ stocks/ invest/ automation/ strategies/
+  arena/ desk/ scout/ funds/ agents/ markets/ events/ briefing/
+                       routes that open beside the chart
   assets/ personalized/ referrals/ research/   full-bleed routes
-  telegram/            the Telegram Mini App (no shell)
+  telegram/ pay/       standalone: the Telegram Mini App, a payment request's page
   r/[code]/            referral links
   api/                 the one API both clients use (see "The API")
   .well-known/         assetlinks.json for Android App Links and passkeys
@@ -295,12 +434,19 @@ components/          the website's components
   panels/              the chart, its alerts, smart money
   agent/               Ask Elyra, the decision brief, signals, SEC research
   personalized/        Capital Intelligence
-  research/            the seven Research tabs
+  research/            the ten Research tabs
+  trade/ automation/ copy/ paper/   the chart's ticket, rules, copy trading, Paper
+  arena/ desk/ scout/ strategies/ funds/ rails/
+  markets/ events/ briefing/ equities/ invest/
   assets/ portfolio/ wallet/ connections/ referrals/ telegram/ ui/
 lib/                 shared logic; the pure half (listed in lib/core.ts) is imported by the app
-  agent/               runAgent: the loop, prompt, tools, providers, sources
+  agent/               runAgent and the team: the loop, prompts, tools, providers, sources
   personalized/        Capital Intelligence: intent, context, orchestration
-  market/              Pyth, Binance, OKX, Hyperliquid; indicators, levels, precision
+  market/              Pyth and its Yahoo and exchange stand-ins; Binance, OKX,
+                       Hyperliquid; indicators, levels, precision
+  autotrade/ copy/ paper/ funds/ rails/ agentApi/   everything that places an order or asks for one
+  arena/ desk/ scout/ poly/ strategies/ insider/ events/ briefing/ markets/
+  equities/ invest/ sunrise/ evm/ sui/ voice/ i18n/
   exchange/            read-only venue clients; credentials encrypted at rest
   portfolio/ wallet/ solana/ actions/ alerts/ notifications/
   research/ backtest/ prediction/ smartmoney/ signals/ referrals/ telegram/
@@ -310,7 +456,10 @@ lib/                 shared logic; the pure half (listed in lib/core.ts) is impo
   env.ts               every environment variable is read here
 supabase/            migrations, the schema notes and the delivery scheduler
 scripts/             Telegram webhook, Supabase setup, migration bundling, smoke test
-docs/                brand, providers, deploy, release, QA, Telegram, porting map, store, legal
+docs/                brand, providers, deploy, release, QA, Telegram, porting map, store, legal,
+                     and one per product: Arena, the Desk, Scout, copy trading, AI funds,
+                     agent rails, the agent API
+marketing/           the launch film, the teaser and the update film (Remotion projects)
 mobile/              the Android app — a standalone Expo project
   src/app/             Expo Router screens (tabs: Markets, Portfolio, Elyra, Research, Account)
   src/components/      the app's components
@@ -371,7 +520,7 @@ without it. In summary:
 
 | Variable | Without it |
 |---|---|
-| `PYTH_API_KEY` (`PYTH_API_URL`) | No prices; the dashboard shows its error state |
+| `PYTH_API_KEY` (`PYTH_API_URL`) | No prices; the dashboard shows its error state. With a key whose plan refuses a feed, that feed is priced from Yahoo Finance or the exchanges instead, and labelled as such |
 | `SOLANA_RPC_URL` | Wallet balances and history say the RPC is unconfigured. Use a paid endpoint; there is deliberately no fallback to the public one |
 | `NEXT_PUBLIC_SOLANA_RPC_URL` | Signing fails in Privy's confirm modal. A **separate**, browser-safe key restricted to your domains. Treat it as required |
 | `JUPITER_API_KEY` | Pricing falls back to Jupiter's keyless tier and drops prices under load |
@@ -383,12 +532,20 @@ without it. In summary:
 | `CRON_SECRET` | The delivery route accepts only `TELEGRAM_WEBHOOK_SECRET` |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | The market cache uses the `market_cache` table — slower, still correct |
 | `ELYRA_ENGINE_URL`, `SMART_MONEY_TRACKER_URL` | Those panels say the service is unreachable |
+| `COHERE_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY` | Those seats at the Desk stay empty. The Desk needs two voting seats; the Anthropic seats use `ANTHROPIC_API_KEY` and the cross-market seat `GEMINI_API_KEY`. Each seat's model can be changed with its `DESK_*_MODEL` |
+| `OPENAI_API_KEY` with `DESK_GENERALIST_MODEL` | The Desk's paid generalist seat stays empty; it has no default model |
+| `AUTOTRADE_LIVE`, `HYPERLIQUID_NETWORK` | Every rule, ticket, copy and fund trades on paper. `AUTOTRADE_LIVE=1` lets live orders be sent at all; they go to testnet unless `HYPERLIQUID_NETWORK=mainnet` |
+| `ETHEREUM_RPC_URL`, `BASE_RPC_URL`, `ARBITRUM_RPC_URL`, `BSC_RPC_URL`, `ROBINHOOD_RPC_URL` | That chain's balances are not read. The node's chain id is checked on every read |
+| `SUI_GRAPHQL_URL` | Sui is read from the public endpoint, which is rate-limited |
+| `COINGECKO_API_KEY` | Market cap, rank, FDV and supply come from CoinGecko's public API at a lower rate limit |
+| `TOKENOMIST_API_KEY`, `COINMARKETCAL_API_KEY` | The unlocks surface says its data is not configured |
 
 **Tuning and the app**
 
 | Variable | Purpose |
 |---|---|
 | `ANTHROPIC_MODEL` | The primary model |
+| `ANTHROPIC_EFFORT` | How hard Claude thinks per step (`lib/agent/effort.ts`): `model` restores the model's default, `low`, `medium` or `high` sets every step |
 | `AGENT_MAX_RUNS_PER_DAY` | Agent runs per account per UTC day (default 100) |
 | `APP_URL` | Absolute origin for the Telegram webhook and deep links |
 | `NEXT_PUBLIC_REFERRAL_BASE_URL` | Where referral links point (default `https://getelyra.xyz`) |
@@ -410,8 +567,12 @@ filters by `user_id`.
 
 Apply the files in `supabase/migrations/` in order — each is idempotent — or,
 on a fresh database, paste `supabase/migrations/_apply_all.sql` into the SQL
-editor (rebuild it with `pnpm supabase:bundle`). `supabase/README.md` lists
-every table.
+editor (rebuild it with `pnpm supabase:bundle`). The files run from `0001`
+to `0037`: `0002` (smart money) comes from the signals repo and lives inside
+the bundle, and there is no `0026`. `supabase/README.md` describes the
+original tables; for everything since — trading automation, the Arena, the
+Desk and the rest — each migration's header says what its tables are for,
+and the product docs in `docs/` list them.
 
 Two more one-time steps:
 
@@ -439,9 +600,21 @@ first hour after 00:00 UTC, with the same Vault secrets, so the briefing's two
 model calls get a function's whole 300 seconds instead of sharing the
 five-minute tick's.
 
+A third job, `elyra-portfolio-track` (`0034_portfolio_tracking.sql`), writes
+each account's daily close a little after 00:00 UTC, net of deposits and
+withdrawals; the Portfolio page's equity curve and returns are built from it.
+
+Before delivering, the tick runs every pass that works in the background, in
+this order, each capped per run and each failing on its own: trading
+automation, copy trading, AI funds, the Arena (calls, reviews, cards and
+league rounds), Events, the Desk's settlements, agent rails, Insider watch
+and Scout. A position row, a fire or a settlement is written before anything
+is sent, so a bar never trades twice and a result is announced once.
+
 One delivery pass claims each event and fans it out per channel: Telegram for
 a linked chat, a push and the inbox for an app device. Notification
-preferences apply to every channel.
+preferences apply to every channel; trade notices are not subject to alert
+preferences.
 
 ### Telegram (website only)
 
@@ -554,7 +727,7 @@ A trading workspace: a slim rail, a fixed header, and a page that scrolls
 under it.
 
 ```
-64px   header: wordmark · Trading workspace · search (⌘K) · status · alerts · account
+64px   header: wordmark · Trading workspace · search (⌘K) · Live | Paper · status · alerts · account
 rail   account strip: value + 24h P&L · available · positions · 7-day line
                       · pending-action badge · column toggles · Focus chart
        256px          1fr                                 364px
@@ -764,11 +937,12 @@ the header switches between them.
 - **The agent.** Elyra's replies follow the reader's language. The chat route
   reads the same cookie and adds a reply-language line to the operator
   context (`buildUserContext`). The pinned system prompts are unchanged.
-- **Still in English.** Text written by the server or by data: API error
-  messages, the Events feed's posts, SEC filing descriptions, backtest
-  strategy descriptions and Asset Passport facts. The Android app and the
-  Telegram bot are English only. The Daily Briefing is written in both
-  languages.
+- **Still in English.** Text written by the server, by data or by a model:
+  API error messages, the Events feed's posts, the Desk members' reasoning
+  and the chair's memo, SEC filing descriptions, backtest strategy
+  descriptions and Asset Passport facts. The Desk's fact sheet, statement and
+  code-written memo are translated. The Android app and the Telegram bot are
+  English only. The Daily Briefing is written in both languages.
 
 # The API
 
@@ -782,18 +956,27 @@ id never comes from a request body. The routes, by area:
 | Account | `/api/account` | Account deletion (the app's in-app deletion) |
 | | `/api/exchanges` | Read-only venue connections — list, connect, remove |
 | | `/api/watchlist`, `/api/referrals` | The watchlist; the referral code, points and referred accounts |
-| Agent | `/api/agent/chat` | Ask Elyra — streamed as newline-delimited JSON with `stream: true` |
-| | `/api/agent/transcribe` | Dictation for browsers without speech recognition |
+| Agent | `/api/agent/chat` | Ask Elyra — streamed as newline-delimited JSON with `stream: true`; `team: true` (the website) gets the team |
+| | `/api/agent/transcribe`, `/api/agent/speak` | Dictation for browsers without speech recognition; Elyra's spoken replies |
 | | `/api/personalized/*` | Capital Intelligence: chat, context, insights, conversations, memory, and actions it prepares and confirms |
-| Market | `/api/market/assets`, `/prices` | The Pyth catalogue and batched prices |
+| Market | `/api/market/assets`, `/prices` | The Pyth catalogue and batched prices; each row names its `source` (Pyth, Yahoo Finance or an exchange) |
+| | `/api/market/book` | Hyperliquid's order book, for the ticket's limit prices and fill preview |
+| | `/api/markets/*`, `/api/equities`, `/api/events`, `/api/briefing/*` | World markets, tokenized stocks, the Events feed, the Daily Briefing |
 | | `/api/market/levels`, `/pulse`, `/signals` | Pivot levels, the Hyperliquid pulse, Elyra's signals |
 | | `/api/signals` | Proxy to the signal engine, with what its last cycle did |
 | | `/api/smart-money`, `/api/tracker/*` | Smart-money findings; the tracker's signals, wallets and stream |
 | Portfolio | `/api/portfolio`, `/history` | The account's ledger, marked to Pyth; its value over time |
 | | `/api/wallet`, `/activity` | Wallet balances and transaction history |
-| Transactions | `/api/swap/tokens`, `/build`, `/submit` | Jupiter swaps: the server builds, the wallet signs, the server submits |
+| Transactions | `/api/swap/tokens`, `/build`, `/submit`, `/orders` | Solana swaps (Jupiter, and Sunrise's routes for its stocks): the server builds, the wallet signs, the server submits |
+| | `/api/evm/*`, `/api/sui/*` | Sealed EVM and Sui transactions, built by the server and checked again at submit |
 | | `/api/transfer/build`, `/submit`, `/status` | Transfers, the same way |
 | | `/api/actions` | Prepared actions awaiting review |
+| Trading | `/api/automation/*` | Rules, limit orders, market orders, positions (close all or part, move exits), and approving the Hyperliquid API wallet (`/api/automation/agent`) |
+| | `/api/paper`, `/api/copy/*` | The Paper account; copy-trading sets and follows |
+| | `/api/strategies/*`, `/api/invest/*` | Strategy designs, the library and the AI lab; Intelligent Portfolios and their proven fills |
+| Agents and funds | `/api/agent-keys`, `/api/rails/*`, `/api/funds/*` | Agent keys, mandates, intents and payment requests, AI funds |
+| | `/api/mcp`, `/api/v1/tools` | The agent API: MCP over Streamable HTTP and its REST mirror — an agent key only, never a session |
+| Arena, Desk, Scout | `/api/arena/*`, `/api/desk`, `/api/scout`, `/api/poly/*`, `/api/insider/*` | The Arena and its leagues, the Desk, Scout and Polymarket baskets, Insider watch |
 | Alerts and notifications | `/api/alerts` | Price alert rules |
 | | `/api/notifications`, `/preferences`, `/read`, `/test` | The inbox, preferences for every channel, read state, a test send |
 | | `/api/notifications/deliver` | The delivery pass, behind `CRON_SECRET` |
@@ -810,12 +993,23 @@ id never comes from a request body. The routes, by area:
 
 # The agent
 
-One function is the whole system, shared by the website, the Android app and
-Telegram. Every surface calls it and nothing else:
+Two entry points share one loop (`toolLoop`, `lib/agent/loop.ts`), one
+prompt, one tool registry and one conversation store:
 
 ```ts
 runAgent({ userId, conversationId, message, surface, onEvent? }): Promise<{ reply, runId, sources }>
+runTeam(...)   // the website's chat, when the body says team: true
 ```
+
+- **`runAgent`** answers the Android app, Telegram and voice conversations.
+- **`runTeam`** (`lib/agent/team/`) answers the website's chat. Code decides
+  who works on a question (`classifyIntent`); a lookup goes to Research
+  alone. Research gathers figures with the tools; Strategy reviews its notes
+  and may send one follow-up back; Execution checks the server-built preview
+  of any request to move capital; the orchestrator writes the one reply.
+  Every figure in the reply is traced to a tool result (`traceFigures`), and
+  one that does not trace is reported, not removed. A question claims one
+  run however many members work it.
 
 No surface holds prompt text, tool definitions or provider logic.
 
@@ -831,7 +1025,10 @@ No surface holds prompt text, tool definitions or provider logic.
 - `lib/agent/tools/` — the tool registry: market snapshots, candles, funding
   and open interest; the portfolio, risk, DeFi and open orders; prediction
   markets; company research (`lib/research/tool.ts`) and backtests
-  (`lib/backtest/tool.ts`). A tool learns who is asking from a verified identity, never from a
+  (`lib/backtest/tool.ts`); five read-only market-analysis tools — a token's
+  overview, its safety score, sentiment, a macro snapshot and deep research
+  (`lib/agent/tools/analysis.ts`); and the person's own trading record and
+  what-if replays (`lib/agent/tools/trading.ts`). A tool learns who is asking from a verified identity, never from a
   tool argument: a model that could pass an address could be talked into
   passing someone else's.
 - `lib/market/` — Binance, Hyperliquid and OKX behind one interface, with a
@@ -844,7 +1041,12 @@ No surface holds prompt text, tool definitions or provider logic.
 - `app/api/agent/chat` — the website and the app, streamed as
   newline-delimited JSON. `app/api/telegram/*` — the bot.
 - Runs are capped per account per UTC day (`AGENT_MAX_RUNS_PER_DAY`, default
-  100), counted in `usage_counters`; every run is logged in `agent_runs`.
+  100), counted in `usage_counters` and shared by the agent, Ask Elyra, the
+  Desk and the AI lab; every run is logged in `agent_runs`.
+- Claude thinks before it answers, at an effort set per step
+  (`lib/agent/effort.ts`): the reviews, voice and the Desk's seats low, the
+  rest medium. The thinking counts against a call's token budget, so every
+  call is given room for both.
 
 **Capital Intelligence** (`lib/personalized/`) is the other way Elyra uses a
 model, and deliberately a different one. It classifies the question's intent,
@@ -1049,7 +1251,8 @@ status, and rows are ticked off as they ship. Nothing ships while a row says
 # Deployment
 
 The website and the API are one Next.js app on Vercel, on the free (Hobby)
-plan. `api.getelyra.xyz` serves it; `docs/DEPLOY.md` records the current
+plan. `api.getelyra.xyz` and `try.getelyra.xyz` serve it, and
+`getelyra.xyz`'s Launch buttons lead to `try.getelyra.xyz`; `docs/DEPLOY.md` records the current
 production status — the Supabase project, migrations, the schedule, the
 domains and what is still open — and the steps to change any of it.
 
@@ -1096,6 +1299,10 @@ After a deploy, `pnpm smoke` checks the live API.
 | The server will not start: "Missing required environment variables: …" | Every required variable is listed at once; fill them in `.env.local` |
 | The build fails during render with a Privy error | `NEXT_PUBLIC_PRIVY_APP_ID` must be exactly 25 characters |
 | Prices say they are unavailable | `PYTH_API_KEY` is not set |
+| A price is labelled Yahoo Finance, Binance, OKX or Hyperliquid | Pyth's plan refuses that feed, so a stand-in priced it. Ask Pyth to add the grant; Pyth answers again by itself within 15 minutes |
+| The Desk says it needs at least two seated members | Fewer than two voting seats have keys; set `COHERE_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` or `MISTRAL_API_KEY` beside `ANTHROPIC_API_KEY` |
+| The Desk or the Arena's League tab says a migration is missing | Apply `0037_desk.sql` or `0036_arena_leagues.sql` |
+| Automation never sends a live order | `AUTOTRADE_LIVE=1` is not set, or the rule is still on paper. Live orders go to testnet unless `HYPERLIQUID_NETWORK=mainnet` |
 | Every server read fails with `TypeError: fetch failed` | The Supabase project is unreachable or deleted — run `pnpm supabase:setup` |
 | A transfer dies in Privy's confirm modal: "There was an error preparing your transaction" (console: `HTTP error (403)`) | `NEXT_PUBLIC_SOLANA_RPC_URL` is unset; Solana's public endpoint refuses browser origins |
 | Wallet balances return 429 | `SOLANA_RPC_URL` points at the public endpoint; use a dedicated one |
@@ -1118,8 +1325,10 @@ for the app). The rules that catch people most often:
   holds a colour, and there is no fallback to Tailwind's default palette.
 - **No sample data.** `lib/mock/` is gone and must not come back. A new
   surface subscribes to a shared store rather than fetching for itself.
-- **No execution.** Venue connections stay read-only; the only thing finished
-  here is a swap or transfer signed in the person's wallet.
+- **No new path to money.** Elyra's model never moves money. Orders go only
+  through `lib/autotrade/`, closes only through `closeTrade`, swaps only
+  through `runSwap`, `runEvmTx` and `runSuiTx`, and venue connections stay
+  read-only.
 - **The geometry has one authority**: `lib/layout.ts`. The chart is never the
   column that pays, and it is never a route.
 - **The app imports only pure modules** listed in `lib/core.ts`, and has no
@@ -1144,6 +1353,10 @@ for the app). The rules that catch people most often:
 - `docs/QA.md` and `docs/verification/` — the manual QA list and its recorded
   runs.
 - `docs/store/` — the dApp Store listing, screenshots and publishing notes.
+- `docs/ARENA.md`, `docs/DESK.md`, `docs/SCOUT.md`, `docs/COPY_TRADING.md`,
+  `docs/AI_FUNDS.md`, `docs/AGENT_RAILS.md` and `docs/AGENT_API.md` — one per
+  product: how it works, its tables and its routes. `docs/ARENA_REAL_MONEY.md`
+  holds real-money ideas, design only.
 - `docs/TELEGRAM.md` — BotFather setup, the link flow, and the security
   boundaries: why a tap is not a signature, why `callback_data` carries an
   opaque handle, and why `initDataUnsafe` is never trusted.

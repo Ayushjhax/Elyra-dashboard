@@ -83,6 +83,13 @@ export interface WalletResponse {
   unconfigured: boolean;
   /** RPC round trip, in ms. Feeds the health meter. */
   latencyMs: number | null;
+  /**
+   * Privy answered, and listed no Solana wallet on the account. Distinct from
+   * an `error` naming the same thing, so a client that already holds the
+   * address — Privy creates the wallet in the browser just after sign-in —
+   * can tell the server is a moment behind it rather than show both.
+   */
+  noWallet?: boolean;
 }
 
 /* ---------------------------------------------------------------------------

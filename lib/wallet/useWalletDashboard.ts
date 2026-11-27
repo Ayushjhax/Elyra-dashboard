@@ -36,9 +36,30 @@ const POLL_MS = 30_000;
 /** After a failure. A failing endpoint must not be asked twice as often. */
 const RETRY_MS = 60_000;
 
+/* ---------------------------------------------------------------------------
+   The server a moment behind the browser.
+
+   Privy creates the Solana wallet in the browser just after sign-in
+   (`createOnLogin`), so the first read can reach the server before the wallet
+   exists and come back "no Solana wallet" while the browser, a second later,
+   holds its address. The panel then named the address and denied it at once,
+   for a whole `RETRY_MS`.
+
+   So when the server says there is no wallet and the browser knows one, the
+   read is not an answer yet: the panel keeps checking and asks again just
+   past the server's five-second hold on a null lookup
+   (`ADDRESS_UNRESOLVED_TTL_MS` in lib/auth/session.ts). A bounded number of
+   times: if the two still disagree after that, it is not a race, and the
+   server's answer is shown.
+--------------------------------------------------------------------------- */
+const CATCH_UP_MS = 6_000;
+const CATCH_UP_TRIES = 5;
+
 interface WalletState {
   snapshot: WalletSnapshot | null;
   error: string | null;
+  /** The last read: Privy answered and listed no Solana wallet. */
+  noWallet: boolean;
   unconfigured: boolean;
   latencyMs: number | null;
   /** True until the first attempt settles, whatever its outcome. */
@@ -54,6 +75,7 @@ interface WalletState {
 const INITIAL: WalletState = {
   snapshot: null,
   error: null,
+  noWallet: false,
   unconfigured: false,
   latencyMs: null,
   loading: true,
@@ -91,6 +113,16 @@ let generation = 0;
 
 /** Whose wallet the store holds: the Privy account it was read for. */
 let owner: string | null = null;
+
+/**
+ * The Solana address the browser's Privy session holds, handed in by the
+ * hook like `fetcher`. Only ever a reason to ask again: the server reads the
+ * address from the verified session, never from here.
+ */
+let expected: string | null = null;
+
+/** Reads in a row that found the server behind the browser. */
+let catchUps = 0;
 
 function emit(next: Partial<WalletState>): void {
   state = { ...state, ...next };
@@ -134,9 +166,11 @@ async function poll(): Promise<void> {
     if (started !== generation) return;
 
     if (body.wallet !== null) {
+      catchUps = 0;
       emit({
         snapshot: body.wallet,
         error: body.error,
+        noWallet: false,
         unconfigured: false,
         latencyMs: body.latencyMs,
         loading: false,
@@ -144,15 +178,21 @@ async function poll(): Promise<void> {
         fetchedAt: Date.now(),
       });
     } else {
-      delay = RETRY_MS;
+      const noWallet = body.noWallet === true;
+      /* Read after the await, so an address that reached the browser while
+         this request was out still counts. */
+      const catchingUp = noWallet && expected !== null && catchUps < CATCH_UP_TRIES;
+      if (catchingUp) catchUps += 1;
+      delay = catchingUp ? CATCH_UP_MS : RETRY_MS;
       /* The last good snapshot stays on screen and is labelled stale. A
          balance that was true a minute ago, marked as such, is worth more
          than an empty panel — and far more than a zero. */
       emit({
-        error: body.error ?? "Wallet unavailable",
+        error: catchingUp ? null : (body.error ?? "Wallet unavailable"),
+        noWallet,
         unconfigured: body.unconfigured,
         latencyMs: body.latencyMs,
-        loading: false,
+        loading: catchingUp,
         stale: state.snapshot !== null,
       });
     }
@@ -183,6 +223,7 @@ function ensurePolling(): void {
 /** Drop everything on sign-out or an account switch. Another user's balance must never persist. */
 function reset(): void {
   generation += 1;
+  catchUps = 0;
   if (timer !== null) {
     clearTimeout(timer);
     timer = null;
@@ -247,6 +288,17 @@ export function useWalletDashboard(): WalletDashboard {
     owner = account;
     ensurePolling();
   }, [signedIn, account]);
+
+  /* The wallet reaching the browser does not change `account` (the Privy
+     user's id), so nothing above re-reads for it. If the server's last
+     answer was "no wallet", ask now rather than a retry interval later. */
+  const solanaAddress = signedIn ? auth.solanaAddress : null;
+  useEffect(() => {
+    expected = solanaAddress;
+    if (solanaAddress === null || !state.noWallet) return;
+    catchUps = 0;
+    void poll();
+  }, [solanaAddress]);
 
   /* Refetch when the tab comes back. A dashboard left open for an hour and
      then looked at should not show an hour-old balance for 30 seconds. */

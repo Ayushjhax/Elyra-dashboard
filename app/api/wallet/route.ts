@@ -49,10 +49,10 @@ const SOL_FEED_ID = 6;
 
 function fail(
   error: string,
-  { unconfigured = false, status = 200 } = {},
+  { unconfigured = false, status = 200, noWallet = false } = {},
 ): NextResponse<WalletResponse> {
   return NextResponse.json(
-    { wallet: null, error, unconfigured, latencyMs: null },
+    { wallet: null, error, unconfigured, latencyMs: null, ...(noWallet ? { noWallet } : {}) },
     { status },
   );
 }
@@ -66,11 +66,9 @@ export async function GET(request: Request): Promise<NextResponse<WalletResponse
     /* Two different failures wear the same null. Saying "no wallet" to a user
        whose wallet Privy simply could not be reached for sends them looking
        for a problem in their account instead of in this service. */
-    return fail(
-      user.addressesUnresolved
-        ? "Could not reach Privy to resolve this account's wallet address."
-        : "This account has no Solana wallet.",
-    );
+    return user.addressesUnresolved
+      ? fail("Could not reach Privy to resolve this account's wallet address.")
+      : fail("This account has no Solana wallet.", { noWallet: true });
   }
   if (!isSolanaAddress(address)) {
     /* Defence in depth. The address came from Privy, so this should be

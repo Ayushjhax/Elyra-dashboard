@@ -191,3 +191,30 @@ describe("the AI's proposals", () => {
     expect(proposalsIn({ toolCalls: [{ name: "propose_strategies", arguments: { strategies: "not json" } }], text: null })).toEqual([]);
   });
 });
+
+describe("ruleWords — the rules as the engine runs them", () => {
+  it("says the pictured 4h crossover the way the engine executes it", async () => {
+    const { ruleWords, starterDesign } = await import("@/lib/strategies/spec");
+    expect(ruleWords(starterDesign("My strategy"))).toEqual({
+      buy: "At the next bar's open when EMA(20) crosses above EMA(50).",
+      sell: "At the first of: the next bar's open after EMA(20) crosses below EMA(50); a stop 5% below the fill, inside the bar that reaches it.",
+    });
+  });
+
+  it("names a template's stop and time limit as parts of its exit", async () => {
+    const { ruleWords } = await import("@/lib/strategies/spec");
+    const rsi2 = LIBRARY.find((entry) => entry.id === "rsi2-pullback")!.design;
+    const words = ruleWords(rsi2);
+    expect(words.buy).toBe("At the next bar's open when all of Close is above SMA(200), RSI(2) is below 10.");
+    expect(words.sell).toContain(`a stop ${rsi2.risk.stopLossPct}% below the fill`);
+    expect(words.sell).toContain(`the open after ${rsi2.risk.maxBarsHeld} bars held`);
+  });
+
+  it("drops what the design leaves out, and says the engine's order when a bar reaches both levels", async () => {
+    const { ruleWords, starterDesign } = await import("@/lib/strategies/spec");
+    const base = starterDesign("x");
+    expect(ruleWords({ ...base, exit: null }).sell).toBe("At a stop 5% below the fill, inside the bar that reaches it.");
+    const both = ruleWords({ ...base, exit: null, risk: { stopLossPct: 2, takeProfitPct: 6, maxBarsHeld: null } }).sell;
+    expect(both).toMatch(/^At the first of: a stop 2% below the fill.*; a target 6% above the fill.*\. A bar that reaches both counts as the stop\.$/);
+  });
+});

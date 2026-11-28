@@ -336,4 +336,94 @@ export const strategies: Messages = {
     "尚未回测。",
   "Saved {when}":
     "保存于 {when}",
+
+  /* The drawer's redesign: Design, Library, AI lab and Saved. */
+  "Describe an idea. Elyra's AI proposes three strategies; Elyra checks their rules and backtests each one on historical data before you see it. The AI never sees or claims a result.":
+    "描述一个想法。Elyra 的 AI 会提出三个策略；Elyra 会在你看到之前检查其规则，并用历史数据逐一回测。AI 从不查看也不声称任何结果。",
+  "For example: buy strength after a quiet week, and hold for up to five days.":
+    "例如：在平静的一周后买入走强的行情，最多持有五天。",
+  "This takes up to a minute: three proposals, each checked and tested on real history.":
+    "这最多需要一分钟：三个方案，每个都会经过检查并在真实历史数据上回测。",
+  "Proposed strategies":
+    "提出的策略",
+  "Test period":
+    "回测区间",
+  "Strategy and rules":
+    "策略与规则",
+  "Strategy name":
+    "策略名称",
+  "Strategy idea (optional)":
+    "策略想法（可选）",
+  "Exit conditions are off and kept aside. The strategy leaves by its stop, target or time limit.":
+    "离场条件已关闭并保留。策略将按止损、止盈或持仓时限离场。",
+  "Time limit":
+    "持仓时限",
+  "bars":
+    "根 K 线",
+  "Leave a limit blank to skip it. Stops and targets are measured from the fill and checked within each bar.":
+    "留空即不设该限制。止损和止盈以成交价计算，并在每根 K 线内检查。",
+  "Rules in words":
+    "规则说明",
+  "A simulation on past prices, after fees. Nothing here places an order.":
+    "基于历史价格的模拟，已计入手续费。这里不会下任何订单。",
+  "View rules":
+    "查看规则",
+  "No saved strategies yet":
+    "还没有保存的策略",
+  "Save a strategy from Design, Library or AI lab to find it here.":
+    "在设计、策略库或 AI 实验室中保存策略后，即可在这里找到。",
+  "Design a strategy":
+    "设计一个策略",
+  "Browse library":
+    "浏览策略库",
+  "Research workspace · Historical backtests only.":
+    "研究工作区 · 仅限历史回测。",
+  "Strategy library":
+    "策略库",
+  "Strategies could not be read.":
+    "无法读取策略。",
+  "Period (bars)":
+    "周期（K 线数）",
+  "Fast (bars)":
+    "快线（K 线数）",
+  "Slow (bars)":
+    "慢线（K 线数）",
+  "Signal (bars)":
+    "信号线（K 线数）",
+  "Indicator":
+    "指标",
+  "Comparison":
+    "比较方式",
+  "Compare with":
+    "比较对象",
+  "{group}: how the conditions combine":
+    "{group}：条件如何组合",
+  "Add condition to {group}":
+    "向{group}添加条件",
+  "Add condition":
+    "添加条件",
+  "Up to {max} conditions in a group.":
+    "每组最多 {max} 个条件。",
+  "ATR %":
+    "ATR %",
+  "all of {list}":
+    "以下全部满足：{list}",
+  "any of {list}":
+    "以下任一满足：{list}",
+  "the next bar's open after {rule}":
+    "{rule}之后的下一根 K 线开盘",
+  "a stop {pct}% below the fill, inside the bar that reaches it":
+    "低于成交价 {pct}% 的止损，在触及的那根 K 线内执行",
+  "a target {pct}% above the fill, inside the bar that reaches it":
+    "高于成交价 {pct}% 的止盈，在触及的那根 K 线内执行",
+  "the open after {bars} bars held":
+    "持有 {bars} 根 K 线后的开盘",
+  "At {exit}.":
+    "于{exit}。",
+  "At the first of: {list}.":
+    "以先到者为准：{list}。",
+  "A bar that reaches both counts as the stop.":
+    "若一根 K 线同时触及两者，按止损计。",
+  "At the next bar's open when {rule}.":
+    "当{rule}时，在下一根 K 线开盘。",
 };

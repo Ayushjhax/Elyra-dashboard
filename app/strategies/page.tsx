@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function StrategiesPage() {
   return (
-    <RouteDrawer label={msg("Strategies")} icon={<FlaskConical size={28} strokeWidth={1.5} />} title={msg("Strategies")} subtitle={msg("Design, test and compare trading rules")}>
+    <RouteDrawer tone="graphite" label={msg("Strategies")} icon={<FlaskConical size={28} strokeWidth={1.5} />} title={msg("Strategies")} subtitle={msg("Design, test and compare trading rules")}>
       <StrategiesView />
     </RouteDrawer>
   );

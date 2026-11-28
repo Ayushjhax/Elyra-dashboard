@@ -364,6 +364,49 @@ export function describeDesign(design: StrategyDesign, t: Translator = englishTr
   };
 }
 
+/** Short names, for the designer's pickers: what a reader sees in "EMA(20) crosses above EMA(50)". */
+export const OPERAND_SHORT: Record<OperandKind, string> = {
+  price: msg("Price"),
+  sma: "SMA",
+  ema: "EMA",
+  rsi: "RSI",
+  macd: "MACD",
+  bollinger: msg("Bollinger band"),
+  donchian: msg("Donchian channel"),
+  atr_pct: msg("ATR %"),
+  change_pct: msg("% change"),
+  stochastic: msg("Stochastic %K"),
+  volume: msg("Volume"),
+  volume_sma: msg("Average volume"),
+  number: msg("Number"),
+};
+
+/** A group inside a sentence: one condition as it is, several as "all of" or "any of" them. */
+function groupPhrase(group: ConditionGroup, t: Translator): string {
+  const parts = group.conditions.map((condition) => conditionText(condition, t));
+  if (parts.length === 1) return parts[0];
+  return group.match === "all" ? t("all of {list}", { list: parts.join(", ") }) : t("any of {list}", { list: parts.join(", ") });
+}
+
+/**
+ * The rules in words, as the backtest engine runs them (lib/backtest/engine.ts
+ * with run.ts's next-bar-open execution): a signal is read at a bar's close
+ * and acted on at the next bar's open; a stop or a target is measured from
+ * the fill and taken inside the bar that reaches it, the stop first when one
+ * bar reaches both; a time limit leaves at the open once it has passed.
+ * Each half is written without its verb, for "Buy" and "Sell" beside it.
+ */
+export function ruleWords(design: StrategyDesign, t: Translator = englishTranslator): { buy: string; sell: string } {
+  const exits: string[] = [];
+  if (design.exit !== null) exits.push(t("the next bar's open after {rule}", { rule: groupPhrase(design.exit, t) }));
+  if (design.risk.stopLossPct !== null) exits.push(t("a stop {pct}% below the fill, inside the bar that reaches it", { pct: design.risk.stopLossPct }));
+  if (design.risk.takeProfitPct !== null) exits.push(t("a target {pct}% above the fill, inside the bar that reaches it", { pct: design.risk.takeProfitPct }));
+  if (design.risk.maxBarsHeld !== null) exits.push(t("the open after {bars} bars held", { bars: design.risk.maxBarsHeld }));
+  let sell = exits.length === 1 ? t("At {exit}.", { exit: exits[0] }) : t("At the first of: {list}.", { list: exits.join("; ") });
+  if (design.risk.stopLossPct !== null && design.risk.takeProfitPct !== null) sell = `${sell} ${t("A bar that reaches both counts as the stop.")}`;
+  return { buy: t("At the next bar's open when {rule}.", { rule: groupPhrase(design.entry, t) }), sell };
+}
+
 /** Every number a design holds, for holding text about it to its own figures. */
 export function designNumbers(design: StrategyDesign): string[] {
   const out: string[] = [];

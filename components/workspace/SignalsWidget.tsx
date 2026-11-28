@@ -170,10 +170,12 @@ function MarketRow({
             {above ? t("Long") : t("Short")}
           </span>
         </div>
-        <p className="type-label mt-0.5 truncate text-text-muted">
+        <p className="type-label mt-0.5 break-words text-text-muted">
+          {/* Pyth's own EMA price (about a one-hour window), named so it is
+              never read as the chart's EMA 20 at another interval. */}
           {above
-            ? t("Above EMA by {distance}%", { distance: Math.abs(distance).toFixed(2) })
-            : t("Below EMA by {distance}%", { distance: Math.abs(distance).toFixed(2) })}
+            ? t("Above Pyth's 1h EMA by {distance}%", { distance: Math.abs(distance).toFixed(2) })
+            : t("Below Pyth's 1h EMA by {distance}%", { distance: Math.abs(distance).toFixed(2) })}
           {row.marketSession && row.marketSession !== "regular" ? ` · ${t(row.marketSession)}` : ""}
           {` · ${age(row.publishedAt, now, t.locale)}`}
         </p>
@@ -282,7 +284,7 @@ function MarketSignals({
       )}
 
       <p className="type-label border-t border-border-subtle px-3 py-2 text-text-muted">
-        {t("Live price against Pyth EMA · refreshes every 5s · not financial advice.")}
+        {t("Live price against Pyth's 1h EMA · refreshes every 5s · not financial advice.")}
       </p>
     </>
   );

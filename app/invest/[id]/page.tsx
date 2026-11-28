@@ -40,6 +40,7 @@ export default async function InvestPortfolioPage(props: Props) {
       icon={<Layers size={28} strokeWidth={1.5} />}
       title={portfolio.name}
       subtitle={portfolio.summary}
+      tone="graphite"
     >
       <PortfolioView id={portfolio.id} />
     </RouteDrawer>

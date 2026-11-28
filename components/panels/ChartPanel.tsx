@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import {
   CandlestickChart,
   Check,
@@ -8,6 +8,7 @@ import {
   LineChart,
   Maximize,
   Minimize,
+  MousePointer2,
   RotateCcw,
   SlidersHorizontal,
   MousePointerClick,
@@ -16,7 +17,9 @@ import {
   Star,
   Sparkles,
   Zap,
+  type LucideIcon,
 } from "lucide-react";
+import { Tip } from "@/components/shell/RouteDrawer";
 import { TradePanel } from "@/components/trade/TradePanel";
 import { clearTicketRequest, useTicketRequest } from "@/lib/trade/ticketRequest";
 import { AssetSelectDialog } from "@/components/panels/AssetSelectDialog";
@@ -25,17 +28,20 @@ import { CoinMark } from "@/components/ui/CoinMark";
 import { DeltaText } from "@/components/ui/DeltaText";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Popover } from "@/components/ui/Popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompactUsd, formatPrice, formatPriceUsd } from "@/lib/format";
 import { WORKSPACE_GAP, WORKSPACE_PAD } from "@/lib/layout";
 import { priceDecimals } from "@/lib/market/precision";
+import { legendSource } from "@/lib/market/chartBrief";
+import { EMA_PERIOD, intervalLabel } from "@/lib/market/chartFacts";
 import { INTERVALS, TV_SCRIPT, chartWidgetConfig } from "@/lib/market/chartWidget";
 import { nearestLevels } from "@/lib/market/levels";
+import { useChartFacts } from "@/lib/market/useChartFacts";
 import { useLevels } from "@/lib/market/useLevels";
 import { useAssets, usePrice, type FeedStatus } from "@/lib/market/usePrices";
 import type { PriceRow, PriceSource } from "@/lib/market/pyth/types";
 import { useElyraStore } from "@/lib/store";
-import { useSecond } from "@/lib/useClock";
+import type { Interval } from "@/lib/types";
+import { useMinute, useSecond } from "@/lib/useClock";
 import { useFirstScreenFit } from "@/lib/useFirstScreenFit";
 import { useFlash } from "@/lib/useFlash";
 import { cn } from "@/lib/utils";
@@ -118,9 +124,35 @@ const SOURCE_NAME: Record<PriceSource, string> = {
 };
 
 const TOOL = cn(
-  "metallic chart-control type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2.5",
+  "metallic chart-control type-label inline-flex h-8 shrink-0 items-center gap-1.5 rounded-control px-2.5",
   "transition-colors duration-[var(--dur-fast)] ease-brand",
 );
+
+/**
+ * The toolbar's content width (inside its padding) under which its tools
+ * drop their labels and keep only their icons — each then named by a
+ * tooltip on hover and keyboard focus. Measured: the intervals, four
+ * labelled tools, the three icon actions and Trade need about 867px on one
+ * row, so this leaves room for an armed-alert count beside "Alerts".
+ */
+const LABELLED_TOOLBAR_PX = 880;
+
+/**
+ * Whether an element is narrower than `width`. Measured rather than a
+ * container query because the answer decides markup — a label, or a tooltip
+ * naming an icon — not only styling. ResizeObserver reports before paint.
+ */
+function useNarrowerThan(ref: RefObject<HTMLElement | null>, width: number): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < width));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref, width]);
+  return narrow;
+}
 
 /** One labelled figure in the header. */
 function Stat({ label, value }: { label: string; value: string }) {
@@ -132,7 +164,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Indicators() {
+function Indicators({ iconOnly }: { iconOnly: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const indicators = useElyraStore((state) => state.chartIndicators);
@@ -154,25 +186,27 @@ function Indicators() {
       align="start"
       className="w-64 p-1.5"
       trigger={
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls="chart-indicators"
-          aria-haspopup="dialog"
-          onClick={() => setOpen(!open)}
-          aria-label={t("Indicators, {count} on", { count })}
-          className={cn(
-            TOOL,
-            "px-2 @4xl:px-2.5",
-            open
-              ? "bg-surface-hover text-text-primary"
-              : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
-          )}
-        >
-          <SlidersHorizontal size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @4xl:inline">{t("Indicators")}</span>
-          {count > 0 && <span className="type-data-sm text-text-muted">{count}</span>}
-        </button>
+        <Tip label={iconOnly ? t("Indicators") : null}>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls="chart-indicators"
+            aria-haspopup="dialog"
+            onClick={() => setOpen(!open)}
+            aria-label={t("Indicators, {count} on", { count })}
+            className={cn(
+              TOOL,
+              iconOnly ? "px-2" : "px-2.5",
+              open
+                ? "bg-surface-hover text-text-primary"
+                : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
+            )}
+          >
+            <SlidersHorizontal size={15} strokeWidth={1.5} aria-hidden />
+            {!iconOnly && <span>{t("Indicators")}</span>}
+            {count > 0 && <span className="type-data-sm text-text-muted">{count}</span>}
+          </button>
+        </Tip>
       }
     >
       {rows.map((row) => (
@@ -197,26 +231,209 @@ function Indicators() {
 }
 
 /**
+ * A compact single-choice menu in the toolbar — the chart type, the drawing
+ * tools. The trigger names what is on; the list is a radio group, focus
+ * lands on the current choice, and choosing returns focus to the trigger.
+ */
+function ToolbarMenu<T extends string>({
+  id,
+  label,
+  icon: Icon,
+  triggerLabel,
+  options,
+  value,
+  onChange,
+  iconOnly,
+  pressed = false,
+  note,
+}: {
+  id: string;
+  /** What is being chosen: "Chart type". */
+  label: string;
+  icon: LucideIcon;
+  /** The trigger's own text: the current choice, or the tool's name. */
+  triggerLabel: string;
+  options: ReadonlyArray<{ value: T; label: string; icon: LucideIcon }>;
+  value: T;
+  onChange: (value: T) => void;
+  iconOnly: boolean;
+  /** The tool is on, so the trigger shows as pressed. */
+  pressed?: boolean;
+  note?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const current = options.find((option) => option.value === value) ?? options[0];
+
+  return (
+    <Popover
+      id={id}
+      label={label}
+      open={open}
+      onOpenChange={setOpen}
+      align="start"
+      className="w-60 p-1.5"
+      trigger={
+        <Tip label={iconOnly ? `${label}: ${current.label}` : null}>
+          <button
+            ref={triggerRef}
+            type="button"
+            aria-expanded={open}
+            aria-controls={id}
+            aria-haspopup="dialog"
+            aria-label={`${label}: ${current.label}`}
+            onClick={() => setOpen(!open)}
+            className={cn(
+              TOOL,
+              iconOnly ? "gap-1 px-2" : "px-2.5",
+              open || pressed
+                ? "bg-surface-hover text-text-primary"
+                : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
+            )}
+          >
+            <Icon size={15} strokeWidth={1.5} aria-hidden />
+            {!iconOnly && <span>{triggerLabel}</span>}
+            <ChevronDown
+              size={13}
+              strokeWidth={1.5}
+              aria-hidden
+              className={cn(
+                "text-text-muted transition-transform duration-[var(--dur-fast)] ease-brand motion-reduce:transition-none",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+        </Tip>
+      }
+    >
+      <div role="radiogroup" aria-label={label} className="flex flex-col">
+        {options.map((option) => {
+          const on = option.value === current.value;
+          const OptionIcon = option.icon;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              data-autofocus={on ? "" : undefined}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+                triggerRef.current?.focus();
+              }}
+              className={cn(
+                "type-body-sm flex items-center gap-2.5 rounded-control px-2.5 py-2 text-left",
+                "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
+                on ? "text-text-primary" : "text-text-secondary",
+              )}
+            >
+              <OptionIcon size={15} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
+              <span className="min-w-0 flex-1">{option.label}</span>
+              <Check size={14} strokeWidth={1.75} aria-hidden className={cn("shrink-0", on ? "text-accent" : "opacity-0")} />
+            </button>
+          );
+        })}
+      </div>
+      {note !== undefined && <p className="type-label border-t border-border-subtle px-2.5 pb-1 pt-2 mt-1 text-text-muted">{note}</p>}
+    </Popover>
+  );
+}
+
+/**
+ * The chart's legend, outside the plot: the live quote, the last COMPLETED
+ * candle's close at the chart's interval, and — when the study is on — the
+ * EMA 20 of those closes, each labelled so a forming candle's latest trade is
+ * never read as a close. TradingView's own legend inside the plot shows the
+ * candle under the crosshair; the widget takes no labels from outside it.
+ * The decision brief reads the same figures (lib/market/useChartFacts.ts).
+ */
+function ChartLegend({
+  symbol,
+  assetLoading,
+  row,
+  interval,
+  showEma,
+}: {
+  /** The market's ticker when the exchange sources list it (crypto), else null. */
+  symbol: string | null;
+  assetLoading: boolean;
+  row: PriceRow | undefined;
+  interval: Interval;
+  showEma: boolean;
+}) {
+  const t = useT();
+  const { data, loading } = useChartFacts(symbol, interval);
+  const now = useMinute();
+  const label = intervalLabel(interval);
+  const close = data?.close ?? null;
+  const ema = data?.ema ?? null;
+  const pending = assetLoading || (symbol !== null && loading);
+
+  const value = (figure: number | null) =>
+    pending ? (
+      <span aria-hidden className="skeleton inline-block h-3.5 w-16 align-middle" />
+    ) : (
+      <span className={cn("type-data-sm", figure === null ? "text-text-muted" : "text-text-primary")}>
+        {figure === null ? "—" : formatPriceUsd(figure)}
+      </span>
+    );
+
+  return (
+    <dl className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+      <div className="flex items-baseline gap-1.5">
+        <dt className="type-label text-text-secondary">{t("Live quote")}</dt>
+        <dd className="type-data-sm text-text-primary">{row ? formatPriceUsd(row.price) : "—"}</dd>
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <dt className="type-label text-text-secondary">{t("{interval} candle close", { interval: label })}</dt>
+        <dd>{value(symbol === null ? null : (close?.value ?? null))}</dd>
+      </div>
+      {showEma && (
+        <div className="flex items-center gap-1.5">
+          {/* The study's own line colour, so the figure is matched to it. */}
+          <span aria-hidden className="h-0.5 w-3 shrink-0 rounded-pill bg-accent-quiet" />
+          <dt className="type-label text-text-secondary">{t("EMA {period} · {interval}", { period: data?.period ?? EMA_PERIOD, interval: label })}</dt>
+          <dd>{value(symbol === null ? null : ema)}</dd>
+        </div>
+      )}
+      {row && data !== null && data.source !== null && (
+        <div className="hidden @3xl:block">
+          <dt className="sr-only">{t("Source")}</dt>
+          <dd className="type-label text-text-muted">{legendSource(row, data, interval, now, t)}</dd>
+        </div>
+      )}
+      {symbol === null && !assetLoading && (
+        <div>
+          <dt className="sr-only">{t("Source")}</dt>
+          <dd className="type-label text-text-muted">{t("No exchange candles for this market")}</dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
+/**
  * Prior-day pivots as a row of labelled levels, with the two either side of
  * the price marked. Listed rather than drawn: the chart is TradingView's
  * iframe and takes no lines from outside it — the drawing tools are how an
  * operator puts a level on the chart itself.
  */
-function PivotRow({ symbol, price }: { symbol: string | null; price: number | null }) {
+function PivotRow({ id, symbol, price }: { id: string; symbol: string | null; price: number | null }) {
   const t = useT();
   const { data, loading } = useLevels(symbol);
   if (symbol === null) return null;
 
   if (loading) {
     return (
-      <div aria-hidden className="flex items-center gap-3 border-b border-border-subtle px-4 py-2">
+      <div id={id} aria-hidden className="flex items-center gap-3 border-b border-border-subtle px-4 py-2">
         <span className="skeleton h-3.5 w-64" />
       </div>
     );
   }
   if (!data?.levels) {
     return (
-      <p className="type-label border-b border-border-subtle px-4 py-2 text-text-muted">
+      <p id={id} className="type-label border-b border-border-subtle px-4 py-2 text-text-muted">
         {t("Pivot levels unavailable{value}.", { value: data?.error ? ` — ${data.error}` : "" })}
       </p>
     );
@@ -234,6 +451,7 @@ function PivotRow({ symbol, price }: { symbol: string | null; price: number | nu
 
   return (
     <div
+      id={id}
       className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border-subtle px-4 py-2"
       title={t("{source}, candle of {value} UTC", { source: data.source, value: new Date(levels.basedOn).toISOString().slice(0, 10) })}
     >
@@ -351,6 +569,13 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
   const flash = useFlash(seq, direction);
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  /* Prior-day pivots sit behind a control, collapsed until asked for. */
+  const [pivotsOpen, setPivotsOpen] = useState(false);
+  const pivotsId = useId();
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const iconOnly = useNarrowerThan(toolbarRef, LABELLED_TOOLBAR_PX);
+  /* The exchange sources list crypto only; nothing else has candles or pivots. */
+  const candleSymbol = asset?.assetType === "crypto" ? symbol : null;
   /* The order ticket for the chart's market (components/trade/TradePanel), opened
      here or asked for from elsewhere — a signal card's Paper trade (lib/trade/ticketRequest). */
   const [trading, setTrading] = useState(false);
@@ -473,6 +698,8 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
             volume: indicators.volume,
             drawing,
             colors: { background, grid, up, down, axisText, line, ema },
+            /* The legend above the plot carries the EMA's figure (ChartLegend). */
+            studyValues: false,
           }),
         );
       })
@@ -523,20 +750,32 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           <span className="flex min-w-0 flex-col items-start">
             <span className="flex items-center gap-1.5">
               <span className="type-h2 truncate text-text-primary">
-                {asset?.name ?? <span className="skeleton inline-block h-4 w-24 align-middle" />}
+                {asset ? `${asset.symbol} / ${asset.quoteCurrency}` : <span className="skeleton inline-block h-4 w-24 align-middle" />}
               </span>
               <ChevronDown size={14} strokeWidth={1.5} aria-hidden className="shrink-0 text-text-muted" />
             </span>
-            <span className="type-label text-text-muted">
-              {asset ? `${asset.symbol} / ${asset.quoteCurrency}` : ""}
-            </span>
+            <span className="type-label truncate text-text-muted">{asset?.name ?? ""}</span>
           </span>
         </button>
 
-        <div className="flex items-baseline gap-2.5">
+        <div className="flex items-center gap-2.5">
+          {/* Named, so the quote is never mistaken for a candle's close —
+              the legend under the toolbar carries the close separately. */}
+          {row && (
+            <span
+              className={cn(
+                "type-label inline-flex h-6 shrink-0 items-center gap-1.5 rounded-pill border px-2",
+                stale ? "border-border-subtle text-text-muted" : "border-accent-quiet text-text-primary",
+              )}
+            >
+              <span aria-hidden className={cn("size-1.5 rounded-pill", stale ? "bg-negative" : "bg-positive")} />
+              {stale ? t("Last quote") : t("Live quote")}
+            </span>
+          )}
           {row ? (
             <span
               aria-live="polite"
+              aria-label={stale ? t("Last quote {price}", { price: formatPriceUsd(row.price) }) : t("Live quote {price}", { price: formatPriceUsd(row.price) })}
               className={cn(
                 /* The figures stack, not Fustat outright: Fustat's tabular
                    period is a full digit wide and opened a gap either side of
@@ -568,20 +807,22 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
           <Stat label={t("High")} value={row?.high24h ? formatPriceUsd(row.high24h) : "—"} />
           <Stat label={t("Low")} value={row?.low24h ? formatPriceUsd(row.low24h) : "—"} />
           <Stat label={t("Volume")} value={row?.volume24h ? formatCompactUsd(row.volume24h) : "—"} />
-          <button
-            type="button"
-            role="switch"
-            aria-checked={favorite}
-            aria-label={favorite ? t("Remove {symbol} from favourites", { symbol }) : t("Add {symbol} to favourites", { symbol })}
-            onClick={() => toggleFavorite(assetId)}
-            className={cn(
-              "inline-flex size-9 shrink-0 items-center justify-center rounded-control",
-              "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
-              favorite ? "text-accent" : "text-text-muted hover:text-text-secondary",
-            )}
-          >
-            <Star size={18} strokeWidth={1.5} aria-hidden fill={favorite ? "currentColor" : "none"} />
-          </button>
+          <Tip label={favorite ? t("Remove {symbol} from favourites", { symbol }) : t("Add {symbol} to favourites", { symbol })}>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={favorite}
+              aria-label={favorite ? t("Remove {symbol} from favourites", { symbol }) : t("Add {symbol} to favourites", { symbol })}
+              onClick={() => toggleFavorite(assetId)}
+              className={cn(
+                "inline-flex size-9 shrink-0 items-center justify-center rounded-control",
+                "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
+                favorite ? "text-accent" : "text-text-muted hover:text-text-secondary",
+              )}
+            >
+              <Star size={18} strokeWidth={1.5} aria-hidden fill={favorite ? "currentColor" : "none"} />
+            </button>
+          </Tip>
         </div>
       </div>
 
@@ -594,23 +835,20 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
       {/* Toolbar. On a narrow card it wraps — the intervals take their own
           row and the tools sit under them — rather than squeezing the
           intervals into a scroller one button wide. Only the intervals may
-          scroll sideways: the indicators menu has to sit outside any
-          scroller, or its popover would be clipped by it.
+          scroll sideways: the menus have to sit outside any scroller, or
+          their popovers would be clipped by it.
 
-          The tools' labels need about 830px on one row with alerts armed, so
-          they arrive at @4xl; from @3xl they pushed the reload and full-screen
-          buttons onto a row of their own on a laptop. Below it the tools are
-          icons, each named by its aria-label.
-
-          As icons, intervals and tools need about 610px on one row. The
-          intervals' own width decides the wrap, so a card a little under that
-          — a laptop with a route open beside the chart — sent the reload and
-          full-screen buttons to a row alone. The two rows hold until @2xl. */}
-      <div className="@container flex flex-wrap items-center gap-2 border-y border-border-subtle px-3 py-2 compact:px-4">
+          Under LABELLED_TOOLBAR_PX the tools keep only their icons, each
+          named by a tooltip on hover and keyboard focus. Trade stays
+          labelled at every width: it is the toolbar's one primary action. */}
+      <div
+        ref={toolbarRef}
+        className="@container flex flex-wrap items-center gap-x-1.5 gap-y-2 border-y border-border-subtle px-3 py-2 compact:px-4"
+      >
         <div
           role="group"
           aria-label={t("Chart interval")}
-          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @2xl:basis-auto @2xl:flex-1 @4xl:flex-none"
+          className="flex min-w-0 basis-full items-center gap-1 overflow-x-auto @2xl:basis-auto"
         >
           {INTERVALS.map((value) => {
             const active = value === interval;
@@ -621,133 +859,140 @@ export function ChartPanel({ focus = false }: { focus?: boolean }) {
                 aria-pressed={active}
                 onClick={() => setInterval(value)}
                 className={cn(
-                  "metallic chart-control type-data-sm h-8 min-w-9 shrink-0 rounded-control px-2.5",
+                  "metallic chart-control type-data-sm h-8 min-w-9 shrink-0 rounded-control px-2",
                   "transition-colors duration-[var(--dur-fast)] ease-brand",
                   active
                     ? "bg-accent text-text-on-accent"
                     : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
                 )}
               >
-                {value}
+                {intervalLabel(value)}
               </button>
             );
           })}
         </div>
 
-        <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-border-subtle @2xl:block" />
+        <span aria-hidden className="mx-0.5 hidden h-5 w-px shrink-0 bg-border-subtle @2xl:block" />
 
-        <div role="group" aria-label={t("Series style")} className="flex shrink-0 items-center gap-1">
-          {(
-            [
-              ["candles", t("Candles"), CandlestickChart],
-              ["line", t("Line"), LineChart],
-            ] as const
-          ).map(([value, label, Icon]) => {
-            const active = chartStyle === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={active}
-                aria-label={label}
-                title={label}
-                onClick={() => setChartStyle(value)}
-                className={cn(
-                  TOOL,
-                  "px-2 @4xl:px-2.5",
-                  active
-                    ? "bg-surface-hover text-text-primary"
-                    : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
-                )}
-              >
-                <Icon size={15} strokeWidth={1.5} aria-hidden />
-                <span className="hidden @4xl:inline">{label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setTrading(true)}
-          disabled={asset === undefined}
-          aria-haspopup="dialog"
-          title={t("Trade {symbol}", { symbol })}
-          className={cn(TOOL, "gap-1.5 px-2.5 text-accent")}
-        >
-          <Zap size={15} strokeWidth={1.5} aria-hidden />
-          <span className="type-label">{t("Trade")}</span>
-        </button>
-        {/* Asks Elyra for this market's whole picture — price, safety, sentiment, technicals; the person sends it. */}
-        <button
-          type="button"
-          onClick={() => askElyra(t("Analyze {symbol} right now", { symbol }))}
-          disabled={asset === undefined}
-          title={t("Ask Elyra to analyze {symbol}", { symbol })}
-          className={cn(TOOL, "gap-1.5 px-2.5")}
-        >
-          <Sparkles size={15} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
-          <span className="type-label">{t("Analyze")}</span>
-        </button>
-        <Indicators />
-        <ChartAlerts symbol={symbol} price={row?.price ?? null} />
-        <button
-          type="button"
-          aria-pressed={drawing}
-          aria-label={drawing ? t("Hide drawing tools") : t("Show drawing tools")}
-          title={drawing ? t("Hide drawing tools") : t("Drawing tools")}
-          onClick={() => setDrawing(!drawing)}
-          className={cn(
-            TOOL,
-            "px-2 @4xl:px-2.5",
-            drawing
-              ? "bg-surface-hover text-text-primary"
-              : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
-          )}
-        >
-          <PenTool size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @4xl:inline">{t("Draw")}</span>
-        </button>
+        <ToolbarMenu
+          id="chart-type"
+          label={t("Chart type")}
+          icon={chartStyle === "line" ? LineChart : CandlestickChart}
+          triggerLabel={chartStyle === "line" ? t("Line") : t("Candles")}
+          options={[
+            { value: "candles", label: t("Candles"), icon: CandlestickChart },
+            { value: "line", label: t("Line"), icon: LineChart },
+          ]}
+          value={chartStyle}
+          onChange={setChartStyle}
+          iconOnly={iconOnly}
+        />
+        <Indicators iconOnly={iconOnly} />
+        <ChartAlerts symbol={symbol} price={row?.price ?? null} iconOnly={iconOnly} />
+        <ToolbarMenu
+          id="chart-draw"
+          label={t("Drawing tools")}
+          icon={PenTool}
+          triggerLabel={t("Draw")}
+          options={[
+            { value: "off", label: t("Pointer only"), icon: MousePointer2 },
+            { value: "on", label: t("Drawing toolbar"), icon: PenTool },
+          ]}
+          value={drawing ? "on" : "off"}
+          onChange={(value) => setDrawing(value === "on")}
+          pressed={drawing}
+          iconOnly={iconOnly}
+          note={t("Drawings stay on the chart until it reloads.")}
+        />
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
+          {/* Asks Elyra for this market's whole picture — price, safety, sentiment, technicals; the person sends it. */}
+          <Tip label={t("Ask Elyra to analyze {symbol}", { symbol })}>
+            <button
+              type="button"
+              onClick={() => askElyra(t("Analyze {symbol} right now", { symbol }))}
+              disabled={asset === undefined}
+              aria-label={t("Ask Elyra to analyze {symbol}", { symbol })}
+              className={cn(TOOL, "px-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary")}
+            >
+              <Sparkles size={15} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+            </button>
+          </Tip>
+          <Tip label={t("Reload the chart")}>
+            <button
+              type="button"
+              aria-label={t("Reload the chart")}
+              onClick={() => setReloads((value) => value + 1)}
+              className={cn(TOOL, "px-2 text-text-muted hover:bg-surface-hover hover:text-text-primary")}
+            >
+              <RotateCcw size={15} strokeWidth={1.5} aria-hidden />
+            </button>
+          </Tip>
+          {canFullscreen && (
+            <Tip label={fullscreen ? t("Exit full screen") : t("Full screen")}>
               <button
                 type="button"
-                aria-label={t("Reload the chart")}
-                onClick={() => setReloads((value) => value + 1)}
+                aria-pressed={fullscreen}
+                aria-label={fullscreen ? t("Exit full screen") : t("Full screen")}
+                onClick={toggleFullscreen}
                 className={cn(TOOL, "px-2 text-text-muted hover:bg-surface-hover hover:text-text-primary")}
               >
-                <RotateCcw size={15} strokeWidth={1.5} aria-hidden />
+                {fullscreen ? (
+                  <Minimize size={15} strokeWidth={1.5} aria-hidden />
+                ) : (
+                  <Maximize size={15} strokeWidth={1.5} aria-hidden />
+                )}
               </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("Reload the chart")}</TooltipContent>
-          </Tooltip>
-          {canFullscreen && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-pressed={fullscreen}
-                  aria-label={fullscreen ? t("Exit full screen") : t("Full screen")}
-                  onClick={toggleFullscreen}
-                  className={cn(TOOL, "px-2 text-text-muted hover:bg-surface-hover hover:text-text-primary")}
-                >
-                  {fullscreen ? (
-                    <Minimize size={15} strokeWidth={1.5} aria-hidden />
-                  ) : (
-                    <Maximize size={15} strokeWidth={1.5} aria-hidden />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{fullscreen ? t("Exit full screen") : t("Full screen")}</TooltipContent>
-            </Tooltip>
+            </Tip>
           )}
+          {/* The established order flow (components/trade/TradePanel): the
+              ticket for this market, on the account the header's Live /
+              Paper switch shows, with every check it already makes. */}
+          <button
+            type="button"
+            onClick={() => setTrading(true)}
+            disabled={asset === undefined}
+            aria-haspopup="dialog"
+            aria-label={t("Trade {symbol}", { symbol })}
+            className={cn(
+              "type-label inline-flex h-8 shrink-0 items-center gap-1.5 rounded-control bg-accent px-3.5 font-semibold text-text-on-accent",
+              "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover disabled:opacity-50",
+            )}
+          >
+            <Zap size={15} strokeWidth={1.75} aria-hidden />
+            {t("Trade")}
+          </button>
         </div>
       </div>
 
-      {indicators.levels !== false && (
-        <PivotRow symbol={asset?.assetType === "crypto" ? symbol : null} price={row?.price ?? null} />
+      {/* The legend, and the prior-day pivots behind their control. */}
+      <div className="@container flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-border-subtle px-3 py-1.5 compact:px-4">
+        {indicators.levels !== false && candleSymbol !== null && (
+          <button
+            type="button"
+            aria-expanded={pivotsOpen}
+            aria-controls={pivotsId}
+            onClick={() => setPivotsOpen(!pivotsOpen)}
+            className={cn(
+              TOOL,
+              "h-7 gap-1 border border-border-subtle px-2",
+              pivotsOpen ? "bg-surface-hover text-text-primary" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
+            )}
+          >
+            {t("Pivots")}
+            <ChevronDown
+              size={13}
+              strokeWidth={1.5}
+              aria-hidden
+              className={cn("text-text-muted transition-transform duration-[var(--dur-fast)] ease-brand motion-reduce:transition-none", pivotsOpen && "rotate-180")}
+            />
+          </button>
+        )}
+        <ChartLegend symbol={candleSymbol} assetLoading={asset === undefined} row={row} interval={interval} showEma={indicators.ema} />
+      </div>
+
+      {indicators.levels !== false && candleSymbol !== null && pivotsOpen && (
+        <PivotRow id={pivotsId} symbol={candleSymbol} price={row?.price ?? null} />
       )}
 
       {/* The plot. Its height is CSS — see .chart-plot, fed the first

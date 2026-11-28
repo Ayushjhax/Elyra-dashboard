@@ -41,6 +41,13 @@ export interface EquityToken {
   priceUsd: number | null;
   /** How Elyra's swap names it — null when it is not traded here. */
   swap: { symbol: string } | null;
+  /**
+   * The token's own artwork, https only: the listing's icon for Backpack
+   * Securities' tokens, Jupiter's verified index for the rest on Solana.
+   * Null where neither has one — Robinhood Chain's tokens — and the page
+   * shows the company's logo instead.
+   */
+  icon: string | null;
 }
 
 export interface EquityGroup {

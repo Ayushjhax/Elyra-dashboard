@@ -10,7 +10,8 @@ import { msg } from "@/lib/i18n/translate";
 
    Opens in the route column beside the chart, like Portfolio — a list of
    seven cards fits the column, so this is not a full-bleed route and the
-   chart stays the focus. The page lives in components/invest.
+   chart stays the focus. The page lives in components/invest; its header is
+   the drawer's graphite tone, a flat tint (app/globals.css), not glass.
 --------------------------------------------------------------------------- */
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,7 +24,8 @@ export default function InvestPage() {
       label={msg("Intelligent Portfolios")}
       icon={<Layers size={28} strokeWidth={1.5} />}
       title={msg("Intelligent Portfolios")}
-      subtitle={msg("Model portfolios, held in your own wallet")}
+      subtitle={msg("Model portfolios held in your wallet")}
+      tone="graphite"
     >
       <InvestList />
     </RouteDrawer>

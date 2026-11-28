@@ -10,6 +10,7 @@ const token = (overrides: Partial<EquityToken>): EquityToken => ({
   ticker: "TSLA",
   priceUsd: 251,
   swap: { symbol: "TSLAX" },
+  icon: null,
   ...overrides,
 });
 

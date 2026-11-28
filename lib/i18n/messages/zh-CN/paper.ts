@@ -75,4 +75,38 @@ export const paper: Messages = {
     "止盈 {tp} · 止损 {sl}，在模拟账户中保留，每五分钟检查一次。",
   "Trading account":
     "交易账户",
+
+  /* The band under the header, and the portfolio's scope beside it. */
+  "Live portfolio":
+    "实盘投资组合",
+  "No real money at risk.":
+    "不涉及任何真实资金。",
+  "Virtual funds":
+    "虚拟资金",
+
+  /* The setup dialog, the first time someone picks Paper. */
+  "How paper trading works":
+    "模拟交易如何运作",
+  "Paper and Live use separate accounts.":
+    "模拟和实盘使用两个独立的账户。",
+  "Practice trading with virtual funds.":
+    "用虚拟资金练习交易。",
+  "Setting up…":
+    "正在开通…",
+  "Simulated fills use Hyperliquid's live prices.":
+    "模拟成交采用 Hyperliquid 的实时价格。",
+  "Start paper trading":
+    "开始模拟交易",
+  "Virtual balance":
+    "虚拟余额",
+
+  /* What a failed setup says, reaching t() as a variable. */
+  "Not signed in":
+    "尚未登录",
+  "That could not be saved.":
+    "未能保存。",
+  "The paper account could not be switched on.":
+    "模拟账户未能开启。",
+  "The paper account needs database migration 0032, which has not been applied.":
+    "模拟账户需要数据库迁移 0032，该迁移尚未应用。",
 };

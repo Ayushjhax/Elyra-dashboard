@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function CopyTradingPage() {
   return (
-    <RouteDrawer label={msg("Copy trading")} icon={<Copy size={28} strokeWidth={1.5} />} title={msg("Copy trading")} subtitle={msg("Follow a leader's trades in your own account")}>
+    <RouteDrawer tone="graphite" label={msg("Copy trading")} icon={<Copy size={28} strokeWidth={1.5} />} title={msg("Copy trading")} subtitle={msg("Follow a leader's trades in your own account")}>
       <AutomationTabs />
       <CopyView />
     </RouteDrawer>

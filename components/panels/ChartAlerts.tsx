@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, Trash2 } from "lucide-react";
 import type { AlertsResponse } from "@/app/api/alerts/route";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { Tip } from "@/components/shell/RouteDrawer";
 import { Button } from "@/components/ui/Button";
 import { Popover } from "@/components/ui/Popover";
 import { formatPriceUsd } from "@/lib/format";
 import { priceDecimals } from "@/lib/market/precision";
+import { useAlertRequest } from "@/lib/alerts/alertRequest";
 import { isPast, useAlerts } from "@/lib/alerts/useAlerts";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
@@ -20,9 +22,21 @@ import { useT } from "@/lib/i18n/client";
    against live prices by the delivery worker, delivered to the linked chat.
    This sets and clears them for the market on screen, and says plainly when
    no chat is linked, because an alert with nowhere to go is worse than none.
+
+   The decision brief's "Set alert" opens it from elsewhere, with the market
+   and the level's price already filled in (lib/alerts/alertRequest.ts).
 --------------------------------------------------------------------------- */
 
-export function ChartAlerts({ symbol, price }: { symbol: string; price: number | null }) {
+export function ChartAlerts({
+  symbol,
+  price,
+  iconOnly = false,
+}: {
+  symbol: string;
+  price: number | null;
+  /** The toolbar has no room for the label, so the name is a tooltip. */
+  iconOnly?: boolean;
+}) {
   const t = useT();
   const auth = useElyraAuth();
   const feed = useAlerts();
@@ -31,8 +45,33 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
   const [target, setTarget] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const targetRef = useRef<HTMLInputElement>(null);
   const signedIn = feed.signedIn;
   const alerts = feed.alerts.filter((alert) => alert.symbol === symbol.toUpperCase());
+
+  /* A request for this market opens the form filled in — adjusted during
+     render, so the form never paints empty first. One for another market
+     waits until the chart has switched to it. */
+  const request = useAlertRequest();
+  /* A request already answered before this mounted is not a new one. */
+  const [handled, setHandled] = useState(() => request?.at ?? 0);
+  const [opened, setOpened] = useState(0);
+  if (request !== null && request.at !== handled && request.symbol === symbol.toUpperCase()) {
+    setHandled(request.at);
+    setOpened(opened + 1);
+    setOpen(true);
+    setDirection(request.direction);
+    setTarget(request.target.toFixed(priceDecimals(request.target)));
+    setError(null);
+  }
+  useEffect(() => {
+    if (opened === 0) return;
+    triggerRef.current?.scrollIntoView({ block: "nearest" });
+    /* After the popover's own focus-on-open, so the price is ready to edit. */
+    const frame = window.requestAnimationFrame(() => targetRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [opened]);
 
   const suggest = (side: "above" | "below") => {
     if (price === null) return "";
@@ -66,7 +105,9 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
       align="start"
       className="w-72 p-3"
       trigger={
+        <Tip label={iconOnly ? t("Price alerts") : null}>
         <button
+          ref={triggerRef}
           type="button"
           aria-expanded={open}
           aria-controls="chart-alerts"
@@ -74,7 +115,8 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
           aria-label={(armed.length > 0 ? t("Price alerts, {count} armed", { count: armed.length }) : t("Price alerts"))}
           onClick={openPanel}
           className={cn(
-            "type-label inline-flex h-8 items-center gap-1.5 rounded-control px-2 @4xl:px-2.5",
+            "chart-control type-label inline-flex h-8 items-center gap-1.5 rounded-control",
+            iconOnly ? "px-2" : "px-2.5",
             "transition-colors duration-[var(--dur-fast)] ease-brand",
             open
               ? "bg-surface-hover text-text-primary"
@@ -82,9 +124,10 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
           )}
         >
           <Bell size={15} strokeWidth={1.5} aria-hidden />
-          <span className="hidden @4xl:inline">{t("Alerts")}</span>
+          {!iconOnly && <span>{t("Alerts")}</span>}
           {armed.length > 0 && <span className="type-data-sm text-text-muted">{armed.length}</span>}
         </button>
+        </Tip>
       }
     >
       <p className="type-panel-title text-text-primary">{t("{symbol} price alerts", { symbol })}</p>
@@ -158,6 +201,7 @@ export function ChartAlerts({ symbol, price }: { symbol: string; price: number |
               {t("Alert price in USD")}
             </label>
             <input
+              ref={targetRef}
               id="chart-alert-target"
               inputMode="decimal"
               value={target}

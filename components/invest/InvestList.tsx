@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { ChevronRight, Layers, ShieldCheck } from "lucide-react";
-import { CategoryEyebrow, RiskTag, walletUnits } from "@/components/invest/parts";
+import { CategoryEyebrow, Disclosure, RiskTag, handFocusTo, takeFocus, walletUnits } from "@/components/invest/parts";
 import { Delta, Money, SkeletonRows } from "@/components/portfolio/primitives";
 import { DrawerCard, StatusDot, Tip } from "@/components/shell/RouteDrawer";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { CATEGORY_ORDER, HOW_IT_WORKS, NOT_ADVICE_NOTE } from "@/lib/invest/catalog";
+import { CATEGORY_LABEL, CATEGORY_ORDER, HOW_IT_WORKS, NOT_ADVICE_NOTE } from "@/lib/invest/catalog";
 import { driftOf, heldUnits, minimumInvestmentUsd, weightedMove } from "@/lib/invest/plan";
 import type { PricedPortfolio } from "@/lib/invest/types";
 import { useInvest } from "@/lib/invest/useInvest";
@@ -21,6 +21,11 @@ import { useT } from "@/lib/i18n/client";
    Opens beside the chart like any route. Reads the shared stores only —
    `useInvest` for the catalog, prices and recorded positions, `usePortfolio`
    for what the wallet actually holds.
+
+   "How portfolios work" folds to its heading, so the cards are the first
+   thing on screen; every card has the same four lines — what it is for, what
+   it holds, its risk and minimum, and its 24-hour move with the share of the
+   portfolio that move stands for when it is not all of it.
 --------------------------------------------------------------------------- */
 
 function PortfolioRow({
@@ -28,11 +33,13 @@ function PortfolioRow({
   valueUsd,
   held,
   outOfBand,
+  linkRef,
 }: {
   portfolio: PricedPortfolio;
   valueUsd: number | null;
   held: boolean;
   outOfBand: boolean;
+  linkRef: (node: HTMLAnchorElement | null) => void;
 }) {
   const t = useT();
   const move = weightedMove(portfolio);
@@ -42,36 +49,34 @@ function PortfolioRow({
   return (
     <li>
       <Link
+        ref={linkRef}
         href={`/invest/${portfolio.id}`}
+        onClick={() => handFocusTo("detail", portfolio.id)}
         className={cn(
-          "group flex min-w-0 flex-col gap-2 rounded-card border border-border-subtle bg-surface-panel p-3",
+          "group flex min-w-0 flex-col gap-2 rounded-card border border-border-subtle bg-surface-raised p-4 @max-[340px]:p-3",
           "transition-colors duration-[var(--dur-fast)] ease-brand hover:border-border-strong hover:bg-surface-hover",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring",
         )}
       >
         <div className="flex min-w-0 items-start gap-2">
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="type-panel-title truncate text-text-primary">{t(portfolio.name)}</span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="type-h2 text-text-primary">{t(portfolio.name)}</span>
             <span className="type-body-sm text-text-secondary">{t(portfolio.summary)}</span>
           </div>
-          <ChevronRight size={16} aria-hidden className="mt-0.5 shrink-0 text-text-muted group-hover:text-text-secondary" />
+          <ChevronRight size={16} aria-hidden className="mt-1 shrink-0 text-text-muted group-hover:text-text-secondary" />
         </div>
 
         <p className="type-label truncate text-text-muted" title={tickers.join(", ")}>
-          {(tickers.length > 5
-              ? t("{count} holdings · {tickers} and {more} more", { count: portfolio.holdings.length, tickers: tickers.slice(0, 5).join(", "), more: tickers.length - 5 })
-              : t("{count} holdings · {tickers}", { count: portfolio.holdings.length, tickers: tickers.join(", ") }))}
+          {tickers.length > 5
+            ? t("{count} holdings · {tickers} and {more} more", { count: portfolio.holdings.length, tickers: tickers.slice(0, 5).join(", "), more: tickers.length - 5 })
+            : t("{count} holdings · {tickers}", { count: portfolio.holdings.length, tickers: tickers.join(", ") })}
         </p>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <RiskTag risk={portfolio.risk} />
-          <span className="type-label text-text-muted">{t("From ${portfolio}", { portfolio: minimumInvestmentUsd(portfolio) })}</span>
+          <span className="type-data-sm text-text-secondary">{t("From ${portfolio}", { portfolio: minimumInvestmentUsd(portfolio) })}</span>
           <span className="type-data-sm inline-flex items-center gap-1 text-text-muted">
             24h{" "}
-            <Delta
-              pct={move.pct}
-              reason={t("None of this portfolio's holdings report a 24-hour change right now.")}
-            />
+            <Delta pct={move.pct} reason={t("None of this portfolio's holdings report a 24-hour change right now.")} />
             {partial && <span className="text-text-muted">{t("· {value}% of holdings", { value: Math.round(move.coveredBps / 100) })}</span>}
           </span>
           {held && (
@@ -90,6 +95,8 @@ export function InvestList() {
   const t = useT();
   const invest = useInvest();
   const wallet = usePortfolio();
+  const links = useRef(new Map<string, HTMLAnchorElement>());
+  const ready = invest.portfolios.length > 0;
 
   const views = useMemo(() => {
     const units = walletUnits(wallet.snapshot, invest.portfolios);
@@ -102,9 +109,16 @@ export function InvestList() {
     );
   }, [invest.portfolios, invest.positions, wallet.snapshot]);
 
+  /* Back from a portfolio's page: focus returns to that portfolio's card. */
+  useEffect(() => {
+    if (!ready) return;
+    const id = takeFocus("list");
+    if (id !== null) links.current.get(id)?.focus();
+  }, [ready]);
+
   return (
     <>
-      <DrawerCard icon={ShieldCheck} title={t("How these work")}>
+      <Disclosure icon={ShieldCheck} title={t("How portfolios work")}>
         <ol className="flex flex-col gap-2">
           {HOW_IT_WORKS.map((line, index) => (
             <li key={line} className="flex items-start gap-2.5">
@@ -113,14 +127,14 @@ export function InvestList() {
             </li>
           ))}
         </ol>
-        <p className="type-label mt-3 text-text-muted">{t(NOT_ADVICE_NOTE)}</p>
-      </DrawerCard>
+        <p className="type-label mt-3 border-t border-border-subtle pt-3 text-text-muted">{t(NOT_ADVICE_NOTE)}</p>
+      </Disclosure>
 
-      {invest.loading && invest.portfolios.length === 0 ? (
+      {invest.loading && !ready ? (
         <DrawerCard icon={Layers} title={t("Portfolios")}>
           <SkeletonRows rows={5} />
         </DrawerCard>
-      ) : invest.portfolios.length === 0 ? (
+      ) : !ready ? (
         <EmptyState
           icon={Layers}
           title={t("Portfolios are unavailable")}
@@ -131,7 +145,7 @@ export function InvestList() {
           const portfolios = invest.portfolios.filter((portfolio) => portfolio.category === category);
           if (portfolios.length === 0) return null;
           return (
-            <section key={category} aria-label={category} className="flex flex-col gap-2">
+            <section key={category} aria-label={t(CATEGORY_LABEL[category])} className="mt-1 flex flex-col gap-2">
               <CategoryEyebrow category={category} />
               <ul className="flex flex-col gap-2">
                 {portfolios.map((portfolio) => {
@@ -143,6 +157,10 @@ export function InvestList() {
                       valueUsd={report?.totalUsd ?? null}
                       held={report?.held ?? false}
                       outOfBand={report?.outOfBand ?? false}
+                      linkRef={(node) => {
+                        if (node === null) links.current.delete(portfolio.id);
+                        else links.current.set(portfolio.id, node);
+                      }}
                     />
                   );
                 })}
@@ -152,7 +170,7 @@ export function InvestList() {
         })
       )}
 
-      {invest.error !== null && invest.portfolios.length > 0 && (
+      {invest.error !== null && ready && (
         <Tip openOnTap label={invest.error}>
           <span tabIndex={0} className="self-start rounded-chip">
             <StatusDot tone="caution">{t("Some prices are missing")}</StatusDot>

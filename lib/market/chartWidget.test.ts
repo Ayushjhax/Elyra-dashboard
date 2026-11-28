@@ -23,6 +23,13 @@ describe("chartWidgetConfig", () => {
     expect((config.studies_overrides as Record<string, string>)["ema.ma.color"]).toBe(colors.ema);
     expect(config.studies).toEqual([{ id: "MAExp@tv-basicstudies", inputs: { length: 20 } }]);
   });
+
+  it("keeps the studies' values in the widget's legend unless asked not to", () => {
+    const input = { containerId: "tv", symbol: "CRYPTO:SOLUSD", interval: "1H", style: "candles", ema: true, volume: true, drawing: false, colors } as const;
+    const key = "paneProperties.legendProperties.showStudyValues";
+    expect(key in (chartWidgetConfig(input).overrides as Record<string, unknown>)).toBe(false);
+    expect((chartWidgetConfig({ ...input, studyValues: false }).overrides as Record<string, unknown>)[key]).toBe(false);
+  });
 });
 
 describe("isTradingViewUrl", () => {

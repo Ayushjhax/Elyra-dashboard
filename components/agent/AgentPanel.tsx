@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { Tip } from "@/components/shell/RouteDrawer";
 import { DecisionBrief } from "@/components/agent/DecisionBrief";
 import { ElyraSignals } from "@/components/agent/ElyraSignals";
 import { PendingActions } from "@/components/agent/PendingActions";
@@ -457,8 +458,9 @@ function Composer({
   onAsk: (prompt: string) => void;
   /** Opens a voice conversation (components/agent/VoiceMode.tsx). */
   onVoice: () => void;
-  /** Suggested questions belong to the conversation; the other views get
-      their height back. */
+  /** Suggested questions start a conversation: on the Ask tab only, and
+      only until the first question is asked — after that they are noise
+      under the answers. They return when the conversation is cleared. */
   showChips: boolean;
 }) {
   const t = useT();
@@ -508,7 +510,9 @@ function Composer({
   const signedOut = auth.available && auth.ready && !auth.authenticated;
   const canSend =
     (draft.trim().length > 0 || attachments.length > 0) && !pending && !reading && dictation.status !== "transcribing";
-  const chips = showChips ? suggestionChips(cryptoSymbol, t) : [];
+  /* Two at most, so the brief above keeps its room. A suggestion fills the
+     composer rather than sending: the person reads it, edits it, sends it. */
+  const chips = showChips ? suggestionChips(cryptoSymbol, t).slice(0, 2) : [];
   const router = useRouter();
   /* "/" then letters: the shortcuts that match, to pick from (lib/agent/webShortcuts.ts). */
   const shortcutMenu = attachments.length === 0 && isShortcutDraft(draft) ? webShortcutMenu(matchingShortcuts(draft)) : [];
@@ -561,24 +565,33 @@ function Composer({
   return (
     <div className="shrink-0 border-t border-border-subtle p-4">
       {chips.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2" aria-label={t("Suggested questions")} role="group">
-          {chips.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              disabled={pending}
-              onClick={() => onAsk(chip)}
-              className={cn(
-                "metallic agent-suggestion type-label inline-flex min-h-9 items-center gap-1.5 rounded-control border border-border-subtle px-2.5 py-1.5",
-                "text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand",
-                "hover:border-border-strong hover:bg-surface-hover hover:text-text-primary",
-                "disabled:opacity-50",
-              )}
-            >
-              {chip}
-              <ArrowUpRight size={13} strokeWidth={1.5} aria-hidden className="text-text-muted" />
-            </button>
-          ))}
+        <div className="mb-3" role="group" aria-labelledby={`${composerId}-suggested`}>
+          <p id={`${composerId}-suggested`} className="type-eyebrow mb-2 flex items-center gap-1.5 text-text-secondary">
+            <Sparkles size={13} strokeWidth={1.5} aria-hidden className="text-agent-accent" />
+            {t("Suggested prompts")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {chips.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                disabled={pending}
+                aria-label={t("Put in the composer: {prompt}", { prompt: chip })}
+                onClick={() => {
+                  setDraft(chip);
+                  inputRef.current?.focus();
+                }}
+                className={cn(
+                  "metallic agent-suggestion type-label inline-flex min-h-9 items-center gap-1.5 rounded-control border border-border-subtle px-2.5 py-1.5 text-left",
+                  "text-text-secondary transition-colors duration-[var(--dur-fast)] ease-brand",
+                  "hover:border-border-strong hover:bg-surface-hover hover:text-text-primary",
+                  "disabled:opacity-50",
+                )}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -654,12 +667,12 @@ function Composer({
               void addFiles(files);
             }}
           />
+          <Tip label={t("Attach an image, PDF or text file")}>
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={reading || attachments.length >= ATTACHMENT_LIMITS.maxFiles}
             aria-label={t("Attach files")}
-            title={t("Attach an image, PDF or text file")}
             className={cn(
               "inline-flex size-8 shrink-0 items-center justify-center rounded-control text-text-muted",
               "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover hover:text-text-primary",
@@ -672,6 +685,7 @@ function Composer({
               <Paperclip size={15} strokeWidth={1.5} aria-hidden />
             )}
           </button>
+          </Tip>
 
           <label htmlFor={composerId} className="sr-only">
             {t("Ask Elyra")}
@@ -719,13 +733,13 @@ function Composer({
             )}
           />
 
+          <Tip label={voiceLabel}>
           <button
             type="button"
             onClick={() => (listening ? dictation.stop() : dictation.start())}
             disabled={dictation.mode === null || voiceBlocked || dictation.status === "transcribing"}
             aria-pressed={listening}
             aria-label={voiceLabel}
-            title={voiceLabel}
             className={cn(
               "inline-flex size-8 shrink-0 items-center justify-center rounded-control",
               "transition-colors duration-[var(--dur-fast)] ease-brand",
@@ -745,10 +759,12 @@ function Composer({
               <Mic size={15} strokeWidth={1.5} aria-hidden />
             )}
           </button>
+          </Tip>
 
           {/* With nothing to send, the send button is the way into a voice
               conversation — the composer keeps its width on a narrow column. */}
           {draft.trim().length === 0 && attachments.length === 0 && !listening ? (
+            <Tip label={t("Talk to Elyra — a voice conversation")}>
             <button
               type="button"
               onClick={() => {
@@ -758,7 +774,6 @@ function Composer({
               }}
               disabled={pending}
               aria-label={t("Talk to Elyra")}
-              title={t("Talk to Elyra — a voice conversation")}
               className={cn(
                 "inline-flex size-8 shrink-0 items-center justify-center rounded-control bg-accent text-text-on-accent",
                 "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-accent-hover",
@@ -767,7 +782,9 @@ function Composer({
             >
               <AudioLines size={15} strokeWidth={1.5} aria-hidden />
             </button>
+            </Tip>
           ) : (
+            <Tip label={t("Send message")}>
             <button
               type="submit"
               aria-label={t("Send message")}
@@ -780,6 +797,7 @@ function Composer({
             >
               <SendHorizontal size={15} strokeWidth={1.5} aria-hidden />
             </button>
+            </Tip>
           )}
         </div>
       </form>
@@ -823,6 +841,8 @@ export function AgentPanel({
   const tab = useElyraStore((state) => state.agentTab);
   const setTab = useElyraStore((state) => state.setAgentTab);
   const pending = useElyraStore((state) => state.agentPending);
+  /* Any message at all — the question just sent counts, before its answer lands. */
+  const conversationStarted = useElyraStore((state) => state.messages.length > 0);
   const selectedAssetId = useElyraStore((state) => state.selectedAssetId);
   const { byId } = useAssets([selectedAssetId]);
   const asset = byId.get(selectedAssetId);
@@ -879,12 +899,12 @@ export function AgentPanel({
           </p>
         </div>
         {onToggleExpand && (
+          <Tip label={expanded ? t("Restore Elyra's width") : t("Widen Elyra")}>
           <button
             type="button"
             onClick={onToggleExpand}
             aria-pressed={expanded}
             aria-label={expanded ? t("Restore Elyra's width") : t("Widen Elyra")}
-            title={expanded ? t("Restore width") : t("Widen")}
             className={control}
           >
             {expanded ? (
@@ -893,10 +913,13 @@ export function AgentPanel({
               <Maximize2 size={15} strokeWidth={1.5} aria-hidden />
             )}
           </button>
+          </Tip>
         )}
-        <button type="button" onClick={onClose} aria-label={t("Minimize Elyra")} title={t("Minimize")} className={control}>
-          <Minus size={17} strokeWidth={1.5} aria-hidden />
-        </button>
+        <Tip label={t("Minimize Elyra")}>
+          <button type="button" onClick={onClose} aria-label={t("Minimize Elyra")} className={control}>
+            <Minus size={17} strokeWidth={1.5} aria-hidden />
+          </button>
+        </Tip>
       </header>
 
       <div role="tablist" aria-label={t("Elyra views")} className="mt-2.5 flex shrink-0 gap-1 border-b border-border-subtle px-4">
@@ -979,7 +1002,7 @@ export function AgentPanel({
           setTab("ask");
           setVoiceOpen(true);
         }}
-        showChips={tab === "ask"}
+        showChips={tab === "ask" && !conversationStarted}
       />
       {voiceOpen && <VoiceMode onEnd={() => setVoiceOpen(false)} />}
     </section>

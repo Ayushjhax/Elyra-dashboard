@@ -1,3 +1,4 @@
+import { englishTranslator, type Translator } from "@/lib/i18n/translate";
 import { fromBaseUnits, toBaseUnits } from "@/lib/solana/amount";
 import type { ModelPortfolio, PositionUnits, PricedPortfolio } from "@/lib/invest/types";
 
@@ -110,19 +111,28 @@ export interface SellLeg {
 
 export type Leg = BuyLeg | SellLeg;
 
-/** One buy leg per holding, splitting `amountText` USDC by target weight. */
+/**
+ * One buy leg per holding, splitting `amountText` USDC by target weight.
+ *
+ * `t` words a refusal for the reader; the Android app passes none and keeps
+ * the English.
+ */
 export function planBuy(
   portfolio: Pick<ModelPortfolio, "holdings">,
   amountText: string,
+  t: Translator = englishTranslator,
 ): { legs: BuyLeg[] } | { error: string } {
   const base = toBaseUnits(amountText, USDC_DECIMALS);
-  if (base === null) return { error: "Enter an amount in USDC." };
+  if (base === null) return { error: t("Enter an amount in USDC.") };
 
   const total = BigInt(base);
   const minimum = minimumInvestmentUsd(portfolio);
   if (total < BigInt(minimum) * pow10(USDC_DECIMALS)) {
     return {
-      error: `The smallest amount for this portfolio is $${minimum} — below that, its smallest holding would be under the $${MIN_LEG_USD} a swap needs.`,
+      error: t("The smallest amount for this portfolio is ${minimum} — below that, its smallest holding would be under the ${legMinimum} a swap needs.", {
+        minimum,
+        legMinimum: MIN_LEG_USD,
+      }),
     };
   }
 
@@ -282,11 +292,14 @@ export function planRebalance(
   portfolio: PricedPortfolio,
   units: PositionUnits,
   addUsd = 0,
+  t: Translator = englishTranslator,
 ): RebalancePlan | { error: string } {
   const unpriced = portfolio.holdings.filter((holding) => holding.priceUsd === null);
   if (unpriced.length > 0) {
     return {
-      error: `There is no price for ${unpriced.map((holding) => holding.ticker).join(", ")} right now, so the trades cannot be sized. Try again shortly.`,
+      error: t("There is no price for {tickers} right now, so the trades cannot be sized. Try again shortly.", {
+        tickers: unpriced.map((holding) => holding.ticker).join(", "),
+      }),
     };
   }
 

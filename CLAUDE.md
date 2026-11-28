@@ -20,21 +20,29 @@ glow, bloom, rim or gradient-filled control — the luminance layer that did
 those was removed in the workspace redesign. `lib/brand.ts` tracks
 `--surface-base`.
 
-The exceptions are glass, in two places only. The search palette
+The exceptions are glass, in four places only. The search palette
 (`.command-glass` in `app/globals.css`) is a sheet of glass over the whole
 workspace, its rim and sheen in Ivory at low alpha. The header's two menus —
 notifications and the wallet — are forest glass (`.glass-pop`, through
 `Popover`'s `surface="glass"`): a denser Ink-green pane with one blur, a
-pistachio edge and the one `--shadow-pop`. Both are solid under
+pistachio edge and the one `--shadow-pop`. The paper-trading setup dialog
+(`ClaimDialog` in `components/paper/Paper.tsx`) and the chart's order
+ticket (`components/trade/TradePanel.tsx`) are graphite glass
+(`.graphite-glass`): Slate and Ink over one blur, a Stone and Ivory rim,
+over a workspace dimmed and blurred 3px; their one colour is the pale-lime
+primary action, and on the ticket the amber of closing a whole position.
+Fields, rows and cards inside are tints (`.graphite-inset`,
+`.graphite-field`), never a second blur. All four are solid under
 `prefers-reduced-transparency` and without backdrop-filter support. Glass does
-not spread further — any other floating layer is a flat panel with
-`--shadow-pop`.
+not spread further — any other floating layer, every other dialog included,
+is a flat panel with `--shadow-pop`.
 
 Four deliberate deviations are documented in `README.md` and commented at the
 point where they happen: the figures font in `app/layout.tsx`, the chart
 embed in `components/panels/ChartPanel.tsx`, the glass (the search
-palette and the header menus), and Chinese text falling to the system's CJK
-face (`--font-cjk` in `app/globals.css`).
+palette, the header menus, the paper setup dialog and the order ticket),
+and Chinese text
+falling to the system's CJK face (`--font-cjk` in `app/globals.css`).
 
 The website speaks English and Simplified Chinese (`lib/i18n/`, "Languages"
 in `README.md`). Every word a person reads goes through the translator:

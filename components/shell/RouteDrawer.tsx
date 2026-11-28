@@ -45,6 +45,7 @@ export function RouteDrawer({
   icon,
   title: titleKey,
   subtitle: subtitleKey,
+  tone,
   children,
 }: {
   /** English, translated here: a server page passes its strings as keys. */
@@ -52,6 +53,8 @@ export function RouteDrawer({
   icon: React.ReactNode;
   title: string;
   subtitle: string;
+  /** "graphite" lays a flat Slate tint on the header (Intelligent Portfolios). Never glass. */
+  tone?: "graphite";
   children: React.ReactNode;
 }) {
   const t = useT();
@@ -77,7 +80,12 @@ export function RouteDrawer({
         close();
       }}
     >
-      <header className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-3">
+      <header
+        className={cn(
+          "flex shrink-0 items-center gap-3 border-b border-border-subtle px-4 py-3",
+          tone === "graphite" && "drawer-head-graphite",
+        )}
+      >
         <span aria-hidden className="grid size-9 shrink-0 place-items-center text-accent">
           {icon}
         </span>
@@ -154,6 +162,7 @@ export function Tip({
   openOnTap = false,
   children,
 }: {
+  /** Null renders the trigger alone: its name is already on screen. */
   label: React.ReactNode;
   openOnTap?: boolean;
   children: React.ReactElement;
@@ -164,6 +173,8 @@ export function Tip({
      lifts the pointer off it — which closes it — so the click sets the
      opposite of where the tap started, not of wherever those left it. */
   const openAtPress = useRef(false);
+
+  if (label === null) return children;
 
   if (!openOnTap) {
     return (

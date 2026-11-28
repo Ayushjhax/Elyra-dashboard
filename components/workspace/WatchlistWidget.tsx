@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, Plus, Search, SearchX, Star } from "lucide-react";
 import { AssetSelectDialog } from "@/components/panels/AssetSelectDialog";
+import { Tip } from "@/components/shell/RouteDrawer";
 import { CoinMark } from "@/components/ui/CoinMark";
 import { DeltaText } from "@/components/ui/DeltaText";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -70,9 +71,9 @@ function WatchRow({
         onClick={() => setSelectedAssetId(asset.id)}
         aria-current={selected ? "true" : undefined}
         aria-label={`${asset.symbol}, ${asset.name}${row ? `, ${formatPrice(row.price, priceDecimals(row.price))}` : ""}`}
-        className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2.5 pr-1 text-left"
+        className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2.5 pr-0.5 text-left"
       >
-        <CoinMark symbol={asset.symbol} logo={asset.logo} size={30} />
+        <CoinMark symbol={asset.symbol} logo={asset.logo} size={28} />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="type-data truncate text-text-primary">{asset.symbol}</span>
           <span className={cn("type-label truncate", selected ? "text-text-secondary" : "text-text-muted")}>
@@ -97,6 +98,7 @@ function WatchRow({
         </span>
       </button>
 
+      <Tip label={favorite ? t("Remove {symbol} from favourites", { symbol: asset.symbol }) : t("Add {symbol} to favourites", { symbol: asset.symbol })}>
       <button
         type="button"
         role="switch"
@@ -104,13 +106,14 @@ function WatchRow({
         aria-label={favorite ? t("Remove {symbol} from favourites", { symbol: asset.symbol }) : t("Add {symbol} to favourites", { symbol: asset.symbol })}
         onClick={() => toggleFavorite(asset.id)}
         className={cn(
-          "mr-1 inline-flex size-9 shrink-0 items-center justify-center rounded-chip",
+          "mr-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-chip",
           "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
           favorite ? "text-accent" : "text-text-muted hover:text-text-secondary",
         )}
       >
         <Star size={14} strokeWidth={1.5} aria-hidden fill={favorite ? "currentColor" : "none"} />
       </button>
+      </Tip>
     </li>
   );
 }
@@ -252,7 +255,7 @@ export function WatchlistWidget({ open, onOpenChange, controls }: WidgetProps) {
         </div>
       </div>
 
-      <div aria-hidden="true" className="watch-columns type-eyebrow mx-3 mt-3 grid grid-cols-[minmax(0,1fr)_auto_36px] gap-2 border-b border-border-subtle px-2 pb-2 text-text-secondary">
+      <div aria-hidden="true" className="watch-columns type-eyebrow mx-3 mt-3 grid grid-cols-[minmax(0,1fr)_auto_34px] gap-2 border-b border-border-subtle px-2 pb-2 text-text-secondary">
         <span>{t("Market")}</span>
         <span className="text-right">{t("Price / 24h")}</span>
         <Star size={12} className="justify-self-center" />

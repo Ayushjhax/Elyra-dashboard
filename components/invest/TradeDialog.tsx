@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSignTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { AlertTriangle, Check, Circle, ExternalLink, Loader2, Minus, X } from "lucide-react";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
@@ -85,7 +85,8 @@ export function TradeDialog({
   legs: Leg[];
   /** Holdings this wallet has none of, each of which opens a token account. */
   newHoldings: number;
-  onClose: () => void;
+  /** `ran` is false when it closes from the review, before any swap was started. */
+  onClose: (ran: boolean) => void;
 }) {
   const t = useT();
   const auth = useElyraAuth();
@@ -100,6 +101,14 @@ export function TradeDialog({
   const [phase, setPhase] = useState<"review" | "running" | "done">("review");
   const [error, setError] = useState<string | null>(null);
   const stopping = useRef(false);
+  /* Opened from state, not a DialogTrigger, so Radix has no trigger to give
+     focus back to and it would fall to the page. The control that opened it
+     is still focused here: layout effects run before the dialog's focus trap
+     moves focus inside. */
+  const opener = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (document.activeElement instanceof HTMLElement) opener.current = document.activeElement;
+  }, []);
 
   const update = useCallback((index: number, next: Partial<Row>) => {
     setRows((current) => current.map((row, at) => (at === index ? { ...row, ...next } : row)));
@@ -223,10 +232,18 @@ export function TradeDialog({
       onOpenChange={(next) => {
         /* Closing mid-run would orphan a signature prompt; stop after the
            current swap instead. */
-        if (!next && phase !== "running") onClose();
+        if (!next && phase !== "running") onClose(phase !== "review");
       }}
     >
-      <DialogContent side="center" surface="panel" className="flex flex-col gap-0 p-0">
+      <DialogContent
+        side="center"
+        surface="panel"
+        className="flex flex-col gap-0 p-0"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (opener.current?.isConnected) opener.current.focus();
+        }}
+      >
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border-subtle px-4">
           <DialogTitle asChild>
             <Eyebrow>{kind === "buy" ? t("Buy portfolio") : t("Rebalance")}</Eyebrow>
@@ -329,7 +346,7 @@ export function TradeDialog({
               {t("Stop after this swap")}
             </Button>
           ) : (
-            <Button size="sm" variant="quiet" onClick={onClose}>
+            <Button size="sm" variant="quiet" onClick={() => onClose(phase !== "review")}>
               {phase === "done" ? t("Done") : t("Cancel")}
             </Button>
           )}

@@ -707,6 +707,299 @@ td {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Graphite glass: the paper-trading setup dialog (components/paper) and the
+   chart's order ticket (components/trade/TradePanel).
+
+   The third and fourth glass surfaces (CLAUDE.md, README), and only those
+   two: where the header menus are forest, these are smoky and neutral, so a
+   step into practice and the place an order is made read as set apart from
+   the live workspace behind them. The pane is the brand's own graphite —
+   Slate deepened with Ink — at 55% over one blur that also draws most of the
+   green out of the scene behind it. The rim is Stone and Ivory at low alpha,
+   the shadow is --shadow-pop, and the only colour is the lime of the primary
+   action (and, on the ticket, the amber of closing a whole position). Cards,
+   fields, rows and the plaque inside are tints, never a second blur.
+
+   The workspace behind is dimmed and blurred only a little, so the chart
+   stays recognisable. Without backdrop-filter, or under reduced
+   transparency, the pane is opaque charcoal and the scene is only dimmed.
+
+   Radii are set here rather than by utility: the unlayered :focus-visible
+   rule above would otherwise square a round control while it has focus.
+--------------------------------------------------------------------------- */
+
+.graphite-glass-overlay {
+  background: color-mix(in srgb, var(--ink) 46%, transparent);
+  -webkit-backdrop-filter: blur(3px) saturate(75%);
+  backdrop-filter: blur(3px) saturate(75%);
+}
+
+.graphite-glass {
+  --graphite: color-mix(in srgb, var(--slate) 70%, var(--ink));
+  --charcoal: color-mix(in srgb, var(--slate) 28%, var(--ink));
+  isolation: isolate;
+  border-radius: 24px; /* the setup dialog's design: rounder than a sheet, tighter than the palette */
+  border-color: color-mix(in srgb, var(--stone) 20%, transparent);
+  background:
+    /* Smoke, lighter where the light enters at the top-left. */
+    linear-gradient(155deg, color-mix(in srgb, var(--ivory) 9%, transparent), transparent 50%),
+    color-mix(in srgb, var(--graphite) 55%, transparent);
+  /* Low saturation is what keeps it graphite: the forest behind loses its green. */
+  -webkit-backdrop-filter: blur(24px) saturate(25%);
+  backdrop-filter: blur(24px) saturate(25%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--ivory) 16%, transparent),
+    var(--shadow-pop);
+}
+
+/* The silver rim: a 1px ring, brightest at the top-left, catching again at
+   the bottom-right. */
+.graphite-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--ivory) 46%, transparent),
+    color-mix(in srgb, var(--stone) 12%, transparent) 32%,
+    color-mix(in srgb, var(--stone) 5%, transparent) 64%,
+    color-mix(in srgb, var(--ivory) 22%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* The inset balance card: a lighter sheet of the same glass. */
+.graphite-glass-card {
+  border: 1px solid color-mix(in srgb, var(--stone) 24%, transparent);
+  border-radius: var(--radius-sheet);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ivory) 15%, transparent),
+    color-mix(in srgb, var(--ivory) 5%, transparent) 72%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ivory) 18%, transparent);
+}
+
+/* The plaque etched on the card: a tilted pane with the flask cut into it. */
+.paper-plaque-back {
+  fill: color-mix(in srgb, var(--ivory) 4%, transparent);
+  stroke: color-mix(in srgb, var(--stone) 18%, transparent);
+}
+.paper-plaque-face {
+  stroke: color-mix(in srgb, var(--ivory) 34%, transparent);
+}
+.paper-plaque-sheen-hi {
+  stop-color: var(--ivory);
+  stop-opacity: 0.2;
+}
+.paper-plaque-sheen-lo {
+  stop-color: var(--ivory);
+  stop-opacity: 0.03;
+}
+.paper-plaque-etch {
+  stroke: color-mix(in srgb, var(--ivory) 72%, transparent);
+}
+.paper-plaque-etch-shade {
+  stroke: color-mix(in srgb, var(--ink) 60%, transparent);
+}
+
+.graphite-glass-close {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--stone) 28%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ivory) 6%, transparent);
+  color: var(--text-primary);
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+/* A finger-sized target around a small circle. */
+.graphite-glass-close::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+}
+
+/* "Not now": text on the glass that lightens on hover. */
+.graphite-glass-quiet {
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+/* The primary action: the dialog's one colour, pale lime. */
+.graphite-glass-cta {
+  border-radius: var(--radius-pill);
+  background: var(--accent-hover);
+  color: var(--text-on-accent);
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .graphite-glass-close:not([aria-disabled="true"]):hover {
+    border-color: color-mix(in srgb, var(--stone) 42%, transparent);
+    background: color-mix(in srgb, var(--ivory) 12%, transparent);
+  }
+  .graphite-glass-quiet:not([aria-disabled="true"]):hover {
+    background: color-mix(in srgb, var(--ivory) 8%, transparent);
+  }
+  .graphite-glass-cta:not([aria-disabled="true"]):hover {
+    background: var(--cream-lime);
+  }
+}
+
+.graphite-glass [aria-disabled="true"] {
+  cursor: default;
+}
+.graphite-glass-close[aria-disabled="true"],
+.graphite-glass-quiet[aria-disabled="true"] {
+  opacity: 0.5;
+}
+.graphite-glass-cta[aria-disabled="true"] {
+  cursor: progress;
+}
+
+.graphite-glass summary {
+  border-radius: var(--radius-chip);
+  list-style: none;
+}
+.graphite-glass summary::-webkit-details-marker {
+  display: none;
+}
+
+/* ---- The order ticket ---- */
+
+/* A tall working surface takes the sheet radius, not the dialog's. */
+.graphite-glass.graphite-sheet {
+  border-radius: var(--radius-sheet);
+}
+
+/* An inset block: the account row, the preview, liquidity, a position. */
+.graphite-inset {
+  border: 1px solid color-mix(in srgb, var(--stone) 16%, transparent);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--ink) 24%, transparent);
+}
+
+/* A field on the glass: dark enough that what is typed stays crisp. */
+.graphite-field {
+  border: 1px solid color-mix(in srgb, var(--stone) 18%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--ink) 42%, transparent);
+  color: var(--text-primary);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.graphite-field:focus {
+  border-color: color-mix(in srgb, var(--stone) 42%, transparent);
+}
+.graphite-field[aria-invalid="true"] {
+  border-color: color-mix(in srgb, var(--negative) 70%, transparent);
+}
+.graphite-field option {
+  background: var(--surface-panel);
+  color: var(--text-primary);
+}
+
+/* The account row: a native select laid invisibly over its own label, so
+   the row looks like the design and still opens the platform's picker. */
+.graphite-picker:has(select:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* A segmented control: Long / Short, Market / Limit. The chosen side is
+   Elyra Green, the brand's "selected" surface, never the action's lime. */
+.graphite-segment {
+  border: 1px solid color-mix(in srgb, var(--stone) 14%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.graphite-segment > button {
+  border-radius: var(--radius-chip);
+  color: var(--text-secondary);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.graphite-segment > button[aria-checked="true"] {
+  background: var(--surface-active);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ivory) 10%, transparent);
+}
+
+/* An outlined control: Edit TP/SL, the partial closes, the limit picks. */
+.graphite-outline {
+  border: 1px solid color-mix(in srgb, var(--stone) 26%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--ivory) 3%, transparent);
+  color: var(--text-primary);
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+/* Closing the whole position: a restrained amber, apart from the lime that
+   opens one. */
+.graphite-amber {
+  border: 1px solid color-mix(in srgb, var(--caution) 62%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--caution) 6%, transparent);
+  color: var(--caution);
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+/* The order action is a rectangle on the ticket, a pill in the dialog. */
+.graphite-glass-cta.graphite-cta-rect {
+  border-radius: var(--radius-control);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .graphite-segment > button:not([aria-checked="true"]):hover {
+    color: var(--text-primary);
+  }
+  .graphite-outline:not([aria-disabled="true"]):hover {
+    border-color: color-mix(in srgb, var(--stone) 42%, transparent);
+    background: color-mix(in srgb, var(--ivory) 8%, transparent);
+  }
+  .graphite-amber:not([aria-disabled="true"]):hover {
+    border-color: var(--caution);
+    background: var(--caution-bg);
+  }
+}
+
+.graphite-outline[aria-disabled="true"],
+.graphite-amber[aria-disabled="true"] {
+  opacity: 0.55;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .graphite-glass-overlay {
+    background: color-mix(in srgb, var(--ink) 78%, transparent);
+  }
+  .graphite-glass {
+    background: var(--charcoal);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .graphite-glass-overlay {
+    background: color-mix(in srgb, var(--ink) 78%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .graphite-glass {
+    background: var(--charcoal);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .graphite-inset {
+    background: var(--surface-base);
+  }
+}
+
 ::selection {
   background-color: var(--surface-active);
   color: var(--text-primary);
@@ -938,10 +1231,12 @@ td {
   pointer-events: none;
 }
 
+/* Tight enough that a name like "Hyperliquid" fits beside a five-figure
+   price at the column's 230px floor (COLUMN_BOUNDS.widgets.min). */
 .watch-row > button:first-of-type {
   min-height: 64px;
-  gap: 8px;
-  padding-left: 8px;
+  gap: 6px;
+  padding-left: 6px;
 }
 
 .activity-row > div > button:hover {
@@ -949,8 +1244,8 @@ td {
 }
 
 .watch-row > button:first-of-type > span:last-child {
-  min-width: 76px;
-  padding-left: 4px;
+  min-width: 64px;
+  padding-left: 2px;
 }
 
 .chart-control[aria-pressed="true"] {
@@ -1038,5 +1333,41 @@ td {
   }
   .chart-control[aria-pressed="true"]::before {
     background: transparent;
+  }
+}
+
+/* ===========================================================================
+   Intelligent Portfolios (components/invest).
+
+   The drawer's header is graphite: Slate laid over the panel as one flat,
+   solid fill. It reads as frosted graphite without being glass — the header
+   sits above the drawer's scroll body, not over it, so a backdrop blur
+   would have nothing behind it to frost, and glass stays the four surfaces
+   CLAUDE.md names.
+
+   The target-allocation bar steps from Citron down through Khaki toward the
+   raised surface, one step per holding in the catalog's order (`--mix` is
+   set per segment by components/invest/parts.tsx). Colour is only an echo:
+   every segment wide enough carries its weight as text, the segments are
+   parted by gaps, and the rows under the bar repeat each weight in the same
+   order. Ivory on the lightest Khaki step clears 4.5:1.
+   =========================================================================== */
+
+.drawer-head-graphite {
+  background: color-mix(in srgb, var(--slate) 22%, var(--surface-panel));
+}
+
+.allocation-segment {
+  background: color-mix(in srgb, var(--khaki) var(--mix, 60%), var(--surface-raised));
+  color: var(--text-primary);
+}
+.allocation-segment[data-lead] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+@media (forced-colors: active) {
+  .allocation-segment {
+    border: 1px solid CanvasText;
   }
 }

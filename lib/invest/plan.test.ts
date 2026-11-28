@@ -80,9 +80,35 @@ describe("planBuy", () => {
     expect("error" in planBuy(portfolio, "")).toBe(true);
     expect("error" in planBuy(portfolio, "0")).toBe(true);
   });
+
+  it("words a refusal through the reader's translator, and keeps the English without one", () => {
+    const seen: string[] = [];
+    const t = Object.assign(
+      (key: string, values?: Record<string, string | number>) => {
+        seen.push(key);
+        return `zh:${key.replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? ""))}`;
+      },
+      { locale: "zh-CN" as const },
+    );
+    const refused = planBuy(portfolio, "4.99", t);
+    expect("error" in refused && refused.error).toMatch(/^zh:The smallest amount for this portfolio is \$5 — .* under the \$2 a swap needs\.$/);
+    expect("error" in planBuy(portfolio, "abc", t) && seen).toContain("Enter an amount in USDC.");
+    const english = planBuy(portfolio, "4.99");
+    expect("error" in english && english.error).toBe(
+      "The smallest amount for this portfolio is $5 — below that, its smallest holding would be under the $2 a swap needs.",
+    );
+  });
 });
 
 describe("isOutOfBand — the 5/25 rule", () => {
+  it("holds both examples the portfolio page states: 40% sits in 35–45%, 4% in 3–5%", () => {
+    /* components/invest/PortfolioView.tsx's RULE quotes these two bands. */
+    for (const inside of [3500, 4000, 4500]) expect(isOutOfBand(4000, inside)).toBe(false);
+    for (const outside of [3499, 4501]) expect(isOutOfBand(4000, outside)).toBe(true);
+    for (const inside of [300, 400, 500]) expect(isOutOfBand(400, inside)).toBe(false);
+    for (const outside of [299, 501]) expect(isOutOfBand(400, outside)).toBe(true);
+  });
+
   it("uses 25% of target for small holdings", () => {
     expect(isOutOfBand(400, 500)).toBe(false); /* 1pp is exactly the band */
     expect(isOutOfBand(400, 501)).toBe(true);

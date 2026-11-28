@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
+  BarChart3,
   Maximize2,
   Minimize2,
   PanelLeft,
@@ -20,6 +21,7 @@ import { change24h } from "@/lib/portfolio/derive";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 import { usePortfolioHistory } from "@/lib/portfolio/useHistory";
 import { usePortfolio } from "@/lib/portfolio/usePortfolio";
+import { usePaper } from "@/lib/paper/usePaper";
 import { useElyraStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
@@ -101,20 +103,48 @@ function Sparkline({ values, rising }: { values: number[]; rising: boolean }) {
   );
 }
 
+/**
+ * The 7-day performance line once the account has a history; until then, a
+ * plain statement that it has none and when it will. A history that could
+ * not be read says so, rather than claiming there is none.
+ */
 function Performance({ enabled }: { enabled: boolean }) {
   const t = useT();
   const history = usePortfolioHistory("1W");
   const values = history.points.map((point) => point.totalValueUsd).filter(Number.isFinite);
+
+  if (enabled && !history.loading && values.length < 2) {
+    if (history.error !== null) {
+      return (
+        <Figure label={t("7-day")} className="hidden mid:flex">
+          <span className="type-label text-text-muted" title={history.error}>
+            {t("History unavailable")}
+          </span>
+        </Figure>
+      );
+    }
+    return (
+      <div className="hidden min-w-0 items-center gap-3 mid:flex">
+        <span aria-hidden className="grid size-8 shrink-0 place-items-center text-text-muted">
+          <BarChart3 size={20} strokeWidth={1.5} />
+        </span>
+        <div className="min-w-0">
+          <p className="type-body-sm whitespace-nowrap text-text-primary">{t("No portfolio history yet")}</p>
+          <p className="type-label hidden text-text-secondary full:block">
+            {t("Your portfolio activity will appear here once you start trading.")}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   let body: React.ReactNode;
   if (!enabled) {
     body = <span className="type-data text-text-muted">—</span>;
   } else if (history.loading) {
     body = <Skeleton className="h-7 w-24 rounded-control" />;
-  } else if (values.length >= 2) {
-    body = <Sparkline values={values} rising={values[values.length - 1] >= values[0]} />;
   } else {
-    body = <span className="type-label text-text-muted">{t("No history yet")}</span>;
+    body = <Sparkline values={values} rising={values[values.length - 1] >= values[0]} />;
   }
 
   return (
@@ -137,6 +167,10 @@ function AccountFigures() {
   const t = useT();
   const auth = useElyraAuth();
   const feed = usePortfolio();
+  /* These figures are always the live portfolio — the connected wallets and
+     venues — whatever account orders go to. While Paper is on, where the band
+     above shows the paper funds, the label says so. */
+  const paperOn = usePaper().mode === "paper";
   const hidden = useElyraStore((state) => state.balancesHidden);
   const snapshot = feed.snapshot;
   const change = useMemo(() => (snapshot ? change24h(snapshot) : null), [snapshot]);
@@ -188,7 +222,7 @@ function AccountFigures() {
 
   return (
     <div className="flex min-w-0 items-center gap-x-6">
-      <Figure label={t("Portfolio value")}>
+      <Figure label={paperOn ? t("Live portfolio") : t("Portfolio value")}>
         {summary === null ? (
           <Skeleton className="h-6 w-28" />
         ) : (

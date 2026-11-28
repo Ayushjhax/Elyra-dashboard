@@ -7,6 +7,8 @@ import { SkeletonRows } from "@/components/portfolio/primitives";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
 import { DrawerCard } from "@/components/shell/RouteDrawer";
 import { Button } from "@/components/ui/Button";
+import { CoinMark } from "@/components/ui/CoinMark";
+import { CompanyMark } from "@/components/ui/CompanyMark";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ISSUER_ORDER, matches, type EquityGroup, type EquityIssuer } from "@/lib/equities/catalogue";
 import type { EquitiesCatalogue } from "@/lib/equities/server";
@@ -110,10 +112,15 @@ function GroupCard({ group, onTrade, issuerLabel }: { group: EquityGroup; onTrad
   const t = useT();
   return (
     <li className="rounded-card border border-border-subtle bg-surface-raised p-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="min-w-0">
-          <p className="type-data text-text-primary">{group.ticker}</p>
-          <p className="type-label truncate text-text-muted">{group.name}</p>
+      <div className="flex items-center justify-between gap-3">
+        {/* The company's logo by its ticker (Parqet, then Financial Modeling
+            Prep), or its monogram where neither carries one. */}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <CompanyMark ticker={group.ticker} name={group.name} size={32} />
+          <div className="min-w-0">
+            <p className="type-data text-text-primary">{group.ticker}</p>
+            <p className="type-label truncate text-text-muted">{group.name}</p>
+          </div>
         </div>
         <div className="shrink-0 text-right">
           <p className="type-data-sm tabular-nums text-text-primary">{group.shareUsd === null ? "—" : formatPriceUsd(group.shareUsd)}</p>
@@ -125,6 +132,13 @@ function GroupCard({ group, onTrade, issuerLabel }: { group: EquityGroup; onTrad
       <ul className="mt-2 flex flex-col divide-y divide-border-subtle">
         {group.tokens.map((token) => (
           <li key={`${token.chain}:${token.address}`} className="flex items-center gap-3 py-2">
+            {/* The token's own artwork; where it has none, the company's. */}
+            <CoinMark
+              symbol={token.symbol}
+              logo={token.icon}
+              fallback={<CompanyMark ticker={group.ticker} name={group.name} size={24} />}
+              size={24}
+            />
             <div className="min-w-0 flex-1">
               <p className="type-body-sm truncate text-text-primary">
                 {token.symbol} <span className="type-label text-text-muted">· {t(issuerLabel(token.issuer))}</span>

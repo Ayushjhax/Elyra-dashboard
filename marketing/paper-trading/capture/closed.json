@@ -1,0 +1,12 @@
+[
+  { "id": "c1", "coin": "SOL", "side": "long", "pnl": 186.42, "exit": "take_profit", "lev": 3, "at": 1500, "hold": 190 },
+  { "id": "c2", "coin": "BTC", "side": "long", "pnl": 241.10, "exit": "take_profit", "lev": 2, "at": 2300, "hold": 420 },
+  { "id": "c3", "coin": "ETH", "side": "short", "pnl": -74.85, "exit": "stop_loss", "lev": 2, "at": 2900, "hold": 75 },
+  { "id": "c4", "coin": "HYPE", "side": "long", "pnl": -86.40, "exit": "stop_loss", "lev": 3, "at": 3400, "hold": 260 },
+  { "id": "c5", "coin": "xyz:NVDA", "side": "long", "pnl": 104.80, "exit": "closed_by_hand", "lev": 2, "at": 4100, "hold": 330 },
+  { "id": "c6", "coin": "DOGE", "side": "short", "pnl": -96.20, "exit": "stop_loss", "lev": 4, "at": 4700, "hold": 55 },
+  { "id": "c7", "coin": "SOL", "side": "short", "pnl": 92.75, "exit": "exit_rule", "lev": 2, "at": 5300, "hold": 150 },
+  { "id": "c8", "coin": "ETH", "side": "long", "pnl": -61.40, "exit": "stop_loss", "lev": 2, "at": 6100, "hold": 380 },
+  { "id": "c9", "coin": "BTC", "side": "short", "pnl": -88.95, "exit": "stop_loss", "lev": 5, "at": 6800, "hold": 40 },
+  { "id": "c10", "coin": "kPEPE", "side": "long", "pnl": 54.10, "exit": "take_profit", "lev": 4, "at": 7500, "hold": 120 }
+]

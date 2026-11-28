@@ -97,6 +97,11 @@ function ensurePolling(): void {
   if (timer === null && inFlight === null && enabled && subscribers > 0) void poll();
 }
 
+/** Reads again now — the chart's ticket, while a limit order it placed waits for its fill. */
+export function refreshAutomation(): void {
+  void poll();
+}
+
 function reset(): void {
   generation += 1;
   if (timer !== null) {

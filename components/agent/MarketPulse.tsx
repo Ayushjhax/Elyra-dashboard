@@ -92,8 +92,8 @@ export function WatchlistPulse() {
                   {ema !== null && (
                     <span className="type-label mt-0.5 block text-text-muted">
                       {(ema >= 0
-              ? t("{ema} above its EMA", { ema: formatPct(Math.abs(ema), { sign: false }) })
-              : t("{ema} below its EMA", { ema: formatPct(Math.abs(ema), { sign: false }) }))}
+              ? t("{ema} above Pyth's 1h EMA", { ema: formatPct(Math.abs(ema), { sign: false }) })
+              : t("{ema} below Pyth's 1h EMA", { ema: formatPct(Math.abs(ema), { sign: false }) }))}
                     </span>
                   )}
                 </span>

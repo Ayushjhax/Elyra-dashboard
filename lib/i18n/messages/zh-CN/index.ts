@@ -33,6 +33,8 @@ import { insider } from "./insider";
 import { scout } from "./scout";
 import { portfolioOverview } from "./portfolioOverview";
 import { backpackStocks } from "./backpackStocks";
+import { tradingWorkspace } from "./tradingWorkspace";
+import { automationDrawer } from "./automationDrawer";
 
 /* ---------------------------------------------------------------------------
    Simplified Chinese.
@@ -55,6 +57,8 @@ export const zhCN: Messages = {
   ...scout,
   ...portfolioOverview,
   ...backpackStocks,
+  ...tradingWorkspace,
+  ...automationDrawer,
   ...agent,
   ...arena,
   ...assets,

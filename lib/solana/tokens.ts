@@ -251,6 +251,22 @@ export async function resolveTokens(
   return resolved;
 }
 
+/**
+ * Jupiter's verified icon for each mint that has one, https only — artwork
+ * without the price reads `resolveTokens` makes. A mint that is not
+ * verified, or an index that cannot be read, simply has no entry.
+ */
+export async function verifiedIcons(mints: readonly string[]): Promise<Map<string, string>> {
+  const icons = new Map<string, string>();
+  const known = await verifiedIndex();
+  if (known === null) return icons;
+  for (const mint of mints) {
+    const icon = known.get(mint)?.icon;
+    if (typeof icon === "string" && icon.startsWith("https://")) icons.set(mint, icon);
+  }
+  return icons;
+}
+
 /** Test seam. Both caches are module state and would otherwise leak across tests. */
 export function clearTokenCache(): void {
   index = null;

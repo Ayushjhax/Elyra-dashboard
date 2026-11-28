@@ -11,6 +11,7 @@ import {
   type MarketSource,
   type OpenInterestSnapshot,
   type Candle,
+  type SourceId,
 } from "@/lib/market/types";
 import type { Interval } from "@/lib/types";
 
@@ -154,6 +155,27 @@ export function candles(
     (source) => source.candles(symbol, interval, limit),
     (rows) => rows.length > 0,
   );
+}
+
+/** Candles with the exchange that served them, for a figure that names its source. */
+export async function candlesWithSource(
+  symbol: string,
+  interval: Interval,
+  limit: number,
+): Promise<{ candles: Candle[]; source: SourceId }> {
+  let served: SourceId | null = null;
+  const rows = await attempt(
+    symbol,
+    async (source) => {
+      const found = await source.candles(symbol, interval, limit);
+      /* The walk stops at the first source with rows, so the last one
+         recorded here is the one that answered. */
+      if (found.length > 0) served = source.id;
+      return found;
+    },
+    (found) => found.length > 0,
+  );
+  return { candles: rows, source: served ?? sourcesFor(symbol)[0].id };
 }
 
 export function funding(

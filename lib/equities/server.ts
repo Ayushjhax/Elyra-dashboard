@@ -10,6 +10,7 @@ import {
 import { robinhoodStockTokens } from "@/lib/evm/stockTokens";
 import { pythConfigured, usEquityAssets } from "@/lib/market/pyth/catalog";
 import { pricesForIds } from "@/lib/market/pyth/client";
+import { verifiedIcons } from "@/lib/solana/tokens";
 import { routePrices } from "@/lib/providers/router";
 import { sunriseStock } from "@/lib/providers/sunrise";
 import { stockListing, type StockSource } from "@/lib/sunrise/listing";
@@ -82,6 +83,7 @@ async function build(): Promise<EquitiesCatalogue> {
     ticker: tickerOf(asset.issuer, asset.symbol),
     priceUsd: null,
     swap: { symbol: asset.symbol },
+    icon: null,
   }));
 
   /* Backpack Securities' tokens: Sunrise's listing with each ticker from
@@ -114,6 +116,7 @@ async function build(): Promise<EquitiesCatalogue> {
         ticker: stocks[index]?.ticker ?? tickerOf("sunrise", token.symbol),
         priceUsd: null,
         swap: !allowlisted.has(symbol) && counts.get(symbol) === 1 ? { symbol: token.symbol } : null,
+        icon: token.icon,
       });
     });
   }
@@ -130,7 +133,16 @@ async function build(): Promise<EquitiesCatalogue> {
       ticker: tickerOf("robinhood", token.symbol),
       priceUsd: null,
       swap: null,
+      icon: null,
     });
+  }
+
+  /* Artwork for the Solana tokens the listing gave none: Jupiter's verified
+     index (cached for hours), never a guess from the symbol. */
+  const unlit = tokens.filter((token) => token.chain === "solana" && token.icon === null).map((token) => token.address);
+  if (unlit.length > 0) {
+    const icons = await verifiedIcons(unlit).catch(() => new Map<string, string>());
+    for (const token of tokens) if (token.icon === null) token.icon = icons.get(token.address) ?? null;
   }
 
   /* The secondary market: each Solana token's price where it trades. */

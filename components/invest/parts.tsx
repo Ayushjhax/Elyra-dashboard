@@ -1,7 +1,10 @@
 "use client";
 
+import { useId, useState } from "react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 import { CATEGORY_LABEL, RISK_LABEL } from "@/lib/invest/catalog";
-import type { PricedPortfolio, RiskLevel } from "@/lib/invest/types";
+import type { PortfolioHolding, PricedPortfolio, RiskLevel } from "@/lib/invest/types";
+import { intlLocale, type Locale } from "@/lib/i18n/locales";
 import { onSolanaWallet } from "@/lib/portfolio/chain";
 import type { PortfolioSnapshot } from "@/lib/portfolio/types";
 import { cn } from "@/lib/utils";
@@ -11,6 +14,134 @@ import { useT } from "@/lib/i18n/client";
    Pieces shared by the Intelligent Portfolios list, a portfolio's page and
    its trade dialog.
 --------------------------------------------------------------------------- */
+
+/* ---- focus across the list and a portfolio's page ----
+
+   Each is its own route, so following a card or "All portfolios" unmounts
+   the link that had focus and the keyboard would start again from the top
+   of the document. The link that was followed says where focus should land
+   next; the page it opens takes it once. A page opened any other way (a
+   typed URL, a reload) takes nothing, so focus is never pulled on load. */
+
+let focusHandoff: { view: "list" | "detail"; id: string } | null = null;
+
+export function handFocusTo(view: "list" | "detail", id: string): void {
+  focusHandoff = { view, id };
+}
+
+/** The portfolio id focus was handed to `view` for, once; null otherwise. */
+export function takeFocus(view: "list" | "detail"): string | null {
+  if (focusHandoff === null || focusHandoff.view !== view) return null;
+  const { id } = focusHandoff;
+  focusHandoff = null;
+  return id;
+}
+
+/** "2026-11-09" → "9 Nov 2026", or "2026年11月9日" for a Chinese reader. */
+export function dayLabel(iso: string, locale: Locale): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString(intlLocale(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * A card that folds to its heading — "How portfolios work", "Strategy &
+ * disclosures". The heading is the toggle; folding hides the body without
+ * unmounting it.
+ */
+export function Disclosure({
+  icon: Icon,
+  title,
+  defaultOpen = false,
+  className,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  defaultOpen?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
+
+  return (
+    <section
+      aria-labelledby={`${id}-toggle`}
+      className={cn("min-w-0 rounded-panel border border-border-subtle bg-surface-raised", className)}
+    >
+      <h2>
+        <button
+          type="button"
+          id={`${id}-toggle`}
+          aria-expanded={open}
+          aria-controls={`${id}-body`}
+          onClick={() => setOpen(!open)}
+          className={cn(
+            "flex min-h-12 w-full min-w-0 items-center gap-2.5 px-4 py-3 text-left @max-[340px]:px-3",
+            "transition-colors duration-[var(--dur-fast)] ease-brand hover:bg-surface-hover",
+            open ? "rounded-t-panel" : "rounded-panel",
+          )}
+        >
+          <Icon size={18} strokeWidth={1.5} aria-hidden className="shrink-0 text-accent" />
+          <span className="type-h2 min-w-0 flex-1 text-text-primary">{title}</span>
+          <ChevronRight
+            size={16}
+            aria-hidden
+            className={cn(
+              "shrink-0 text-text-muted transition-transform duration-[var(--dur-base)] ease-brand",
+              open && "rotate-90",
+            )}
+          />
+        </button>
+      </h2>
+      <div id={`${id}-body`} hidden={!open} className="px-4 pb-4 @max-[340px]:px-3">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+/* ---- the target-allocation bar ---- */
+
+/** How much Khaki a segment after the first carries: 80% stepping down to 30%. */
+function khakiMix(index: number, count: number): string {
+  const steps = Math.max(1, count - 2);
+  return `${Math.round(80 - ((index - 1) * 50) / steps)}%`;
+}
+
+/** The colour of a holding's segment, for its swatch in the rows below the bar. */
+export function segmentStyle(index: number, count: number): { className: string; lead?: ""; style?: React.CSSProperties } {
+  return index === 0
+    ? { className: "allocation-segment", lead: "" }
+    : { className: "allocation-segment", style: { "--mix": khakiMix(index, count) } as React.CSSProperties };
+}
+
+/**
+ * Each holding's target weight as one segment of a bar, in the catalog's
+ * order. Hidden from assistive technology: the rows beneath it say the same
+ * thing in words, and the bar would only say it twice. A segment shows its
+ * weight only where the figure fits (each segment is its own container).
+ */
+export function AllocationBar({ holdings }: { holdings: readonly Pick<PortfolioHolding, "symbol" | "weightBps">[] }) {
+  return (
+    <div aria-hidden className="flex h-8 w-full gap-0.5 overflow-hidden rounded-control">
+      {holdings.map((holding, index) => {
+        const segment = segmentStyle(index, holdings.length);
+        return (
+          <span
+            key={holding.symbol}
+            data-lead={segment.lead}
+            className={cn(segment.className, "@container grid min-w-0 place-items-center overflow-hidden")}
+            style={{ ...segment.style, flex: `${holding.weightBps} 1 0%` }}
+          >
+            <span className="type-data-sm hidden whitespace-nowrap @[2rem]:inline">{weightLabel(holding.weightBps)}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 /** 2000 → "20%", 350 → "3.5%". */
 export function weightLabel(bps: number): string {

@@ -17,6 +17,9 @@ import { serviceClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Positions sent to the drawer — the page polls once a minute, so this stays modest. */
+const HISTORY_LIMIT = 200;
+
 export async function GET(request: Request): Promise<Response> {
   const resolved = await automationUser(request);
   if ("response" in resolved) return resolved.response;
@@ -27,7 +30,9 @@ export async function GET(request: Request): Promise<Response> {
       readSettings(userId),
       readAgent(userId),
       listRules(userId),
-      listPositions(userId),
+      /* Enough history for the drawer's record: its trade history and the
+         analysis are computed from the same rows (lib/autotrade/history.ts). */
+      listPositions(userId, HISTORY_LIMIT),
       listOrders(userId),
     ]);
     const analysis = await paperAnalysis(userId, rules);

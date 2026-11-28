@@ -56,6 +56,8 @@ export interface TradeView {
   realisedPartialUsd?: number;
   /** An AI fund's position: closed whole only, its exits its manager's. */
   fund?: boolean;
+  /** As entered; null for positions recorded before leverage was stored. */
+  leverage?: number | null;
 }
 
 export interface OrderView {
@@ -74,6 +76,8 @@ export interface OrderView {
   createdAt: string;
   filledAt: string | null;
   cancelledAt: string | null;
+  /** The position a filled order opened (the engine records it as it fills). */
+  positionId?: string | null;
 }
 
 export interface StrategyOption {

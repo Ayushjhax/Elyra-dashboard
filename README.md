@@ -1388,7 +1388,7 @@ Each is noted where it happens, in the file that makes the choice.
    of the brand's market semantics. `ChartPanel` uses the `tv.js` widget, which
    honours the required colours: background, grid, Sage up, Clay down, and the
    EMA in `--accent-quiet` through its `ema.ma.color` override.
-3. **Glass: the search palette and the header menus.** Section 3 makes the
+3. **Glass: the search palette, the header menus, the paper setup dialog and the order ticket.** Section 3 makes the
    product flat. The ⌘K palette is a sheet of glass (`.command-glass` in
    `app/globals.css`): a barely tinted pane over a light blur, a 1px Ivory rim brightest at the top-left,
    and a sheen across the top, over a workspace softened by a 6px blur so the
@@ -1400,6 +1400,23 @@ Each is noted where it happens, in the file that makes the choice.
    highlight and `--shadow-pop`. Rows and inset cards inside are tints, never
    a second blur. Opaque without backdrop-filter or under reduced
    transparency.
+   The dialog that sets up the paper account, the first time someone picks
+   Paper, is graphite glass (`.graphite-glass`): smoky and neutral rather than
+   forest, so the step into practice reads as apart from the live
+   workspace. The pane is Slate deepened with Ink at 55% over one 24px blur
+   that draws most of the green out of the scene behind, with a Stone and
+   Ivory rim, a 24px radius (the design's, between a sheet and the palette)
+   and `--shadow-pop`, over a workspace dimmed by Ink and blurred 3px so the
+   chart stays recognisable. Its one colour is the primary action in Elyra
+   Lime; the balance card, close button and etched flask are tints. Opaque
+   charcoal without backdrop-filter or under reduced transparency.
+   The chart's order ticket (`components/trade/TradePanel.tsx`) is the same
+   graphite glass with the sheet radius: the place an order is made, set
+   apart from the live workspace like the step into Paper. Its fields,
+   segmented controls, preview, liquidity row and position card are tints
+   (`.graphite-field`, `.graphite-segment`, `.graphite-inset`), never a
+   second blur, so typed values stay crisp. Lime is the order action alone;
+   closing a whole position is a restrained amber (`.graphite-amber`).
 4. **Chinese text.** Neither Fustat nor General Sans draws a CJK glyph. In
    Simplified Chinese, the characters fall to the reader's own system face:
    PingFang SC on Apple, Microsoft YaHei on Windows, Noto or Source Han Sans on

@@ -78,6 +78,8 @@ export interface PositionView {
   realisedPartialUsd: number;
   /** An AI fund's position: its manager's, so not closed in part or moved by hand. */
   fund: boolean;
+  /** 0020: as entered; null for positions recorded before leverage was stored. */
+  leverage: number | null;
 }
 
 export function toPosition(row: TradingPositionRow): PositionView {
@@ -108,6 +110,7 @@ export function toPosition(row: TradingPositionRow): PositionView {
     partialCloses: Array.isArray(row.partial_closes) ? (row.partial_closes as PartialClose[]) : [],
     realisedPartialUsd: Number(row.realised_partial_usd ?? 0) || 0,
     fund: row.fund_id !== null && row.fund_id !== undefined,
+    leverage: row.leverage ?? null,
   };
 }
 
@@ -186,6 +189,7 @@ export function toOrder(row: TradingOrderRow): OrderView {
     createdAt: row.created_at,
     filledAt: row.filled_at,
     cancelledAt: row.cancelled_at,
+    positionId: row.position_id ?? null,
   };
 }
 

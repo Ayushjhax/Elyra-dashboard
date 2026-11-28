@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AutomationPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const handoff = readHandoff(await searchParams);
   return (
-    <RouteDrawer label={msg("Automation")} icon={<Bot size={28} strokeWidth={1.5} />} title={msg("Automation")} subtitle={msg("Rules Elyra trades for you")}>
+    <RouteDrawer tone="graphite" label={msg("Automation")} icon={<Bot size={28} strokeWidth={1.5} />} title={msg("Automation")} subtitle={msg("Rules Elyra trades for you")}>
       <AutomationTabs />
       <AutomationView handoff={handoff} />
     </RouteDrawer>

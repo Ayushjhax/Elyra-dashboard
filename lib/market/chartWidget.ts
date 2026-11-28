@@ -56,6 +56,13 @@ export interface ChartWidgetInput {
   /** TradingView's own drawing tools. */
   drawing: boolean;
   colors: ChartColors;
+  /**
+   * Whether the widget's own legend prints the studies' values. The website
+   * passes false: its legend outside the plot names the EMA 20 of completed
+   * candles, and a second, differently computed EMA figure beside it would
+   * contradict it. The line is still drawn. Omitted, the legend keeps them.
+   */
+  studyValues?: boolean;
 }
 
 /** The object handed to `new TradingView.widget(…)`. */
@@ -100,6 +107,7 @@ export function chartWidgetConfig(input: ChartWidgetInput): Record<string, unkno
       "mainSeriesProperties.candleStyle.wickDownColor": down,
       "mainSeriesProperties.lineStyle.color": line,
       "mainSeriesProperties.lineStyle.linewidth": 2,
+      ...(input.studyValues === false ? { "paneProperties.legendProperties.showStudyValues": false } : {}),
     },
     /* The studies are a separate colour space from the series. The EMA's
        plot is named `ma`: "moving average exponential.plot.color", the

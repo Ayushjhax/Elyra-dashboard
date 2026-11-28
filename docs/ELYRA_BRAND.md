@@ -207,12 +207,15 @@ border, not shadow. The only shadow permitted is on floating layers:
 **Borders.** 1px `--border-subtle`. Hairline dividers inside tables, full borders on
 panels. Never double-border adjacent panels — use the shell gap instead.
 
-**Glass — the search palette only.** The ⌘K palette floats over the whole
+**Glass — four surfaces only.** The ⌘K palette floats over the whole
 workspace and is drawn as glass rather than a card: a pane at 30% Ink over an
 18px blur, a 1px rim and a top sheen in Ivory (`#F7F8EA`) at 6–75% alpha, a
 28px radius, over a workspace dimmed 26% and softly blurred (6px) so the
-palette holds the eye. Nothing else is glass, and it falls back to `--surface-panel`
-when the reader asks for reduced transparency.
+palette holds the eye. The header's notifications and wallet menus, the
+paper-trading setup dialog and the chart's order ticket are the only other
+glass, each described in the
+README's deliberate deviations. Nothing else is glass, and each falls back to
+an opaque panel when the reader asks for reduced transparency.
 
 ---
 

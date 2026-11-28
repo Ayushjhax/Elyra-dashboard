@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { ChevronDown } from "lucide-react";
+import { Tip } from "@/components/shell/RouteDrawer";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------------------------------------------------
@@ -99,11 +100,12 @@ export function SectionControl({
   children,
   ...props
 }: React.ComponentProps<"button"> & { label: string }) {
+  /* Icon-only, so its name is a tooltip — on keyboard focus as well as hover. */
   return (
+    <Tip label={label}>
     <button
       type="button"
       aria-label={label}
-      title={label}
       className={cn(
         "metallic inline-flex size-8 items-center justify-center rounded-control text-text-muted",
         "transition-colors duration-[var(--dur-fast)] ease-brand",
@@ -115,5 +117,6 @@ export function SectionControl({
     >
       {children}
     </button>
+    </Tip>
   );
 }

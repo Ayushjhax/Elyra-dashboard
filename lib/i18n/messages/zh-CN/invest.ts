@@ -169,4 +169,44 @@ export const invest: Messages = {
     "你的",
   "Yours ·":
     "你的 ·",
+
+  /* The drawer's redesign: list, position, allocation and disclosures. */
+  "Model portfolios held in your wallet":
+    "持有在你钱包中的模型组合",
+  "How portfolios work":
+    "组合如何运作",
+  "Enter an amount in USDC.":
+    "请输入 USDC 金额。",
+  "The smallest amount for this portfolio is ${minimum} — below that, its smallest holding would be under the ${legMinimum} a swap needs.":
+    "此组合的最低金额为 ${minimum}——低于此金额，其最小一项持仓将不足一笔兑换所需的 ${legMinimum}。",
+  "There is no price for {tickers} right now, so the trades cannot be sized. Try again shortly.":
+    "{tickers} 目前没有价格，因此无法计算交易规模。请稍后再试。",
+  "Target allocation":
+    "目标配置",
+  "{name}: each holding's target weight and price.":
+    "{name}：每项持仓的目标权重和价格。",
+  "Strategy & disclosures":
+    "策略与披露",
+  "Why these holdings":
+    "为什么选这些持仓",
+  "When weights drift":
+    "权重偏离时",
+  "How income accrues":
+    "收益如何累积",
+  "Eligibility & risk":
+    "资格与风险",
+  "Minimum {amount}":
+    "最低 {amount}",
+  "{value} USDC":
+    "{value} USDC",
+  "Review swaps":
+    "查看兑换",
+  "Enter an amount in USDC to see the swaps.":
+    "输入 USDC 金额以查看兑换。",
+  "Insufficient USDC: this wallet holds {value} USDC. Swap or deposit more first.":
+    "USDC 不足：此钱包持有 {value} USDC。请先兑换或存入更多。",
+  "1 swap, split by target weight. Nothing is signed until you start it.":
+    "1 笔兑换，按目标权重拆分。在你开始之前不会签署任何内容。",
+  "{count} swaps, one per holding, split by target weight. Nothing is signed until you start them.":
+    "{count} 笔兑换，每项持仓一笔，按目标权重拆分。在你开始之前不会签署任何内容。",
 };

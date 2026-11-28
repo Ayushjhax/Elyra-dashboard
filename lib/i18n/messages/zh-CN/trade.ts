@@ -93,4 +93,102 @@ export const trade: Messages = {
     "{pct}% 以内",
   "Within the {cap}% slippage cap.":
     "在 {cap}% 的滑点上限之内。",
+
+  /* The order ticket: entering an order, an order waiting for its fill, a position just opened. */
+  "{quantity} {coin}":
+    "{quantity} {coin}",
+  "Best ask":
+    "最优卖价",
+  "Best bid":
+    "最优买价",
+  "Book unavailable":
+    "订单簿暂不可用",
+  "Cancelling…":
+    "正在撤单…",
+  "Close position":
+    "平仓",
+  "Closed at {price}, {pnl} after fees.":
+    "已按 {price} 平仓，扣除手续费后盈亏 {pnl}。",
+  "Est. stop-loss":
+    "预计止损价",
+  "Est. take-profit":
+    "预计止盈价",
+  "Estimated fill":
+    "预计成交价",
+  "Filled at {price} vs. estimated {estimate}":
+    "成交价 {price}，预计 {estimate}",
+  "Filled. Reading the position…":
+    "已成交，正在读取持仓…",
+  "From the chart's quote until Hyperliquid's book is read.":
+    "在读取到 Hyperliquid 订单簿之前，按图表报价估算。",
+  "Limit order cancelled":
+    "限价单已撤销",
+  "Limit order failed":
+    "限价单失败",
+  "Limit price":
+    "限价",
+  "Limit price ($)":
+    "限价（美元）",
+  "Live limit long placed":
+    "实盘限价做多单已挂出",
+  "Live limit short placed":
+    "实盘限价做空单已挂出",
+  "Live long opened":
+    "实盘做多已开仓",
+  "Live short opened":
+    "实盘做空已开仓",
+  "Margin at {leverage}×":
+    "{leverage}× 保证金",
+  "New order":
+    "新订单",
+  "Nothing was opened.":
+    "没有开立任何持仓。",
+  "Open live long":
+    "实盘开多",
+  "Open live short":
+    "实盘开空",
+  "Open paper long":
+    "模拟开多",
+  "Open paper short":
+    "模拟开空",
+  "Order preview":
+    "订单预览",
+  "Order size":
+    "订单规模",
+  "Order size ($)":
+    "订单规模（美元）",
+  "Order size is the position's full value; the margin is what it holds from your account.":
+    "订单规模是持仓的全部名义价值；保证金是从你的账户中占用的部分。",
+  "Paper fills at Hyperliquid's mid, moved {bps} bps against you.":
+    "模拟成交价为 Hyperliquid 的中间价，并向不利方向偏移 {bps} 个基点。",
+  "Paper limit long placed":
+    "模拟限价做多单已挂出",
+  "Paper limit short placed":
+    "模拟限价做空单已挂出",
+  "Paper long opened":
+    "模拟做多已开仓",
+  "Paper short opened":
+    "模拟做空已开仓",
+  "Place live limit long":
+    "挂实盘限价做多单",
+  "Place live limit short":
+    "挂实盘限价做空单",
+  "Place paper limit long":
+    "挂模拟限价做多单",
+  "Place paper limit short":
+    "挂模拟限价做空单",
+  "Quantity":
+    "数量",
+  "Resting on Hyperliquid's book at {price}; nothing opens until it fills.":
+    "正以 {price} 挂在 Hyperliquid 订单簿上；成交前不会开仓。",
+  "Sent to Hyperliquid. Waiting for the fill to be confirmed.":
+    "已发送至 Hyperliquid，正在等待成交确认。",
+  "Stop-loss (SL)":
+    "止损（SL）",
+  "Take-profit (TP)":
+    "止盈（TP）",
+  "Taker fee ({pct}%)":
+    "吃单手续费（{pct}%）",
+  "Waiting for {coin} to trade at {price}. Paper limit orders are checked every five minutes; nothing opens until one fills.":
+    "等待 {coin} 成交于 {price}。模拟限价单每五分钟检查一次；成交前不会开仓。",
 };

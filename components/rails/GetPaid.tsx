@@ -284,7 +284,8 @@ export function GetPaid({ data, feed, now }: { data: RailsResponse; feed: RailsF
             aria-describedby="request-problem"
           />
         </div>
-        <Button type="submit" variant="accent" disabled={busy || problem !== null} className="w-full">
+        {/* Disabled, the accent fill matches the card; the border keeps it a button. */}
+        <Button type="submit" variant="accent" disabled={busy || problem !== null} className="w-full disabled:border disabled:border-border-strong">
           {busy ? t("Creating…") : t("Create request")}
         </Button>
         <p id="request-problem" aria-live="polite" className={cn("type-label", shownProblem === null ? "sr-only" : "text-text-secondary")}>

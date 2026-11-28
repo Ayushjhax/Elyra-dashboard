@@ -205,13 +205,13 @@ export function PortfolioView({ id }: { id: string }) {
   const rebalanceLegs = rebalance !== null && !("error" in rebalance) ? [...rebalance.sells, ...rebalance.buys] : [];
 
   /* Why the review is closed, or what it will hold — one line, always. */
-  const reason: { text: string; tone: "muted" | "caution" } =
+  const reason: { text: string; tone: "muted" | "error" } =
     plan === null
       ? { text: t("Enter an amount in USDC to see the swaps."), tone: "muted" }
       : "error" in plan
-        ? { text: plan.error, tone: "caution" }
+        ? { text: plan.error, tone: "error" }
         : short
-          ? { text: t("Insufficient USDC: this wallet holds {value} USDC. Swap or deposit more first.", { value: formatQty(usdc ?? 0) }), tone: "caution" }
+          ? { text: t("Insufficient USDC: this wallet holds {value} USDC. Swap or deposit more first.", { value: formatQty(usdc ?? 0) }), tone: "error" }
           : {
               text:
                 plan.legs.length === 1
@@ -305,7 +305,7 @@ export function PortfolioView({ id }: { id: string }) {
                 className={cn(
                   "type-data h-[var(--control-h)] w-full min-w-0 rounded-control border bg-surface-base px-3 text-text-primary",
                   "placeholder:text-text-muted",
-                  plan !== null && "error" in plan ? "border-caution/60" : "border-border-strong",
+                  plan !== null && "error" in plan ? "border-negative/60" : "border-border-strong",
                 )}
               />
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
@@ -325,7 +325,7 @@ export function PortfolioView({ id }: { id: string }) {
               <p
                 id={`${fieldId}-reason`}
                 aria-live="polite"
-                className={cn("type-label text-center", reason.tone === "caution" ? "text-caution" : "text-text-muted")}
+                className={cn("type-label text-center", reason.tone === "error" ? "text-negative" : "text-text-muted")}
               >
                 {reason.text}
               </p>

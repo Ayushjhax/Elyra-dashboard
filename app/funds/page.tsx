@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function FundsPage() {
   return (
-    <RouteDrawer label={msg("Funds")} icon={<Landmark size={28} strokeWidth={1.5} />} title={msg("Funds")} subtitle={msg("Autonomous AI funds on your own capital")}>
+    <RouteDrawer label={msg("Funds")} icon={<Landmark size={28} strokeWidth={1.5} />} title={msg("Funds")} subtitle={msg("Autonomous AI funds on your own capital")} tone="graphite">
       <FundsView />
     </RouteDrawer>
   );

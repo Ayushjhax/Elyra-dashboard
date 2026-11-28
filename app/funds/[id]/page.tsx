@@ -24,7 +24,7 @@ export default async function FundPage(props: Props) {
   const { id } = await props.params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
   return (
-    <RouteDrawer label={msg("Fund")} icon={<Landmark size={28} strokeWidth={1.5} />} title={msg("Fund")} subtitle={msg("Managed by AI, held to your charter")}>
+    <RouteDrawer label={msg("Fund")} icon={<Landmark size={28} strokeWidth={1.5} />} title={msg("Fund")} subtitle={msg("Managed by AI, held to your charter")} tone="graphite">
       <FundView id={id} />
     </RouteDrawer>
   );

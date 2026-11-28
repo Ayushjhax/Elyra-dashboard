@@ -245,7 +245,7 @@ export function RiskFields({ draft, onChange, problems = {} }: { draft: CharterD
         />
         <NumberField
           label={t("Leverage")}
-          hint={t("per position · whole number, 1–{maxLeverage}×", { maxLeverage: FUND_LIMITS.maxLeverage })}
+          hint={t("per position · 1–{maxLeverage}×", { maxLeverage: FUND_LIMITS.maxLeverage })}
           value={draft.maxLeverage}
           onChange={(value) => set("maxLeverage", value)}
           suffix="×"

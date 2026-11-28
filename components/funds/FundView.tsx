@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bot, Download, Gauge, History, Landmark, LineChart, NotebookPen, Power, ScrollText, Wallet } from "lucide-react";
-import { CharterFields, charterBody, draftOf, type CharterDraft } from "@/components/funds/CharterFields";
+import { CharterFields } from "@/components/funds/CharterFields";
+import { charterBody, draftOf, type CharterDraft } from "@/lib/funds/draft";
 import { CopyBlock, managerPrompt, useOrigin } from "@/components/funds/ManagerBrief";
 import { NavChart } from "@/components/funds/NavChart";
 import { field, FundStatusTag, Meter, ModeTag, Notice, plainPct, Problem, Stat } from "@/components/funds/parts";

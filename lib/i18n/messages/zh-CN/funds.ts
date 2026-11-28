@@ -347,4 +347,84 @@ export const funds: Messages = {
     "你在“自动化”页面设置的账户级限额同样适用于基金。",
   "Your funds":
     "你的基金",
+
+  /* The launch flow's redesign: overview, Charter, Risk & manager. */
+  "The AI manager reads this first, every time.":
+    "AI 管理人每次都会先读这段内容。",
+  "Characters used":
+    "已用字符",
+  "{count} characters left":
+    "还剩 {count} 个字符",
+  "per position · 1–{maxLeverage}×":
+    "每个头寸 · 1–{maxLeverage}×",
+  "Loss limits":
+    "亏损限额",
+  "From its high · {min}–{max}%. Elyra halts the fund and closes every position.":
+    "自最高点起 · {min}–{max}%。Elyra 会熔断基金并平掉所有头寸。",
+  "In one UTC day · {min}–{max}%. Nothing new opens until 00:00 UTC; open positions stay.":
+    "一个 UTC 日内 · {min}–{max}%。00:00 UTC 前不再开新仓；已有头寸保留。",
+  "Starts on paper at real prices: at least {days} days and {trades} closed trades.":
+    "从模拟盘开始，按真实价格：至少 {days} 天并完成 {trades} 笔已平仓交易。",
+  "A fund's life":
+    "基金的生命周期",
+  "Live graduation unavailable":
+    "无法转为实盘",
+  "No funds running":
+    "没有运行中的基金",
+  "Launch one on paper: write its brief and limits, and connect the AI that will manage it.":
+    "在模拟盘发起一只：写下简报和限额，并连接将管理它的 AI。",
+  "Step {step} of {total}":
+    "第 {step} 步，共 {total} 步",
+  "What the fund is for, how it should trade, and the markets it may use.":
+    "基金的用途、交易方式以及可交易的市场。",
+  "Risk & manager":
+    "风险与管理人",
+  "The limits Elyra holds every order to, the paper capital it starts with, and the AI that manages it.":
+    "Elyra 用来约束每笔订单的限额、起始模拟资金，以及管理它的 AI。",
+  "Paper starting capital":
+    "模拟盘初始资金",
+  "Create a manager key":
+    "创建管理人密钥",
+  "For the AI that will run the fund. Shown once, after launch, with how to connect it.":
+    "供运行该基金的 AI 使用。发起后只显示一次，并附连接方法。",
+  "Assign later":
+    "稍后分配",
+  "Nothing trades until you assign a manager on the fund's page.":
+    "在基金页面分配管理人之前，不会进行任何交易。",
+  "Continue to risk limits":
+    "继续设置风险限额",
+  "Launching…":
+    "正在发起…",
+  "Starting capital must be ${min} to ${max}. Every fund starts on paper.":
+    "初始资金须为 ${min} 至 ${max}。每只基金都从模拟盘开始。",
+  "Name the fund.":
+    "请为基金命名。",
+  "A fund's name is at most {max} characters.":
+    "基金名称最多 {max} 个字符。",
+  "Write the manager's brief: what the fund is for and how it should trade.":
+    "请写下管理人简报：基金的用途和交易方式。",
+  "The brief is at most {max} characters.":
+    "简报最多 {max} 个字符。",
+  "Choose at least one market.":
+    "请至少选择一个市场。",
+  "{market} is not one of Elyra's markets.":
+    "{market} 不是 Elyra 支持的市场。",
+  "A fund trades at most {max} markets.":
+    "一只基金最多交易 {max} 个市场。",
+  "The largest position must be {min}% to {max}% of NAV.":
+    "最大单一头寸须为资产净值的 {min}% 至 {max}%。",
+  "Gross exposure must be 0.1× to {max}× NAV.":
+    "总敞口须为资产净值的 0.1× 至 {max}×。",
+  "Leverage must be a whole number from 1 to {max}.":
+    "杠杆须为 1 至 {max} 的整数。",
+  "Open positions must be a whole number from 1 to {max}.":
+    "持仓数量须为 1 至 {max} 的整数。",
+  "The drawdown limit must be {min}% to {max}%.":
+    "回撤限额须为 {min}% 至 {max}%。",
+  "The daily loss limit must be {min}% to {max}%.":
+    "每日亏损限额须为 {min}% 至 {max}%。",
+  "The daily loss limit cannot be larger than the drawdown limit.":
+    "每日亏损限额不能大于回撤限额。",
+  "One position cannot be larger than the fund's whole gross exposure. Raise exposure or lower the position size.":
+    "单一头寸不能大于基金的总敞口。请提高敞口或降低头寸规模。",
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Info, Landmark, Plus } from "lucide-react";
 import { LaunchFund, freshLaunch, type LaunchDraft } from "@/components/funds/LaunchFund";
@@ -117,13 +117,19 @@ export function FundsView() {
   const [launching, setLaunching] = useState(false);
   const [draft, setDraft] = useState<LaunchDraft>(freshLaunch);
   const newFundRef = useRef<HTMLButtonElement>(null);
+  const returning = useRef(false);
 
   /* Back on the overview, focus returns to the control that opened the launch. */
   const backToOverview = (spent: boolean) => {
     if (spent) setDraft(freshLaunch());
+    returning.current = true;
     setLaunching(false);
-    requestAnimationFrame(() => newFundRef.current?.focus());
   };
+  useEffect(() => {
+    if (launching || !returning.current) return;
+    returning.current = false;
+    newFundRef.current?.focus();
+  }, [launching]);
 
   if (!auth.ready || (feed.signedIn && feed.loading && feed.data === null)) {
     return (

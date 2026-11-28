@@ -1,18 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Bot, Check, Copy, Download, ExternalLink, HandCoins, History, Inbox, Link2, ShieldCheck, ShieldX } from "lucide-react";
+import { AlertTriangle, Bot, Check, Clock, Download, ExternalLink, History, Inbox, ShieldCheck, ShieldX, X, type LucideIcon } from "lucide-react";
 import { SwapDialog } from "@/components/assets/SwapDialog";
 import { useElyraAuth } from "@/components/providers/PrivyClientProvider";
+import { AgentList, Problem } from "@/components/rails/AgentList";
+import { GetPaid } from "@/components/rails/GetPaid";
 import { PaymentDialog } from "@/components/rails/PaymentDialog";
 import { DrawerCard, StatusDot } from "@/components/shell/RouteDrawer";
-import { Button, buttonVariants } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonRows } from "@/components/portfolio/primitives";
-import { useCopy } from "@/lib/clipboard";
 import { formatRelativeTime, formatUsd } from "@/lib/format";
-import { MANDATE_KIND_LABEL, MANDATE_KINDS, type AgentWithMandate, type IntentView, type LedgerEvent, type MandateKind, type PaymentRequestView, type RailsResponse } from "@/lib/rails/types";
+import type { AgentWithMandate, IntentKind, IntentView, LedgerEvent, RailsResponse } from "@/lib/rails/types";
 import { useRails, type RailsFeed } from "@/lib/rails/useRails";
 import { txExplorerUrl } from "@/lib/solana/address";
 import { useAuthedFetch } from "@/lib/useAuthedFetch";
@@ -20,37 +20,28 @@ import { useMinute } from "@/lib/useClock";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
 import { msg } from "@/lib/i18n/translate";
-import type { Translator } from "@/lib/i18n/translate";
 
 /* ---------------------------------------------------------------------------
    Agents: where the person decides what their AI agents may do with their
-   money, and answers what the agents ask for.
+   money, and answers what the agents ask for. One drawer, top to bottom:
+
+     the permission model, in a sentence or two;
+     Waiting for you — what agents asked for, with the review controls;
+     Your agents — each key and its mandate (components/rails/AgentList);
+     Get paid — a USDC request to the person's wallet (GetPaid);
+     Agent activity — every ask, its outcome and the recorded reason;
+     Ledger — the hash chain of all of it, verified, and its CSV.
 
    An agent holds an Elyra key (made in Connections), never a wallet key. A
    mandate here says what that key may ask for and how much; every ask is
    decided against it and lands in "Waiting for you" or, refused, in the
    activity with the reason. A swap or a payment is signed in the person's
    own wallet; a perp order runs on approval, or at once when the mandate
-   lets it. Payment requests let an agent — or the person — be paid in USDC.
-   The ledger is the record of all of it, hash-chained and exportable.
+   lets it.
 
    An agent's stated reason is its own text: shown as text, labelled as the
    agent's, and never acted on.
 --------------------------------------------------------------------------- */
-
-const field = cn(
-  "type-data h-[var(--control-h)] w-full min-w-0 rounded-control border border-border-subtle bg-surface-base px-3",
-  "text-text-primary outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
-);
-
-function Problem({ text }: { text: string | null }) {
-  if (text === null) return null;
-  return (
-    <p role="alert" className="type-label rounded-card border border-negative/40 bg-negative-bg px-3 py-2 text-negative">
-      {text}
-    </p>
-  );
-}
 
 const STATUS_WORD: Record<IntentView["status"], string> = {
   pending: msg("Needs your review"),
@@ -59,8 +50,36 @@ const STATUS_WORD: Record<IntentView["status"], string> = {
   rejected: msg("Refused by the mandate"),
   declined: msg("You declined"),
   expired: msg("Lapsed"),
-  failed: "Failed",
+  failed: msg("Failed"),
 };
+
+/** How each outcome looks: an icon and a tone as well as its word, so none is told by colour alone. */
+const OUTCOME: Record<IntentView["status"], { icon: LucideIcon; tone: string }> = {
+  pending: { icon: Clock, tone: "text-caution" },
+  approved: { icon: Clock, tone: "text-caution" },
+  executed: { icon: Check, tone: "text-positive" },
+  rejected: { icon: ShieldX, tone: "text-negative" },
+  declined: { icon: X, tone: "text-text-secondary" },
+  expired: { icon: Clock, tone: "text-text-muted" },
+  failed: { icon: AlertTriangle, tone: "text-negative" },
+};
+
+const KIND_WORD: Record<IntentKind, string> = {
+  swap: msg("Swap"),
+  payment: msg("Payment"),
+  perp_order: msg("Perp order"),
+};
+
+function Outcome({ status }: { status: IntentView["status"] }) {
+  const t = useT();
+  const { icon: Icon, tone } = OUTCOME[status];
+  return (
+    <span className={cn("type-label inline-flex shrink-0 items-center gap-1", tone)}>
+      <Icon size={12} strokeWidth={2} aria-hidden />
+      {t(STATUS_WORD[status])}
+    </span>
+  );
+}
 
 /* ---- waiting for you ---- */
 
@@ -81,12 +100,14 @@ function IntentCard({ intent, feed, now, onSign }: { intent: IntentView; feed: R
 
   return (
     <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="type-body-sm min-w-0 font-medium text-text-primary">{intent.summary}</span>
-        {intent.usdValue !== null && <span className="type-data-sm shrink-0 text-text-secondary">{formatUsd(intent.usdValue)}</span>}
+      <div className="flex items-center gap-2">
+        <span className="type-label min-w-0 truncate text-text-secondary">{intent.agent}</span>
+        <span className="type-label inline-flex h-6 shrink-0 items-center rounded-chip border border-border-subtle px-2 text-text-secondary">{t(KIND_WORD[intent.kind])}</span>
+        {intent.usdValue !== null && <span className="type-data-sm ml-auto shrink-0 tabular-nums text-text-primary">{formatUsd(intent.usdValue)}</span>}
       </div>
+      <p className="type-body-sm font-medium text-text-primary">{intent.summary}</p>
       <p className="type-label text-text-muted">
-        {intent.agent} · {t(STATUS_WORD[intent.status])}
+        {t(STATUS_WORD[intent.status])}
         {minutesLeft !== null && <>{" "}{t("· lapses in")}{" "}{minutesLeft <= 1 ? t("a minute") : t("{minutesLeft} min", { minutesLeft })}</>}
       </p>
       {intent.memo !== null && (
@@ -153,7 +174,10 @@ function Waiting({ data, feed, now }: { data: RailsResponse; feed: RailsFeed; no
   return (
     <DrawerCard icon={Inbox} title={t("Waiting for you")} right={waiting.length > 0 ? <StatusDot tone="caution">{waiting.length}</StatusDot> : undefined}>
       {waiting.length === 0 ? (
-        <p className="type-body-sm text-text-secondary">{t("Nothing is waiting. When an agent asks for something inside its mandate, it appears here and you are notified.")}</p>
+        <div className="flex flex-col gap-0.5">
+          <p className="type-body-sm text-text-primary">{t("No pending requests.")}</p>
+          <p className="type-label text-text-muted">{t("When an agent asks for something inside its mandate, it appears here and you are notified.")}</p>
+        </div>
       ) : (
         <ul className="flex flex-col divide-y divide-border-subtle">
           {waiting.map((intent) => (
@@ -194,350 +218,6 @@ function Waiting({ data, feed, now }: { data: RailsResponse; feed: RailsFeed; no
   );
 }
 
-/* ---- agents and their mandates ---- */
-
-function MandateForm({ agent, feed, onDone }: { agent: AgentWithMandate; feed: RailsFeed; onDone: () => void }) {
-  const t = useT();
-  const current = agent.mandate;
-  const [kinds, setKinds] = useState<MandateKind[]>(current?.kinds ?? ["swap", "payment_request"]);
-  const [perIntent, setPerIntent] = useState(String(current?.perIntentUsd ?? 50));
-  const [daily, setDaily] = useState(String(current?.dailyUsd ?? 200));
-  const [assets, setAssets] = useState((current?.assets ?? []).join(", "));
-  const [payees, setPayees] = useState((current?.payees ?? []).join("\n"));
-  const [autoPerps, setAutoPerps] = useState(current?.autoPerps ?? false);
-  const [livePerps, setLivePerps] = useState(current?.livePerps ?? false);
-  const [days, setDays] = useState("30");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const id = agent.keyId.slice(0, 8);
-  const toggle = (kind: MandateKind) => setKinds((list) => (list.includes(kind) ? list.filter((entry) => entry !== kind) : [...list, kind]));
-
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    const result = await feed.write("/api/rails/mandates", "POST", {
-      keyId: agent.keyId,
-      kinds,
-      perIntentUsd: Number(perIntent),
-      dailyUsd: Number(daily),
-      assets: assets.trim().length === 0 ? null : assets,
-      payees,
-      autoPerps,
-      livePerps,
-      expiresInDays: days === "none" ? null : Number(days),
-    });
-    setBusy(false);
-    if (result.error !== null) setError(result.error);
-    else onDone();
-  };
-
-  return (
-    <div className="mt-3 flex flex-col gap-3 rounded-card border border-border-subtle bg-surface-base p-3">
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className="type-label mb-1 text-text-secondary">{t("It may ask to")}</legend>
-        {MANDATE_KINDS.map((kind) => (
-          <label key={kind} className="type-body-sm flex items-center gap-2 text-text-primary">
-            <input type="checkbox" checked={kinds.includes(kind)} onChange={() => toggle(kind)} />
-            {MANDATE_KIND_LABEL[kind]}
-          </label>
-        ))}
-      </fieldset>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1">
-          <span className="type-label text-text-secondary">{t("Per transaction ($)")}</span>
-          <input id={`per-${id}`} inputMode="decimal" className={field} value={perIntent} onChange={(event) => setPerIntent(event.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="type-label text-text-secondary">{t("Per day ($)")}</span>
-          <input inputMode="decimal" className={field} value={daily} onChange={(event) => setDaily(event.target.value)} />
-        </label>
-      </div>
-      <label className="flex flex-col gap-1">
-        <span className="type-label text-text-secondary">{t("Only these assets (optional)")}</span>
-        <input className={field} value={assets} onChange={(event) => setAssets(event.target.value)} placeholder={t("Any — or e.g. SOL, USDC, BTC")} />
-      </label>
-      {kinds.includes("payment") && (
-        <label className="flex flex-col gap-1">
-          <span className="type-label text-text-secondary">{t("Only these payees (optional, one Solana address a line)")}</span>
-          <textarea
-            rows={3}
-            className={cn(field, "h-auto py-2 font-mono")}
-            value={payees}
-            onChange={(event) => setPayees(event.target.value)}
-            placeholder={t("Any payee that passes sanctions screening")}
-          />
-        </label>
-      )}
-      {kinds.includes("perp_order") && (
-        <div className="flex flex-col gap-1.5">
-          <label className="type-body-sm flex items-start gap-2 text-text-primary">
-            <input type="checkbox" className="mt-1" checked={autoPerps} onChange={(event) => setAutoPerps(event.target.checked)} />
-            <span>
-              {t("Let perp orders inside these limits run without my review")}
-              <span className="type-label block text-text-muted">{t("Through your Hyperliquid trading key, which can trade and cannot withdraw.")}</span>
-            </span>
-          </label>
-          <label className="type-body-sm flex items-start gap-2 text-text-primary">
-            <input type="checkbox" className="mt-1" checked={livePerps} onChange={(event) => setLivePerps(event.target.checked)} />
-            <span>
-              {t("Allow live perp orders")}
-              <span className="type-label block text-text-muted">{t("Otherwise they are paper only. Live also needs your trading key approved on Automation.")}</span>
-            </span>
-          </label>
-        </div>
-      )}
-      <label className="flex flex-col gap-1">
-        <span className="type-label text-text-secondary">{t("Ends")}</span>
-        <select className={field} value={days} onChange={(event) => setDays(event.target.value)}>
-          <option value="7">{t("In 7 days")}</option>
-          <option value="30">{t("In 30 days")}</option>
-          <option value="90">{t("In 90 days")}</option>
-          <option value="none">{t("When I revoke it")}</option>
-        </select>
-      </label>
-      <p className="type-label text-text-muted">
-        {t("Swaps and payments always come to you to sign in your own wallet. Every payee is screened against the OFAC sanctions list. Saving replaces this agent’s current mandate and is recorded in your ledger.")}
-      </p>
-      <div className="flex gap-2">
-        <Button size="sm" variant="accent" disabled={busy || kinds.length === 0} onClick={() => void save()}>
-          {busy ? t("Saving") : current === null ? t("Grant mandate") : t("Save mandate")}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onDone}>
-          {t("Cancel")}
-        </Button>
-      </div>
-      <Problem text={error} />
-    </div>
-  );
-}
-
-/** What a mandate lets an agent ask for, in a line. Proper nouns keep their capitals. */
-const KIND_SHORT: Record<MandateKind, string> = {
-  swap: msg("swap on Solana"),
-  payment: msg("pay in USDC"),
-  perp_order: msg("trade Hyperliquid perps"),
-  payment_request: msg("ask to be paid"),
-};
-
-/** "ends in 27 days" — a mandate's end is ahead of it, which a relative-time label does not say. */
-function endsIn(expiresAt: string, now: number, t: Translator): string {
-  const days = Math.ceil((Date.parse(expiresAt) - now) / 86_400_000);
-  return days <= 0 ? t("ended") : days === 1 ? t("ends within a day") : t("ends in {days} days", { days });
-}
-
-function mandateLine(agent: AgentWithMandate, t: Translator): string {
-  const mandate = agent.mandate;
-  if (mandate === null) return t("Reads only. No mandate: it cannot ask for any transaction.");
-  const kinds = mandate.kinds.map((kind) => t(KIND_SHORT[kind])).join(t.locale === "zh-CN" ? "、" : ", ");
-  const line = t("May {kinds} · up to {each} each, {daily} a day", {
-    kinds,
-    each: formatUsd(mandate.perIntentUsd, { decimals: 0 }),
-    daily: formatUsd(mandate.dailyUsd, { decimals: 0 }),
-  });
-  return mandate.autoPerps ? `${line} · ${t("perps run without review")}` : line;
-}
-
-function AgentRow({ agent, feed, now }: { agent: AgentWithMandate; feed: RailsFeed; now: number | null }) {
-  const t = useT();
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const mandate = agent.mandate;
-  const used = mandate === null ? 0 : Math.min(1, agent.spentTodayUsd / mandate.dailyUsd);
-
-  const revoke = async () => {
-    if (mandate === null) return;
-    setBusy(true);
-    const result = await feed.write(`/api/rails/mandates/${mandate.id}`, "DELETE");
-    setBusy(false);
-    setError(result.error);
-  };
-
-  return (
-    <li className="py-3 first:pt-0 last:pb-0">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="type-body-sm min-w-0 truncate font-medium text-text-primary">{agent.name}</span>
-        {mandate === null ? <StatusDot tone="muted">{t("Read only")}</StatusDot> : <StatusDot tone="positive">{t("Mandate")}</StatusDot>}
-      </div>
-      <p className="type-label mt-0.5 text-text-secondary">{mandateLine(agent, t)}</p>
-      <p className="type-label mt-0.5 text-text-muted">
-        <span className="type-mono-addr">{agent.prefix}…</span>
-        {agent.lastUsedAt !== null && now !== null && <>{" "}{t("· used {lastUsedAt}", { lastUsedAt: formatRelativeTime(agent.lastUsedAt, now, t.locale) })}</>}
-        {mandate?.expiresAt !== null && mandate?.expiresAt !== undefined && now !== null && <> · {endsIn(mandate.expiresAt, now, t)}</>}
-      </p>
-      {mandate !== null && (
-        <div className="mt-2 flex items-center gap-2" aria-label={t("{spentTodayUsd} of {dailyUsd} used today", { spentTodayUsd: formatUsd(agent.spentTodayUsd), dailyUsd: formatUsd(mandate.dailyUsd, { decimals: 0 }) })}>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-pill bg-surface-hover">
-            <div className="h-full rounded-pill bg-accent" style={{ width: `${(used * 100).toFixed(1)}%` }} />
-          </div>
-          <span className="type-data-sm shrink-0 text-text-muted">
-            {t("{spentTodayUsd} / {dailyUsd} today", { spentTodayUsd: formatUsd(agent.spentTodayUsd), dailyUsd: formatUsd(mandate.dailyUsd, { decimals: 0 }) })}
-          </span>
-        </div>
-      )}
-      {!editing && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button size="xs" variant="quiet" onClick={() => setEditing(true)}>
-            {mandate === null ? t("Grant a mandate") : t("Change mandate")}
-          </Button>
-          {mandate !== null && (
-            <Button size="xs" variant="danger" disabled={busy} onClick={() => void revoke()}>
-              {t("Revoke mandate")}
-            </Button>
-          )}
-        </div>
-      )}
-      {editing && <MandateForm agent={agent} feed={feed} onDone={() => setEditing(false)} />}
-      <Problem text={error} />
-    </li>
-  );
-}
-
-function Agents({ data, feed, now }: { data: RailsResponse; feed: RailsFeed; now: number | null }) {
-  const t = useT();
-  return (
-    <DrawerCard icon={Bot} title={t("Your agents")}>
-      {data.agents.length === 0 ? (
-        <div className="flex flex-col items-start gap-2">
-          <p className="type-body-sm text-text-secondary">
-            {t("No agents yet. Give an AI agent — Claude, ChatGPT, a bot of your own — an Elyra key in Connections, then grant it a mandate here.")}
-          </p>
-          <Link href="/agent" className={buttonVariants({ variant: "quiet", size: "sm" })}>
-            <Link2 size={14} aria-hidden />{" "}{t("Create an agent key")}
-          </Link>
-        </div>
-      ) : (
-        <ul className="flex flex-col divide-y divide-border-subtle">
-          {data.agents.map((agent) => (
-            <AgentRow key={agent.keyId} agent={agent} feed={feed} now={now} />
-          ))}
-        </ul>
-      )}
-    </DrawerCard>
-  );
-}
-
-/* ---- payment requests ---- */
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const t = useT();
-  const { state, copy } = useCopy();
-  return (
-    <Button size="xs" variant="quiet" onClick={() => void copy(text)} aria-label={label}>
-      {state === "copied" ? <Check size={12} aria-hidden /> : <Copy size={12} aria-hidden />}
-      {state === "copied" ? t("Copied") : t("Copy link")}
-    </Button>
-  );
-}
-
-function RequestRow({ request, feed, now }: { request: PaymentRequestView; feed: RailsFeed; now: number | null }) {
-  const t = useT();
-  const [busy, setBusy] = useState(false);
-  const tone = request.status === "paid" ? "positive" : request.status === "open" ? "accent" : "muted";
-  return (
-    <li className="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="type-body-sm min-w-0 truncate text-text-primary">{request.label}</span>
-        <span className="type-data-sm shrink-0 text-text-primary">{request.amount} USDC</span>
-      </div>
-      <p className="type-label flex flex-wrap items-center gap-x-2 text-text-muted">
-        <StatusDot tone={tone}>{request.status === "open" ? t("Open") : request.status === "paid" ? t("Paid") : request.status === "expired" ? t("Expired") : t("Cancelled")}</StatusDot>
-        {request.agent !== null && <span>{t("asked by {agent}", { agent: request.agent })}</span>}
-        {now !== null && <span>{formatRelativeTime(request.paidAt ?? request.createdAt, now, t.locale)}</span>}
-      </p>
-      <div className="mt-1 flex flex-wrap gap-2">
-        {request.status === "open" && <CopyButton text={request.payUrl} label={t("Copy the pay link for {label}", { label: request.label })} />}
-        {request.status === "open" && (
-          <a href={request.payUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "quiet", size: "xs" })}>
-            <ExternalLink size={12} aria-hidden />{" "}{t("Pay page")}
-          </a>
-        )}
-        {request.paidSignature !== null && (
-          <a href={txExplorerUrl(request.paidSignature)} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "quiet", size: "xs" })}>
-            <ExternalLink size={12} aria-hidden />{" "}{t("Payment on Solscan")}
-          </a>
-        )}
-        {request.status === "open" && (
-          <Button
-            size="xs"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              void feed.write(`/api/rails/requests/${request.id}`, "DELETE").finally(() => setBusy(false));
-            }}
-          >
-            {t("Cancel")}
-          </Button>
-        )}
-      </div>
-    </li>
-  );
-}
-
-function GetPaid({ data, feed, now }: { data: RailsResponse; feed: RailsFeed; now: number | null }) {
-  const t = useT();
-  const [amount, setAmount] = useState("");
-  const [label, setLabel] = useState("");
-  const [hours, setHours] = useState("24");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const create = async () => {
-    setBusy(true);
-    setError(null);
-    const result = await feed.write("/api/rails/requests", "POST", { amount, label, expiresInMinutes: Number(hours) * 60 });
-    setBusy(false);
-    if (result.error !== null) setError(result.error);
-    else {
-      setAmount("");
-      setLabel("");
-    }
-  };
-
-  return (
-    <DrawerCard icon={HandCoins} title={t("Get paid")}>
-      <div className="flex flex-col gap-3">
-        <p className="type-body-sm text-text-secondary">
-          {t("A USDC request on Solana to your own wallet, with a link and a Solana Pay code anyone can pay from any wallet. Agents with the mandate can make these too. It settles when the chain shows the payment — Elyra never holds the money.")}
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1">
-            <span className="type-label text-text-secondary">{t("Amount (USDC)")}</span>
-            <input inputMode="decimal" className={field} value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="25" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="type-label text-text-secondary">{t("Open for")}</span>
-            <select className={field} value={hours} onChange={(event) => setHours(event.target.value)}>
-              <option value="1">{t("1 hour")}</option>
-              <option value="24">{t("24 hours")}</option>
-              <option value="72">{t("3 days")}</option>
-              <option value="168">{t("7 days")}</option>
-            </select>
-          </label>
-          <label className="col-span-2 flex flex-col gap-1">
-            <span className="type-label text-text-secondary">{t("What it is for")}</span>
-            <input className={field} maxLength={80} value={label} onChange={(event) => setLabel(event.target.value)} placeholder={t("Shown to the payer")} />
-          </label>
-        </div>
-        <div>
-          <Button size="sm" variant="accent" disabled={busy || amount.trim().length === 0 || label.trim().length === 0} onClick={() => void create()}>
-            {busy ? t("Creating") : t("Create request")}
-          </Button>
-        </div>
-        <Problem text={error} />
-        {data.requests.length > 0 && (
-          <ul className="flex flex-col divide-y divide-border-subtle border-t border-border-subtle pt-3">
-            {data.requests.map((request) => (
-              <RequestRow key={request.id} request={request} feed={feed} now={now} />
-            ))}
-          </ul>
-        )}
-      </div>
-    </DrawerCard>
-  );
-}
-
 /* ---- activity ---- */
 
 function Activity({ data, now }: { data: RailsResponse; now: number | null }) {
@@ -546,32 +226,42 @@ function Activity({ data, now }: { data: RailsResponse; now: number | null }) {
   return (
     <DrawerCard icon={History} title={t("Agent activity")}>
       {decided.length === 0 ? (
-        <p className="type-body-sm text-text-secondary">{t("Nothing yet. Everything an agent asks for — done, declined or refused — is listed here, with why.")}</p>
+        <div className="flex flex-col gap-0.5">
+          <p className="type-body-sm text-text-primary">{t("No activity yet.")}</p>
+          <p className="type-label text-text-muted">{t("Everything an agent asks for — done, declined or refused — is listed here with its outcome and the reason.")}</p>
+        </div>
       ) : (
         <ul className="flex flex-col divide-y divide-border-subtle">
           {decided.map((intent) => (
             <li key={intent.id} className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="type-data-sm min-w-0 truncate text-text-primary">{intent.summary}</span>
-                <span className={cn("type-label shrink-0", intent.status === "executed" ? "text-positive" : intent.status === "rejected" || intent.status === "failed" ? "text-negative" : "text-text-muted")}>
-                  {t(STATUS_WORD[intent.status])}
-                </span>
+              <div className="flex items-start justify-between gap-2">
+                <span className="type-data-sm min-w-0 text-text-primary">{intent.summary}</span>
+                <Outcome status={intent.status} />
               </div>
-              <span className="type-label text-text-muted">
-                {intent.agent}
+              <span className="type-label tabular-nums text-text-muted">
+                {intent.agent} · {t(KIND_WORD[intent.kind])}
                 {intent.usdValue !== null && <> · {formatUsd(intent.usdValue)}</>}
                 {now !== null && <> · {formatRelativeTime(intent.createdAt, now, t.locale)}</>}
-                {intent.receipt !== null && (
-                  <>
-                    {t(" · receipt")}{" "}<span className="type-mono-addr">{intent.receipt.slice(0, 10)}</span>
-                  </>
-                )}
               </span>
-              {intent.reasons.length > 0 && <span className="type-label text-text-secondary">{intent.reasons.join(" ")}</span>}
-              {typeof intent.result?.signature === "string" && (
-                <a href={txExplorerUrl(intent.result.signature)} target="_blank" rel="noopener noreferrer" className="type-label inline-flex items-center gap-1 text-text-secondary hover:text-text-primary">
-                  <ExternalLink size={11} aria-hidden />{" "}{t("On Solscan")}
-                </a>
+              {intent.reasons.length > 0 && (
+                <span className="type-label text-text-secondary">
+                  <span className="text-text-muted">{t("Reason:")}</span> {intent.reasons.join(" ")}
+                </span>
+              )}
+              {(intent.receipt !== null || typeof intent.result?.signature === "string") && (
+                <span className="type-label flex flex-wrap items-center gap-x-2 text-text-muted">
+                  {intent.receipt !== null && (
+                    <span>
+                      {t("Receipt")} <span className="type-mono-addr">{intent.receipt.slice(0, 10)}</span>
+                    </span>
+                  )}
+                  {typeof intent.result?.signature === "string" && (
+                    <a href={txExplorerUrl(intent.result.signature)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-text-secondary hover:text-text-primary">
+                      <ExternalLink size={11} aria-hidden />
+                      {t("On Solscan")}
+                    </a>
+                  )}
+                </span>
               )}
             </li>
           ))}
@@ -590,8 +280,8 @@ const EVENT_WORD: Record<string, string> = {
   "intent.approved": msg("You approved"),
   "intent.declined": msg("You declined"),
   "intent.executed": msg("Carried out"),
-  "intent.failed": "Failed",
-  "intent.expired": "Lapsed",
+  "intent.failed": msg("Failed"),
+  "intent.expired": msg("Lapsed"),
   "request.created": msg("Payment request made"),
   "request.settled": msg("Payment received"),
   "request.expired": msg("Request expired"),
@@ -608,11 +298,13 @@ function actorName(actor: string, agents: AgentWithMandate[]): string {
 function Ledger({ data, now }: { data: RailsResponse; now: number | null }) {
   const t = useT();
   const authedFetch = useAuthedFetch();
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { verification, events } = data.ledger;
 
   /* The export carries the session's token, so it is fetched, not linked. */
   const download = async () => {
+    setBusy(true);
     setError(null);
     try {
       const response = await authedFetch("/api/rails/ledger?format=csv");
@@ -625,6 +317,8 @@ function Ledger({ data, now }: { data: RailsResponse; now: number | null }) {
       URL.revokeObjectURL(url);
     } catch {
       setError(t("The ledger could not be exported just now."));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -636,19 +330,21 @@ function Ledger({ data, now }: { data: RailsResponse; now: number | null }) {
     >
       <div className="flex flex-col gap-3">
         <p className="type-body-sm text-text-secondary">
-          {t("Every mandate, every request an agent sent and what became of it, every payment — in order, each event sealed with the SHA-256 of the one before.")}
+          {t("A chained history of every mandate, request, outcome and payment, each event sealed with the SHA-256 of the one before.")}
           {verification.ok && verification.count > 0 && (
             <>
-              {t(" {count} events; head", { count: verification.count })}{" "}<span className="type-mono-addr">{verification.head.slice(0, 12)}</span>.
+              {" "}
+              {verification.count === 1 ? t("1 event, verified;") : t("{count} events, verified;", { count: verification.count })}{" "}
+              {t("head")} <span className="type-mono-addr">{verification.head.slice(0, 12)}</span>.
             </>
           )}
           {!verification.ok && <> {verification.reason}</>}
         </p>
         {events.length > 0 && (
-          <ol className="flex flex-col divide-y divide-border-subtle rounded-card border border-border-subtle">
+          <ol className="flex flex-col divide-y divide-border-subtle rounded-card border border-border-subtle bg-surface-base">
             {events.slice(0, 15).map((event: LedgerEvent) => (
               <li key={event.seq} className="grid grid-cols-[auto_1fr_auto] items-baseline gap-2 px-2.5 py-1.5">
-                <span className="type-data-sm text-text-muted">#{event.seq}</span>
+                <span className="type-data-sm tabular-nums text-text-muted">#{event.seq}</span>
                 <span className="type-data-sm min-w-0 truncate text-text-primary">
                   {t(EVENT_WORD[event.event] ?? event.event)}
                   <span className="text-text-muted"> · {t(actorName(event.actor, data.agents))}</span>
@@ -659,8 +355,9 @@ function Ledger({ data, now }: { data: RailsResponse; now: number | null }) {
           </ol>
         )}
         <div>
-          <Button size="sm" variant="quiet" onClick={() => void download()}>
-            <Download size={14} aria-hidden />{" "}{t("Export CSV")}
+          <Button size="sm" variant="quiet" disabled={busy} onClick={() => void download()}>
+            <Download size={14} aria-hidden />
+            {busy ? t("Exporting…") : t("Export CSV")}
           </Button>
         </div>
         <Problem text={error} />
@@ -702,10 +399,10 @@ export function RailsView() {
   return (
     <>
       <p className="type-body-sm px-1 text-text-secondary">
-        {t("Your agents ask; you decide. Each holds an Elyra key, never a wallet key. A mandate sets what it may ask for and how much; every ask is held to it, and nothing moves without your signature — except perp orders you let run.")}
+        {t("Each agent uses an Elyra key, never a wallet key. Its mandate limits which actions it can request and for how much. Swaps and payments are signed in your own wallet; perp orders need your approval, unless you let them run inside the mandate.")}
       </p>
       <Waiting data={data} feed={feed} now={now} />
-      <Agents data={data} feed={feed} now={now} />
+      <AgentList data={data} feed={feed} now={now} />
       <GetPaid data={data} feed={feed} now={now} />
       <Activity data={data} now={now} />
       <Ledger data={data} now={now} />

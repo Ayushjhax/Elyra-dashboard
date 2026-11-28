@@ -183,7 +183,8 @@ function ConnectionCards() {
         <BinanceCard state={exchanges} feed={feed} onChanged={exchangesChanged} />
       </section>
 
-      <section aria-labelledby={agentsId} className="flex flex-col gap-3 pt-2">
+      {/* A stable id: Agents' "Create an agent key" links here (components/rails/AgentList). */}
+      <section id="agent-keys" aria-labelledby={agentsId} className="flex scroll-mt-4 flex-col gap-3 pt-2">
         <h2 id={agentsId} className="type-eyebrow px-1 text-text-muted">
           {t("AI agents")}
         </h2>

@@ -1,4 +1,5 @@
 import { LIMITS, marketFor } from "@/lib/autotrade/rules";
+import { englishTranslator, type Translator } from "@/lib/i18n/translate";
 import type { FundAction, FundCharter, FundMode, FundStatus } from "@/lib/funds/types";
 
 /* ---------------------------------------------------------------------------
@@ -70,48 +71,52 @@ const between = (value: unknown, min: number, max: number): value is number =>
 
 const MAX = FUND_LIMITS;
 
-/** A charter as typed, checked against the limits, or what is wrong with it in words. */
-export function validateCharter(input: Record<string, unknown>): { charter: FundCharter } | { error: string } {
+/**
+ * A charter as typed, checked against the limits, or what is wrong with it in
+ * words. `t` words the refusal for the reader; the server passes none and
+ * keeps the English.
+ */
+export function validateCharter(input: Record<string, unknown>, t: Translator = englishTranslator): { charter: FundCharter } | { error: string } {
   const name = typeof input.name === "string" ? input.name.trim() : "";
-  if (name.length === 0) return { error: "Name the fund." };
-  if (name.length > MAX.maxNameChars) return { error: `A fund's name is at most ${MAX.maxNameChars} characters.` };
+  if (name.length === 0) return { error: t("Name the fund.") };
+  if (name.length > MAX.maxNameChars) return { error: t("A fund's name is at most {max} characters.", { max: MAX.maxNameChars }) };
 
   const objective = typeof input.objective === "string" ? input.objective.trim() : "";
-  if (objective.length === 0) return { error: "Write the manager's brief: what the fund is for and how it should trade." };
-  if (objective.length > MAX.maxObjectiveChars) return { error: `The brief is at most ${MAX.maxObjectiveChars.toLocaleString("en-US")} characters.` };
+  if (objective.length === 0) return { error: t("Write the manager's brief: what the fund is for and how it should trade.") };
+  if (objective.length > MAX.maxObjectiveChars) return { error: t("The brief is at most {max} characters.", { max: MAX.maxObjectiveChars.toLocaleString("en-US") }) };
 
-  if (!Array.isArray(input.markets) || input.markets.length === 0) return { error: "Choose at least one market." };
+  if (!Array.isArray(input.markets) || input.markets.length === 0) return { error: t("Choose at least one market.") };
   const markets: string[] = [];
   for (const entry of input.markets) {
     const market = marketFor(entry);
-    if (market === null) return { error: `${String(entry).slice(0, 20)} is not one of Elyra's markets.` };
+    if (market === null) return { error: t("{market} is not one of Elyra's markets.", { market: String(entry).slice(0, 20) }) };
     if (!markets.includes(market.coin)) markets.push(market.coin);
   }
-  if (markets.length > MAX.maxMarkets) return { error: `A fund trades at most ${MAX.maxMarkets} markets.` };
+  if (markets.length > MAX.maxMarkets) return { error: t("A fund trades at most {max} markets.", { max: MAX.maxMarkets }) };
 
   if (!between(input.maxPositionPct, MAX.minPositionPct, MAX.maxPositionPct)) {
-    return { error: `The largest position must be ${MAX.minPositionPct}% to ${MAX.maxPositionPct}% of NAV.` };
+    return { error: t("The largest position must be {min}% to {max}% of NAV.", { min: MAX.minPositionPct, max: MAX.maxPositionPct }) };
   }
   if (!between(input.maxGrossExposure, 0.1, MAX.maxGrossExposure)) {
-    return { error: `Gross exposure must be 0.1× to ${MAX.maxGrossExposure}× NAV.` };
+    return { error: t("Gross exposure must be 0.1× to {max}× NAV.", { max: MAX.maxGrossExposure }) };
   }
   if (!between(input.maxLeverage, 1, MAX.maxLeverage) || !Number.isInteger(input.maxLeverage)) {
-    return { error: `Leverage must be a whole number from 1 to ${MAX.maxLeverage}.` };
+    return { error: t("Leverage must be a whole number from 1 to {max}.", { max: MAX.maxLeverage }) };
   }
   if (!between(input.maxPositions, 1, MAX.maxPositions) || !Number.isInteger(input.maxPositions)) {
-    return { error: `Open positions must be a whole number from 1 to ${MAX.maxPositions}.` };
+    return { error: t("Open positions must be a whole number from 1 to {max}.", { max: MAX.maxPositions }) };
   }
   if (!between(input.maxDrawdownPct, MAX.minDrawdownPct, MAX.maxDrawdownPct)) {
-    return { error: `The drawdown limit must be ${MAX.minDrawdownPct}% to ${MAX.maxDrawdownPct}%.` };
+    return { error: t("The drawdown limit must be {min}% to {max}%.", { min: MAX.minDrawdownPct, max: MAX.maxDrawdownPct }) };
   }
   if (!between(input.dailyLossPct, MAX.minDailyLossPct, MAX.maxDailyLossPct)) {
-    return { error: `The daily loss limit must be ${MAX.minDailyLossPct}% to ${MAX.maxDailyLossPct}%.` };
+    return { error: t("The daily loss limit must be {min}% to {max}%.", { min: MAX.minDailyLossPct, max: MAX.maxDailyLossPct }) };
   }
   if ((input.dailyLossPct as number) > (input.maxDrawdownPct as number)) {
-    return { error: "The daily loss limit cannot be larger than the drawdown limit." };
+    return { error: t("The daily loss limit cannot be larger than the drawdown limit.") };
   }
   if ((input.maxPositionPct as number) / 100 > (input.maxGrossExposure as number)) {
-    return { error: "One position cannot be larger than the fund's whole gross exposure. Raise exposure or lower the position size." };
+    return { error: t("One position cannot be larger than the fund's whole gross exposure. Raise exposure or lower the position size.") };
   }
 
   return {

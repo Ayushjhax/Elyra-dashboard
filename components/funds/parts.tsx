@@ -8,9 +8,12 @@ import { useT } from "@/lib/i18n/client";
 
 /* Small pieces the Funds pages share. Every colour is a brand token. */
 
+/* Inputs take --border-strong (brand doc 1.3). Focus is the global
+   :focus-visible ring (app/globals.css), which a utility cannot override —
+   a ring here as well would draw two. */
 export const field = cn(
-  "type-data h-[var(--control-h)] w-full min-w-0 rounded-control border border-border-subtle bg-surface-base px-3",
-  "text-text-primary outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-focus-ring",
+  "type-data h-[var(--control-h)] w-full min-w-0 rounded-control border border-border-strong bg-surface-base px-3",
+  "text-text-primary placeholder:text-text-muted",
 );
 
 export function Problem({ text }: { text: string | null }) {

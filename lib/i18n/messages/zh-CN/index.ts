@@ -35,6 +35,7 @@ import { portfolioOverview } from "./portfolioOverview";
 import { backpackStocks } from "./backpackStocks";
 import { tradingWorkspace } from "./tradingWorkspace";
 import { automationDrawer } from "./automationDrawer";
+import { agentsDrawer } from "./agentsDrawer";
 
 /* ---------------------------------------------------------------------------
    Simplified Chinese.
@@ -59,6 +60,7 @@ export const zhCN: Messages = {
   ...backpackStocks,
   ...tradingWorkspace,
   ...automationDrawer,
+  ...agentsDrawer,
   ...agent,
   ...arena,
   ...assets,

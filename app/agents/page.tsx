@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function AgentsPage() {
   return (
-    <RouteDrawer label={msg("Agents")} icon={<ShieldCheck size={28} strokeWidth={1.5} />} title={msg("Agents")} subtitle={msg("What your AI agents may do with your money")}>
+    <RouteDrawer tone="graphite" label={msg("Agents")} icon={<ShieldCheck size={28} strokeWidth={1.5} />} title={msg("Agents")} subtitle={msg("Permissions and requests")}>
       <RailsView />
     </RouteDrawer>
   );
